@@ -447,7 +447,8 @@ public sealed class GraphSource(
     {
         var addresses = graph.Nodes.SelectMany(node => node.GraphAddresses).Distinct().ToList();
         var accounts = graph.Nodes.SelectMany(node => node.Accounts).Distinct().ToList();
-        var labelled = LabelKnownContracts(@case, accounts);
+        var labelled = LabelKnownContracts(@case, accounts)
+            + CheckLists(@case, [.. addresses.Select(address => address.ToChainAddress()), .. accounts]);
         var shared = 0;
         if (library is not null)
         {
@@ -502,6 +503,42 @@ public sealed class GraphSource(
         {
             // The same, but unexpected: only the type is logged, since the message could name the case's data.
             Trace.TraceWarning("Labelling the known contracts failed: {0}", exception.GetType().FullName);
+            return 0;
+        }
+    }
+
+    /// <summary>
+    /// Checks the graph's addresses on both chains against the imported sanction lists (OFAC SDN and the EU's) and
+    /// open sources (Ransomwhere), so that an address that comes in with an expansion is labelled the moment it is in
+    /// the case, and a list imported while a case is open is applied the next time its graph is read. Nothing is
+    /// fetched: the lists are files on this computer.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="addresses">The graph's addresses on every chain.</param>
+    /// <returns>How many labels were added.</returns>
+    private int CheckLists(ICase @case, IReadOnlyCollection<ChainAddress> addresses)
+    {
+        if (addresses.Count == 0)
+        {
+            return 0;
+        }
+
+        try
+        {
+            return attribution.CheckSanctions(@case, addresses).Added.Count
+                + attribution.CheckOpenSources(@case, addresses).Added.Count;
+        }
+        catch (Exception exception) when (exception is CaseException or SanctionListException
+            or OpenSourceListException or IOException or UnauthorizedAccessException)
+        {
+            // A closed case, a list that has lost its hash or one that cannot be read must never keep the graph
+            // from being shown; a changed list is said when it is imported, and the check runs at the next reading.
+            return 0;
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException and not OperationCanceledException)
+        {
+            // The same, but unexpected: only the type is logged, since the message could name the case's data.
+            Trace.TraceWarning("Checking the lists failed: {0}", exception.GetType().FullName);
             return 0;
         }
     }

@@ -125,7 +125,8 @@ public interface IAttributionService
         ICase @case, IReadOnlyCollection<ChainAddress> addresses);
 
     /// <summary>
-    /// Checks addresses against the current sanction list (<see cref="ISanctionLists.Current"/>) and labels each hit
+    /// Checks addresses against every current sanction list (<see cref="ISanctionLists.CurrentLists"/>: OFAC SDN and
+    /// the EU's list) and labels each hit
     /// <see cref="LabelKind.Sanctioned"/> in the case, with the list's hash and date as the origin and one line in the
     /// journal. A hit already labelled from the same list, also one taken back, is not labelled again.
     /// </summary>
@@ -143,6 +144,27 @@ public interface IAttributionService
     /// <param name="addresses">The addresses.</param>
     /// <returns>What was checked and labelled.</returns>
     SanctionCheck CheckSanctions(ICase @case, IReadOnlyCollection<EthereumAddress> addresses);
+
+    /// <summary>
+    /// Checks addresses on any chain against the sanction lists, each on its own chain as the overloads for Bitcoin
+    /// and Ethereum do; an address on a chain the lists are not read for is passed over. Used when the graph is read
+    /// or expanded, so that an address that comes in is checked the moment it is in the case.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="addresses">The addresses, each with its chain.</param>
+    /// <returns>What was checked and labelled, both chains together.</returns>
+    SanctionCheck CheckSanctions(ICase @case, IReadOnlyCollection<ChainAddress> addresses);
+
+    /// <summary>
+    /// Checks addresses against every imported open source (<see cref="IOpenSourceLists.CurrentLists"/>) and labels
+    /// each hit with what the source says, sealed with the source's name, licence, date and hash as the origin
+    /// (<see cref="LabelSource.OpenSource"/>) and one line in the journal. A hit already labelled from the same file,
+    /// also one taken back, is not labelled again. What an open source says is a judgement, never a fact.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="addresses">The addresses, each with its chain.</param>
+    /// <returns>What was checked and labelled.</returns>
+    OpenSourceCheck CheckOpenSources(ICase @case, IReadOnlyCollection<ChainAddress> addresses);
 }
 
 /// <summary>What a check against the sanction list found.</summary>

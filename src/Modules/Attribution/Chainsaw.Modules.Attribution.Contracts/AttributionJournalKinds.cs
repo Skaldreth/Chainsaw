@@ -15,6 +15,15 @@ public static class AttributionJournalKinds
     /// <summary>Addresses were checked against a sanction list and hits were labelled.</summary>
     public const string SanctionsMatched = "attribution.sanctions-matched";
 
+    /// <summary>Addresses were found in an imported open source (Ransomwhere) and labelled.</summary>
+    public const string OpenSourcesMatched = "attribution.open-sources-matched";
+
+    /// <summary>A label was set on a transaction, for example a known swap or bridge.</summary>
+    public const string TransactionLabelAdded = "attribution.transaction-label-added";
+
+    /// <summary>A label on a transaction was taken back.</summary>
+    public const string TransactionLabelRetracted = "attribution.transaction-label-retracted";
+
     /// <summary>Addresses were found on Chainsaw's list of known contracts and labelled.</summary>
     public const string KnownContractsMatched = "attribution.known-contracts-matched";
 

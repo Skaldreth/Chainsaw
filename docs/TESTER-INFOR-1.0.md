@@ -817,6 +817,11 @@ ansluten utgång.
 - Samma kurs hämtas inte två gånger: två uppslag för samma timme ger bara ett nytt svar i ärendet.
 - Utan utgång: en kurs som redan är hämtad visas ur ärendet, och en ny säger *Offline* utan att något går ut.
 - Många tx på en gång (en graf med tx över flera månader) ger inga fel 429 från Riksbanken.
+- **Före källans historik (omgång 5):** en tx från 2010 (före Bitstamps historik) får *– kr*, och hovring säger att
+  perioden ligger före källans historik och att svaret är sparat. Öppna grafen igen: inget nytt svar hämtas för samma
+  timme (räkna svaren under Inställningar › Kurser, *Sparas i ärendet*). Detsamma för en dag före Riksbankens serie.
+- **Riksbankens dygnsgräns över omstarter:** `%LOCALAPPDATA%\Chainsaw\Kurser\riksbank-requests.json` har dagens
+  datum och antalet uppslag till Riksbanken, och räknas vidare efter en omstart samma dag.
 
 ### Källor: fel som toast
 
@@ -1651,6 +1656,30 @@ analysen med version och att det är en bedömning; *?* öppnar Guidens avsnitt.
   ärenden med samma adresser.
 - `%LOCALAPPDATA%\Chainsaw\Etiketter\bibliotek.bin` går inte att läsa i en texteditor (krypterad).
 - `/verify` är grönt efter etiketter, tillbakatagningar och etiketter från andra ärenden.
+
+### EU:s lista, Ransomwhere och sanktionskontrollen vid en expansion (omgång 5, 2026-11-08)
+
+- **EU:s lista:** hämta EU:s konsoliderade lista över finansiella sanktioner i XML från kommissionens FSF-portal
+  (*1.1 XML*, filen börjar med `<export … generationDate=…>`) och välj den med Nytt → *Importera sanktionslista …*.
+  Svaret säger *EU FSF publicerad <datum> är importerad* med antalet adresser (det kan vara 0: EU:s lista har ingen
+  egen sort för kryptoadresser, och Chainsaw känner bara igen en Bitcoin-adress med giltig kontrollsumma eller
+  `0x` och 40 hextecken i en identifiering eller en anmärkning). Filen ligger orörd som `eu-fsf-<sha256>.xml` i
+  `%LOCALAPPDATA%\Chainsaw\Sanktionslistor`, bredvid OFAC:s.
+- **Båda listorna gäller:** importera OFAC:s lista och EU:s lista; en adress som står på båda får två etiketter, en
+  per lista, och journalens rad nämner båda. En nyare OFAC-lista tar inte EU:s plats, eller tvärtom.
+- **Kontrollen vid en expansion:** importera en lista medan ett ärende är öppet och expandera (eller öppna grafen
+  igen): en adress på listan som kommer in får *Sanktionerad* direkt, på båda kedjorna, utan att ärendet skapas om.
+  Inget går ut på nätet för det.
+- **Ransomwhere (öppen källa):** hämta `ransomwhere.json` från Zenodo (post 13999026, CC BY 4.0) och välj den med
+  samma menyrad (filväljaren visar nu *.xml och *.json). Svaret säger *Ransomwhere med data till <datum> är
+  importerad: … adresser (CC BY 4.0, Jack Cable, Ransomwhere (ransomwhe.re)). En öppen källa, inte en
+  sanktionslista.* Filen ligger i `%LOCALAPPDATA%\Chainsaw\Öppna källor`. En adress ur filen som kommer in i grafen
+  får etiketten *Rapporterad* (*Ransomware: <familj>*), och *Varför?* säger källan, licensen, datumet, hashen och att
+  det är en bedömning.
+- **En trasig beskrivning:** ändra en `.json` bredvid en sanktionslista till skräp och starta om; listan står kvar i
+  listan (beskrivningen skrivs om ur själva listan) i stället för att försvinna. En lista som läggs i mappen utanför
+  Chainsaw märks utan omstart.
+- `/verify` är grönt efter träffar på EU:s lista och i Ransomwhere.
 
 ### Vyn Etiketter (ET1a)
 

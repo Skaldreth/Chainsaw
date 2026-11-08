@@ -595,19 +595,19 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
     /// </returns>
     private string SanctionTip(ChainStartPoint startPoint)
     {
-        SanctionMatch? match;
+        IReadOnlyList<SanctionMatch> matches;
         Func<string, bool> onChain;
         try
         {
             // The same hits the case is labelled with when it is created (IAttributionService.CheckSanctions).
             if (startPoint.Bitcoin?.Address is { } bitcoin)
             {
-                match = _sanctions.Find(bitcoin);
+                matches = _sanctions.FindAll(bitcoin);
                 onChain = currency => currency == SanctionCurrency.Bitcoin;
             }
             else if (startPoint.EthereumAccount is { } ethereum)
             {
-                match = _sanctions.Find(ethereum);
+                matches = _sanctions.FindAll(ethereum);
                 onChain = SanctionCurrency.OnEthereum.Contains;
             }
             else
@@ -621,8 +621,11 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
             return string.Empty;
         }
 
-        var hit = match?.Hits.FirstOrDefault(each => onChain(each.Currency));
-        if (match is null || hit is null)
+        // Every current list is looked on (OFAC SDN and the EU's); the first that names the address is shown.
+        var (list, hit) = matches
+            .SelectMany(match => match.Hits.Where(each => onChain(each.Currency)).Select(each => (match.List, each)))
+            .FirstOrDefault();
+        if (list is null || hit is null)
         {
             return string.Empty;
         }
@@ -630,7 +633,7 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
         var listedAs = hit.Currency is SanctionCurrency.Bitcoin or SanctionCurrency.Ether
             ? string.Empty
             : $" (listad som {hit.Currency})";
-        return $"Sanktionerad enligt {match.List.Name} {match.List.PublishDate:yyyy-MM-dd} · {hit.EntryName}{listedAs}"
+        return $"Sanktionerad enligt {list.Name} {list.PublishDate:yyyy-MM-dd} · {hit.EntryName}{listedAs}"
             + " · en uppgift ur en öppen källa";
     }
 }

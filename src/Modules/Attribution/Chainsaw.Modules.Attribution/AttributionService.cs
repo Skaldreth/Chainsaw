@@ -12,9 +12,13 @@ namespace Chainsaw.Modules.Attribution;
 /// <summary>The labels in a case, sealed with their origins (see <see cref="IAttributionService"/>).</summary>
 /// <param name="clustering">Clustering, asked which cluster an address is in for labels on clusters.</param>
 /// <param name="sanctions">The imported sanction lists.</param>
+/// <param name="openSources">The imported open sources.</param>
 /// <param name="profiles">The operator profile, to see whether the operator already set the same label.</param>
 internal sealed class AttributionService(
-    IClusteringService clustering, ISanctionLists sanctions, IOperatorProfileStore profiles) : IAttributionService
+    IClusteringService clustering,
+    ISanctionLists sanctions,
+    IOpenSourceLists openSources,
+    IOperatorProfileStore profiles) : IAttributionService
 {
     /// <inheritdoc/>
     public LabelEntry Add(ICase @case, LabelDraft draft)
@@ -270,7 +274,8 @@ internal sealed class AttributionService(
         ArgumentNullException.ThrowIfNull(addresses);
         // Each hit keeps the list it was found on, so that a list imported meanwhile is never named for it.
         var matches = addresses.Distinct()
-            .Select(address => (Address: address.ToChainAddress(), Match: sanctions.Find(address)))
+            .SelectMany(address => sanctions.FindAll(address)
+                .Select(match => (Address: address.ToChainAddress(), Match: (SanctionMatch?)match)))
             .ToList();
         return CheckSanctions(@case, matches, currency => currency == OfacSdnParser.BitcoinCurrency);
     }
@@ -281,9 +286,37 @@ internal sealed class AttributionService(
         ArgumentNullException.ThrowIfNull(@case);
         ArgumentNullException.ThrowIfNull(addresses);
         var matches = addresses.Distinct()
-            .Select(address => (Address: address.ToChainAddress(), Match: sanctions.Find(address)))
+            .SelectMany(address => sanctions.FindAll(address)
+                .Select(match => (Address: address.ToChainAddress(), Match: (SanctionMatch?)match)))
             .ToList();
         return CheckSanctions(@case, matches, SanctionCurrency.OnEthereum.Contains);
+    }
+
+    /// <inheritdoc/>
+    public SanctionCheck CheckSanctions(ICase @case, IReadOnlyCollection<ChainAddress> addresses)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(addresses);
+        var bitcoin = new List<BitcoinAddress>();
+        var ethereum = new List<EthereumAddress>();
+        foreach (var address in addresses)
+        {
+            if (address.Chain == Chain.Bitcoin && BitcoinAddress.TryParse(address.Value, out var parsed))
+            {
+                bitcoin.Add(parsed);
+            }
+            else if (address.Chain == Chain.Ethereum && EthereumAddress.TryParse(address.Value, out var account))
+            {
+                ethereum.Add(account);
+            }
+        }
+
+        var onBitcoin = bitcoin.Count == 0 ? null : CheckSanctions(@case, bitcoin);
+        var onEthereum = ethereum.Count == 0 ? null : CheckSanctions(@case, ethereum);
+        return new SanctionCheck(
+            onEthereum?.List ?? onBitcoin?.List ?? sanctions.Current,
+            [.. onBitcoin?.Added ?? [], .. onEthereum?.Added ?? []],
+            (onBitcoin?.AlreadyLabelled ?? 0) + (onEthereum?.AlreadyLabelled ?? 0));
     }
 
     /// <summary>
@@ -305,8 +338,9 @@ internal sealed class AttributionService(
         }
 
         var list = matches[^1].Match!.List;
-        var lists = string.Join(", ", matches.Select(found => found.Match!.List).DistinctBy(used => used.Sha256)
-            .Select(used => used.Version));
+        var used = matches.Select(found => found.Match!.List).DistinctBy(each => each.Sha256).ToList();
+        var lists = string.Join(", ", used.Select(each => $"{each.Name} {each.Version}"));
+        var names = string.Join(" och ", used.Select(each => each.Name).Distinct(StringComparer.Ordinal));
         var hits = matches
             .SelectMany(found => found.Match!.Hits
                 .Where(hit => onChain(hit.Currency))
@@ -326,7 +360,10 @@ internal sealed class AttributionService(
                     Origin: SanctionOriginId(found.List, found.Hit, found.Address)))
                 .Where(found => !stored.Has(
                     LabelStore.Key(
-                        found.Origin, LabelSubject.ForAccount(found.Address), LabelKind.Sanctioned, found.Hit.EntryName),
+                        found.Origin,
+                        LabelSubject.ForAccount(found.Address),
+                        LabelKind.Sanctioned,
+                        found.Hit.EntryName),
                     LabelSource.SanctionList))
                 .ToList();
             if (drafts.Count == 0)
@@ -340,14 +377,15 @@ internal sealed class AttributionService(
                     CultureInfo.InvariantCulture,
                     "{0} adresser på {1} ({2})",
                     drafts.Count,
-                    list.Name,
+                    names,
                     lists),
                 JsonSerializer.Serialize(new
                 {
-                    list = list.Name,
+                    list = names,
                     hits = drafts.Select(found => new
                     {
                         address = found.Address.Value,
+                        list = found.List.Name,
                         uid = found.Hit.EntryUid,
                         sha256 = found.List.Sha256,
                         published = found.List.PublishDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
@@ -359,6 +397,104 @@ internal sealed class AttributionService(
                 .ToList();
             return new SanctionCheck(list, added, hits.Count - drafts.Count);
         });
+    }
+
+    /// <inheritdoc/>
+    public OpenSourceCheck CheckOpenSources(ICase @case, IReadOnlyCollection<ChainAddress> addresses)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(addresses);
+        var lists = openSources.CurrentLists;
+        if (lists.Count == 0 || addresses.Count == 0)
+        {
+            return new OpenSourceCheck(lists, [], 0);
+        }
+
+        var hits = addresses.Distinct()
+            .SelectMany(address => openSources.Find(address))
+            .SelectMany(match => match.Hits.Select(hit => (match.List, Hit: hit)))
+            .ToList();
+        if (hits.Count == 0)
+        {
+            return new OpenSourceCheck(lists, [], 0);
+        }
+
+        return @case.Write(transaction =>
+        {
+            var stored = LabelStore.Read(transaction);
+            var drafts = hits
+                .Select(found => (found.List, found.Hit, Origin: OpenSourceOriginId(found.List, found.Hit)))
+                .Where(found => !stored.Has(
+                    LabelStore.Key(
+                        found.Origin, LabelSubject.ForAccount(found.Hit.Address), found.Hit.Kind, found.Hit.Name),
+                    LabelSource.OpenSource))
+                .ToList();
+            if (drafts.Count == 0)
+            {
+                return new OpenSourceCheck(lists, [], hits.Count);
+            }
+
+            var used = drafts.Select(found => found.List).DistinctBy(each => each.Sha256).ToList();
+            var journal = transaction.AppendJournal(new JournalDraft(
+                AttributionJournalKinds.OpenSourcesMatched,
+                string.Format(
+                    CultureInfo.InvariantCulture,
+                    "{0} adresser i öppna källor ({1})",
+                    drafts.Count,
+                    string.Join(", ", used.Select(each => $"{each.Name} {each.Version}"))),
+                JsonSerializer.Serialize(new
+                {
+                    hits = drafts.Select(found => new
+                    {
+                        address = found.Hit.Address.Value,
+                        chain = found.Hit.Address.Chain.ToString(),
+                        source = found.List.Name,
+                        sha256 = found.List.Sha256,
+                        name = found.Hit.Name,
+                    }),
+                })));
+            var added = drafts
+                .Select(found => LabelStore.Seal(
+                    transaction, OpenSourceLabel(found.List, found.Hit, found.Origin, journal), journal))
+                .ToList();
+            return new OpenSourceCheck(lists, added, hits.Count - drafts.Count);
+        });
+    }
+
+    /// <summary>Gives the stable origin of an open source's hit: the file's hash, the address and the name.</summary>
+    /// <param name="list">The source.</param>
+    /// <param name="hit">What it says.</param>
+    /// <returns>The origin id.</returns>
+    private static string OpenSourceOriginId(OpenSourceListInfo list, OpenSourceEntry hit) =>
+        $"open/{list.Sha256}/{hit.Address.Chain}/{hit.Address.Value}/{hit.Name}";
+
+    /// <summary>Gives the label for a hit in an open source.</summary>
+    /// <param name="list">The source.</param>
+    /// <param name="hit">What it says.</param>
+    /// <param name="originId">The origin id.</param>
+    /// <param name="journal">The journal entry that records it.</param>
+    /// <returns>The label, not sealed yet.</returns>
+    private static LabelEntry OpenSourceLabel(
+        OpenSourceListInfo list, OpenSourceEntry hit, string originId, JournalEntry journal)
+    {
+        var reason = string.Format(
+            CultureInfo.InvariantCulture,
+            "Adressen står i {0} som {1}. Datamängden ({2}) bygger på rapporter, så det är en bedömning, " +
+            "inte ett faktum.",
+            list.Name,
+            hit.Detail,
+            list.License);
+        var origin = new LabelOrigin(
+            originId,
+            LabelSource.OpenSource,
+            LabelSource.OpenSource,
+            list.Name,
+            list.Version,
+            journal.Operator,
+            journal.Utc,
+            reason,
+            null);
+        return new LabelEntry(0, LabelSubject.ForAccount(hit.Address), hit.Kind, hit.Name, origin, false, 0);
     }
 
     /// <summary>Gives Bitcoin addresses as addresses with their chain.</summary>
@@ -411,6 +547,36 @@ internal sealed class AttributionService(
     private static string SanctionOriginId(SanctionListInfo list, SanctionedAddress hit, ChainAddress address) =>
         $"sanction/{list.Sha256}/{hit.EntryUid}/{address.Value}";
 
+    /// <summary>
+    /// Says why a hit is labelled, in the list's own terms: on OFAC's list the address is a
+    /// <em>Digital Currency Address</em> with its code; on the EU's list, which has no such type, it was recognised by
+    /// its form where it stood on the entry.
+    /// </summary>
+    /// <param name="list">The list.</param>
+    /// <param name="hit">The entry's address.</param>
+    /// <returns>The reason, in Swedish.</returns>
+    private static string SanctionReason(SanctionListInfo list, SanctionedAddress hit)
+    {
+        var programs = hit.Programs.Count == 0 ? "inget program angivet" : string.Join(", ", hit.Programs);
+        return list.Name == EuFsfParser.ListName
+            ? string.Format(
+                CultureInfo.InvariantCulture,
+                "Adressen står i {0} på EU:s konsoliderade lista över finansiella sanktioner för {1} " +
+                "(EU-referens {2}, {3}). Listan har ingen egen sort för kryptoadresser; Chainsaw kände igen " +
+                "adressen på dess form.",
+                hit.ListedAs ?? "posten",
+                hit.EntryName,
+                hit.EntryUid,
+                programs)
+            : string.Format(
+                CultureInfo.InvariantCulture,
+                "Adressen står på listan som Digital Currency Address - {0} för {1} (uid {2}, {3}).",
+                hit.Currency,
+                hit.EntryName,
+                hit.EntryUid,
+                programs);
+    }
+
     /// <summary>Gives the label for a hit on the list.</summary>
     /// <param name="list">The list.</param>
     /// <param name="hit">The entry's address.</param>
@@ -421,14 +587,6 @@ internal sealed class AttributionService(
     private static LabelEntry SanctionLabel(
         SanctionListInfo list, SanctionedAddress hit, ChainAddress address, string originId, JournalEntry journal)
     {
-        var programs = hit.Programs.Count == 0 ? "inget program angivet" : string.Join(", ", hit.Programs);
-        var reason = string.Format(
-            CultureInfo.InvariantCulture,
-            "Adressen står på listan som Digital Currency Address - {0} för {1} (uid {2}, {3}).",
-            hit.Currency,
-            hit.EntryName,
-            hit.EntryUid,
-            programs);
         var origin = new LabelOrigin(
             originId,
             LabelSource.SanctionList,
@@ -437,7 +595,7 @@ internal sealed class AttributionService(
             list.Version,
             journal.Operator,
             journal.Utc,
-            reason,
+            SanctionReason(list, hit),
             null);
         return new LabelEntry(
             0, LabelSubject.ForAccount(address), LabelKind.Sanctioned, hit.EntryName, origin, false, 0);

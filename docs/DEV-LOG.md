@@ -4145,3 +4145,44 @@ topp.
     syns bara som *Onödig input*. `payjoin v1` noterar utan veto, så ett ärende stänger av vetot genom att dra
     tillbaka version 2. Tester åt båda hållen: en riktig PayJoin blir förslag, granskarens prob (bedragaren som betalar
     en börs från tre insättningar) och en vanlig plånboks betalning med ett extra mynt slås ihop.
+
+## Omgång 5: attribution och kurser (backloggen, 2026-11-08)
+
+- **EU:s konsoliderade lista** (`EuFsfParser`): läses ur en sparad FSF-fil i XML (`export` med `sanctionEntity`)
+  bredvid OFAC:s SDN-lista, med genereringsdatumet som listans datum, och sparas orörd som `eu-fsf-<sha256>.xml`.
+  **Eget beslut:** EU:s lista har ingen egen sort för kryptoadresser (kontrollerat mot den publicerade strukturen),
+  så en adress känns igen på formen, en Bitcoin-adress med giltig kontrollsumma eller `0x` och 40 hextecken, i en
+  identifierings nummer eller i en anmärkning, och etikettens skäl säger var den stod och att den känts igen på
+  formen. Listan kan sakna adresser helt; det sägs ärligt i TESTER-INFOR.
+- **Varje sorts lista har sin aktuella** (`ISanctionLists.CurrentLists`, `FindAll`): en adress slås upp på alla, så
+  en nyare OFAC-lista skuggar aldrig EU:s. `Current` och `Find` finns kvar för den nyaste listan, och de nya
+  medlemmarna har standardimplementationer så att andras attrapper fortsätter att fungera. Journalens rad nämner alla
+  listor träffarna kom från.
+- **Fynden i appdata (etapp 8, M5 och M6):** `Remove` (utan yta, TODO [skiss]), en trasig beskrivning skrivs om ur
+  listan i stället för att listan försvinner, ändringar utanför Chainsaw märks på mappens ändringstid, och en post
+  läses del för del med ett tak på 20 000 delar (`SanctionXml.Parts`), så en konstruerad post kan inte fylla minnet.
+- **Öppna källor** (`IOpenSourceLists`, `RansomwhereParser`): granskade för licens och kvalitet. Ransomwhere ligger
+  på Zenodo under CC BY 4.0 och byggs in; varje träff blir *Rapporterad* (`Ransomware: <familj>`) med
+  `LabelSource.OpenSource`, källans datum och hash som version och licensen i skälet. WalletExplorer (inga villkor)
+  och OpenSanctions (icke-kommersiellt) byggs inte in; det står i BACKLOG.
+- **Sanktionskontroll vid en expansion, båda kedjorna:** `GraphSource` kontrollerar grafens adresser mot listorna och
+  de öppna källorna varje gång grafen läses eller expanderas (`CheckSanctions` för `ChainAddress`,
+  `CheckOpenSources`), så en adress som kommer in märks direkt, och en lista som importeras medan ärendet är öppet
+  gäller vid nästa läsning. Ett fel i en lista hindrar aldrig grafen.
+- **Etiketter på tx** (`ITransactionLabels`): förseglas i en egen hashkedja (`attribution.transaction_labels`, schema
+  steg 4, så att adressetiketterna behåller sina hashar), tas tillbaka som en ny post, och `LabelTrailEnds`
+  avslutar spåret vid en märkt Bitcoin-tx efter samma regler som för adresser. Ingen yta än (TODO [skiss]).
+- **Importen** (`SanctionListImport`): samma menyrad tar en JSON-fil som öppen källa och säger det i svaret;
+  filväljaren visar `*.xml;*.json`.
+- **Kurser:** ett svar som kom efter att perioden var slut och saknar kurs (före Bitstamps eller Riksbankens historik)
+  pekas ut som slutligt och besvaras ur ärendet utan att frågas igen, med ett svar som säger det; bara ett lyckat svar
+  (2xx) kan bli ett sådant. Riksbankens dygnsgräns räknas över omstarter i `Kurser\riksbank-requests.json`
+  (`PricingOptions.StateDirectory`).
+- **Avsteg och kvar:** fler tokens (TRX och USDT på TRON väntar på TRON-agentens kedja), en andra kryptokälla och
+  Riksbankens nyckel i valvet står kvar i BACKLOG. Det gemensamma lagret för råsvar bedömdes och sköts upp (BACKLOG,
+  med skälen). Testärendet visar inte omgångens delar än (BACKLOG, [direkt]).
+- **Skriver i ärendet** (granskas oberoende): träffar på EU:s lista och i öppna källor förseglas som etiketter med
+  journalrad (`attribution.sanctions-matched`, `attribution.open-sources-matched`), etiketter på tx i en ny
+  förseglad tabell (`attribution.transaction-label-added`, `-retracted`), grafens läsning skriver nu träffar, och
+  Pricing pekar ut svar utan kurs i registret (oförseglat, som förut, men läst bara när det förseglade svaret är
+  lyckat och kom efter perioden).

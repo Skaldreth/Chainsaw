@@ -5,8 +5,10 @@ using Chainsaw.SharedKernel.Commands;
 namespace Chainsaw.App.ViewModels;
 
 /// <summary>
-/// Importera sanktionslista … in the menu Nytt: the user picks a saved SDN list and Attribution keeps it with its
-/// hash and dates (etapp 8). Nothing is fetched: the list is read from the file the user chose.
+/// Importera sanktionslista … in the menu Nytt: the user picks a saved list and Attribution keeps it with its hash and
+/// dates (etapp 8): a sanction list in XML (OFAC's SDN list or the EU's consolidated list), or an open source in JSON
+/// (Ransomwhere), told apart by the file's first character. Nothing is fetched: the list is read from the file the user
+/// chose.
 /// </summary>
 public sealed class SanctionListImport
 {
@@ -19,13 +21,18 @@ public sealed class SanctionListImport
     /// <summary>The dialog that asks for the file.</summary>
     private readonly IFilePicker _picker;
 
+    /// <summary>The imported open sources, or <see langword="null"/> where none can be imported.</summary>
+    private readonly IOpenSourceLists? _openSources;
+
     /// <summary>Creates the import.</summary>
     /// <param name="lists">The imported sanction lists, in Attribution.</param>
     /// <param name="picker">The dialog that asks for the file.</param>
-    public SanctionListImport(ISanctionLists lists, IFilePicker picker)
+    /// <param name="openSources">The imported open sources, in Attribution; none where they cannot be imported.</param>
+    public SanctionListImport(ISanctionLists lists, IFilePicker picker, IOpenSourceLists? openSources = null)
     {
         _lists = lists;
         _picker = picker;
+        _openSources = openSources;
     }
 
     /// <summary>
@@ -45,10 +52,13 @@ public sealed class SanctionListImport
 
         try
         {
-            var (list, known) = await Task.Run(() => Import(path));
-            return CommandReply.Done(Describe(list, known));
+            return CommandReply.Done(await Task.Run(() => Import(path)));
         }
         catch (SanctionListException exception)
+        {
+            return CommandReply.Failed(Explain(exception.Error));
+        }
+        catch (OpenSourceListException exception)
         {
             return CommandReply.Failed(Explain(exception.Error));
         }
@@ -79,12 +89,43 @@ public sealed class SanctionListImport
         return $"{list.Name} publicerad {date} {state}: {total} adresser, {bitcoin} för Bitcoin.{skipped}";
     }
 
+    /// <summary>
+    /// Says what an imported open source holds: its name, the date of its data, its addresses and licence.
+    /// </summary>
+    /// <param name="source">The source.</param>
+    /// <param name="known">Whether Chainsaw already had the same file.</param>
+    /// <returns>
+    /// The text, e.g. <c>Ransomwhere med data till 2024-10-27 är importerad: 11 178 adresser (CC BY 4.0, …).</c>
+    /// </returns>
+    public static string Describe(OpenSourceListInfo source, bool known = false)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        var total = source.AddressesByChain.Values.Sum();
+        var date = source.DataDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        var state = known ? "fanns redan" : "är importerad";
+        return $"{source.Name} med data till {date} {state}: {total} adresser ({source.License}). " +
+            "En öppen källa, inte en sanktionslista.";
+    }
+
+    /// <summary>Says why a file could not be imported as an open source.</summary>
+    /// <param name="error">The reason.</param>
+    /// <returns>The Swedish text shown above the command bar.</returns>
+    public static string Explain(OpenSourceListError error) => error switch
+    {
+        OpenSourceListError.NotKnown => "Filen är ingen öppen källa som Chainsaw läser (Ransomwhere i JSON).",
+        OpenSourceListError.NoDate => "Källan säger inte hur ny datan är, så dess ursprung går inte att ange.",
+        OpenSourceListError.TooLarge => "Filen är för stor för att vara en öppen källa.",
+        OpenSourceListError.Tampered => "En sparad öppen källa har inte längre sin hash.",
+        _ => "Den öppna källan gick inte att läsa.",
+    };
+
     /// <summary>Says why a file could not be imported.</summary>
     /// <param name="error">The reason.</param>
     /// <returns>The Swedish text shown above the command bar.</returns>
     public static string Explain(SanctionListError error) => error switch
     {
-        SanctionListError.NotSdnList => "Filen är inte en SDN-lista i XML.",
+        SanctionListError.NotSdnList =>
+            "Filen är ingen sanktionslista som Chainsaw läser (OFAC:s SDN-lista eller EU:s lista i XML).",
         SanctionListError.NoPublishDate =>
             "Listan säger inte när den publicerades, så dess ursprung går inte att ange.",
         SanctionListError.TooLarge => "Filen är för stor för att vara en sanktionslista.",
@@ -93,14 +134,50 @@ public sealed class SanctionListImport
         _ => "Sanktionslistan gick inte att läsa.",
     };
 
-    /// <summary>Reads the file and hands it to Attribution.</summary>
+    /// <summary>Reads the file and hands it to Attribution, as a sanction list or as an open source.</summary>
     /// <param name="path">The file's path.</param>
-    /// <returns>What the list holds, and whether Chainsaw already had the same file.</returns>
-    private (SanctionListInfo List, bool Known) Import(string path)
+    /// <returns>What the list holds, said for the bar.</returns>
+    private string Import(string path)
     {
-        var before = _lists.List().Select(other => other.Sha256).ToHashSet(StringComparer.Ordinal);
         using var stream = File.OpenRead(path);
+        if (_openSources is { } openSources && IsJson(stream))
+        {
+            var known = openSources.List().Select(other => other.Sha256).ToHashSet(StringComparer.Ordinal);
+            var source = openSources.Import(stream);
+            return Describe(source, known.Contains(source.Sha256));
+        }
+
+        var before = _lists.List().Select(other => other.Sha256).ToHashSet(StringComparer.Ordinal);
         var list = _lists.Import(stream);
-        return (list, before.Contains(list.Sha256));
+        return Describe(list, before.Contains(list.Sha256));
+    }
+
+    /// <summary>
+    /// Says whether a file is JSON: its first character after white space and a byte order mark is a bracket. The
+    /// stream is put back at its start.
+    /// </summary>
+    /// <param name="stream">The file, at its start.</param>
+    /// <returns><see langword="true"/> when it starts with <c>[</c> or <c>{</c>.</returns>
+    private static bool IsJson(Stream stream)
+    {
+        try
+        {
+            int read;
+            while ((read = stream.ReadByte()) >= 0)
+            {
+                if (read is ' ' or '\t' or '\r' or '\n' or 0xEF or 0xBB or 0xBF)
+                {
+                    continue;
+                }
+
+                return read is '[' or '{';
+            }
+
+            return false;
+        }
+        finally
+        {
+            stream.Position = 0;
+        }
     }
 }

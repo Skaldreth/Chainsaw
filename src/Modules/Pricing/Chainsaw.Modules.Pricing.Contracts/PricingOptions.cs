@@ -26,8 +26,8 @@ public sealed record PricingOptions
 
     /// <summary>
     /// Gets the shortest time between two requests to the Riksbank, which allows 5 anonymous requests a minute from one
-    /// IP address; 12 seconds by default. It guards only that limit: the limit of 1 000 a day is counted separately,
-    /// since Chainsaw started, and computers that share an exit share both limits without knowing it.
+    /// IP address; 12 seconds by default. It guards only that limit: the limit of 1 000 a day is counted separately
+    /// (see <see cref="StateDirectory"/>), and computers that share an exit share both limits without knowing it.
     /// </summary>
     public TimeSpan RiksbankInterval { get; init; } = TimeSpan.FromSeconds(12);
 
@@ -37,6 +37,13 @@ public sealed record PricingOptions
     /// filled with sealed errors; five minutes by default. The answer meanwhile says so, and nothing is sent.
     /// </summary>
     public TimeSpan FailureCooldown { get; init; } = TimeSpan.FromMinutes(5);
+
+    /// <summary>
+    /// Gets the application's data folder, where the number of requests to the Riksbank today is kept so that its
+    /// daily limit is counted across restarts (<c>Kurser</c> under it); <see langword="null"/>, the default, counts
+    /// only while Chainsaw runs. The application uses <c>%LOCALAPPDATA%\Chainsaw</c>.
+    /// </summary>
+    public string? StateDirectory { get; init; }
 
     /// <summary>Gets the base address of Bitstamp's public API.</summary>
     public Uri BitstampBaseUri { get; init; } = new("https://www.bitstamp.net/api/v2/");

@@ -517,7 +517,7 @@ public sealed class ShellSubmenuTests
             var reply = await rig.Sanctions.ImportAsync();
 
             Assert.True(reply!.IsError);
-            Assert.Equal("Filen är inte en SDN-lista i XML.", reply.Text);
+            Assert.StartsWith("Filen är ingen sanktionslista som Chainsaw läser", reply.Text, StringComparison.Ordinal);
         }
         finally
         {

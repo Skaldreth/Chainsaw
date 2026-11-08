@@ -3,24 +3,36 @@ using Chainsaw.Modules.Chains.Contracts;
 namespace Chainsaw.Modules.Attribution.Contracts;
 
 /// <summary>
-/// The sanction lists the user has imported. A list is read from a saved file (OFAC's SDN list as XML), never fetched
-/// by Chainsaw, and is kept unchanged in the application data folder with its SHA-256 and dates, so that every hit can
-/// be followed back to the exact file it came from.
+/// The sanction lists the user has imported. A list is read from a saved file (OFAC's SDN list as XML, or the EU's
+/// consolidated list of financial sanctions as XML), never fetched by Chainsaw, and is kept unchanged in the
+/// application data folder with its SHA-256 and dates, so that every hit can be followed back to the exact file it came
+/// from. Each kind of list has its own current list, the one with the latest date, and an address is looked up on all
+/// of them.
 /// </summary>
 /// <remarks>The methods read and write files; call them off the UI thread. They are thread-safe.</remarks>
 public interface ISanctionLists
 {
-    /// <summary>Gets the list hits are taken from: the one with the latest publish date, or none.</summary>
+    /// <summary>
+    /// Gets the newest current list (see <see cref="CurrentLists"/>), the one with the latest publish date of any kind,
+    /// or none; the list <see cref="Find(BitcoinAddress)"/> looks on.
+    /// </summary>
     SanctionListInfo? Current { get; }
 
     /// <summary>
-    /// Imports the SDN list from a file the user saved. The file's bytes are kept as they are; importing the same
-    /// file again changes nothing.
+    /// Gets the list hits are taken from for each kind of list (OFAC SDN, EU FSF): the one of that kind with the latest
+    /// publish date, the newest first. By default only <see cref="Current"/>.
+    /// </summary>
+    IReadOnlyList<SanctionListInfo> CurrentLists => Current is { } current ? [current] : [];
+
+    /// <summary>
+    /// Imports a sanction list from a file the user saved: OFAC's SDN list (<c>sdn.xml</c>) or the EU's consolidated
+    /// list (the FSF file in XML), told apart by the file's content. The file's bytes are kept as they are; importing
+    /// the same file again changes nothing.
     /// </summary>
     /// <param name="content">The file's content.</param>
     /// <returns>What the list holds.</returns>
     /// <exception cref="SanctionListException">
-    /// The file is not an SDN list Chainsaw can read, or it says it was published after today.
+    /// The file is not a list Chainsaw can read, or it says it was published after today.
     /// </exception>
     SanctionListInfo Import(Stream content);
 
@@ -28,7 +40,7 @@ public interface ISanctionLists
     /// <returns>The lists.</returns>
     IReadOnlyList<SanctionListInfo> List();
 
-    /// <summary>Finds an address on the current list.</summary>
+    /// <summary>Finds an address on the newest current list (<see cref="Current"/>).</summary>
     /// <param name="address">The address.</param>
     /// <returns>
     /// The list and the entries that name the address, or <see langword="null"/> when no list is imported.
@@ -50,6 +62,33 @@ public interface ISanctionLists
     /// <see cref="SanctionListError.Tampered"/> when the stored file no longer has its hash.
     /// </exception>
     SanctionMatch? Find(EthereumAddress address);
+
+    /// <summary>Finds an address on every current list (<see cref="CurrentLists"/>).</summary>
+    /// <param name="address">The address.</param>
+    /// <returns>One match per current list, also those without hits; empty when no list is imported.</returns>
+    /// <exception cref="SanctionListException">
+    /// <see cref="SanctionListError.Tampered"/> when a stored file no longer has its hash.
+    /// </exception>
+    IReadOnlyList<SanctionMatch> FindAll(BitcoinAddress address) => Find(address) is { } match ? [match] : [];
+
+    /// <summary>
+    /// Finds an Ethereum address on every current list, as <see cref="Find(EthereumAddress)"/> does on one.
+    /// </summary>
+    /// <param name="address">The address.</param>
+    /// <returns>One match per current list, also those without hits; empty when no list is imported.</returns>
+    /// <exception cref="SanctionListException">
+    /// <see cref="SanctionListError.Tampered"/> when a stored file no longer has its hash.
+    /// </exception>
+    IReadOnlyList<SanctionMatch> FindAll(EthereumAddress address) => Find(address) is { } match ? [match] : [];
+
+    /// <summary>
+    /// Removes an imported list from the data folder, for example one with a wrong date that would stay current
+    /// (the review of etapp 8, M5). Labels already sealed in cases keep the list's hash and date; the file is gone
+    /// from this computer.
+    /// </summary>
+    /// <param name="sha256">The list's <see cref="SanctionListInfo.Sha256"/>.</param>
+    /// <returns><see langword="false"/> when no such list is stored.</returns>
+    bool Remove(string sha256) => false;
 }
 
 /// <summary>The currency codes a sanction list writes, as Chainsaw reads them.</summary>
@@ -58,7 +97,9 @@ public static class SanctionCurrency
     /// <summary>The code OFAC's SDN list gives Bitcoin addresses.</summary>
     public const string Bitcoin = "XBT";
 
-    /// <summary>The code OFAC's SDN list gives ether addresses.</summary>
+    /// <summary>
+    /// The code OFAC's SDN list gives ether addresses; an Ethereum address on the EU's list is read with it.
+    /// </summary>
     public const string Ether = "ETH";
 
     /// <summary>
@@ -74,7 +115,7 @@ public static class SanctionCurrency
 }
 
 /// <summary>An imported sanction list.</summary>
-/// <param name="Name">The list's name, <c>OFAC SDN</c>.</param>
+/// <param name="Name">The list's name, <c>OFAC SDN</c> or <c>EU FSF</c>.</param>
 /// <param name="Sha256">The SHA-256 of the file's bytes, in lower-case hex.</param>
 /// <param name="PublishDate">The date the list says it was published.</param>
 /// <param name="ImportedUtc">When it was imported, in UTC.</param>
@@ -98,13 +139,24 @@ public sealed record SanctionListInfo(
 }
 
 /// <summary>One digital currency address on a sanction list.</summary>
-/// <param name="Currency">The currency code, for example <c>XBT</c> for Bitcoin.</param>
+/// <param name="Currency">
+/// The currency code, for example <c>XBT</c> for Bitcoin; on the EU's list, which has no codes, the code of the chain
+/// whose form the address has.
+/// </param>
 /// <param name="Address">The address as the list writes it.</param>
-/// <param name="EntryUid">The list entry's uid.</param>
+/// <param name="EntryUid">The list entry's uid; on the EU's list its EU reference number.</param>
 /// <param name="EntryName">The entry's name: the person or the entity.</param>
 /// <param name="Programs">The sanction programmes the entry is listed under.</param>
 public sealed record SanctionedAddress(
-    string Currency, string Address, string EntryUid, string EntryName, IReadOnlyList<string> Programs);
+    string Currency, string Address, string EntryUid, string EntryName, IReadOnlyList<string> Programs)
+{
+    /// <summary>
+    /// Gets where on the entry the address stood when the list has no type of its own for it (the EU's list: an
+    /// identification's type, or a remark); <see langword="null"/> on OFAC's list, where it is a
+    /// <em>Digital Currency Address</em>.
+    /// </summary>
+    public string? ListedAs { get; init; }
+}
 
 /// <summary>An address looked up on a list.</summary>
 /// <param name="List">The list.</param>
@@ -114,7 +166,7 @@ public sealed record SanctionMatch(SanctionListInfo List, IReadOnlyList<Sanction
 /// <summary>Why a sanction list could not be imported or read.</summary>
 public enum SanctionListError
 {
-    /// <summary>The file is not XML in the SDN list's form.</summary>
+    /// <summary>The file is not XML in the form of a list Chainsaw reads (OFAC's SDN list or the EU's list).</summary>
     NotSdnList,
 
     /// <summary>The list does not say when it was published, so its origin cannot be stated.</summary>
@@ -161,7 +213,7 @@ public sealed class SanctionListException : Exception
     /// <returns>An English message for logs; the user interface shows its own Swedish text.</returns>
     private static string MessageFor(SanctionListError error) => error switch
     {
-        SanctionListError.NotSdnList => "The file is not an SDN list in XML.",
+        SanctionListError.NotSdnList => "The file is not a sanction list Chainsaw can read.",
         SanctionListError.NoPublishDate => "The list does not state its publish date.",
         SanctionListError.TooLarge => "The file is too large to be a sanction list.",
         SanctionListError.Tampered => "A stored sanction list no longer has its hash.",

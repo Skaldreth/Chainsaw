@@ -154,6 +154,14 @@ byggt ur BACKLOG; det som skriver i ärendet granskas oberoende.
   adressförgiftning, ett svep till Sydbörsens hot wallet och en möjlig PayJoin behöver läggas in i berättelsen
   (`TestStoryChain`) med stegen som hämtar dem [direkt].
 
+**Ur omgång 5 (attribution och kurser), väntar på en yta** [skiss]:
+- **Etikett på en tx:** `ITransactionLabels` finns (förseglad, tas tillbaka, avslutar spåret vid en märkt Bitcoin-tx),
+  men ingen knapp. Var den sätts (ikonlisten vid tx:ens linje eller swap-pillret, en ruta som IN1b) och hur den syns
+  i grafen (en markering på linjen) skissas.
+- **Listorna på datorn:** en rad per importerad sanktionslista och öppen källa (namn, datum, hash, antal adresser,
+  licens) med *Ta bort …* (`Remove` finns), till exempel på sidan Källor under *Etiketter* eller i vyn Etiketter; och
+  menyraden *Importera sanktionslista …* tar nu också Ransomwhere, så den kan behöva heta *Importera lista …*.
+
 **Beslutat 2026-11-08** (står i CLAUDE.md): spårningen genom en swap (förvalet följer värdet, utredaren väljer per
 swap; valet i pillret skissas [skiss]), VPN i bakgrunden (byggs i omgång 3) och metoderna för privacy coins
 (omgång 9). **LIFO och poison** väntar på kryptospåraren (`docs/KRYPTOSPARAREN.md`, fråga 1).

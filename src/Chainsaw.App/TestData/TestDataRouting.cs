@@ -197,6 +197,24 @@ public sealed class TestDataSanctionLists(ISanctionLists inner, TestActors actor
 
     /// <inheritdoc/>
     public SanctionMatch? Find(EthereumAddress address) => inner.Find(address);
+
+    /// <inheritdoc/>
+    public IReadOnlyList<SanctionListInfo> CurrentLists => inner.CurrentLists;
+
+    /// <inheritdoc/>
+    public IReadOnlyList<SanctionMatch> FindAll(BitcoinAddress address)
+    {
+        ArgumentNullException.ThrowIfNull(address);
+        return TestDataScope.IsBuilding && address == actors.Sanctioned.Address && Find(address) is { } madeUp
+            ? [madeUp]
+            : inner.FindAll(address);
+    }
+
+    /// <inheritdoc/>
+    public IReadOnlyList<SanctionMatch> FindAll(EthereumAddress address) => inner.FindAll(address);
+
+    /// <inheritdoc/>
+    public bool Remove(string sha256) => inner.Remove(sha256);
 }
 
 /// <summary>Marks the work of building the test case, in the flow that does it and nowhere else.</summary>

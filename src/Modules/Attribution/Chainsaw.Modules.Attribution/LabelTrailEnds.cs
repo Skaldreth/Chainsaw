@@ -14,7 +14,9 @@ namespace Chainsaw.Modules.Attribution;
 /// unknown do not end the trail: the money can still be followed.
 /// </summary>
 /// <param name="attribution">The labels.</param>
-internal sealed class LabelTrailEnds(IAttributionService attribution) : ITrailEndClassifier
+/// <param name="transactions">The labels on transactions, which end the trail at the transaction itself.</param>
+internal sealed class LabelTrailEnds(IAttributionService attribution, ITransactionLabels transactions)
+    : ITrailEndClassifier
 {
     /// <summary>Says where a label ends the trail.</summary>
     /// <param name="kind">What the label says.</param>
@@ -67,7 +69,42 @@ internal sealed class LabelTrailEnds(IAttributionService attribution) : ITrailEn
     ];
 
     /// <inheritdoc/>
-    public IReadOnlyList<TrailEndHint> ClassifyTransaction(ICase @case, BitcoinTransaction transaction) => [];
+    /// <remarks>
+    /// A label on the transaction itself (for example a swap at a known service, where no address says it) ends the
+    /// trail by the same rules as a label on an address (<see cref="EndFor"/>), resting on the label.
+    /// </remarks>
+    public IReadOnlyList<TrailEndHint> ClassifyTransaction(ICase @case, BitcoinTransaction transaction)
+    {
+        ArgumentNullException.ThrowIfNull(transaction);
+        return
+        [
+            .. transactions.For(@case, Chain.Bitcoin, transaction.Txid.Value)
+                .Select(label => (Label: label, Reason: EndFor(label.Kind)))
+                .Where(pair => pair.Reason is not null)
+                .Select(pair => new TrailEndHint(pair.Reason!.Value, Source(pair.Label), Explain(pair.Label))),
+        ];
+    }
+
+    /// <summary>Says what an end at a transaction rests on: the label on it, set by whom.</summary>
+    /// <param name="label">The label on the transaction.</param>
+    /// <returns>The source, for example <c>etikett på tx Swap eller brygga: egen v1</c>.</returns>
+    private static string Source(TransactionLabel label) => string.Format(
+        CultureInfo.InvariantCulture,
+        "etikett på tx {0}: {1} {2}",
+        label.Kind.Describe(),
+        LabelRules.OwnSourceName,
+        LabelRules.OwnSourceVersion);
+
+    /// <summary>Explains an end at a transaction in plain Swedish.</summary>
+    /// <param name="label">The label on the transaction.</param>
+    /// <returns>The explanation.</returns>
+    private static string Explain(TransactionLabel label) => string.Format(
+        CultureInfo.InvariantCulture,
+        "Transaktionen är märkt {0} av {1} {2:yyyy-MM-dd}{3}. Det är en bedömning, inte ett faktum.",
+        label.Title.ToLowerInvariant(),
+        label.SetBy.Name,
+        label.SetUtc,
+        label.Reason.Length == 0 ? string.Empty : $": {label.Reason}");
 
     /// <summary>Says what the end rests on: the label and its origins with their versions.</summary>
     /// <param name="label">The label.</param>

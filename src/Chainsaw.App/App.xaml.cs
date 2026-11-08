@@ -201,6 +201,7 @@ public partial class App : Application
                 {
                     Currency = settings.Currency,
                     Resolution = settings.Resolution,
+                    StateDirectory = Path.GetDirectoryName(store.FilePath),
                 })
                 .AddMonitoringModule()
                 .AddBackgroundWatchFiles()

@@ -28,25 +28,23 @@ internal static class OfacSdnParser
     /// <summary>The form of the publish date on the list.</summary>
     private const string DateFormat = "MM/dd/yyyy";
 
+    /// <summary>The parts of an entry that hold lists, read one item at a time so that no list is read whole.</summary>
+    private static readonly IReadOnlySet<string> Containers = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "idList", "programList", "akaList", "addressList", "nationalityList", "citizenshipList", "dateOfBirthList",
+        "placeOfBirthList",
+    };
+
     /// <summary>Reads the list.</summary>
     /// <param name="content">The file's bytes.</param>
     /// <returns>The publish date, the addresses and how many could never match.</returns>
     /// <exception cref="SanctionListException">The file is not an SDN list, or it has no publish date.</exception>
     public static ParsedSanctionList Parse(byte[] content)
     {
-        var settings = new XmlReaderSettings
-        {
-            DtdProcessing = DtdProcessing.Prohibit,
-            XmlResolver = null,
-            IgnoreComments = true,
-            IgnoreWhitespace = true,
-            MaxCharactersFromEntities = 0,
-            MaxCharactersInDocument = SanctionLists.MaximumLength,
-        };
         try
         {
             using var stream = new MemoryStream(content, writable: false);
-            using var reader = XmlReader.Create(stream, settings);
+            using var reader = XmlReader.Create(stream, SanctionXml.Settings());
             if (reader.MoveToContent() != XmlNodeType.Element || reader.LocalName != "sdnList")
             {
                 throw new SanctionListException(SanctionListError.NotSdnList);
@@ -70,7 +68,7 @@ internal static class OfacSdnParser
                         published = PublishDate((XElement)XNode.ReadFrom(reader));
                         break;
                     case "sdnEntry":
-                        skipped += ReadEntry((XElement)XNode.ReadFrom(reader), addresses);
+                        skipped += ReadEntry(reader, addresses);
                         break;
                     default:
                         reader.Skip();
@@ -79,7 +77,10 @@ internal static class OfacSdnParser
             }
 
             return new ParsedSanctionList(
-                published ?? throw new SanctionListException(SanctionListError.NoPublishDate), addresses, skipped);
+                ListName,
+                published ?? throw new SanctionListException(SanctionListError.NoPublishDate),
+                addresses,
+                skipped);
         }
         catch (XmlException exception)
         {
@@ -114,36 +115,62 @@ internal static class OfacSdnParser
     /// <returns>The date, or <see langword="null"/> when it is missing or not a date.</returns>
     private static DateOnly? PublishDate(XElement information)
     {
-        var text = Child(information, "Publish_Date");
+        var text = SanctionXml.Child(information, "Publish_Date");
         return DateOnly.TryParseExact(text, DateFormat, CultureInfo.InvariantCulture, DateTimeStyles.None, out var date)
             ? date
             : null;
     }
 
-    /// <summary>Reads an entry's digital currency addresses.</summary>
-    /// <param name="entry">The <c>sdnEntry</c> element.</param>
+    /// <summary>
+    /// Reads an entry's digital currency addresses, part by part, so that an entry with an unbounded number of ids is
+    /// refused rather than read whole (<see cref="SanctionXml.MaximumPartsPerEntry"/>).
+    /// </summary>
+    /// <param name="reader">The reader, on the <c>sdnEntry</c> element; it ends after it.</param>
     /// <param name="addresses">Receives the addresses.</param>
     /// <returns>How many of the entry's addresses can never match.</returns>
-    private static int ReadEntry(XElement entry, List<SanctionedAddress> addresses)
+    private static int ReadEntry(XmlReader reader, List<SanctionedAddress> addresses)
     {
-        var uid = Child(entry, "uid") ?? string.Empty;
-        var name = string.Join(' ', new[] { Child(entry, "firstName"), Child(entry, "lastName") }
-            .Where(part => !string.IsNullOrWhiteSpace(part)));
-        var programs = Elements(entry, "programList").SelectMany(list => Elements(list, "program"))
-            .Select(program => program.Value.Trim())
-            .Where(program => program.Length > 0)
-            .ToList();
-        var skipped = 0;
-        foreach (var id in Elements(entry, "idList").SelectMany(list => Elements(list, "id")))
+        string? uid = null;
+        string? firstName = null;
+        string? lastName = null;
+        var programs = new List<string>();
+        var ids = new List<XElement>();
+        foreach (var (container, part) in SanctionXml.Parts(reader, Containers))
         {
-            var type = Child(id, "idType");
-            var number = Child(id, "idNumber");
+            var text = part.Value.Trim();
+            switch (container, part.Name.LocalName)
+            {
+                case (null, "uid"):
+                    uid = text;
+                    break;
+                case (null, "firstName"):
+                    firstName = text;
+                    break;
+                case (null, "lastName"):
+                    lastName = text;
+                    break;
+                case ("programList", "program") when text.Length > 0:
+                    programs.Add(text);
+                    break;
+                case ("idList", "id"):
+                    ids.Add(part);
+                    break;
+            }
+        }
+
+        var name = string.Join(' ', new[] { firstName, lastName }.Where(each => !string.IsNullOrWhiteSpace(each)));
+        var skipped = 0;
+        foreach (var id in ids)
+        {
+            var type = SanctionXml.Child(id, "idType");
+            var number = SanctionXml.Child(id, "idNumber");
             if (type is null || !type.StartsWith(CurrencyPrefix, StringComparison.Ordinal) || number is null)
             {
                 continue;
             }
 
-            var address = new SanctionedAddress(type[CurrencyPrefix.Length..].Trim(), number, uid, name, programs);
+            var address = new SanctionedAddress(
+                type[CurrencyPrefix.Length..].Trim(), number, uid ?? string.Empty, name, programs);
             if (NeverMatches(address))
             {
                 skipped++;
@@ -169,28 +196,13 @@ internal static class OfacSdnParser
         SanctionCurrency.Ether => EthereumKey(address) is null,
         _ => false,
     };
-
-    /// <summary>Gives a child element's trimmed text.</summary>
-    /// <param name="parent">The parent.</param>
-    /// <param name="name">The child's local name.</param>
-    /// <returns>The text, or <see langword="null"/> when there is no such child or it is empty.</returns>
-    private static string? Child(XElement parent, string name)
-    {
-        var text = Elements(parent, name).FirstOrDefault()?.Value.Trim();
-        return string.IsNullOrEmpty(text) ? null : text;
-    }
-
-    /// <summary>Gives the child elements with a local name, whatever their namespace.</summary>
-    /// <param name="parent">The parent.</param>
-    /// <param name="name">The local name.</param>
-    /// <returns>The elements.</returns>
-    private static IEnumerable<XElement> Elements(XElement parent, string name) =>
-        parent.Elements().Where(element => element.Name.LocalName == name);
 }
 
-/// <summary>What the SDN list holds.</summary>
+/// <summary>What a sanction list holds.</summary>
+/// <param name="Name">The list's name, for example <c>OFAC SDN</c>.</param>
 /// <param name="PublishDate">The date the list says it was published.</param>
 /// <param name="Addresses">The digital currency addresses that can match.</param>
 /// <param name="Skipped">Addresses that are not valid for their chain.</param>
 internal sealed record ParsedSanctionList(
+    string Name,
     DateOnly PublishDate, IReadOnlyList<SanctionedAddress> Addresses, int Skipped);
