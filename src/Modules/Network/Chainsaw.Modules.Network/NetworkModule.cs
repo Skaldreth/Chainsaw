@@ -11,7 +11,8 @@ namespace Chainsaw.Modules.Network;
 /// reaches the internet for the way through Windows (probed only while Windows is chosen), <see cref="IExitReconnect"/>, which connects a fallen tunnel again, and
 /// <see cref="IExitHttp"/>, the only way out for
 /// the other modules; and <see cref="ILocalHttp"/>, which reaches only the user's own node on the computer or a private
-/// network; and <see cref="IBackgroundExits"/>, the exits the user lets the background watching use. Needs the
+/// network; <see cref="IExitWebSocket"/>, a source's news by websocket on the same way out; and
+/// <see cref="IBackgroundExits"/>, the exits the user lets the background watching use. Needs the
 /// Security module (the exits are kept in the vault, a background copy under its <c>IUserDataProtector</c>) and an
 /// <c>IClock</c>.
 /// </summary>
@@ -63,6 +64,9 @@ public static class NetworkModule
             provider.GetRequiredService<IExitRoute>(),
             TimeProvider.System));
         services.AddSingleton<IExitHttp, ExitHttp>();
+
+        // A source's own news (a new block) by websocket, on the same way out and nowhere else.
+        services.AddSingleton<IExitWebSocket, ExitWebSocket>();
         services.AddSingleton<IExitCheck, ExitCheck>();
 
         // A tunnel that falls, for example after the computer has slept, is connected again by itself.

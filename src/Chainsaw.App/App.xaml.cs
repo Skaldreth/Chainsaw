@@ -4,6 +4,7 @@ using Chainsaw.Modules.Security;
 using Chainsaw.Modules.Network;
 using Chainsaw.Modules.Network.Contracts;
 using Chainsaw.Modules.Chains;
+using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Clustering;
 using Chainsaw.Modules.Attribution;
 using Chainsaw.Modules.Tracing;
@@ -290,7 +291,8 @@ public partial class App : Application
                 .AddSingleton(provider => new WatchRunner(
                     provider.GetRequiredService<WatchBoard>(),
                     provider.GetRequiredService<IClock>(),
-                    import: provider.GetRequiredService<BackgroundLink>().ImportAsync))
+                    import: provider.GetRequiredService<BackgroundLink>().ImportAsync,
+                    news: provider.GetRequiredService<IBlockNews>()))
                 .AddSingleton(_ => GuideLibrary.Load())
                 .AddSingleton<GuidePanelViewModel>()
                 .AddSingleton<CommandSearchViewModel>()

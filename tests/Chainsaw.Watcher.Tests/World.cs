@@ -87,6 +87,7 @@ internal sealed class World : IDisposable
         services.AddSingleton<IExitHttp>(Http);
         services.AddSingleton<IClock>(Clock);
         services.AddSingleton<IAlerts>(Alerts);
+        services.AddSingleton<IExitWebSocket>(new NoSockets());
         Configure?.Invoke(services);
     });
 
@@ -155,4 +156,11 @@ internal sealed class RecordingAlerts : IAlerts
     public List<WatchAlerts> Raised { get; } = [];
 
     public void Raise(WatchAlerts ways) => Raised.Add(ways);
+}
+
+/// <summary>No websockets: the tests never reach the network, and the watching asks as before.</summary>
+internal sealed class NoSockets : IExitWebSocket
+{
+    public Task<IExitSocket> ConnectAsync(Uri address, CancellationToken cancellationToken = default) =>
+        throw new ExitNotConnectedException();
 }

@@ -3,6 +3,7 @@ using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Monitoring.Contracts;
 using Chainsaw.Modules.Network.Contracts;
 using Chainsaw.SharedKernel;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Chainsaw.Watcher.Tests;
 
@@ -103,6 +104,32 @@ public sealed class WatcherLoopTests : IDisposable
         Assert.Empty(_world.Http.Sent);
         Assert.Empty(Queue.List(_world.Case.Info.Id));
         Assert.Equal(BackgroundState.WaitingForExit, _world.App<IBackgroundStatusFile>().Read()!.State);
+    }
+
+    [Fact]
+    public async Task A_new_block_heard_of_asks_the_height_at_once_instead_of_after_the_minute()
+    {
+        var news = new HandNews();
+        _world.Configure = services => services.AddSingleton<IBlockNews>(news);
+        await _world.UseTestEndpointAsync();
+        await _world.WatchAsync();
+        _world.WritePlan();
+        _world.Height(800_010);
+        int HeightsAsked() => _world.Http.Sent.Count(request => request.Uri.AbsolutePath.EndsWith(
+            "blocks/tip/height", StringComparison.Ordinal));
+
+        Assert.True(await Loop.RunOnceAsync());
+        var first = HeightsAsked();
+        _world.Clock.UtcNow += TimeSpan.FromSeconds(20);
+        Assert.True(await Loop.RunOnceAsync());
+        Assert.Equal(first, HeightsAsked());
+
+        news.Count++;
+        _world.Clock.UtcNow += TimeSpan.FromSeconds(20);
+        Assert.True(await Loop.RunOnceAsync());
+
+        Assert.Equal(first + 1, HeightsAsked());
+        Assert.True(news.Kept > 0);
     }
 
     [Fact]
@@ -336,5 +363,21 @@ public sealed class WatcherLoopTests : IDisposable
 
         Assert.Equal([WatchAlerts.Sound], _world.Alerts.Raised);
         Assert.True(Queue.HasHits());
+    }
+}
+
+/// <summary>News of new blocks that a test counts by hand.</summary>
+internal sealed class HandNews : IBlockNews
+{
+    public long Count { get; set; }
+
+    public int Kept { get; private set; }
+
+    public long Heard(Chain chain) => Count;
+
+    public void Keep(Chain chain) => Kept++;
+
+    public void Release(Chain chain)
+    {
     }
 }

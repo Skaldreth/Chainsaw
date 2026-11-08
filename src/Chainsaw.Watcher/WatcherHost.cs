@@ -141,6 +141,7 @@ internal static class WatcherServices
         {
             Exit = provider.GetRequiredService<IExitConnection>(),
             Exits = provider.GetRequiredService<IBackgroundExits>(),
+            News = provider.GetRequiredService<IBlockNews>(),
         });
         services.AddMemoryCases();
         services.AddSingleton<Func<IMemoryCase>>(provider =>

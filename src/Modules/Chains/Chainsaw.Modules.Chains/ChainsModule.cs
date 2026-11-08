@@ -61,6 +61,13 @@ public static class ChainsModule
             provider.GetService<ILocalHttp>(),
             sourcesOptions.Delay));
         services.AddSingleton<IChainSources>(provider => provider.GetRequiredService<ChainSources>());
+
+        // News of new blocks by websocket where an endpoint has it; only a nudge for the watching.
+        services.AddSingleton(provider => new BlockNews(
+            provider.GetRequiredService<IChainSources>(),
+            provider.GetService<IExitWebSocket>(),
+            provider.GetRequiredService<IClock>()));
+        services.AddSingleton<IBlockNews>(provider => provider.GetRequiredService<BlockNews>());
         services.AddSingleton<IBitcoinSource>(provider => new EsploraBitcoinSource(
             provider.GetRequiredService<ChainSources>(),
             provider.GetRequiredService<IOperatorProfileStore>(),

@@ -111,7 +111,12 @@ internal sealed class WatcherLoop
         _route.Choose(_plan.Route);
         if (!await ExitReadyAsync(cancellationToken).ConfigureAwait(false))
         {
-            // VPN without the allowed exit connected: nothing is looked up, and that is said.
+            // VPN without the allowed exit connected: nothing is looked up or listened to, and that is said.
+            foreach (var chain in _chains.Keys)
+            {
+                _parts.News?.Release(chain);
+            }
+
             Say(BackgroundState.WaitingForExit, null);
             return true;
         }
@@ -237,6 +242,7 @@ internal sealed class WatcherLoop
         if (_gate.For(chain) != WatchGate.Open || _parts.Feeds.For(scratch, chain) is not { } feed)
         {
             round.ChainsOff++;
+            _parts.News?.Release(chain);
             return;
         }
 
@@ -246,7 +252,13 @@ internal sealed class WatcherLoop
         var state = _chains.TryGetValue(chain, out var known) ? known : _chains[chain] = new ChainState();
         var now = _parts.Clock.UtcNow;
         var unstarted = work.Any(each => StartOf(each.Case, each.Watch) is null);
-        var waits = !unstarted || state.HeightFailed;
+
+        // A new block heard of by websocket asks at once, instead of waiting for the minute.
+        _parts.News?.Keep(chain);
+        var heard = _parts.News?.Heard(chain) ?? 0;
+        var nudged = heard != state.Heard;
+        state.Heard = heard;
+        var waits = (!unstarted || state.HeightFailed) && !nudged;
         if (waits && now < state.NextHeight)
         {
             return;
@@ -563,6 +575,9 @@ internal sealed class WatcherLoop
 
         /// <summary>Gets or sets when the endpoints were last tried.</summary>
         public DateTimeOffset? ProbedAt { get; set; }
+
+        /// <summary>Gets or sets how many new blocks had been heard of at the last look.</summary>
+        public long Heard { get; set; }
     }
 }
 
@@ -604,4 +619,7 @@ internal sealed record WatcherParts(
 
     /// <summary>Gets the exits the user allowed in the background, or <see langword="null"/>.</summary>
     public IBackgroundExits? Exits { get; init; }
+
+    /// <summary>Gets the chains' news of new blocks, or <see langword="null"/> to ask once a minute only.</summary>
+    public IBlockNews? News { get; init; }
 }
