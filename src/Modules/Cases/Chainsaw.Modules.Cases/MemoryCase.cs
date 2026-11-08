@@ -153,6 +153,10 @@ internal sealed class MemoryCase : IMemoryCase
     public void AddOperatorAccess() => throw new NotSupportedException();
 
     /// <inheritdoc/>
+    /// <remarks>A case in memory has no file and so no envelopes.</remarks>
+    public IReadOnlyList<CaseEnvelope> DescribeEnvelopes() => [];
+
+    /// <inheritdoc/>
     public void Save()
     {
         // Nothing to save: it lives in memory only.

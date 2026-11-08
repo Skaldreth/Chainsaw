@@ -129,6 +129,34 @@ internal static class KeyEnvelopes
         return false;
     }
 
+    /// <summary>
+    /// Tries one vault envelope with a vault's purpose key. A malformed envelope does not open, so that describing the
+    /// envelopes never fails on one of them.
+    /// </summary>
+    /// <param name="envelope">The envelope.</param>
+    /// <param name="caseId">The case id.</param>
+    /// <param name="wrappingKey">The vault's purpose key.</param>
+    /// <param name="fileKey">Receives the file key when the envelope opens.</param>
+    /// <returns><see langword="true"/> when the envelope opened.</returns>
+    public static bool TryOpenOne(
+        JsonObject envelope, Guid caseId, ReadOnlySpan<byte> wrappingKey, Span<byte> fileKey)
+    {
+        if (!IsKind(envelope, OperatorKind))
+        {
+            return false;
+        }
+
+        try
+        {
+            var (nonce, ciphertext, tag) = ReadSealed(envelope);
+            return CaseCrypto.TryUnwrap(wrappingKey, nonce, ciphertext, tag, OperatorData(caseId), fileKey);
+        }
+        catch (CaseException exception) when (exception.Error == CaseError.Corrupt)
+        {
+            return false;
+        }
+    }
+
     /// <summary>Tries the sharing envelope with a password.</summary>
     /// <param name="header">The header.</param>
     /// <param name="password">The password.</param>

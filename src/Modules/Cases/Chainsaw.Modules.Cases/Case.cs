@@ -357,6 +357,25 @@ internal sealed class Case : ICase
     }
 
     /// <inheritdoc />
+    public IReadOnlyList<CaseEnvelope> DescribeEnvelopes()
+    {
+        lock (_gate)
+        {
+            using var operation = BeginOperation();
+            var wrappingKey = CaseCrypto.AllocateSecret(CaseCrypto.KeySize);
+            try
+            {
+                DeriveVaultKey(_services.PurposeKeys, CaseCrypto.EnvelopePurpose, wrappingKey);
+                return EnvelopeDescriptions.Describe(_header, wrappingKey, _fileKey, _services.Options);
+            }
+            finally
+            {
+                CryptographicOperations.ZeroMemory(wrappingKey);
+            }
+        }
+    }
+
+    /// <inheritdoc />
     public void Save()
     {
         lock (_gate)

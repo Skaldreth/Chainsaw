@@ -61,6 +61,70 @@ public interface ICaseStore
     ICase OpenWithPassword(string path, ReadOnlySpan<char> password);
 
     /// <summary>
+    /// Takes a colleague's case file into the cases folder and opens it with its sharing password (sketch ÄR1b). The
+    /// password is tried on the file where it lies first, so that a wrong password copies nothing; the copy is never
+    /// written over an existing case and is removed again when it cannot be opened. A file already in the folder is
+    /// opened where it is. The caller adds an envelope for this vault with <see cref="ICase.AddOperatorAccess"/>.
+    /// </summary>
+    /// <param name="path">The path of the <c>.cut</c> file; its name is the case number.</param>
+    /// <param name="password">The sharing password; the caller clears its buffer after the call.</param>
+    /// <returns>The open case; the caller disposes it.</returns>
+    /// <exception cref="CaseException">
+    /// The same reasons as <see cref="OpenWithPassword"/>, and <see cref="CaseError.AlreadyExists"/> when another file
+    /// with the same case number is in the folder.
+    /// </exception>
+    ICase ImportWithPassword(string path, ReadOnlySpan<char> password);
+
+    /// <summary>
+    /// Describes the envelopes in a case file's header without opening the case (sketch ÄR1b): which one is this
+    /// vault's, which are other vaults', the sharing envelope, the recovery keys' and those of unknown kinds.
+    /// </summary>
+    /// <param name="path">The path of the <c>.cut</c> file.</param>
+    /// <returns>The envelopes, in file order.</returns>
+    /// <exception cref="CaseException">
+    /// <see cref="CaseError.NotFound"/>, <see cref="CaseError.Corrupt"/>, <see cref="CaseError.UnsupportedVersion"/>
+    /// or <see cref="CaseError.VaultLocked"/>.
+    /// </exception>
+    IReadOnlyList<CaseEnvelope> DescribeEnvelopes(string path);
+
+    /// <summary>
+    /// Tells whether a case in the folder has a working copy from an interrupted session that does not belong to its
+    /// file (the reason <see cref="Open"/> gives <see cref="CaseError.Conflict"/>), without opening it or the vault.
+    /// </summary>
+    /// <param name="caseNumber">The case number.</param>
+    /// <returns>The conflict, or <see langword="null"/> when there is none.</returns>
+    /// <exception cref="CaseException">
+    /// <see cref="CaseError.InvalidCaseNumber"/> or <see cref="CaseError.NotFound"/>.
+    /// </exception>
+    WorkingCopyConflict? FindConflict(string caseNumber);
+
+    /// <summary>
+    /// Chooses the file in a conflict (sketch ÄR1b): moves the working copy and the files that belong to it, unread
+    /// and unchanged, to a folder of its own under <c>Återställda</c> in the cases folder, and opens the case file as
+    /// it is saved, with a line in the journal. Nothing is removed. A working copy that belongs to the file after all
+    /// is recovered as <see cref="Open"/> does, and none is opened as it is.
+    /// </summary>
+    /// <param name="caseNumber">The case number.</param>
+    /// <returns>The open case; the caller disposes it.</returns>
+    /// <exception cref="CaseException">The same reasons as <see cref="Open"/>, except a conflict.</exception>
+    ICase OpenSettingAsideWorkingCopy(string caseNumber);
+
+    /// <summary>
+    /// Chooses the working copy in a conflict (sketch ÄR1b): saves it as a case of its own under a new case number,
+    /// with the case file's envelopes and the journal up to the interruption, and opens it with a line in the
+    /// journal. The case file is left as it is. The new case keeps the case's id and file key, since its envelopes
+    /// (also other vaults' and the recovery keys') can only open that key.
+    /// </summary>
+    /// <param name="caseNumber">The case number of the file in conflict.</param>
+    /// <param name="branchNumber">The case number of the new case.</param>
+    /// <returns>The new case, open; the caller disposes it.</returns>
+    /// <exception cref="CaseException">
+    /// The same reasons as <see cref="Open"/>; <see cref="CaseError.AlreadyExists"/> when the new number is taken, and
+    /// <see cref="CaseError.NotFound"/> when there is no working copy in conflict.
+    /// </exception>
+    ICase SaveWorkingCopyAsCase(string caseNumber, string branchNumber);
+
+    /// <summary>
     /// Gets the organisation's public recovery key built into this Chainsaw, or <see langword="null"/> when none is
     /// configured. Every case created or opened while a key is configured gets an envelope for it; without one, cases
     /// can only be opened with their own envelopes, and the user interface says so.
