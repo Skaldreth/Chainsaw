@@ -3,6 +3,10 @@
 Det som kommer efter 1.0: nya förmågor och de mindre fynden (M) från granskningarna, per område. Det som ska vara
 klart till 1.0 står i `docs/TODO.md`. En punkt här flyttas dit om den visar sig behövas, och tas bort när den byggs.
 ## Kedjor och data
+- **Registret som anroparen ger till `IResponseTransfer.Seal(…, SealedResponseIndex)`** (granskningen av NC2a, M2):
+  höjden och tx:erna i registret litas på som de ges. Nytt ärende ger det som källan själv räknade fram i samma
+  process, men en framtida anropare kunde ge en höjd som får ett grunt svar att räknas som djupt. Registret kunde i
+  stället räknas fram på nytt ur svaret av källan (en tolk per sort av svar), så att det aldrig tas emot utifrån.
 - **Ethereum efter etapp 23b** (grafen, inspektören, startpunkterna, swap-pillret och kurserna för USDT och USDC är
   byggda). Kvar:
   - **Spårning genom en swap:** pillret visar bytet, men spårningen räknar varje tillgång för sig, så spårade USDT blir
@@ -550,10 +554,16 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
   nästa tangent. Spara den som ett väntande förslag (i ledtråden) tills raden är tom.
 - **Testklasserna saknar XML-dokumentation** (M10), som i de tidigare testprojekten.
 
+## Begäran (BG1b)
+- **`Compose` körs på UI-tråden** (granskningen, M8): den läser bara ärendets nummer och profilen i minnet och går
+  snabbt, men ett mycket stort uttag med hundratals insättningar kan kännas. Flytta den till `Task.Run` med en
+  avbrytbar omgång per ändring om det märks.
+- **En fil som inte gick att skriva klart** tas bort (M5), men det finns inget test som framkallar ett skrivfel.
+
 ## Undermenyer i pillret (etapp 11b)
-- **Nytt → Etikett och Begäran** är tonade som inte byggda (en etikett sätts sedan etapp 16 i inspektören med
-  L; Bevakning öppnar formuläret sedan etapp 26); ändra `SubmenuNeed` i
-  `Navigation/SubmenuTable.cs` till `OpenCase` och koppla raden i `ShellViewModel` när gränssnittet finns.
+- **Nytt → Etikett** är tonad som inte byggd (en etikett sätts sedan etapp 16 i inspektören med L); ändra
+  `SubmenuNeed` i `Navigation/SubmenuTable.cs` till `OpenCase` och koppla raden i `ShellViewModel` när vyn Etiketter
+  finns. Begäran är kopplad sedan BG1b.
 - **Startpunkt med ett ärende** lägger bara markören i kommandoraden; ett eget fält (som i Nytt ärende) kan skissas.
 - **Sanktionslistan och det öppna ärendet:** en import kontrollerar inte ärendets adresser
   (`IAttributionService.CheckSanctions`); det görs när grafen byggs.

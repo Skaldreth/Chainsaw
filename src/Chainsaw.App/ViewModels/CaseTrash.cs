@@ -1,4 +1,5 @@
 using Chainsaw.App.Settings;
+using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.SharedKernel;
 
 namespace Chainsaw.App.ViewModels;
@@ -65,6 +66,41 @@ public sealed class CaseTrash(IClock clock)
     public bool Contains(string caseNumber) =>
         _cases.Any(each => string.Equals(each.CaseNumber, caseNumber, StringComparison.OrdinalIgnoreCase));
 
+    /// <summary>
+    /// Says whether a case file is hidden by the trash: its number was thrown, and the file has not been written since.
+    /// A case written after it was thrown is another case with the same number, or the thrown one worked on again, and
+    /// is never hidden.
+    /// </summary>
+    /// <param name="file">The case file as listed.</param>
+    /// <returns><see langword="true"/> when it is hidden.</returns>
+    public bool Hides(CaseFileInfo file)
+    {
+        ArgumentNullException.ThrowIfNull(file);
+        return ThrownOf(file.CaseNumber) is { } thrown && file.LastWrittenUtc <= thrown.ThrownUtc;
+    }
+
+    /// <summary>
+    /// Takes the cases whose file was written after they were thrown out of the trash, so that a new case with the same
+    /// number as a thrown one is neither hidden nor listed in the trash's view.
+    /// </summary>
+    /// <param name="files">The case files as last listed.</param>
+    /// <returns><see langword="true"/> when any was taken out.</returns>
+    public bool ForgetRewritten(IEnumerable<CaseFileInfo> files)
+    {
+        ArgumentNullException.ThrowIfNull(files);
+        var rewritten = files
+            .Where(file => ThrownOf(file.CaseNumber) is { } thrown && file.LastWrittenUtc > thrown.ThrownUtc)
+            .Select(file => file.CaseNumber)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (rewritten.Count == 0 || _cases.RemoveAll(each => rewritten.Contains(each.CaseNumber)) == 0)
+        {
+            return false;
+        }
+
+        Keep();
+        return true;
+    }
+
     /// <summary>Throws a case in the trash; one already there stays as it was.</summary>
     /// <param name="caseNumber">The case.</param>
     /// <returns><see langword="true"/> when it was thrown now.</returns>
@@ -107,6 +143,12 @@ public sealed class CaseTrash(IClock clock)
         _cases = [];
         Keep();
     }
+
+    /// <summary>Finds a thrown case.</summary>
+    /// <param name="caseNumber">The case.</param>
+    /// <returns>The thrown case, or <see langword="null"/>.</returns>
+    private TrashedCase? ThrownOf(string caseNumber) =>
+        _cases.Find(each => string.Equals(each.CaseNumber, caseNumber, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>Tells the change and writes the cases off the UI thread, when there is a store.</summary>
     private void Keep()

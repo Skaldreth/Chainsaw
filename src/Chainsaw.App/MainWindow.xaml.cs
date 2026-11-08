@@ -34,6 +34,9 @@ public partial class MainWindow : Window
     /// <summary>How small the command bar starts as it comes up, against its full size.</summary>
     private const double CommandBarStartScale = 0.97;
 
+    /// <summary>The least space between the command bar and the window's edge or the Guide's panel.</summary>
+    private const double CommandBarGutter = 24;
+
     /// <summary>How often the window asks whether the automatic lock is due.</summary>
     private static readonly TimeSpan IdleCheck = TimeSpan.FromSeconds(5);
 
@@ -124,6 +127,7 @@ public partial class MainWindow : Window
         GuidePanel.Attach(guidePanel);
         WireGuide(graph, guide);
         WireWatches(shell, graph, monitoring);
+        WireRequests(shell, graph);
         WireEmptyGraph(shell, graph.Start);
         watchRunner.Start();
         shell.Settings.SettingsChanged += (_, settings) => _ = background.ApplyAsync(settings);
@@ -201,6 +205,39 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
+    /// Wires the view Begäran (sketch BG1b): its list follows the graph shown, the graph's <em>Begäran …</em> and the
+    /// inspector's <em>Begäran om frysning …</em> show it with the node chosen, and the page takes the keyboard when it
+    /// is shown, so that Ctrl+S reaches it.
+    /// </summary>
+    /// <param name="shell">The shell.</param>
+    /// <param name="graph">The graph.</param>
+    private void WireRequests(ShellViewModel shell, GraphViewModel graph)
+    {
+        if (shell.Requests is not { } requests)
+        {
+            return;
+        }
+
+        RequestsPage.Attach(requests);
+        requests.Update(graph.Scene);
+        graph.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(GraphViewModel.Scene))
+            {
+                requests.Update(graph.Scene);
+            }
+        };
+        graph.RequestWanted += (_, wanted) => shell.OpenRequest(wanted);
+        shell.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(ShellViewModel.IsRequestsShown) && shell.IsRequestsShown)
+            {
+                Dispatcher.BeginInvoke(() => RequestsPage.Focus(), DispatcherPriority.Input);
+            }
+        };
+    }
+
+    /// <summary>
     /// Wires the Guide (sketch GD1b): the graph's <em>Varför?</em>, <em>?</em> and method open the panel, the panel
     /// follows what is chosen, <em>Öppna i Guide</em> shows the view Guide with a way back, and the panel closes when
     /// another view is shown. Esc closes the panel before it reaches the graph.
@@ -255,8 +292,8 @@ public partial class MainWindow : Window
 
     /// <summary>
     /// The keys of the open Guide panel, wherever the keyboard is: Esc closes it, and F1 takes its place to the view
-    /// Guide (as <em>Öppna i Guide</em>). The command bar, Nytt ärende, the settings, an open submenu, the exits' panel
-    /// and an open form in the graph's inspector keep their own Esc.
+    /// Guide (as <em>Öppna i Guide</em>). The command bar, Nytt ärende, the settings, an open submenu and the exits'
+    /// panel keep their own Esc, and a form open in the graph is closed first (<see cref="CancelGraphForm"/>).
     /// </summary>
     /// <param name="sender">The window.</param>
     /// <param name="e">The key.</param>
@@ -282,14 +319,54 @@ public partial class MainWindow : Window
 
         if (e.Key != Key.Escape || _shell.OpenSubmenu is not null || _shell.ExitPanel.IsOpen
             || _shell.CasePicker is { IsOpen: true }
-            || _shell.IsCommandBarOpen || _graph.Forms.IsOpen || _graph.History.IsOpen
-            || _graph.Comments.IsEditing)
+            || _shell.IsCommandBarOpen || _graph.Comments.IsEditing)
         {
+            return;
+        }
+
+        if (CancelGraphForm())
+        {
+            e.Handled = true;
             return;
         }
 
         _guidePanel.Close();
         e.Handled = true;
+    }
+
+    /// <summary>
+    /// Esc with a form open in the graph's inspector closes that form first, wherever the keyboard is: also when it is
+    /// in the Guide's panel beside it, where the form's own Esc never hears it. The panel stays, and the next Esc
+    /// closes it.
+    /// </summary>
+    /// <returns>Whether a form was closed.</returns>
+    private bool CancelGraphForm()
+    {
+        if (_graph.Forms.IsOpen)
+        {
+            _graph.Forms.Cancel();
+            return true;
+        }
+
+        if (_graph.History.IsOpen)
+        {
+            _graph.History.Cancel();
+            return true;
+        }
+
+        if (_graph is { IsWatchFormOpen: true, WatchForm: { } watch })
+        {
+            watch.Cancel();
+            return true;
+        }
+
+        if (_graph.Checks.IsFormOpen)
+        {
+            _graph.Checks.CancelForm();
+            return true;
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -312,13 +389,13 @@ public partial class MainWindow : Window
 
     /// <summary>
     /// Keeps what the Guide's panel would cover in view while it is open: the graph's corner moves left of it, and
-    /// the command bar comes up centred in the space beside it.
+    /// the command bar comes up centred in the space beside it, narrower when that space is (a window of 960 px).
     /// </summary>
     private void MakeRoomForGuide()
     {
         var covered = _guidePanel.IsOpen ? GuidePanel.Width : 0;
         GraphPage.MakeRoom(covered);
-        CommandPanel.Margin = new Thickness(0, 0, covered, 0);
+        CommandPanel.Margin = new Thickness(CommandBarGutter, 0, covered + CommandBarGutter, 0);
     }
 
     /// <summary>Stops listening to Windows when the window closes; the static events would otherwise keep it.</summary>

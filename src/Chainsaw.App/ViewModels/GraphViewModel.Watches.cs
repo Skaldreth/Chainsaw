@@ -1,5 +1,6 @@
 using Chainsaw.App.Graph;
 using Chainsaw.Modules.Monitoring.Contracts;
+using Chainsaw.Modules.Requests.Contracts;
 using Chainsaw.Modules.Tracing.Contracts;
 using Chainsaw.SharedKernel;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -34,11 +35,23 @@ public enum NodeMenuAction
     /// <summary>Lägg tillbaka i högen: an actor picked out of a pile goes back into it (sketch EX2b).</summary>
     ReturnToPile,
 
+    /// <summary>Passa in (F), in the empty surface's menu.</summary>
+    Fit,
+
+    /// <summary>Zooma in (+), in the empty surface's menu.</summary>
+    ZoomIn,
+
+    /// <summary>Zooma ut (−), in the empty surface's menu.</summary>
+    ZoomOut,
+
     /// <summary>
     /// Fråga underleverantörerna (R): asks the suppliers of attribution that are on, Chainabuse first, about the
     /// node's address (the user's decision 2026-11-08: a button for now, automatic later).
     /// </summary>
     AskSuppliers,
+
+    /// <summary>Begäran …: the view Begäran with the request to this cash-out chosen (sketch BG1b).</summary>
+    Request,
 }
 
 /// <summary>A row of the node's menu.</summary>
@@ -130,8 +143,8 @@ public sealed partial class GraphViewModel
         }
     }
 
-    /// <summary>Gets whether the node's menu is open.</summary>
-    public bool IsMenuOpen => MenuNode is not null;
+    /// <summary>Gets whether the node's menu, or the empty surface's, is open.</summary>
+    public bool IsMenuOpen => MenuNode is not null || SurfaceMenuAt is not null;
 
     /// <summary>Gets whether the watch form is open beside the graph.</summary>
     public bool IsWatchFormOpen => WatchForm?.IsOpen == true;
@@ -193,6 +206,7 @@ public sealed partial class GraphViewModel
         }
 
         Choose(node.Key, null);
+        SurfaceMenuAt = null;
         var hasAddress = node.Node.Addresses.Count > 0;
         MenuRows =
         [
@@ -201,23 +215,29 @@ public sealed partial class GraphViewModel
             new(NodeMenuAction.CrossChain, "Annan kedja …", "K", "Icon.Link", Forms.CanCrossChain),
             new(NodeMenuAction.Watch, "Bevaka …", "B", "Icon.Eye", CanWatch(node)),
             new(NodeMenuAction.Comment, CommentToolText + " …", CommentKey, "Icon.Note", true),
+            .. RequestRow(node.Key),
             new(NodeMenuAction.Expand, "Expandera", "E", "Icon.Plus", CanExpand, HasGapBefore: true),
             new(NodeMenuAction.Copy, "Kopiera adress", "Ctrl+C", "Icon.Copy", hasAddress),
         ];
         MenuNode = node.Key;
     }
 
-    /// <summary>Closes the node's menu.</summary>
+    /// <summary>Closes the node's menu, or the empty surface's.</summary>
     [RelayCommand]
-    public void CloseMenu() => MenuNode = null;
+    public void CloseMenu()
+    {
+        MenuNode = null;
+        SurfaceMenuAt = null;
+    }
 
     /// <summary>Does what a row of the menu says, for the chosen node, and closes the menu.</summary>
     /// <param name="row">The row.</param>
     [RelayCommand]
     public void RunMenu(NodeMenuRow? row)
     {
+        var surface = SurfaceMenuAt;
         CloseMenu();
-        if (row is not { IsEnabled: true })
+        if (row is not { IsEnabled: true } || RunSurfaceRow(row.Action, surface))
         {
             return;
         }
@@ -247,6 +267,9 @@ public sealed partial class GraphViewModel
                 break;
             case NodeMenuAction.Comment:
                 BeginComment(default);
+                break;
+            case NodeMenuAction.Request:
+                WantRequest(SelectedNode, RequestKind.Information);
                 break;
             default:
                 CopyAddress();

@@ -202,6 +202,15 @@ internal sealed class EsploraParser(BitcoinNetwork network)
             : throw new EsploraFormatException("The height is not a whole number.");
     }
 
+    /// <summary>Reads the newest block's hash, as from <c>/blocks/tip/hash</c>, which is plain text.</summary>
+    /// <param name="body">The response's bytes.</param>
+    /// <returns>The hash.</returns>
+    /// <exception cref="EsploraFormatException">The response is not 64 hex characters.</exception>
+    public static BlockHash ParseTipHash(ReadOnlySpan<byte> body) =>
+        BlockHash.TryParse(Encoding.ASCII.GetString(body).Trim(), out var hash)
+            ? hash
+            : throw new EsploraFormatException("The hash is not 64 hex characters.");
+
     /// <summary>Reads a transaction object and checks that it adds up.</summary>
     /// <param name="element">The object.</param>
     /// <returns>The transaction.</returns>

@@ -87,9 +87,11 @@ public sealed partial class GuidePanelViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Follows what is chosen while the panel is open: a fuller answer about the same thing takes the old one's place
-    /// (where it lies in the way back), and something else chosen is a step on. Nothing chosen, or a closed panel,
-    /// changes nothing.
+    /// Follows what is chosen while the panel is open. A choice (<see cref="GuideRequest.IsChoice"/>) shows its answer:
+    /// in the stead of the current one when it is about the same thing, else as a step on, also when it is the thing
+    /// chosen before a link was followed. A fuller answer that comes later only updates the answer where it lies in the
+    /// way back, keeping its section, so that it never moves the reader. Nothing chosen, or a closed panel, changes
+    /// nothing.
     /// </summary>
     /// <param name="request">The answer for what is chosen now, or <see langword="null"/> for nothing.</param>
     public void Follow(GuideRequest? request)
@@ -99,7 +101,21 @@ public sealed partial class GuidePanelViewModel : ObservableObject
             return;
         }
 
-        if (!_history.UpdateLatest(place))
+        if (!request.IsChoice)
+        {
+            if (_history.UpdateLatest(place))
+            {
+                ShowCurrent();
+            }
+
+            return;
+        }
+
+        if (place.Subject is not null && _history.Current?.Subject == place.Subject)
+        {
+            _history.Replace(place);
+        }
+        else
         {
             _history.Push(place);
         }

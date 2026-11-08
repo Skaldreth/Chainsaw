@@ -188,7 +188,17 @@ public interface IMonitoringService
     /// <returns>Per watch id, the hit's sequence; a watch whose hits are all unseen is missing.</returns>
     IReadOnlyDictionary<string, long> GetSeen(ICase @case);
 
-    /// <summary>Notes that the user has seen a watch's hits up to one, so that they are no longer new.</summary>
+    /// <summary>
+    /// Reads when the user last looked at the hits (marked them seen), so that the new ones can be said to be new
+    /// <em>since</em> then (sketch BV1a: <em>2 nya träffar sedan 09:10</em>).
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <returns>The time, or <see langword="null"/> when the user has never looked.</returns>
+    DateTimeOffset? GetLastSeen(ICase @case);
+
+    /// <summary>
+    /// Notes that the user has seen a watch's hits up to one, so that they are no longer new, and when.
+    /// </summary>
     /// <param name="case">The open case.</param>
     /// <param name="watchId">The watch.</param>
     /// <param name="through">The newest hit seen.</param>

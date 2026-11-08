@@ -285,6 +285,14 @@ public sealed partial class GraphViewModel
         }
     }
 
+    /// <summary>
+    /// Says whether an actor moves with a dragged group, so that the surface shrinks it with the dragged node as they
+    /// near the bin (sketch SO1a).
+    /// </summary>
+    /// <param name="nodeKey">The actor.</param>
+    /// <returns><see langword="true"/> when it is one of a group being dragged.</returns>
+    public bool IsInDraggedGroup(string nodeKey) => _group?.ContainsKey(nodeKey) == true;
+
     /// <summary>Ends a drag at the bin: a release on it asks to throw the node, or the whole picked group dragged.</summary>
     /// <param name="nodeKey">The dragged node.</param>
     /// <returns><see langword="true"/> when the release was on the bin, so that the node is not moved.</returns>

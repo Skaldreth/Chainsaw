@@ -51,7 +51,7 @@ public sealed partial class GraphViewModel : ObservableObject
     public const string RetryText = "Försök igen";
 
     /// <summary>What an expansion adds while no exit is connected (principle 9): the shell's one offline text.</summary>
-    public const string OfflineText = ShellViewModel.OfflineText;
+    public const string OfflineText = OfflineWords.NoExitText;
 
     /// <summary>What the graph says when Bitcoin's sources are off in the settings (principle 9, sketch KL1a).</summary>
     public const string SourcesOffText =
@@ -100,6 +100,12 @@ public sealed partial class GraphViewModel : ObservableObject
 
     /// <summary>Whether the open case's stored view has been read and shown, so that changes may be stored.</summary>
     private bool _viewLoaded;
+
+    /// <summary>
+    /// Whether something is being chosen, while the inspector is filled: the choice tells the Guide's panel itself, as
+    /// a choice, rather than as changed answers.
+    /// </summary>
+    private bool _choosing;
 
     /// <summary>Creates the graph for the window's open case.</summary>
     /// <param name="session">The open case.</param>
@@ -225,7 +231,9 @@ public sealed partial class GraphViewModel : ObservableObject
 
     /// <summary>Gets the graph ready to draw, or <see langword="null"/> when there is none.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(MethodText), nameof(TraceText))]
+    [NotifyPropertyChangedFor(
+        nameof(MethodText), nameof(TraceText), nameof(HasUnspendable), nameof(UnspendableToolTip),
+        nameof(ShowsUnspendable))]
     public partial GraphScene? Scene { get; private set; }
 
     /// <summary>
@@ -270,6 +278,9 @@ public sealed partial class GraphViewModel : ObservableObject
     /// <summary>Gets the method as the button always shows it, for example <c>FIFO</c>.</summary>
     public string MethodText => GraphScene.MethodName(Method);
 
+    /// <summary>The key that opens the Guide at the method, besides a right click on it (Windows' Shift+F1).</summary>
+    public const string MethodGuideGesture = "Shift+F1";
+
     /// <summary>Gets the method button's tooltip: the version, and what a click does.</summary>
     public string MethodToolTip
     {
@@ -277,8 +288,8 @@ public sealed partial class GraphViewModel : ObservableObject
         {
             var other = GraphScene.MethodName(Other(Method));
             var used = Scene?.Snapshot.Trace?.Method.ToString() ?? MethodText;
-            return $"Spårningsmetod: {used}. Klicka för {other}, högerklicka för Guiden. Ett spårat belopp är en "
-                + "bedömning enligt metoden.";
+            return $"Spårningsmetod: {used}. Klicka för {other}, högerklicka eller {MethodGuideGesture} för "
+                + "Guiden. Ett spårat belopp är en bedömning enligt metoden.";
         }
     }
 
@@ -397,7 +408,15 @@ public sealed partial class GraphViewModel : ObservableObject
     public string OfflineWord => IsSourcesOff ? "Av" : "Offline";
 
     /// <summary>Gets what the corner's word means, on hovering.</summary>
-    public string OfflineTip => IsSourcesOff ? SourcesOffText : OfflineText;
+    public string OfflineTip => IsSourcesOff ? SourcesOffText : OfflineNote;
+
+    /// <summary>
+    /// Gets what Chainsaw says while offline, as the way out says it (<see cref="ExitWay.Offline"/>): no exit, no
+    /// network through Windows, or the tunnel being connected again.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(OfflineTip))]
+    public partial string OfflineNote { get; private set; } = OfflineText;
 
     /// <summary>Gets a short notice: what an expansion brought, or what could not be read; empty when none.</summary>
     [ObservableProperty]
@@ -614,9 +633,17 @@ public sealed partial class GraphViewModel : ObservableObject
         ? GuideRequest.ForWhy(key, shown.Title, Why, Method)
         : null;
 
-    /// <summary>Tells the Guide's panel that the answers changed, so that it can follow.</summary>
+    /// <summary>
+    /// Tells the Guide's panel that the answers changed, so that it can follow; a choice tells it itself, once.
+    /// </summary>
     /// <param name="value">The new answers.</param>
-    partial void OnWhyChanged(IReadOnlyList<WhyLine> value) => WhyChanged?.Invoke(this, WhyRequest());
+    partial void OnWhyChanged(IReadOnlyList<WhyLine> value)
+    {
+        if (!_choosing)
+        {
+            WhyChanged?.Invoke(this, WhyRequest());
+        }
+    }
 
     /// <summary>Chooses what is under a point on the surface, or nothing over empty surface (a click).</summary>
     /// <param name="point">The point on the surface.</param>
@@ -643,7 +670,19 @@ public sealed partial class GraphViewModel : ObservableObject
         SelectedNode = node?.Key;
         SelectedEdge = edge?.Key;
         IsLegendOpen = false;
-        Inspect();
+        _choosing = true;
+        try
+        {
+            Inspect();
+        }
+        finally
+        {
+            _choosing = false;
+        }
+
+        // Told as a choice also when the answers are the same, so that choosing a node again after following a link
+        // in the Guide's panel shows its answer there (sketch GD1b).
+        WhyChanged?.Invoke(this, WhyRequest() is { } request ? request with { IsChoice = true } : null);
         SeeWatches(SelectedNode);
         Redraw?.Invoke(this, EventArgs.Empty);
     }
@@ -775,7 +814,7 @@ public sealed partial class GraphViewModel : ObservableObject
                 _version++;
                 Show(result.Scene, fit: false);
                 var problems = Notice;
-                var said = ExpansionNotice(result, IsOffline);
+                var said = ExpansionNotice(result, IsOffline ? OfflineNote : null);
                 Notice = problems.Length == 0 ? said : $"{said} {problems}";
                 ToastWanted?.Invoke(this, new ToastRequest(ExpansionKind(result), said));
                 SayHiddenUnspendable(hiddenBefore);
@@ -864,9 +903,9 @@ public sealed partial class GraphViewModel : ObservableObject
 
     /// <summary>Says what an expansion brought, in a short line, with what the user should know besides.</summary>
     /// <param name="result">What the expansion brought.</param>
-    /// <param name="offline">Whether no exit is connected.</param>
+    /// <param name="offline">What Chainsaw says while offline, or <see langword="null"/> while lookups can go.</param>
     /// <returns>The line.</returns>
-    public static string ExpansionNotice(GraphExpansion result, bool offline)
+    public static string ExpansionNotice(GraphExpansion result, string? offline)
     {
         ArgumentNullException.ThrowIfNull(result);
         var problems = string.Join(" ", result.Problems);
@@ -877,7 +916,7 @@ public sealed partial class GraphViewModel : ObservableObject
             ExpansionOutcome.Partly => $"Delvis expanderad: {result.NewTransactions} nya tx. {problems}",
             _ => $"Inte expanderad. {problems}",
         };
-        return (offline && result.Outcome != ExpansionOutcome.Expanded ? $"{text} {OfflineText}" : text).Trim();
+        return (offline is not null && result.Outcome != ExpansionOutcome.Expanded ? $"{text} {offline}" : text).Trim();
     }
 
     /// <summary>Lets the empty graph guide where the page would only say that there is nothing (sketch GR6c).</summary>
@@ -894,7 +933,9 @@ public sealed partial class GraphViewModel : ObservableObject
     private void ShowWay(ExitWay exit)
     {
         IsOffline = !exit.IsLive;
+        OfflineNote = exit.Offline.Text;
         IsSourcesOff = exit.ChainsOff.Contains(Chain.Bitcoin);
+        Start.ShowOffline(exit.Offline);
     }
 
     /// <summary>Says whether the method can be changed now: not while an expansion runs.</summary>

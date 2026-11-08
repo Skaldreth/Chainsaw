@@ -21,8 +21,11 @@ En ny lapp är ett utkast. Den sparas först när du lämnar den med text; en to
 
 Du skriver **direkt i lappen**, i Markdown: två stjärnor runt ett ord gör det fett och en stjärna kursivt, ett
 bindestreck först på raden gör en lista och `#` en rubrik. Medan du skriver syns tecknen dämpade, och när du lämnar
-lappen (Esc eller ett klick utanför) ritas den färdig. Foten säger *Markdown · Esc lämnar*. Medan du skriver tar grafen inga tangenter, så N eller E skriver bara
-bokstaven.
+lappen (Esc eller ett klick utanför) ritas den färdig. Foten säger *Markdown · Esc lämnar*. Medan du skriver tar
+grafen inga tangenter, så N eller E skriver bara bokstaven.
+
+**Enter** i en lista fortsätter listan (nästa nummer i en numrerad lista), och Enter på en tom punkt avslutar den.
+**Tab** drar in en punkt och **Shift+Tab** drar ut den. Mushjulet zoomar grafen också över en lapp som du skriver i.
 
 En länk `chainsaw:bitcoin/<adress>` i lappen väljer och visar noden när du klickar på den; inget slås upp. Andra
 webbadresser ritas grå och följs aldrig (princip 4).

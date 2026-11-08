@@ -19,6 +19,9 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
     /// </summary>
     private static readonly TimeSpan TipFreshness = TimeSpan.FromMinutes(1);
 
+    /// <summary>How many times the newest block's hash is asked for when its block cannot be had.</summary>
+    private const int TipAttempts = 2;
+
     /// <summary>The longest script that can run, in hex characters (10 000 bytes).</summary>
     private const int MaximumScriptHex = 20_000;
 
@@ -228,7 +231,8 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
             hash.Value,
             $"block/{hash.Value}",
             body => EsploraParser.ParseBlock(body, hash),
-            _ => ResponseIndex.None,
+            // A block at a height says that the chain has come at least that far, as the chain's height does.
+            block => new ResponseIndex([], block.Height),
             reader => SourceLookups.StoredAs(_store.Latest(reader, ResponseKinds.Block, hash.Value),
                 body => EsploraParser.ParseBlock(body, hash)),
             block => block.Height,
@@ -263,6 +267,62 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
         ArgumentNullException.ThrowIfNull(@case);
         return _lookups.LookupAsync(@case, TipQuery(), LookupMode.AsNeeded, cancellationToken);
     }
+
+    /// <inheritdoc/>
+    public async Task<BitcoinLookup<ChainTip>> GetTipAsync(ICase @case, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        var origins = new List<ResponseOrigin>();
+        BitcoinLookup<ChainTip>? failed = null;
+
+        // The endpoints are spread over, so the block may be asked of another than the one that gave the hash, and
+        // one a block behind does not have it yet; the hash is then asked for once more, and its block with it.
+        for (var attempt = 0; attempt < TipAttempts; attempt++)
+        {
+            var tip = await _lookups.LookupAsync(@case, TipHashQuery(), LookupMode.AsNeeded, cancellationToken)
+                .ConfigureAwait(false);
+            origins.AddRange(tip.Origins);
+            if (tip.Value is not { } hash)
+            {
+                return new BitcoinLookup<ChainTip>(tip.Status, null, Ordered(origins), tip.Problem);
+            }
+
+            var block = await GetBlockAsync(@case, hash, cancellationToken).ConfigureAwait(false);
+            origins.AddRange(block.Origins);
+            if (block.Value is { } newest)
+            {
+                return new BitcoinLookup<ChainTip>(
+                    tip.Status, new ChainTip(newest.Height, newest.Hash.Value, newest.Time), Ordered(origins),
+                    tip.Problem)
+                {
+                    Notes = [.. tip.Notes, .. block.Notes],
+                };
+            }
+
+            var problem = $"Det nyaste blockets höjd kunde inte läsas. {block.Problem}".Trim();
+            failed = new BitcoinLookup<ChainTip>(LookupStatus.Failed, null, [], problem);
+        }
+
+        return failed! with { Origins = Ordered(origins) };
+    }
+
+    /// <summary>Gives sealed responses once each, in the order they were sealed.</summary>
+    /// <param name="origins">The responses.</param>
+    /// <returns>The responses.</returns>
+    private static List<ResponseOrigin> Ordered(IEnumerable<ResponseOrigin> origins) =>
+        [.. origins.DistinctBy(origin => origin.Sequence).OrderBy(origin => origin.Sequence)];
+
+    /// <summary>The lookup of the newest block's hash, which always changes.</summary>
+    /// <returns>The query.</returns>
+    private LookupQuery<BlockHash> TipHashQuery() => new(
+        ResponseKinds.TipHash,
+        string.Empty,
+        "blocks/tip/hash",
+        body => EsploraParser.ParseTipHash(body),
+        _ => ResponseIndex.None,
+        reader => SourceLookups.StoredAs(_store.Latest(reader, ResponseKinds.TipHash, string.Empty),
+            body => EsploraParser.ParseTipHash(body)),
+        _ => null);
 
     /// <summary>The lookup of a transaction's own bytes, which never change in the parts its txid commits to.</summary>
     /// <param name="txid">The transaction.</param>

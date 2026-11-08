@@ -211,6 +211,29 @@ public sealed class TrashTreeTests
     }
 
     [Fact]
+    public void Without_start_points_in_a_graph_of_only_cycles_everything_joined_to_the_thrown_follows()
+    {
+        // a → b → c → a and c → d → e → c: every node is reached by a line, so none can stand in for the start point,
+        // and nothing stays reached; the cycle f ⇄ g is not joined to the thrown and is left alone.
+        (string From, string To)[] lines =
+            [("a", "b"), ("b", "c"), ("c", "a"), ("c", "d"), ("d", "e"), ("e", "c"), ("f", "g"), ("g", "f")];
+
+        var tree = TrashTree.Follow(["a"], lines, ["a"]);
+
+        Assert.Equal(
+            [new TrashBranch("a", null), new("b", "a"), new("c", "a"), new("d", "c"), new("e", "c")],
+            tree);
+    }
+
+    [Fact]
+    public void Without_any_start_point_a_single_cycle_follows_whole()
+    {
+        var tree = TrashTree.Follow(["b"], [("a", "b"), ("b", "c"), ("c", "a")], []);
+
+        Assert.Equal([new TrashBranch("b", null), new("a", "b"), new("c", "b")], tree);
+    }
+
+    [Fact]
     public void Several_thrown_each_head_their_own_branch_and_never_hang_under_each_other()
     {
         var tree = TrashTree.Follow(["o3", "o4"], Lines, ["s"]);

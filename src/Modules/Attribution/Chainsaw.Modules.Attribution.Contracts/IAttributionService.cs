@@ -104,14 +104,20 @@ public interface IAttributionService
     /// <see cref="LabelKind.Sanctioned"/> in the case, with the list's hash and date as the origin and one line in the
     /// journal. A hit already labelled from the same list, also one taken back, is not labelled again.
     /// </summary>
-    /// <remarks>
-    /// Bitcoin only so far: the list's Ethereum addresses (<c>Digital Currency Address - ETH</c>) are not checked yet
-    /// (docs/TODO.md).
-    /// </remarks>
     /// <param name="case">The open case.</param>
     /// <param name="addresses">The addresses.</param>
     /// <returns>What was checked and labelled.</returns>
     SanctionCheck CheckSanctions(ICase @case, IReadOnlyCollection<BitcoinAddress> addresses);
+
+    /// <summary>
+    /// Checks Ethereum addresses against the current sanction list as <see
+    /// cref="CheckSanctions(ICase, IReadOnlyCollection{BitcoinAddress})"/> does Bitcoin's: the list's entries for
+    /// ether and for USDT and USDC on Ethereum (<see cref="SanctionCurrency.OnEthereum"/>).
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="addresses">The addresses.</param>
+    /// <returns>What was checked and labelled.</returns>
+    SanctionCheck CheckSanctions(ICase @case, IReadOnlyCollection<EthereumAddress> addresses);
 }
 
 /// <summary>What a check against the sanction list found.</summary>

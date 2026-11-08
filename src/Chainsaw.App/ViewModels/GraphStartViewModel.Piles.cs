@@ -203,6 +203,73 @@ public sealed partial class GraphStartViewModel
         return true;
     }
 
+    /// <summary>Whether a pile can be dropped on another, to lay its cases on top of it: both there, and not the same.</summary>
+    /// <param name="draggedId">The pile dragged.</param>
+    /// <param name="targetId">The pile it is dropped on.</param>
+    /// <returns><see langword="true"/> when they make one pile.</returns>
+    public bool CanMergePiles(string draggedId, string targetId) =>
+        draggedId != targetId && PileOf(draggedId) is not null && PileOf(targetId) is not null;
+
+    /// <summary>
+    /// Lays a pile dropped on another on top of it: one pile with the dragged pile's cases first, under the name of the
+    /// one dropped on, or the dragged one's when that has none. The dragged pile is gone.
+    /// </summary>
+    /// <param name="draggedId">The pile dragged.</param>
+    /// <param name="targetId">The pile it was dropped on.</param>
+    /// <returns><see langword="true"/> when they were made one.</returns>
+    public bool MergePiles(string draggedId, string targetId)
+    {
+        if (!CanMergePiles(draggedId, targetId))
+        {
+            return false;
+        }
+
+        var dragged = PileOf(draggedId)!;
+        var target = PileOf(targetId)!;
+        var merged = target with
+        {
+            Name = target.Name.Length > 0 ? target.Name : dragged.Name,
+            CaseNumbers = [.. dragged.CaseNumbers, .. target.CaseNumbers],
+        };
+        ChangePiles([.. _piles.Where(pile => pile.Id != draggedId).Select(pile => pile.Id == targetId ? merged : pile)]);
+        if (NamingPileId == draggedId)
+        {
+            NamingPileId = null;
+        }
+
+        ShowRing();
+        return true;
+    }
+
+    /// <summary>
+    /// Whether something lifted on the ring can be dropped on something else there: a case on a case makes a pile, a
+    /// case on a pile goes in it, a pile on a pile lays it on top, and a pile on a loose case takes the case in.
+    /// </summary>
+    /// <param name="lifted">What is lifted.</param>
+    /// <param name="target">What it would be dropped on.</param>
+    /// <returns><see langword="true"/> when the drop does something.</returns>
+    public bool CanDrop(IStartRingItem lifted, IStartRingItem target) => (lifted, target) switch
+    {
+        (RecentCaseItem one, RecentCaseItem other) => CanStack(one.CaseNumber, other.CaseNumber),
+        (RecentCaseItem one, CasePileItem pile) => CanAddToPile(one.CaseNumber, pile.Id),
+        (CasePileItem pile, CasePileItem other) => CanMergePiles(pile.Id, other.Id),
+        (CasePileItem pile, RecentCaseItem one) => CanAddToPile(one.CaseNumber, pile.Id),
+        _ => false,
+    };
+
+    /// <summary>Drops something lifted on the ring on something else there (see <see cref="CanDrop"/>).</summary>
+    /// <param name="lifted">What was lifted.</param>
+    /// <param name="target">What it was dropped on.</param>
+    /// <returns><see langword="true"/> when the drop did something.</returns>
+    public bool DropOn(IStartRingItem lifted, IStartRingItem target) => (lifted, target) switch
+    {
+        (RecentCaseItem one, RecentCaseItem other) => Stack(one.CaseNumber, other.CaseNumber),
+        (RecentCaseItem one, CasePileItem pile) => AddToPile(one.CaseNumber, pile.Id),
+        (CasePileItem pile, CasePileItem other) => MergePiles(pile.Id, other.Id),
+        (CasePileItem pile, RecentCaseItem one) => AddToPile(one.CaseNumber, pile.Id),
+        _ => false,
+    };
+
     /// <summary>Starts writing a pile's name in the pile.</summary>
     /// <param name="pileId">The pile.</param>
     public void BeginNaming(string pileId)
@@ -323,11 +390,12 @@ public sealed partial class GraphStartViewModel
         if (_workflow.IsListed)
         {
             ForgetMissing(files);
+            ForgetRewrittenThrows(files.Values);
         }
 
         var piled = new HashSet<string>(_piles.SelectMany(pile => pile.CaseNumbers), StringComparer.OrdinalIgnoreCase);
         var loose = files.Values
-            .Where(file => !piled.Contains(file.CaseNumber) && !IsThrown(file.CaseNumber))
+            .Where(file => !piled.Contains(file.CaseNumber) && !IsThrown(file))
             .OrderByDescending(file => file.LastWrittenUtc)
             .Where((file, index) => index < RecentCount || _released.Contains(file.CaseNumber))
             .ToList();

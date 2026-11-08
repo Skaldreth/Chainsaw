@@ -13,5 +13,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\Modules\Requests\Chainsaw.Modules.Requests\Chainsaw.Modules.Requests.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Cases\Chainsaw.Modules.Cases\Chainsaw.Modules.Cases.csproj" />
   </ItemGroup>
 </Project>

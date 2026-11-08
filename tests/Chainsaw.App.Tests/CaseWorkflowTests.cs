@@ -2,6 +2,7 @@ using Chainsaw.App.ViewModels;
 using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Security.Contracts;
+using Chainsaw.SharedKernel;
 
 namespace Chainsaw.App.Tests;
 
@@ -124,6 +125,49 @@ public sealed class CaseWorkflowTests
         Assert.Equal(AppJournalKinds.StartPointNoted, note.Kind);
         Assert.Contains(Samples.Tron, note.Summary, StringComparison.Ordinal);
         Assert.False(created.HasSharingPassword);
+    }
+
+    [Fact]
+    public async Task The_bitcoin_and_ethereum_start_points_are_checked_against_the_sanction_list()
+    {
+        var rig = new GateRig(VaultState.Unlocked);
+        var attribution = new TestAttribution();
+        var workflow = new CaseWorkflow(rig.Cases, rig.Tracing, rig.Vault, rig.Session, null, attribution);
+        var request = new NewCaseRequest(
+            "2026-0118",
+            string.Empty,
+            [
+                ChainStartPoint.Recognise(Samples.Address),
+                ChainStartPoint.Recognise(Samples.Ethereum),
+                ChainStartPoint.Recognise(Samples.EthereumTx),
+                ChainStartPoint.Recognise(Samples.Tron),
+            ]);
+
+        var creation = await workflow.CreateAsync(request, sharingPassword: null);
+
+        Assert.True(creation.IsCreated);
+        Assert.Equal(
+            [new ChainAddress(Chain.Bitcoin, Samples.Address), new ChainAddress(Chain.Ethereum, Samples.Ethereum)],
+            attribution.SanctionChecked);
+    }
+
+    [Fact]
+    public async Task A_failed_check_for_bitcoin_never_keeps_ethereum_from_being_checked()
+    {
+        var rig = new GateRig(VaultState.Unlocked);
+        var attribution = new TestAttribution { BitcoinSanctionsFail = true };
+        var workflow = new CaseWorkflow(rig.Cases, rig.Tracing, rig.Vault, rig.Session, null, attribution);
+        var request = new NewCaseRequest(
+            "2026-0119",
+            string.Empty,
+            [ChainStartPoint.Recognise(Samples.Address), ChainStartPoint.Recognise(Samples.Ethereum)]);
+
+        var creation = await workflow.CreateAsync(request, sharingPassword: null);
+
+        Assert.True(creation.IsCreated);
+        Assert.Equal([new ChainAddress(Chain.Ethereum, Samples.Ethereum)], attribution.SanctionChecked);
+        Assert.Contains("för Bitcoin", creation.Reply.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("för Ethereum", creation.Reply.Text, StringComparison.Ordinal);
     }
 
     [Fact]

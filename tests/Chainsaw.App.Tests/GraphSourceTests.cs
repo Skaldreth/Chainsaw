@@ -65,8 +65,28 @@ internal sealed class TestAttribution : IAttributionService
 
     public IReadOnlyList<Label> GetLabels(ICase @case) => throw new NotSupportedException();
 
-    public SanctionCheck CheckSanctions(ICase @case, IReadOnlyCollection<BitcoinAddress> addresses) =>
-        throw new NotSupportedException();
+    /// <summary>The addresses checked against the sanction list, each with its chain, in order.</summary>
+    public List<ChainAddress> SanctionChecked { get; } = [];
+
+    /// <summary>Whether checking Bitcoin addresses against the sanction list fails.</summary>
+    public bool BitcoinSanctionsFail { get; set; }
+
+    public SanctionCheck CheckSanctions(ICase @case, IReadOnlyCollection<BitcoinAddress> addresses)
+    {
+        if (BitcoinSanctionsFail)
+        {
+            throw new IOException("Listan är låst.");
+        }
+
+        SanctionChecked.AddRange(addresses.Select(address => address.ToChainAddress()));
+        return new SanctionCheck(null, [], 0);
+    }
+
+    public SanctionCheck CheckSanctions(ICase @case, IReadOnlyCollection<EthereumAddress> addresses)
+    {
+        SanctionChecked.AddRange(addresses.Select(address => address.ToChainAddress()));
+        return new SanctionCheck(null, [], 0);
+    }
 }
 
 /// <summary>A clustering that knows one cluster; nothing else is used by the graph.</summary>

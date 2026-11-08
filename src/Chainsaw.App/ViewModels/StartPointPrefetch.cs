@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Numerics;
 using System.Text.Json;
 using Chainsaw.App.Graph;
 using Chainsaw.Modules.Attribution.Contracts;
@@ -29,6 +30,12 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
 
     /// <summary>What a row says when the lookup failed without a reason.</summary>
     private const string FailedText = "Hämtningen misslyckades";
+
+    /// <summary>The most decimals an amount in a row is written with in full, as the graph writes it.</summary>
+    private const int ExactDecimals = 8;
+
+    /// <summary>The decimals an amount with more than <see cref="ExactDecimals"/> is cut to in a row.</summary>
+    private const int ShortDecimals = 4;
 
     /// <summary>Swedish dates and numbers.</summary>
     private static readonly CultureInfo Swedish = CultureInfo.GetCultureInfo("sv-SE");
@@ -157,12 +164,24 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
 
         return target.Write(transaction =>
         {
-            foreach (var response in responses)
+            // A response that answered a lookup in memory is sealed with what the lookup found in it, so that the
+            // graph's first expansion takes what cannot have changed from the case instead of fetching it again; the
+            // rest (an error, a body that did not add up) is sealed as evidence only, as it was in memory.
+            foreach (var (response, index) in responses)
             {
-                _transfer.Seal(transaction, response);
+                if (index is null)
+                {
+                    _transfer.Seal(transaction, response);
+                }
+                else
+                {
+                    _transfer.Seal(transaction, response, index);
+                }
             }
 
-            var text = $"{responses.Count} råsvar som hämtades i Nytt ärende innan ärendet fanns förseglades i ärendet.";
+            var answers = responses.Count(each => each.Index is not null);
+            var text = $"{responses.Count} råsvar som hämtades i Nytt ärende innan ärendet fanns förseglades i ärendet"
+                + $"; {answers} av dem används som svar där de inte kan ha ändrats.";
             if (unread > 0)
             {
                 text += $" {unread} kunde inte läsas och förseglades inte.";
@@ -174,6 +193,7 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
                 JsonSerializer.Serialize(new Dictionary<string, int>
                 {
                     ["responses"] = responses.Count,
+                    ["answers"] = answers,
                     ["unread"] = unread,
                 })));
             return responses.Count;
@@ -181,15 +201,17 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
     }
 
     /// <summary>
-    /// Reads every response sealed in the case in memory, one at a time, so that one that cannot be read (its hash no
-    /// longer matches) never keeps the others out of the new case.
+    /// Reads every response sealed in the case in memory with what the lookups found in it, one at a time, so that
+    /// one that cannot be read (its hash no longer matches) never keeps the others out of the new case.
     /// </summary>
     /// <param name="reader">The case in memory's reader.</param>
     /// <param name="sequences">The sealed responses' numbers.</param>
-    /// <returns>The responses read, and how many could not be.</returns>
-    private (List<SealedResponse> Responses, int Unread) ReadEach(ICaseReader reader, IReadOnlyList<long> sequences)
+    /// <returns>The responses read with their index (none for one that answered no lookup), and how many could not
+    /// be read.</returns>
+    private (List<(SealedResponse Response, SealedResponseIndex? Index)> Responses, int Unread) ReadEach(
+        ICaseReader reader, IReadOnlyList<long> sequences)
     {
-        var responses = new List<SealedResponse>();
+        var responses = new List<(SealedResponse, SealedResponseIndex?)>();
         var unread = 0;
         foreach (var sequence in sequences)
         {
@@ -197,7 +219,7 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
             {
                 if (_transfer.Read(reader, sequence) is { } response)
                 {
-                    responses.Add(response);
+                    responses.Add((response, _transfer.ReadIndex(reader, sequence)));
                 }
                 else
                 {
@@ -242,7 +264,11 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
         }
     }
 
-    /// <summary>Looks a start point up in its chain's source.</summary>
+    /// <summary>
+    /// Looks a start point up in its chain's source. The chain's newest block is asked for first, so that whatever is
+    /// fetched after it is known to be at least that deep: a transaction deep enough then answers the graph's first
+    /// expansion from the new case instead of being fetched again (see <see cref="SealInto"/>).
+    /// </summary>
     /// <param name="memory">The case in memory.</param>
     /// <param name="startPoint">The supported start point.</param>
     /// <param name="cancellationToken">Stops the lookup.</param>
@@ -252,10 +278,14 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
     {
         if (startPoint.Chain == Chain.Ethereum)
         {
-            return startPoint.Kind == StartPointKind.Address
-                && EthereumAddress.TryParse(startPoint.Value, out var address)
-                ? EthereumAddressAsync(memory, address, cancellationToken)
-                : EthereumTransactionAsync(memory, startPoint.Value, cancellationToken);
+            if (startPoint.EthereumAccount is { } address)
+            {
+                return EthereumAddressAsync(memory, address, cancellationToken);
+            }
+
+            return EthereumTxHash.TryParse(startPoint.Value, out var hash)
+                ? EthereumTransactionAsync(memory, hash, cancellationToken)
+                : Task.FromResult(StartPointPreview.Only(PreviewState.NotRecognised));
         }
 
         return startPoint.Bitcoin switch
@@ -269,7 +299,7 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
     /// <summary>
     /// A Bitcoin address: the balance and number of transactions from the address's summary, the first and last
     /// activity from its newest page of transactions (the first only when the page holds every confirmed one), and
-    /// the chain's height when it was fetched.
+    /// the chain's newest block when it was fetched.
     /// </summary>
     /// <param name="memory">The case in memory.</param>
     /// <param name="address">The address.</param>
@@ -278,6 +308,7 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
     private async Task<StartPointPreview> BitcoinAddressAsync(
         IMemoryCase memory, BitcoinAddress address, CancellationToken cancellationToken)
     {
+        var tip = await _bitcoin.GetTipAsync(memory, cancellationToken).ConfigureAwait(false);
         var summary = await _bitcoin.GetAddressSummaryAsync(memory, address, cancellationToken).ConfigureAwait(false);
         if (Unanswered(summary) is { } failed)
         {
@@ -286,7 +317,6 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
 
         var page = await _bitcoin.GetAddressTransactionsAsync(memory, address, null, cancellationToken)
             .ConfigureAwait(false);
-        var tip = await _bitcoin.GetTipHeightAsync(memory, cancellationToken).ConfigureAwait(false);
         var stats = summary.Value!;
         var balance = stats.Confirmed.Funded - stats.Confirmed.Spent + stats.Mempool.Funded - stats.Mempool.Spent;
         var facts = new List<PreviewFact>
@@ -304,14 +334,14 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
         var newest = blocks.MaxBy(block => block.Height);
         return Fetched(
             facts,
-            tip.Value?.Height,
+            tip.Value,
             newest is null ? null : (newest.Height, newest.Hash.Value),
             BlockOf.NewestTransaction);
     }
 
     /// <summary>
     /// A Bitcoin transaction: what its outputs pay, how many inputs and outputs it has, its block's date, height and
-    /// hash, and the chain's height when it was fetched.
+    /// hash, and the chain's newest block when it was fetched.
     /// </summary>
     /// <param name="memory">The case in memory.</param>
     /// <param name="txid">The transaction.</param>
@@ -320,6 +350,7 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
     private async Task<StartPointPreview> BitcoinTransactionAsync(
         IMemoryCase memory, Txid txid, CancellationToken cancellationToken)
     {
+        var tip = await _bitcoin.GetTipAsync(memory, cancellationToken).ConfigureAwait(false);
         var lookup = await _bitcoin.GetTransactionAsync(memory, txid, LookupMode.AsNeeded, cancellationToken)
             .ConfigureAwait(false);
         if (Unanswered(lookup) is { } failed)
@@ -327,7 +358,6 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
             return failed;
         }
 
-        var tip = await _bitcoin.GetTipHeightAsync(memory, cancellationToken).ConfigureAwait(false);
         var tx = lookup.Value!;
         var paid = tx.Outputs.Aggregate(Satoshi.Zero, (sum, output) => sum + output.Amount);
         var facts = new List<PreviewFact>
@@ -338,13 +368,14 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
             tx.Block is { } block ? new(Day(block.Time), string.Empty) : new("Obekräftad", string.Empty),
         };
         var at = tx.Block is { } confirmed ? (confirmed.Height, confirmed.Hash.Value) : default((long, string)?);
-        return Fetched(facts, tip.Value?.Height, at, BlockOf.Transaction);
+        return Fetched(facts, tip.Value, at, BlockOf.Transaction);
     }
 
     /// <summary>
-    /// An Ethereum address: the number of transactions on its newest page of transactions (with <c>+</c> when there
-    /// are older ones), their first and last activity, and the chain's height. Ethereum's source gives no balance, so
-    /// none is shown rather than one made up.
+    /// An Ethereum address: its ether and the USDT and USDC it holds (other tokens are a contract's own claim, and
+    /// anyone can send one to any address, so they are left out of the row), the number of transactions on its newest
+    /// page of transactions (with <c>+</c> when there are older ones), their first and last activity, and the chain's
+    /// newest block. A balance the source could not give is left out rather than made up.
     /// </summary>
     /// <param name="memory">The case in memory.</param>
     /// <param name="address">The address.</param>
@@ -353,6 +384,7 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
     private async Task<StartPointPreview> EthereumAddressAsync(
         IMemoryCase memory, EthereumAddress address, CancellationToken cancellationToken)
     {
+        var tip = await _ethereum.GetTipAsync(memory, cancellationToken).ConfigureAwait(false);
         var lookup = await _ethereum.GetAddressHistoryAsync(
             memory, address, EthereumHistory.Transactions, cancellationToken: cancellationToken).ConfigureAwait(false);
         if (Unanswered(lookup) is { } failed)
@@ -360,7 +392,7 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
             return failed;
         }
 
-        var tip = await _ethereum.GetTipHeightAsync(memory, cancellationToken).ConfigureAwait(false);
+        var balance = await _ethereum.GetBalanceAsync(memory, address, cancellationToken).ConfigureAwait(false);
         var page = lookup.Value!;
         var transactions = page.Transfers.Select(each => (each.Transaction, each.Block))
             .Concat(page.Fees.Select(each => (each.Transaction, each.Block)))
@@ -368,7 +400,15 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
             .ToList();
         var isWhole = page.NextAtOrBelow is null && !page.IsCutShort;
         var count = Count(transactions.Count) + (isWhole ? string.Empty : "+");
-        var facts = new List<PreviewFact> { new(count, " tx") };
+        var facts = new List<PreviewFact>();
+        if (balance.Value is { } held)
+        {
+            facts.Add(new PreviewFact(Holding(held.Ether), " " + held.Ether.Asset.Symbol));
+            facts.AddRange(held.Tokens.Where(token => KnownTokens.IssuerOf(token.Asset) is not null)
+                .Select(token => new PreviewFact(Holding(token), " " + token.Asset.Symbol)));
+        }
+
+        facts.Add(new PreviewFact(count, " tx"));
         var blocks = transactions.Select(each => each.Block).OfType<EthereumBlockReference>().ToList();
         if (Activity(blocks.Select(block => block.Time).ToList(), isWhole) is { } activity)
         {
@@ -377,25 +417,21 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
 
         var newest = blocks.MaxBy(block => block.Height);
         return Fetched(
-            facts, tip.Value?.Height, newest is null ? null : (newest.Height, newest.Hash), BlockOf.NewestTransaction);
+            facts, tip.Value, newest is null ? null : (newest.Height, newest.Hash), BlockOf.NewestTransaction);
     }
 
     /// <summary>
     /// An Ethereum transaction: the ether it sent, how many movements of value it holds, its block and the chain's
-    /// height.
+    /// newest block.
     /// </summary>
     /// <param name="memory">The case in memory.</param>
-    /// <param name="value">The transaction's hash as written.</param>
+    /// <param name="hash">The transaction's hash.</param>
     /// <param name="cancellationToken">Stops the lookup.</param>
     /// <returns>What to show.</returns>
     private async Task<StartPointPreview> EthereumTransactionAsync(
-        IMemoryCase memory, string value, CancellationToken cancellationToken)
+        IMemoryCase memory, EthereumTxHash hash, CancellationToken cancellationToken)
     {
-        if (!EthereumTxHash.TryParse(value, out var hash))
-        {
-            return StartPointPreview.Only(PreviewState.NotRecognised);
-        }
-
+        var tip = await _ethereum.GetTipAsync(memory, cancellationToken).ConfigureAwait(false);
         var lookup = await _ethereum.GetTransactionAsync(memory, hash, LookupMode.AsNeeded, cancellationToken)
             .ConfigureAwait(false);
         if (Unanswered(lookup) is { } failed)
@@ -403,7 +439,6 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
             return failed;
         }
 
-        var tip = await _ethereum.GetTipHeightAsync(memory, cancellationToken).ConfigureAwait(false);
         var tx = lookup.Value!;
         var facts = new List<PreviewFact>
         {
@@ -412,7 +447,7 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
             tx.Block is { } block ? new(Day(block.Time), string.Empty) : new("Obekräftad", string.Empty),
         };
         var at = tx.Block is { } confirmed ? (confirmed.Height, confirmed.Hash) : default((long, string?)?);
-        return Fetched(facts, tip.Value?.Height, at, BlockOf.Transaction);
+        return Fetched(facts, tip.Value, at, BlockOf.Transaction);
     }
 
     /// <summary>Says why a lookup has no value, or nothing when it has one.</summary>
@@ -429,23 +464,25 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
     };
 
     /// <summary>
-    /// Gives a fetched preview with the chain's height and the block the facts rest on. The chip shows only the
+    /// Gives a fetched preview with the chain's newest block and the block the facts rest on. The chip shows only the
     /// chain's height; a transaction's block is never shown as it, so the number never changes meaning in silence.
+    /// The tooltip names each block with its hash, so that every height can be checked against the chain.
     /// </summary>
     /// <param name="facts">The facts.</param>
     /// <param name="tip">
-    /// The chain's height when it was fetched, or <see langword="null"/> when the source did not say.
+    /// The chain's newest block when it was fetched, or <see langword="null"/> when the source did not say.
     /// </param>
     /// <param name="block">The block the facts rest on, with its hash, or <see langword="null"/>.</param>
     /// <param name="blockOf">Which block that is, for the tooltip's words.</param>
     /// <returns>The preview.</returns>
     private static StartPointPreview Fetched(
-        IReadOnlyList<PreviewFact> facts, long? tip, (long Height, string? Hash)? block, BlockOf blockOf)
+        IReadOnlyList<PreviewFact> facts, ChainTip? tip, (long Height, string? Hash)? block, BlockOf blockOf)
     {
         var lines = new List<string>();
-        if (tip is { } height)
+        if (tip is not null)
         {
-            lines.Add($"Hämtat vid block {Count(height)}");
+            lines.Add($"Hämtat vid block {Count(tip.Height)}");
+            lines.Add(tip.Hash);
         }
 
         if (block is { } newest)
@@ -459,8 +496,36 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
         }
 
         return new StartPointPreview(
-            PreviewState.Fetched, facts, tip, string.Join(Environment.NewLine, lines), string.Empty,
+            PreviewState.Fetched, facts, tip?.Height, string.Join(Environment.NewLine, lines), string.Empty,
             string.Empty);
+    }
+
+    /// <summary>
+    /// Writes what an address holds for its row: as the graph writes it when the asset has at most eight decimals
+    /// (bitcoin, USDT), and otherwise cut to four decimals with <c>≈</c> first when anything was cut, so that ether's
+    /// eighteen decimals never crowd the row and a cut amount is never shown as exact. Something too small to show is
+    /// <c>&lt; 0,0001</c>, never zero.
+    /// </summary>
+    /// <param name="amount">The amount.</param>
+    /// <returns>For example <c>1,2040</c>, <c>≈ 1,2040</c> or <c>12 500,0000</c>.</returns>
+    public static string Holding(AssetAmount amount)
+    {
+        var decimals = amount.Asset.Decimals;
+        if (decimals <= ExactDecimals)
+        {
+            return AmountText.Number(amount);
+        }
+
+        var whole = BigInteger.DivRem(amount.Units, BigInteger.Pow(10, decimals), out var rest);
+        var cut = BigInteger.DivRem(rest, BigInteger.Pow(10, decimals - ShortDecimals), out var dropped);
+        if (whole.IsZero && cut.IsZero && !dropped.IsZero)
+        {
+            return "< 0," + new string('0', ShortDecimals - 1) + "1";
+        }
+
+        var text = whole.ToString("N0", Swedish) + ","
+            + cut.ToString(CultureInfo.InvariantCulture).PadLeft(ShortDecimals, '0');
+        return dropped.IsZero ? text : "≈ " + text;
     }
 
     /// <summary>
@@ -520,22 +585,35 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
     private static string Count(long count) => count.ToString("N0", Swedish);
 
     /// <summary>
-    /// Finds a Bitcoin address on the imported sanction list (on the computer; nothing is sent) and says which entry
-    /// names it and from which list, for the tooltip of the tag <em>Sanktionerad</em>.
+    /// Finds a Bitcoin or Ethereum address on the imported sanction list (on the computer; nothing is sent) and says
+    /// which entry names it and from which list, for the tooltip of the tag <em>Sanktionerad</em>. An Ethereum address
+    /// the list names under a token (USDT, USDC) says so.
     /// </summary>
     /// <param name="startPoint">The start point.</param>
-    /// <returns>The tooltip, or empty when the list does not name it or none is imported.</returns>
+    /// <returns>
+    /// The tooltip, or empty when the list does not name it, none is imported, or it is not an address.
+    /// </returns>
     private string SanctionTip(ChainStartPoint startPoint)
     {
-        if (startPoint.Bitcoin?.Address is not { } address)
-        {
-            return string.Empty;
-        }
-
         SanctionMatch? match;
+        Func<string, bool> onChain;
         try
         {
-            match = _sanctions.Find(address);
+            // The same hits the case is labelled with when it is created (IAttributionService.CheckSanctions).
+            if (startPoint.Bitcoin?.Address is { } bitcoin)
+            {
+                match = _sanctions.Find(bitcoin);
+                onChain = currency => currency == SanctionCurrency.Bitcoin;
+            }
+            else if (startPoint.EthereumAccount is { } ethereum)
+            {
+                match = _sanctions.Find(ethereum);
+                onChain = SanctionCurrency.OnEthereum.Contains;
+            }
+            else
+            {
+                return string.Empty;
+            }
         }
         catch (SanctionListException)
         {
@@ -543,14 +621,16 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
             return string.Empty;
         }
 
-        // The same hits the case is labelled with when it is created (IAttributionService.CheckSanctions).
-        var hit = match?.Hits.FirstOrDefault(each => each.Currency == SanctionCurrency.Bitcoin);
+        var hit = match?.Hits.FirstOrDefault(each => onChain(each.Currency));
         if (match is null || hit is null)
         {
             return string.Empty;
         }
 
-        return $"Sanktionerad enligt {match.List.Name} {match.List.PublishDate:yyyy-MM-dd} · {hit.EntryName}"
+        var listedAs = hit.Currency is SanctionCurrency.Bitcoin or SanctionCurrency.Ether
+            ? string.Empty
+            : $" (listad som {hit.Currency})";
+        return $"Sanktionerad enligt {match.List.Name} {match.List.PublishDate:yyyy-MM-dd} · {hit.EntryName}{listedAs}"
             + " · en uppgift ur en öppen källa";
     }
 }

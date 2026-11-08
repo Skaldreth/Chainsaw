@@ -98,112 +98,62 @@ fungerar rättas före allt annat nedan. Särskilt:
 ### 2. Resterna i det som är byggt
 
 **Grafen**
-- **Linjer genom noder** [direkt]: när ett hopp med fler än åtta aktörer sprids över två kolumner går en linje till
-  den andra kolumnen rakt genom en nod i den första (i testärendet linjen till CoinJoin). Linjerna kunde böjas runt
-  noderna, eller aktörer med linjer vidare läggas i den närmaste kolumnen.
-- **Granskningen mot GR4, GR5 och TK1a** [direkt]:
-  - Noden växer inte med namnet och en lång adress.
-  - Tokenmärket ska vara en liten rund bricka.
-  - Swappen ska vara ett piller på linjen.
-  - Kedjornas delar av ytan saknar rubriker.
-- **Dolda OP_RETURN går inte att visa igen** [direkt] när toasten tonat ut eller ärendet öppnats på nytt. Lägg en
-  markering i grafens hörnrad när några är dolda.
-- **GR6c, tredje läget** [direkt]: när startpunkten lagts till ska den riktiga noden få en guidenod *Expandera*
-  bredvid sig, med *Hitta uttaget* svagt efter. Det ritas i grafens duk.
-  - Avsteg från skissen: Enter är inte grått offline. En startpunkt går att lägga till utan nät (princip 9), och
-    inget hämtas förrän den expanderas, så raden säger det i stället.
-- **Förmågor utan synlig väg** [direkt]:
-  - Dubbelklick på en nod expanderar inte.
-  - Passa in (F) och zoom finns bara i verktygstips.
-  - Kontrollera att högerklick på tom yta ger något.
-- **Formuläret för en egen yta** [direkt] står under grafens hörn, inte vid de valda aktörerna som i KF1b.
-- **Numren på kandidaterna** [direkt] står mitt på linjen, inte vid kandidatens nod som i KF2b.
-- **Esc med ett formulär öppet och fokus någon annanstans** [direkt]: står fokus i Guidens panel gör Esc ingenting,
-  eftersom formuläret tar Esc före panelen. Esc ska då stänga formuläret.
+- **Breda noder i resten av grafen** [direkt]: noden växer med namnet (GR5), men *Sortera grafen* (`TidyLayout`)
+  räknar fortfarande med 132 px breda noder, och en ny kommentar vid en bred nod (`CommentGeometry.PlaceOfNew`)
+  placeras efter samma bredd.
 
 **Soptunnan och startvyn (SO1a, GR8a)**
 - **Det som ännu inte går att slänga** [etapp]:
   - Kommentarsnoder och egna ytor. Delete tar i dag bort en lapp förseglat direkt, utan soptunna.
   - En hel hög i startvyn, och ett ärende som ligger i en hög.
-- **Startvyns högar** [direkt]:
-  - En hög går inte att dra på en annan hög.
-  - En hög tar inte fokus med Tab.
-  - Startvyn fäller ut korten i en spiral i stället för grafens ring.
-  - Grafens samlingsnod får inte samma stöt och centrering genom `FanOutLayer`.
-- **Ett nytt ärende med samma nummer som ett slängt** döljs [direkt].
-- **Noden krymper inte** när den närmar sig soptunnan, som i skissen [direkt].
-- **En bevakningsträff till något i soptunnan** [direkt] visas bara som *i soptunnan · bevakad* på stumpen. Den
-  borde visas som en linje med beloppet och ringarna.
-- **Test saknas** [direkt] för när inga startpunkter finns kvar och grafen bara är cykler, så att allt följer med.
+- **Grafens samlingsnod trycks inte ut** [direkt]: stöten och centreringen är som startvyns, men ytan bakom trycks
+  inte ut lite som i `FanOutLayer` (grafen ritas i en `DrawingContext`, så det kräver en egen skalning av det dimmade).
 
 **Kommentarsnoden (KN1a)**
-- **Skrivandet** [direkt]:
-  - Enter i en lista fortsätter inte listan, och Tab drar inte in. Gawks `MarkdownEdits` kan tas över.
-  - Radavståndet medan man skriver är tätare än de 1,55 som ritas.
-  - Hjulet över en lapp som man skriver i zoomar inte grafen.
-- **Tråden** [direkt]:
-  - En lapp vars adress ligger i en hög får ingen tråd. Den borde gå till högen.
-  - `CommentGeometry.Resolve` tolkar bara Bitcoin.
 - **Historiken** [etapp]: lappens förseglade poster syns inte i inspektörens *Historik* (AN1b), och en borttagen lapp
   kan inte läggas tillbaka.
 
 **Inspektören, Nytt ärende och Guiden**
-- **Nytt ärende (NC2a)** [etapp]:
-  - **Ethereums saldo** saknas. Källan ger inget saldo för en adress, så `IEthereumSource` behöver ett uppslag av
-    saldot för ETH och tokens.
-  - **Kedjans hash vid höjden:** raden visar den senaste tx:ens block, inte hashen för höjden. Esplora har
-    `/blocks/tip/hash`, och Blockscout har motsvarande.
-  - **Det förhandshämtade som cache:** grafens första expansion hämtar adressen igen. Ett eget steg i Chains kunde
-    låta det som inte kan ha ändrats svara som cache.
-  - **Sanktionslistans Ethereum-adresser** kontrolleras inte, så brickan visas bara för Bitcoin.
 - **Kortets baksida i dagens kurs** [direkt]: efter fråga 2 ovan.
+- **Källors felrad till toastern** [direkt], som Bevakningens felrad redan är.
+- **Bevakningens huvud** [direkt]: skissen säger *2 nya träffar sedan 09:10*, men vyn säger bara antalet. När
+  användaren senast tittade behöver sparas som en tid med *sedd*.
+
 - **Guidens panel** [direkt]:
   - **Länkar:** välj samma nod igen efter att ha följt en länk, så stannar panelen på länken. Klustrets svar, som
     kommer efter en stund, kan byta avsnitt medan man läser.
   - **Tangentbordet:** metodens avsnitt nås bara med högerklick.
   - **Tolkaren:** en avslutande `*` letas efter utan att kod hoppas över.
   - **Smalt fönster:** vid 960 px kapas kommandoraden bredvid den öppna panelen.
-- **Källors felrad till toastern** [direkt], som Bevakningens felrad redan är.
-- **Bevakningens huvud** [direkt]: skissen säger *2 nya träffar sedan 09:10*, men vyn säger bara antalet. När
-  användaren senast tittade behöver sparas som en tid med *sedd*.
+
+- **Återanslutningen i utgångsrutan** [direkt]: titelraden säger *Ansluter igen …* med nästa försök, men utgångsrutan
+  (UT2b) visar bara *Offline* i rött medan tunneln ansluts igen.
 
 **Testärendet** [direkt]: fyll på det med det som byggts sedan det byggdes om. Vad som saknas står i
 `docs/BACKLOG.md` under *Testärendet (/testdata)*.
 
 ### 3. Godkänt men inte byggt
 
-1. **Begäran, BG1b** [etapp]: kärnan i *Uttag → Begäran*, och det sista steget i det Chainsaw är till för.
-   - **Vyn och exporten:**
-     - Vyn listar alla uttag som spårade pengar nått.
-     - Förhandsvisningen av Markdown, och brickor för insättningarna och spåret dit.
-     - *Exportera .md …* och *Exporterade* med SHA-256. Exporten journalförs och skriver aldrig över.
-   - **Modulen Requests:** mallar på svenska och engelska, med tx, tider, belopp och insättningsadresser.
-   - **Börsernas kontaktvägar** för brottsbekämpande myndigheter, var och en med källa och datum. Inga påhittade
-     kontaktvägar.
-   - **När den finns:**
-     - *Nytt → Begäran* och *Nytt → Etikett* kopplas i `SubmenuTable` (`docs/BACKLOG.md`, *Undermenyer i pillret*).
-     - Inspektörens *Begäran om frysning …* (TK1a) visas.
+1. **Begäran, resterna efter BG1b** [direkt]:
+   - **Markeringen i grafen:** skissen ger börsen en liten blå markering i hörnet när en begäran är exporterad. Den
+     är inte ritad, eftersom grafen byggdes om samtidigt; listan i vyn Begäran har den gröna markeringen.
+   - **Kontaktvägar:** katalogen är tom, eftersom ingen kontaktväg gick att kontrollera mot sin källa när modulen
+     byggdes (`ExchangeContacts.Catalogue`). Lägg in verifierade vägar med källa och datum.
+   - **Fler mallar** per börs, om kryptospåraren vill det.
 2. **Innehav per adress** [skiss]: Alt + klick vänder noden som ett kort (IN4 skissas först).
    - **Baksidan** visar det som ligger kvar, i rätt tecken (₿, Ξ, ₮) och i inställd valuta till dagens kurs.
    - **Inspektören** visar redan allt som passerat, det som ligger kvar och det som gått ut, vid en blockhöjd.
-3. **Grafens text när Windows är utan nät** [direkt]: godkänd 2026-11-08.
-4. **Chainabuse automatiskt** [etapp], när nyckeln tillåter.
+3. **Chainabuse automatiskt** [etapp], när nyckeln tillåter.
    - Knappen R finns. En vanlig nyckel ger bara tio anrop i månaden, så uppslag på varje nod kräver partnernyckel.
-5. **Länken `chainsaw:` registreras** [direkt] för användaren, och tas bort under Länkar i inställningarna (i dag
-   tonat *Inte byggt än*).
-   - Registreringen: `HKCU\Software\Classes\chainsaw` med `URL Protocol` och `shell\open\command` till
-     `Chainsaw.exe "%1"`.
-   - Mottagandet är byggt sedan etapp 11.
-6. **Spara ofta** [etapp]:
-   - **Varför:** `.cut` skrivs bara vid sparning och stängning, och ett ärende som lämnas vidare ska vara färskt.
-   - **Hur:** spara efter skrivningar när det är lugnt, till exempel efter några sekunder utan nya.
-   - Arbetskopian tas redan tillbaka efter en krasch, så inget går förlorat i dag.
-7. **Återanslutning av tunneln** [direkt]: när tunneln faller, till exempel efter att datorn sovit, ansluter Chainsaw
-   inte igen av sig själv. Viktigt för bevakningen.
-8. **Meddelandet mitt på skärmen** [skiss]: bevakningens tredje sätt att säga till.
+4. **Säga till när sparningen inte går** [direkt]: ärendet sparar sig självt efter skrivningar (Spara ofta, byggt
+   2026-11-08), och en sparning som misslyckas provas igen efter 1, 2, 4 och sedan högst 10 minuter utan att något sägs.
+   - Arbetskopian har allt och tas tillbaka efter en krasch, så inget går förlorat, men `.cut` är då inte färsk.
+   - Förslag: en varning i toastern (TO1a) när sparningen misslyckats några gånger i rad, och *Försök igen*. Kräver en
+     händelse på `ICase` som appen lyssnar på.
+5. **Meddelandet mitt på skärmen** [skiss]: bevakningens tredje sätt att säga till.
    - Det är byggt bakom samma gränssnitt som de andra sätten (`ScreenMessage`), men syns inte i inställningarna.
    - Skissa raden i ST1a och själva meddelandet, och lägg raden under Låsning.
-9. **Sanktionslistan mot grafens adresser och vyn Etiketter** [skiss]: `CheckSanctions` körs när grafen byggs, men
+6. **Sanktionslistan mot grafens adresser och vyn Etiketter** [skiss]: `CheckSanctions` körs när grafen byggs, men
    en träff har ingen samlad vy.
 
 ### 4. Skissas först
@@ -214,7 +164,8 @@ fungerar rättas före allt annat nedan. Särskilt:
   - SEK på Bitcoins linjer, som Ethereums redan har.
   - Stegen bakom *Varför?*.
   - Valet av valuta och upplösning i inställningarna.
-- **Förstagångsinställningens steg Utgång:** i dag erbjuds bara en WireGuard-fil eller *Senare*, och VPN är förvalt.
+- **Förstagångsinställningens steg Utgång** (FS2a eller FS2b): Windows förvalt (beslutat 2026-11-08). I dag erbjuds
+  bara en WireGuard-fil eller *Senare*, och VPN är förvalt.
   Steget behöver valet *Windows* eller *VPN* som de två korten i ST1a.
 - **Utgångarna:**
   - Ta bort en utgång, byta dess namn och ange platsen (`ExitInfo.Place`).

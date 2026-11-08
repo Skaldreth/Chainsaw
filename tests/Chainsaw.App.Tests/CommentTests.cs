@@ -663,6 +663,56 @@ public sealed class CommentGeometryTests
     }
 
     [Fact]
+    public void A_thread_to_an_address_in_a_pile_goes_to_the_pile()
+    {
+        const string pileKey = "pile:out:" + VKey;
+        var graph = GraphSamples.Graph();
+        var members = Enumerable.Range(0, 12).Select(index => "address:p" + index).ToList();
+        var nodes = members.Select((key, index) => Node(
+            key, GraphNodeKind.Address, [Address(200 + index)], hop: 1, expansion: NodeExpansion.NotExpanded));
+        var edges = members.Select((key, index) => Edge("v-p" + index, VKey, key, 1, 2 + index, 0.01m));
+        var none = new Dictionary<GraphLayout, NodePosition>();
+        var scene = Scene(graph: graph with
+        {
+            Nodes = [.. graph.Nodes, .. nodes],
+            Edges = [.. graph.Edges, .. edges],
+            Piles = [new GraphPile(pileKey, VKey, PileSide.Out, members, [], none)],
+        });
+
+        Assert.Null(scene.Node(members[3]));
+        Assert.Equal(pileKey, CommentGeometry.Resolve(scene, GraphPile.MemberKey(Address(203))));
+        Assert.Equal(pileKey, CommentGeometry.Resolve(scene, members[3]));
+        Assert.Equal(VKey, CommentGeometry.Resolve(scene, VKey));
+    }
+
+    [Fact]
+    public void A_thread_on_an_account_chain_finds_its_node_by_the_address_on_its_chain()
+    {
+        var scene = EthSamples.Scene();
+        var key = EthSamples.Key(EthSamples.S);
+        var written = GraphPile.AccountKeyPrefix + "Ethereum:" + EthSamples.S.Value.ToUpperInvariant().Replace("0X", "0x");
+
+        Assert.Equal(key, CommentGeometry.Resolve(scene, key));
+        Assert.Equal(key, CommentGeometry.Resolve(scene, written));
+        Assert.Null(CommentGeometry.Resolve(scene, GraphPile.AccountKeyPrefix + "Tron:" + EthSamples.S.Value));
+        Assert.Null(CommentGeometry.Resolve(scene, GraphPile.AccountKeyPrefix + "Okänd:x"));
+        Assert.Null(CommentGeometry.Resolve(scene, GraphPile.AccountKeyPrefix + "Ethereum:"));
+    }
+
+    [Fact]
+    public void A_stored_key_names_an_address_on_any_chain()
+    {
+        Assert.Equal(K1.ToChainAddress(), CommentGeometry.AddressOf(GraphPile.MemberKey(K1)));
+        Assert.Equal(
+            new Chainsaw.SharedKernel.ChainAddress(Chainsaw.SharedKernel.Chain.Tron, "TXyz"),
+            CommentGeometry.AddressOf(GraphPile.AccountKeyPrefix + "Tron:TXyz"));
+        Assert.Null(CommentGeometry.AddressOf(GraphPile.AccountKeyPrefix + "7:TXyz"));
+        Assert.Null(CommentGeometry.AddressOf("address:inte-en-adress"));
+        Assert.Null(CommentGeometry.AddressOf(VKey + "x"));
+        Assert.Null(CommentGeometry.AddressOf("cluster:k"));
+    }
+
+    [Fact]
     public void A_thread_to_an_address_or_a_cluster_is_stored_under_an_address_and_to_anything_else_under_its_key()
     {
         var scene = Scene();

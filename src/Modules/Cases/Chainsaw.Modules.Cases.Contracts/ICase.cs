@@ -7,8 +7,11 @@ namespace Chainsaw.Modules.Cases.Contracts;
 /// <remarks>
 /// <para>
 /// The case works on an encrypted working copy next to the <c>.cut</c> file. <see cref="Save"/> writes the working
-/// copy back into the case file; closing saves too. A working copy left by an interrupted session is recovered the
-/// next time the case is opened, with an entry in the journal.
+/// copy back into the case file; closing saves too. The case also saves itself in the background after writes, once
+/// it has been quiet for a few seconds (and at the latest a minute after a write while writes keep coming), so that a
+/// file that is handed on is fresh. Every save writes a new file next to the case file and puts it in place in one
+/// move, so the case file is never half-written. A working copy left by an interrupted session is recovered the next
+/// time the case is opened, with an entry in the journal.
 /// </para>
 /// <para>
 /// The methods are thread-safe and synchronous; call them off the UI thread. After <see cref="Close"/> (also when the

@@ -13,8 +13,31 @@ namespace Chainsaw.App.Controls;
 /// </summary>
 /// <param name="autoLock">The automatic lock, held while the dialog is open.</param>
 /// <param name="vault">The vault, which says whether Chainsaw is still unlocked when the dialog closes.</param>
-public sealed class WpfFilePicker(AutoLock autoLock, IVault vault) : IFilePicker
+public sealed class WpfFilePicker(AutoLock autoLock, IVault vault) : IFilePicker, ISaveFilePicker
 {
+    /// <summary>The dialog's filter for a request: Markdown.</summary>
+    private const string RequestFilter = "Markdown (*.md)|*.md";
+
+    /// <inheritdoc />
+    public string? PickRequestFile(string suggestedName)
+    {
+        // The dialog never asks to write over a file: the export takes the next number instead (sketch BG1b).
+        var dialog = new SaveFileDialog
+        {
+            Title = "Exportera begäran",
+            Filter = RequestFilter,
+            DefaultExt = ".md",
+            AddExtension = true,
+            FileName = suggestedName,
+            OverwritePrompt = false,
+        };
+        using (autoLock.Hold())
+        {
+            var chosen = dialog.ShowDialog(Application.Current?.MainWindow) == true;
+            return chosen && vault.State == VaultState.Unlocked ? dialog.FileName : null;
+        }
+    }
+
     /// <summary>The dialog's filter for a sanction list: the SDN list is XML, and any file can be tried.</summary>
     private const string SanctionListFilter = "Sanktionslista (*.xml)|*.xml|Alla filer (*.*)|*.*";
 

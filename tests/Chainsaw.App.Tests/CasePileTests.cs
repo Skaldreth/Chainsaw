@@ -125,6 +125,97 @@ public sealed class CasePileTests
     }
 
     [Fact]
+    public async Task A_pile_dropped_on_another_lies_on_top_of_it_under_its_name()
+    {
+        var rig = new Rig();
+        await rig.ListAsync("2026-0131", "2026-0129", "2026-0124", "2026-0122");
+        rig.Start.Stack("2026-0129", "2026-0131");
+        var first = rig.Start.Piles[0].Id;
+        rig.Start.NamePile(first, "Börs A");
+        rig.Start.Stack("2026-0122", "2026-0124");
+        var second = rig.Start.Piles[1].Id;
+        rig.Start.NamePile(second, string.Empty);
+        var dragged = (CasePileItem)rig.Start.Ring.Single(item => item.Key == second);
+        var target = (CasePileItem)rig.Start.Ring.Single(item => item.Key == first);
+
+        Assert.True(rig.Start.CanDrop(dragged, target));
+        Assert.True(rig.Start.DropOn(dragged, target));
+        await rig.Start.PilesSaved;
+
+        var pile = rig.OnlyPile;
+        Assert.Equal(first, pile.Id);
+        Assert.Equal("Börs A", pile.ShownName);
+        Assert.Equal(4, pile.Count);
+        Assert.Equal(["2026-0122", "2026-0124", "2026-0129", "2026-0131"], rig.Start.Piles[0].CaseNumbers);
+        Assert.Equal([first], rig.Piles.Saved.Select(saved => saved.Id));
+    }
+
+    [Fact]
+    public async Task A_merged_pile_takes_the_dragged_name_when_its_own_is_empty()
+    {
+        var rig = new Rig();
+        await rig.ListAsync("2026-0131", "2026-0129", "2026-0124", "2026-0122");
+        rig.Start.Stack("2026-0129", "2026-0131");
+        rig.Start.NamePile(rig.Start.Piles[0].Id, string.Empty);
+        rig.Start.Stack("2026-0122", "2026-0124");
+        rig.Start.NamePile(rig.Start.Piles[1].Id, "Mixern");
+
+        Assert.True(rig.Start.MergePiles(rig.Start.Piles[1].Id, rig.Start.Piles[0].Id));
+
+        Assert.Equal("Mixern", rig.OnlyPile.ShownName);
+    }
+
+    [Fact]
+    public async Task A_pile_is_not_dropped_on_itself_and_one_being_named_is_left_without_a_name_field()
+    {
+        var rig = new Rig();
+        await rig.ListAsync("2026-0131", "2026-0129", "2026-0124", "2026-0122");
+        rig.Start.Stack("2026-0129", "2026-0131");
+        rig.Start.NamePile(rig.Start.Piles[0].Id, "Börs A");
+        rig.Start.Stack("2026-0122", "2026-0124");
+        var naming = rig.Start.NamingPileId!;
+
+        Assert.False(rig.Start.CanMergePiles(naming, naming));
+        Assert.False(rig.Start.CanMergePiles(naming, "missing"));
+        Assert.True(rig.Start.MergePiles(naming, rig.Start.Piles[0].Id));
+        Assert.Null(rig.Start.NamingPileId);
+    }
+
+    [Fact]
+    public async Task A_pile_dropped_on_a_loose_case_takes_it_in_and_a_case_on_a_pile_goes_in_it()
+    {
+        var rig = new Rig();
+        await rig.ListAsync("2026-0131", "2026-0129", "2026-0124", "2026-0122");
+        rig.Start.Stack("2026-0129", "2026-0131");
+        rig.Start.NamePile(rig.Start.Piles[0].Id, "Börs A");
+        var pile = rig.OnlyPile;
+        var loose = rig.Start.Recent.Single(item => item.CaseNumber == "2026-0124");
+
+        Assert.True(rig.Start.CanDrop(pile, loose));
+        Assert.True(rig.Start.DropOn(pile, loose));
+        Assert.Equal(3, rig.OnlyPile.Count);
+
+        var last = rig.Start.Recent.Single(item => item.CaseNumber == "2026-0122");
+        Assert.True(rig.Start.DropOn(last, rig.OnlyPile));
+        Assert.Equal(4, rig.OnlyPile.Count);
+        Assert.Empty(rig.Loose);
+    }
+
+    [Fact]
+    public async Task Two_loose_cases_dropped_on_each_other_make_a_pile_through_the_ring_drop()
+    {
+        var rig = new Rig();
+        await rig.ListAsync("2026-0131", "2026-0129");
+        var lifted = rig.Start.Recent.Single(item => item.CaseNumber == "2026-0129");
+        var target = rig.Start.Recent.Single(item => item.CaseNumber == "2026-0131");
+
+        Assert.False(rig.Start.CanDrop(lifted, lifted));
+        Assert.True(rig.Start.DropOn(lifted, target));
+
+        Assert.Equal(2, rig.OnlyPile.Count);
+    }
+
+    [Fact]
     public async Task A_case_is_not_stacked_on_itself_or_out_of_a_pile()
     {
         var rig = new Rig();

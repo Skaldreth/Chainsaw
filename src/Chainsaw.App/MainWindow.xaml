@@ -240,6 +240,10 @@
                         <views:MonitoringView x:Name="MonitoringPage"
                                               Visibility="{Binding DataContext.IsMonitoringShown, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource VisibleWhen}}" />
 
+                        <!-- Begäran (sketch BG1b). -->
+                        <views:RequestsView x:Name="RequestsPage"
+                                            Visibility="{Binding DataContext.IsRequestsShown, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource VisibleWhen}}" />
+
                         <!-- The Guide (F1, sketch GD1a in a simple form). -->
                         <views:GuideView x:Name="GuidePage"
                                          Visibility="{Binding DataContext.IsGuideShown, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource VisibleWhen}}" />
@@ -303,8 +307,12 @@
                             <RowDefinition Height="3*" />
                         </Grid.RowDefinitions>
                         <Rectangle x:Name="CommandDim" Grid.RowSpan="2" Fill="#59000000" MouseDown="OnCommandOutside" />
-                        <Grid x:Name="CommandPanel" Grid.Row="1" Width="640" VerticalAlignment="Top"
-                              HorizontalAlignment="Center" RenderTransformOrigin="0.5,0">
+                        <!--
+                          At most 640 wide, and narrower when the window or the space beside the Guide's panel is, so
+                          that it is never cut (a stretch held back by MaxWidth is centred).
+                        -->
+                        <Grid x:Name="CommandPanel" Grid.Row="1" MaxWidth="640" Margin="24,0" VerticalAlignment="Top"
+                              HorizontalAlignment="Stretch" RenderTransformOrigin="0.5,0">
                             <Grid.RenderTransform>
                                 <TransformGroup>
                                     <ScaleTransform x:Name="CommandScale" />

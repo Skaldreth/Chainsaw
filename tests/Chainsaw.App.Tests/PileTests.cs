@@ -122,7 +122,7 @@ public sealed class PileTests
     }
 
     /// <summary>The made-up graph with V paying two OP_RETURN outputs, one of nothing and one that burns money.</summary>
-    private static TraceGraph WithOpReturns()
+    internal static TraceGraph WithOpReturns()
     {
         var graph = GraphSamples.Graph();
         var tx = graph.Transactions[Tx[1]].Transaction;

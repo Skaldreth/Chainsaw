@@ -30,6 +30,19 @@ public sealed class MonitoringGateTests
     }
 
     [Fact]
+    public void Windows_without_the_internet_lets_nothing_out()
+    {
+        _route.Current = ExitRoute.Windows;
+        var presence = new Presence { IsAvailable = false };
+        var gate = new MonitoringGate(_vault, _route, _connection, _sources, presence);
+
+        Assert.Equal(WatchGate.NoExit, gate.For(Chain.Bitcoin));
+
+        presence.IsAvailable = true;
+        Assert.Equal(WatchGate.Open, gate.For(Chain.Bitcoin));
+    }
+
+    [Fact]
     public void Closed_while_locked_without_an_exit_and_for_a_chain_off()
     {
         Assert.Equal(WatchGate.NoExit, Gate.For(Chain.Bitcoin));
@@ -41,6 +54,17 @@ public sealed class MonitoringGateTests
 
         _vault.State = VaultState.Locked;
         Assert.Equal(WatchGate.Locked, Gate.For(Chain.Ethereum));
+    }
+
+    private sealed class Presence : INetworkPresence
+    {
+        public event EventHandler<bool>? Changed
+        {
+            add { }
+            remove { }
+        }
+
+        public bool IsAvailable { get; set; }
     }
 
     private sealed class Route : IExitRoute

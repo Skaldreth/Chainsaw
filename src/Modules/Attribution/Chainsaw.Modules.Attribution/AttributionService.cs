@@ -230,9 +230,36 @@ internal sealed class AttributionService(
         ArgumentNullException.ThrowIfNull(@case);
         ArgumentNullException.ThrowIfNull(addresses);
         // Each hit keeps the list it was found on, so that a list imported meanwhile is never named for it.
-        var matches = addresses.Distinct().Select(address => (Address: address, Match: sanctions.Find(address)))
-            .Where(found => found.Match is not null)
+        var matches = addresses.Distinct()
+            .Select(address => (Address: address.ToChainAddress(), Match: sanctions.Find(address)))
             .ToList();
+        return CheckSanctions(@case, matches, currency => currency == OfacSdnParser.BitcoinCurrency);
+    }
+
+    /// <inheritdoc/>
+    public SanctionCheck CheckSanctions(ICase @case, IReadOnlyCollection<EthereumAddress> addresses)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(addresses);
+        var matches = addresses.Distinct()
+            .Select(address => (Address: address.ToChainAddress(), Match: sanctions.Find(address)))
+            .ToList();
+        return CheckSanctions(@case, matches, SanctionCurrency.OnEthereum.Contains);
+    }
+
+    /// <summary>
+    /// Labels the hits of addresses already looked up on the list, the same way for every chain: one journal line, and
+    /// a label per hit not already labelled from the same list.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="looked">Each address with its chain and what the list said, or <see langword="null"/> without a
+    /// list.</param>
+    /// <param name="onChain">Says whether a hit's currency is one of the chain's.</param>
+    /// <returns>What was checked and labelled.</returns>
+    private SanctionCheck CheckSanctions(
+        ICase @case, IReadOnlyList<(ChainAddress Address, SanctionMatch? Match)> looked, Func<string, bool> onChain)
+    {
+        var matches = looked.Where(found => found.Match is not null).ToList();
         if (matches.Count == 0)
         {
             return new SanctionCheck(sanctions.Current, [], 0);
@@ -243,7 +270,7 @@ internal sealed class AttributionService(
             .Select(used => used.Version));
         var hits = matches
             .SelectMany(found => found.Match!.Hits
-                .Where(hit => hit.Currency == OfacSdnParser.BitcoinCurrency)
+                .Where(hit => onChain(hit.Currency))
                 .Select(hit => (found.Address, Hit: hit, found.Match.List)))
             .ToList();
         if (hits.Count == 0)
@@ -260,7 +287,7 @@ internal sealed class AttributionService(
                     Origin: SanctionOriginId(found.List, found.Hit, found.Address)))
                 .Where(found => !stored.Has(
                     LabelStore.Key(
-                        found.Origin, LabelSubject.ForAddress(found.Address), LabelKind.Sanctioned, found.Hit.EntryName),
+                        found.Origin, LabelSubject.ForAccount(found.Address), LabelKind.Sanctioned, found.Hit.EntryName),
                     LabelSource.SanctionList))
                 .ToList();
             if (drafts.Count == 0)
@@ -342,7 +369,7 @@ internal sealed class AttributionService(
     /// <param name="hit">The entry's address.</param>
     /// <param name="address">The address.</param>
     /// <returns>The origin id.</returns>
-    private static string SanctionOriginId(SanctionListInfo list, SanctionedAddress hit, BitcoinAddress address) =>
+    private static string SanctionOriginId(SanctionListInfo list, SanctionedAddress hit, ChainAddress address) =>
         $"sanction/{list.Sha256}/{hit.EntryUid}/{address.Value}";
 
     /// <summary>Gives the label for a hit on the list.</summary>
@@ -353,7 +380,7 @@ internal sealed class AttributionService(
     /// <param name="journal">The journal entry that records it.</param>
     /// <returns>The label, not sealed yet.</returns>
     private static LabelEntry SanctionLabel(
-        SanctionListInfo list, SanctionedAddress hit, BitcoinAddress address, string originId, JournalEntry journal)
+        SanctionListInfo list, SanctionedAddress hit, ChainAddress address, string originId, JournalEntry journal)
     {
         var programs = hit.Programs.Count == 0 ? "inget program angivet" : string.Join(", ", hit.Programs);
         var reason = string.Format(
@@ -374,6 +401,6 @@ internal sealed class AttributionService(
             reason,
             null);
         return new LabelEntry(
-            0, LabelSubject.ForAddress(address), LabelKind.Sanctioned, hit.EntryName, origin, false, 0);
+            0, LabelSubject.ForAccount(address), LabelKind.Sanctioned, hit.EntryName, origin, false, 0);
     }
 }

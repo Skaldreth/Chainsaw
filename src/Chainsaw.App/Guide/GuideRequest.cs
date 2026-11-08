@@ -23,6 +23,13 @@ public sealed record GuideContext(string Label, IReadOnlyList<WhyLine> Lines);
 /// </param>
 public sealed record GuideRequest(GuideTopic Topic, string? Heading, GuideContext? Context, string? Subject)
 {
+    /// <summary>
+    /// Gets whether the user chose the thing just now (a click, a key), so that the open panel shows its answer even
+    /// after a link was followed; otherwise the request only brings a fuller or newer answer about what was chosen
+    /// before (a cluster's answers, the graph read anew), which never moves the reader.
+    /// </summary>
+    public bool IsChoice { get; init; }
+
     /// <summary>The order in which a <em>Varför?</em> picks the section to open: the most telling first.</summary>
     private static readonly GuideTopic[] Preference =
     [

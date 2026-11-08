@@ -308,6 +308,23 @@ public sealed class MonitoringServiceTests : IDisposable
     }
 
     [Fact]
+    public void When_the_user_last_looked_is_noted_and_moved_only_by_a_newer_hit()
+    {
+        Assert.Null(_harness.Service.GetLastSeen(_harness.Case));
+        var first = _harness.Clock.UtcNow;
+
+        _harness.Service.MarkSeen(_harness.Case, "w", 5);
+        _harness.Clock.UtcNow = first.AddHours(1);
+        _harness.Service.MarkSeen(_harness.Case, "w", 3);
+
+        Assert.Equal(first, _harness.Service.GetLastSeen(_harness.Case));
+
+        _harness.Service.MarkSeen(_harness.Case, "v", 7);
+
+        Assert.Equal(first.AddHours(1), _harness.Service.GetLastSeen(_harness.Case));
+    }
+
+    [Fact]
     public void Seen_hits_are_noted_and_never_move_back()
     {
         _harness.Service.MarkSeen(_harness.Case, "w", 5);

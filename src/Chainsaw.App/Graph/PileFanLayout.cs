@@ -110,6 +110,47 @@ public static class PileFanLayout
         return centres;
     }
 
+    /// <summary>
+    /// Draws a ring in towards its centre, when it does not fit a surface of a size with a margin on every side, so that
+    /// the start page's pile fans out whole in a small window: never further than <see cref="SmallestRingFit"/>, where
+    /// the tiles would start to touch, and never out.
+    /// </summary>
+    /// <param name="centres">The tiles' centres relative to the ring's centre (<see cref="Ring"/>).</param>
+    /// <param name="width">The surface's width.</param>
+    /// <param name="height">The surface's height.</param>
+    /// <returns>The centres, drawn in as much as needed; the same when they fit.</returns>
+    public static IReadOnlyList<GraphPoint> FitRing(IReadOnlyList<GraphPoint> centres, double width, double height)
+    {
+        ArgumentNullException.ThrowIfNull(centres);
+        var across = centres.Count == 0 ? 0 : centres.Max(centre => Math.Abs(centre.X));
+        var down = centres.Count == 0 ? 0 : centres.Max(centre => Math.Abs(centre.Y));
+        var fit = Math.Min(Room(width, TileWidth, across), Room(height, TileHeight, down));
+        if (fit >= 1)
+        {
+            return centres;
+        }
+
+        var scale = Math.Max(fit, SmallestRingFit);
+        return [.. centres.Select(centre => new GraphPoint(centre.X * scale, centre.Y * scale))];
+    }
+
+    /// <summary>How far a ring is drawn in at most to fit (<see cref="FitRing"/>).</summary>
+    public const double SmallestRingFit = 0.7;
+
+    /// <summary>The space kept free around a fitted ring, so that its tiles do not touch the surface's edge.</summary>
+    private const double RingMargin = 24;
+
+    /// <summary>Gives how much of a reach from the centre fits in a length: 1 or more when it all does.</summary>
+    /// <param name="length">The surface's length that way.</param>
+    /// <param name="tile">The tile's length that way.</param>
+    /// <param name="reach">The farthest tile centre from the ring's centre that way.</param>
+    /// <returns>The share.</returns>
+    private static double Room(double length, double tile, double reach)
+    {
+        var free = (length / 2) - (tile / 2) - RingMargin;
+        return reach <= 0 ? double.PositiveInfinity : Math.Max(0, free) / reach;
+    }
+
     /// <summary>Says whether two tiles at two centres clear each other.</summary>
     /// <param name="first">The first centre.</param>
     /// <param name="second">The second centre.</param>

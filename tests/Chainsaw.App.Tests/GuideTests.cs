@@ -96,6 +96,24 @@ public sealed class GuideTests
         Assert.EndsWith(" 2 * 3", runs[^1].Text, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// A star whose only partner lies in code is text: the closing marker is looked for past code, as the text is read.
+    /// </summary>
+    [Fact]
+    public void AClosingStarInCodeIsNoMarker()
+    {
+        var single = GuideMarkdown.Inline("x", "*ett `b*` två");
+        var both = GuideMarkdown.Inline("x", "**ett `**` två");
+        var past = GuideMarkdown.Inline("x", "*ett `b*` två*");
+
+        Assert.Equal("*ett b* två", Text(single));
+        Assert.All(single, run => Assert.False(run.Style.HasFlag(GuideRunStyle.Emphasis)));
+        Assert.Equal("**ett ** två", Text(both));
+        Assert.All(both, run => Assert.False(run.Style.HasFlag(GuideRunStyle.Strong)));
+        Assert.Equal("ett b* två", Text(past));
+        Assert.All(past, run => Assert.True(run.Style.HasFlag(GuideRunStyle.Emphasis)));
+    }
+
     /// <summary>A link out of the Guide is never followed: its text stays, without a link.</summary>
     [Fact]
     public void WebLinksAreText()
@@ -215,20 +233,24 @@ public sealed class GuideTests
         Assert.Equal(a, history.Current);
     }
 
-    /// <summary>A fuller answer replaces the latest about the same thing, even under a followed link.</summary>
+    /// <summary>
+    /// A fuller answer replaces the latest about the same thing, even under a followed link, and keeps its section and
+    /// heading.
+    /// </summary>
     [Fact]
     public void HistoryUpdatesTheLatestAnswer()
     {
         var history = new GuideHistory();
-        history.Start(new GuidePlace("a", null, null, "k1"));
+        var fuller = new GuideContext("Varför? · K", []);
+        history.Start(new GuidePlace("a", "rubrik", null, "k1"));
         history.Push(new GuidePlace("b", null, null, null));
 
-        Assert.True(history.UpdateLatest(new GuidePlace("c", null, null, "k1")));
+        Assert.True(history.UpdateLatest(new GuidePlace("c", null, fuller, "k1")));
         Assert.False(history.UpdateLatest(new GuidePlace("d", null, null, "k2")));
 
         Assert.Equal("b", history.Current!.Section);
         history.Back();
-        Assert.Equal("c", history.Current!.Section);
+        Assert.Equal(new GuidePlace("a", "rubrik", fuller, "k1"), history.Current);
     }
 
     /// <summary>The way back keeps at most its limit of places.</summary>
@@ -355,7 +377,10 @@ public sealed class GuideTests
         Assert.False(panel.IsOpen);
 
         panel.Open(first, fresh: true);
-        panel.Follow(new GuideRequest(GuideTopic.ChangeAddress, null, new GuideContext("Varför? · B", []), "b"));
+        panel.Follow(new GuideRequest(GuideTopic.ChangeAddress, null, new GuideContext("Varför? · B", []), "b")
+        {
+            IsChoice = true,
+        });
         Assert.Equal("Varför? · B", panel.Page!.Label);
         Assert.True(panel.CanGoBack);
 
@@ -366,6 +391,53 @@ public sealed class GuideTests
         Assert.Equal("Länk", Assert.Single(panel.Page.Answers).Text);
         panel.Back();
         Assert.Equal("Varför? · A", panel.Page.Label);
+        Assert.False(panel.CanGoBack);
+    }
+
+    /// <summary>
+    /// After a link is followed, choosing the same thing again shows its answer, while its fuller answer that comes
+    /// later only updates the answer where it lies in the way back, and never moves the reader.
+    /// </summary>
+    [Fact]
+    public void PanelStaysOnAFollowedLinkUntilTheChoiceIsMadeAgain()
+    {
+        var panel = new GuidePanelViewModel(Small());
+        var choice = new GuideRequest(GuideTopic.ChangeAddress, null, new GuideContext("Varför? · K", []), "k");
+        panel.Open(choice, fresh: true);
+        panel.Go(new GuideLink("utxo-modellen", null));
+
+        var fuller = new GuideContext("Varför? · K", [new WhyLine("Länk", GuideTopic.Labels)]);
+        panel.Follow(new GuideRequest(GuideTopic.Labels, null, fuller, "k"));
+
+        Assert.Equal("utxo-modellen", panel.Page!.Section.Id);
+        panel.Back();
+        Assert.Equal("vaxeladress", panel.Page.Section.Id);
+        Assert.Equal("Länk", Assert.Single(panel.Page.Answers).Text);
+
+        panel.Go(new GuideLink("utxo-modellen", null));
+        panel.Follow(choice with { IsChoice = true });
+
+        Assert.Equal("vaxeladress", panel.Page.Section.Id);
+        Assert.Equal("Varför? · K", panel.Page.Label);
+        Assert.True(panel.CanGoBack);
+    }
+
+    /// <summary>A fuller answer about what is read keeps its section and heading; only the answer changes.</summary>
+    [Fact]
+    public void AFullerAnswerKeepsTheSectionBeingRead()
+    {
+        var panel = new GuidePanelViewModel(Small());
+        panel.Open(
+            new GuideRequest(GuideTopic.ChangeAddress, "När slås växeln ihop?", new GuideContext("Varför? · K", []), "k"),
+            fresh: true);
+
+        var fuller = new GuideContext("Varför? · K", [new WhyLine("Etikett", GuideTopic.Labels)]);
+        panel.Follow(new GuideRequest(GuideTopic.Labels, null, fuller, "k"));
+        panel.Follow(new GuideRequest(GuideTopic.Labels, null, fuller, "annan"));
+
+        Assert.Equal("vaxeladress", panel.Page!.Section.Id);
+        Assert.Equal("när-slås-växeln-ihop", panel.Page.Anchor);
+        Assert.Equal("Etikett", Assert.Single(panel.Page.Answers).Text);
         Assert.False(panel.CanGoBack);
     }
 

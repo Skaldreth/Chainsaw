@@ -6,7 +6,6 @@ using System.Windows.Media.Animation;
 using System.Windows.Shapes;
 using Path = System.Windows.Shapes.Path;
 using Chainsaw.App.Graph;
-using Chainsaw.Modules.Tracing.Contracts;
 
 namespace Chainsaw.App.Controls;
 
@@ -28,14 +27,11 @@ public sealed class FanOutLayer : Canvas
     public static readonly DependencyProperty LineBrushProperty = DependencyProperty.Register(
         nameof(LineBrush), typeof(Brush), typeof(FanOutLayer), new PropertyMetadata(Brushes.Gray));
 
-    /// <summary>How long the shock's rings take to grow out and fade.</summary>
-    private static readonly Duration ShockTime = new(TimeSpan.FromMilliseconds(720));
-
-    /// <summary>How long after the first ring the second one leaves.</summary>
-    private static readonly TimeSpan SecondShockDelay = TimeSpan.FromMilliseconds(115);
+    /// <summary>How long the shock's rings take to grow out and fade, as in the graph (<see cref="FanShock"/>).</summary>
+    private static readonly Duration ShockTime = new(FanShock.RingTime);
 
     /// <summary>How long the pile takes to glide to the middle, and the surface to be pushed out.</summary>
-    private static readonly Duration GlideTime = new(TimeSpan.FromMilliseconds(560));
+    private static readonly Duration GlideTime = new(FanShock.GlideTime);
 
     /// <summary>How long the backdrop takes to dim the surface.</summary>
     private static readonly Duration DimTime = new(TimeSpan.FromMilliseconds(200));
@@ -67,15 +63,6 @@ public sealed class FanOutLayer : Canvas
 
     /// <summary>How small a card is as it leaves the pile.</summary>
     private const double CardStartScale = 0.6;
-
-    /// <summary>The radius the shock's rings start from.</summary>
-    private const double ShockStartRadius = 12;
-
-    /// <summary>The radius the shock's rings reach, past the edges of any window.</summary>
-    private const double ShockEndRadius = 1150;
-
-    /// <summary>How visible a shock ring is as it leaves the pile.</summary>
-    private const double ShockOpacity = 0.55;
 
     /// <summary>The line width of the shock's rings.</summary>
     private const double LineWidth = 1.5;
@@ -290,9 +277,10 @@ public sealed class FanOutLayer : Canvas
             return;
         }
 
-        foreach (var delay in new[] { TimeSpan.Zero, SecondShockDelay })
+        for (var index = 0; index < FanShock.RingCount; index++)
         {
-            var circle = new EllipseGeometry(origin, ShockStartRadius, ShockStartRadius);
+            var delay = FanShock.Delay(index);
+            var circle = new EllipseGeometry(origin, FanShock.StartRadius, FanShock.StartRadius);
             var ring = new Path
             {
                 Data = circle, Stroke = LineBrush, StrokeThickness = LineWidth, Opacity = 0, IsHitTestVisible = false,
@@ -300,7 +288,7 @@ public sealed class FanOutLayer : Canvas
             Children.Add(ring);
             circle.BeginAnimation(EllipseGeometry.RadiusXProperty, Grow(delay));
             circle.BeginAnimation(EllipseGeometry.RadiusYProperty, Grow(delay));
-            var fade = FromTo(ShockOpacity, 0, ShockTime, null);
+            var fade = FromTo(FanShock.RingOpacity, 0, ShockTime, null);
             fade.BeginTime = delay;
             fade.Completed += (_, _) => Children.Remove(ring);
             ring.BeginAnimation(OpacityProperty, fade);
@@ -328,12 +316,16 @@ public sealed class FanOutLayer : Canvas
         glide.BeginAnimation(TranslateTransform.YProperty, FromTo(origin.Y - middle.Y, 0, GlideTime, Glide));
     }
 
-    /// <summary>Deals the cards out on the rings around the middle, one after the other, with spokes to them.</summary>
+    /// <summary>
+    /// Deals the cards out on the graph's rings around the middle (<see cref="PileFanLayout.Ring"/>, sketch EX2b), drawn
+    /// in a little when the layer is too small for them, one after the other, with spokes to them.
+    /// </summary>
     /// <param name="cards">The cards.</param>
     /// <param name="middle">The middle.</param>
     private void Deal(IReadOnlyList<FrameworkElement> cards, Point middle)
     {
-        var slots = PileFanLayout.Centres(cards.Count, PileFanMode.Spiral, PileSide.Out);
+        var slots = PileFanLayout.FitRing(
+            PileFanLayout.Ring(cards.Count), ActualWidth, ActualHeight - FootRoom);
         var spokes = new GeometryGroup();
         _spokes.Stroke = LineBrush;
         _spokes.Data = spokes;
@@ -451,7 +443,7 @@ public sealed class FanOutLayer : Canvas
     /// <param name="delay">When it starts.</param>
     /// <returns>The animation.</returns>
     private static DoubleAnimation Grow(TimeSpan delay) =>
-        Delayed(FromTo(ShockStartRadius, ShockEndRadius, ShockTime, Shock), delay);
+        Delayed(FromTo(FanShock.StartRadius, FanShock.EndRadius, ShockTime, Shock), delay);
 
     /// <summary>Makes an animation to a value from where it stands.</summary>
     /// <param name="to">The value.</param>

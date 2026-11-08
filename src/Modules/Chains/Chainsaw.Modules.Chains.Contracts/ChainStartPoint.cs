@@ -50,6 +50,13 @@ public sealed record ChainStartPoint(Chain? Chain, StartPointKind Kind, string V
     /// <summary>Gets whether the text was recognised on some chain.</summary>
     public bool IsRecognised => Kind != StartPointKind.Unknown;
 
+    /// <summary>Gets the Ethereum address, when the start point is one; otherwise <see langword="null"/>.</summary>
+    public EthereumAddress? EthereumAccount =>
+        Chain == SharedKernel.Chain.Ethereum && Kind == StartPointKind.Address
+        && EthereumAddress.TryParse(Value, out var address)
+            ? address
+            : null;
+
     /// <summary>
     /// Recognises a text without being told its chain. A Bitcoin address or a bare 64-digit hash (a Bitcoin txid) is
     /// Bitcoin; <c>0x</c> and 40 or 64 hex digits is Ethereum; a Base58Check address with TRON's version byte is

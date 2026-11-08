@@ -113,6 +113,9 @@ public sealed record NodeView(
     /// <summary>Gets the node's key.</summary>
     public string Key => Node.Key;
 
+    /// <summary>Gets how wide the node is drawn: wider when its name needs it (sketch GR5).</summary>
+    public double Width { get; } = NodeWidths.For(Look, Name, IsNamed, Count);
+
     /// <summary>
     /// Gets the balance per token on an account chain (sketch TK1a): in, out and what is left of each asset along the
     /// graph's lines, with its issuer and whether it can be frozen; empty on Bitcoin.
@@ -184,6 +187,36 @@ public sealed record EdgeView(
 
     /// <summary>Gets the swaps the pill rests on.</summary>
     public IReadOnlyList<TokenSwap> Swaps { get; init; } = [];
+
+    /// <summary>
+    /// Gets the pill's pairs of token marks (sketch TK1a: <c>₮ → Ξ</c> as two round badges), one for each different
+    /// swap on the line; empty when it carries none.
+    /// </summary>
+    public IReadOnlyList<SwapMarks> SwapPairs => [.. Swaps.Select(SwapMarks.Of).Distinct()];
+}
+
+/// <summary>The marks of what was sold and what was bought in a swap, as its pill on the line shows them.</summary>
+/// <param name="Sold">The sold token's mark, or its symbol when it has none.</param>
+/// <param name="Bought">The bought token's mark, or its symbol when it has none.</param>
+public sealed record SwapMarks(string Sold, string Bought)
+{
+    /// <summary>Gives a swap's marks.</summary>
+    /// <param name="swap">The swap.</param>
+    /// <returns>The marks.</returns>
+    public static SwapMarks Of(TokenSwap swap)
+    {
+        ArgumentNullException.ThrowIfNull(swap);
+        return new(MarkOf(swap.Sold.Asset), MarkOf(swap.Bought.Asset));
+    }
+
+    /// <summary>Gives an asset's mark, or its symbol when it has none.</summary>
+    /// <param name="asset">The asset.</param>
+    /// <returns>The mark.</returns>
+    public static string MarkOf(Asset asset)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+        return TokenMarks.Glyph(asset) is { Length: > 0 } glyph ? glyph : asset.Symbol;
+    }
 }
 
 /// <summary>
@@ -314,6 +347,17 @@ public sealed record GraphScene(
     /// <returns>The node, or <see langword="null"/>.</returns>
     public NodeView? Node(string? key) => key is not null ? _nodes.GetValueOrDefault(key) : null;
 
+    /// <summary>Gives how wide a node is drawn (sketch GR5); the graph's width for one not drawn as a node.</summary>
+    /// <param name="key">The node's key.</param>
+    /// <returns>The width.</returns>
+    public double WidthOf(string key) => _nodes.TryGetValue(key, out var node) ? node.Width : GraphSizes.NodeWidth;
+
+    /// <summary>Gives a node's frame at a place, as wide as the node is drawn.</summary>
+    /// <param name="key">The node's key.</param>
+    /// <param name="place">Its top-left corner.</param>
+    /// <returns>The frame.</returns>
+    public GraphRect FrameOf(string key, GraphPoint place) => GraphSizes.NodeFrame(place, WidthOf(key));
+
     /// <summary>Gives a line by its key.</summary>
     /// <param name="key">The key.</param>
     /// <returns>The line, or <see langword="null"/>.</returns>
@@ -362,7 +406,9 @@ public sealed record GraphScene(
         var nodes = graph.Nodes.Select(node => BuildNode(node, snapshot, edges)).ToList();
         trash ??= TrashFilter.Empty;
         var folding = GraphFold.Apply(graph, nodes, edges, showUnspendable, snapshot.KeptOutOfPiles, trash);
-        var (lanes, columns) = HopLayout.Arrange(folding.LayoutNodes);
+        var widths = folding.Nodes.ToDictionary(node => node.Key, node => node.Width, StringComparer.Ordinal);
+        var (lanes, columns) = HopLayout.Arrange(
+            folding.LayoutNodes, key => widths.GetValueOrDefault(key, GraphSizes.NodeWidth));
         return new GraphScene(snapshot, folding.Nodes, folding.Edges, lanes, columns)
         {
             LayoutNodes = folding.LayoutNodes,
@@ -487,14 +533,9 @@ public sealed record GraphScene(
     /// <param name="swaps">The swaps on the line, at least one.</param>
     /// <returns>The pill's text; several different swaps on one line are joined.</returns>
     private static string SwapText(IReadOnlyList<TokenSwap> swaps) => string.Join(" · ", swaps
-        .Select(swap => $"{MarkOf(swap.Sold.Asset)} → {MarkOf(swap.Bought.Asset)}")
-        .Distinct(StringComparer.Ordinal));
-
-    /// <summary>Gives an asset's mark, or its symbol when it has none.</summary>
-    /// <param name="asset">The asset.</param>
-    /// <returns>The mark.</returns>
-    private static string MarkOf(Asset asset) =>
-        TokenMarks.Glyph(asset) is { Length: > 0 } glyph ? glyph : asset.Symbol;
+        .Select(SwapMarks.Of)
+        .Distinct()
+        .Select(marks => $"{marks.Sold} → {marks.Bought}"));
 
     /// <summary>Gives the key of an account's node, as Tracing writes it.</summary>
     /// <param name="account">The account.</param>

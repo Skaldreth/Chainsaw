@@ -421,6 +421,17 @@ public sealed partial class ChecksViewModel : ObservableObject
     /// <summary>Gets whether the form is open.</summary>
     public bool IsFormOpen => Form != AreaFormMode.None;
 
+    /// <summary>
+    /// Gets the actors the open form is about, so that it stands beside them (sketch KF1b): the chosen actors for a
+    /// new area, or the chosen area's actors when it is renamed or removed; empty when the form is closed.
+    /// </summary>
+    public IReadOnlyList<string> FormActors => Form switch
+    {
+        AreaFormMode.None => [],
+        AreaFormMode.Create => _picked,
+        _ => AllAreas.FirstOrDefault(area => area.Key == ChosenArea)?.Nodes ?? [],
+    };
+
     /// <summary>Gets the form's heading.</summary>
     public string FormTitle => Form switch
     {

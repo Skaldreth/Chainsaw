@@ -141,7 +141,9 @@ fortsättningen själv (belopp och tid hos swap-tjänster, bryggornas egna händ
   råsvar sparas med hash (princip 1).
 - **Mellanhänder bara när de ger något kedjan inte har:** kurser och attribution. Kurser hämtas från en källa som anger
   kursen vid en tidpunkt, och kursen sparas i ärendet med källa. Valutan att räkna i ställs in (SEK som förval).
-  Källan är **Bitstamp** (användarens beslut 2026-11-07).
+  Källan är **Bitstamp** (användarens beslut 2026-11-07). Bitstamp har ingen SEK, så **kronkursen följer
+  Riksbanken** (användarens beslut 2026-11-08): kursen i euro från Bitstamp räknas om med Riksbankens dagskurs, och
+  båda kurserna sparas i ärendet med källa och tid.
 - **Attributionskällor** (användarens beslut 2026-11-08): Chainsaw hämtar etiketter från **flera källor samtidigt**,
   var och en med en **strömbrytare** i inställningarna. **Chainabuse** (TRM Labs) är den första underleverantören,
   eftersom den samarbetar med brottsbekämpande myndigheter; dess rapporter är bedömningar med källa (princip 2).
@@ -457,6 +459,8 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   ärendenumret stort, titeln frivillig, och **startpunkterna som en lista med *+***, där varje rad visar kedjan, värdet och
   det som **hämtats i förväg** genom utgången (saldo, antal tx, första och senaste aktivitet, blockhöjd, sanktion) och
   ärligt sitt läge (hämtar, klar, väntar på utgången, inte igenkänd). *Skapa ärende* är nedtonad tills numret finns.
+  **Förstagångsinställningens steg Utgång** har *Windows* eller *VPN* som de två korten i ST1a, med **Windows
+  förvalt** (användarens beslut 2026-11-08); WireGuard-filen läggs till under VPN.
 - **Vyer** (alla bekräftade 2026-11-06, ordning och utseende skissas): Graf, Tidslinje, Flöde (Sankey: pengar in och ut),
   Tx-inspektör, Adresskort och kluster, Exponering (vilka tjänster ett kluster har betalat till eller fått från), Bevakning,
   Etiketter och Guide (Terminal är borttagen).
@@ -548,8 +552,9 @@ Canvas: https://claude.ai/artifact/LVMLEqgJteM68jjc7vuq1h. **Den är uppdelad i 
 | **Guiden** | GD1a (vy), GD1b (panel bredvid arbetet) | GD1b vald och byggd (etapp 18) |
 | **Inställningar** | ST1a (dialog som i Gawk), ST1b (vy); KL1a, KL1b (källornas endpoints) | ST1a vald och byggd (etapp 19); KL1a vald, ersatt av KL2b (vald 2026-11-08 utan linjerna vid raderna och byggd, med Chainabuse under *Etiketter*) |
 | **Bevakning** | BV1a (lista med formulär), BV1b (tidslinje med händelser); BV2a (vaktlinje), BV2b (båge vid porten); BV3a, BV3b (Bevaka, enklare och vid noden) | BV1a och BV2a valda, med animerade ringar vid träff; BV3a vald |
-| **Begäran** | BG1a (i inspektören), BG1b (vyn Begäran); export till Markdown | BG1b vald |
+| **Begäran** | BG1a (i inspektören), BG1b (vyn Begäran); export till Markdown | BG1b vald och byggd |
 | **Soptunnan** | SO1a, SO1b (släppytan, varningen och vyn) | SO1a vald |
 | **Ärendeväljaren** | ÄV1a (i titelraden), ÄV1b (panel) | ÄV1a vald |
 | **Kontroller och förslag** | KF1a (lista att gå igenom), KF1b (områden bakom aktörerna, också för plånböcker, tid och egna ytor); KF2a, KF2b (omgjorda, professionellare) | KF1a byggd i etapp 22, ersätts av KF2b (vald 2026-11-08), med områdena från KF1b |
 | **Meddelanden** | TO1a (toastern nere till höger) | TO1a godkänd och byggd |
+| **Mot 1.0** | IN4, TL2, GR9 (grafen); ET1, EP1, RP1 (Etiketter, Exponering, Rapporten); KU1, BV4, ST2, FS2 (kurser, meddelandet, återställningsnyckeln, steget Utgång); UT3, ÄR1, KR1 (utgångarna, ärendet, sökningen), två varianter vardera | Väntar på användarens val (2026-11-08) |

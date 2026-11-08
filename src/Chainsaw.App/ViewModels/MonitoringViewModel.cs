@@ -468,7 +468,7 @@ public sealed partial class MonitoringViewModel : ObservableObject
             light,
             failed && watch.State == WatchState.Active && gate == WatchGate.Open
                 ? "Senaste uppslaget misslyckades"
-                : WatchWords.State(watch, gate),
+                : WatchWords.State(watch, gate, _board.Offline.Waiting),
             parties,
             WatchWords.Parties(watch.Filter, Name),
             LastOf(snapshot, watch),
@@ -547,19 +547,31 @@ public sealed partial class MonitoringViewModel : ObservableObject
         $"{WatchWords.When(block.Time, _clock.UtcNow)} · block {WatchWords.Block(block.Height)} · " +
         Graph.SubjectText.Fit(block.Hash, Graph.SubjectText.Shortest + 4);
 
+    /// <summary>
+    /// Says the new hits in the head, and since when the user last looked when that is known (sketch BV1a):
+    /// <c> · 2 nya träffar sedan 09:10</c>.
+    /// </summary>
+    /// <param name="snapshot">The snapshot.</param>
+    /// <returns>The words, beginning with a separator, or empty when there are none.</returns>
+    private string News(WatchSnapshot snapshot)
+    {
+        var unseen = snapshot.Unseen;
+        if (unseen == 0)
+        {
+            return string.Empty;
+        }
+
+        var count = unseen == 1 ? "1 ny träff" : $"{unseen} nya träffar";
+        var since = snapshot.LastSeen is { } at ? $" sedan {WatchWords.When(at, _clock.UtcNow)}" : string.Empty;
+        return $" · {count}{since}";
+    }
+
     /// <summary>Shows the head: the summary and the honest state of the watching.</summary>
     /// <param name="snapshot">The snapshot.</param>
     private void ShowHead(WatchSnapshot snapshot)
     {
         var active = snapshot.Watches.Where(watch => watch.State == WatchState.Active).ToList();
-        var unseen = snapshot.Unseen;
-        var news = unseen switch
-        {
-            0 => string.Empty,
-            1 => " · 1 ny träff",
-            _ => $" · {unseen} nya träffar",
-        };
-        Summary = $"{snapshot.Watches.Count} bevakningar · {active.Count} aktiva{news}";
+        Summary = $"{snapshot.Watches.Count} bevakningar · {active.Count} aktiva{News(snapshot)}";
         // The gate counts whether or not a watch is active: an honest head never says it watches when it cannot.
         var chains = snapshot.Watches.Select(watch => watch.Chain).DefaultIfEmpty(Chain.Bitcoin).Distinct();
         var gates = chains.Select(chain => (Chain: chain, Gate: _board.Gate(chain))).ToList();
@@ -573,7 +585,9 @@ public sealed partial class MonitoringViewModel : ObservableObject
         }
         else if (gates.Any(each => each.Gate == WatchGate.NoExit))
         {
-            (BackgroundText, BackgroundTip, IsWaiting) = (WatchWords.NoExitText, WatchWords.NoExitTip, true);
+            var offline = _board.Offline;
+            var text = offline.Waiting + WatchWords.NoLookupsText;
+            (BackgroundText, BackgroundTip, IsWaiting) = (text, offline.Hint, true);
         }
         else if (gates.FirstOrDefault(each => each.Gate == WatchGate.ChainOff) is { Gate: WatchGate.ChainOff } off)
         {

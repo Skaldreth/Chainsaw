@@ -35,8 +35,8 @@ public sealed class NoteMarkdownView : StackPanel
     /// <summary>The code's size (sketch KN1a: 12 px).</summary>
     private const double CodeSize = 12;
 
-    /// <summary>The line height as a share of the size (sketch KN1a: 1.55).</summary>
-    private const double LineShare = 1.55;
+    /// <summary>The line height as a share of the size (sketch KN1a: 1.55), drawn and while written.</summary>
+    internal const double LineShare = 1.55;
 
     /// <summary>How far a bullet or numbered item steps in (sketch KN1a: 14 px), and each level more.</summary>
     private const double ItemIndent = 14;

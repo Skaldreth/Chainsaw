@@ -404,18 +404,32 @@ public sealed class CaseWorkflow
     }
 
     /// <summary>
-    /// Labels the Bitcoin start points the imported sanction list names, with the list as the origin, so that the tag
-    /// Nytt ärende showed is in the case as a label (principle 2: an assessment from an open source).
+    /// Labels the Bitcoin and Ethereum start points the imported sanction list names, with the list as the origin, so
+    /// that the tag Nytt ärende showed is in the case as a label (principle 2: an assessment from an open source).
     /// </summary>
     /// <param name="created">The new case.</param>
     /// <param name="startPoints">The start points.</param>
     /// <param name="missed">What could not be done.</param>
     private void CheckSanctions(ICase created, IReadOnlyList<ChainStartPoint> startPoints, List<string> missed)
     {
-        var addresses = startPoints.Select(each => each.Bitcoin?.Address).OfType<BitcoinAddress>().ToList();
-        if (_attribution is { } attribution && addresses.Count > 0)
+        if (_attribution is not { } attribution)
         {
-            Try(missed, "sanktionslistan kontrollerades inte", () => attribution.CheckSanctions(created, addresses));
+            return;
+        }
+
+        // One step per chain, so that a failure for one never keeps the other from being checked.
+        var bitcoin = startPoints.Select(each => each.Bitcoin?.Address).OfType<BitcoinAddress>().ToList();
+        if (bitcoin.Count > 0)
+        {
+            Try(missed, "sanktionslistan kontrollerades inte för Bitcoin",
+                () => attribution.CheckSanctions(created, bitcoin));
+        }
+
+        var ethereum = startPoints.Select(each => each.EthereumAccount).OfType<EthereumAddress>().ToList();
+        if (ethereum.Count > 0)
+        {
+            Try(missed, "sanktionslistan kontrollerades inte för Ethereum",
+                () => attribution.CheckSanctions(created, ethereum));
         }
     }
 

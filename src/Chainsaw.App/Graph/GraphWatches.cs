@@ -45,6 +45,20 @@ public sealed record WatchLine(
 /// <param name="Tip">What the watch looks for.</param>
 public sealed record WatchRay(string NodeKey, bool IsOut, bool Idle, string Tip);
 
+/// <summary>
+/// A hit of a watch whose counterparty lies in the trash (sketches BV2a and SO1a): drawn at the watched node's port as
+/// a short real line into the trash, with the amount and rings that move until the hit is seen, never as a silent stub.
+/// </summary>
+/// <param name="NodeKey">The watched node.</param>
+/// <param name="IsOut">Whether the money went out (the right port); otherwise it came in (the left).</param>
+/// <param name="Idle">Whether lookups cannot be made now (grey).</param>
+/// <param name="Tip">What the watch looks for.</param>
+/// <param name="Label">The hit's amount, or <see langword="null"/> when it went to more than one counterparty.</param>
+/// <param name="IsNew">Whether the hit is not seen yet, so that its rings move.</param>
+/// <param name="WatchId">The watch.</param>
+public sealed record WatchTrashHit(
+    string NodeKey, bool IsOut, bool Idle, string Tip, string? Label, bool IsNew, string WatchId);
+
 /// <summary>Everything the graph draws for the watches (sketch BV2a).</summary>
 /// <param name="Marks">The eyes in the nodes' corners.</param>
 /// <param name="Lines">The watch lines, glows and hits.</param>
@@ -55,11 +69,21 @@ public sealed record GraphWatchOverlay(
     /// <summary>Gets an overlay with nothing.</summary>
     public static GraphWatchOverlay Empty { get; } = new([], [], []);
 
+    /// <summary>Gets the hits whose counterparty lies in the trash, one per watch, node and side.</summary>
+    public IReadOnlyList<WatchTrashHit> TrashHits { get; init; } = [];
+
     /// <summary>
     /// Gets whether a hit's line is unseen, so that its rings move; the eye on the node has no rings (sketch BV2a), so
     /// an unseen hit without a line in the graph keeps nothing moving.
     /// </summary>
-    public bool Moves => Lines.Any(line => line.IsNew);
+    public bool Moves => Lines.Any(line => line.IsNew) || TrashHits.Any(hit => hit.IsNew);
+
+    /// <summary>Says whether a hit into the trash stands at a node's port, where it takes the stub's place.</summary>
+    /// <param name="nodeKey">The node.</param>
+    /// <param name="isOut">The side: the out port (right) or the in port (left).</param>
+    /// <returns><see langword="true"/> when one does.</returns>
+    public bool HasTrashHit(string nodeKey, bool isOut) =>
+        TrashHits.Any(hit => hit.NodeKey == nodeKey && hit.IsOut == isOut);
 
     /// <summary>Gives the eye of a node, or <see langword="null"/>.</summary>
     /// <param name="nodeKey">The node.</param>
@@ -93,6 +117,7 @@ public static class GraphWatches
         var marks = new List<WatchMark>();
         var lines = new List<WatchLine>();
         var rays = new List<WatchRay>();
+        var trashHits = new List<WatchTrashHit>();
         foreach (var watch in snapshot.Watches)
         {
             if (!nodeOf.TryGetValue(watch.Subject.Anchor, out var node))
@@ -111,6 +136,7 @@ public static class GraphWatches
 
             var hitLines = HitLines(watch, node, hits, snapshot, nodeOf, tip, idle);
             lines.AddRange(hitLines);
+            trashHits.AddRange(TrashHits(new WatchAt(watch, node, tip, idle), hits, snapshot, scene.Trash, nodeOf));
             lines.AddRange(GuardLines(watch, node, scene, nodeOf, tip, idle, hitLines));
             if (watch.Filter.HasNoCounterparties)
             {
@@ -126,7 +152,7 @@ public static class GraphWatches
             }
         }
 
-        return new GraphWatchOverlay(marks, lines, rays);
+        return new GraphWatchOverlay(marks, lines, rays) { TrashHits = trashHits };
     }
 
     /// <summary>
@@ -211,6 +237,44 @@ public static class GraphWatches
         return lines;
     }
 
+    /// <summary>
+    /// Gives a hit into the trash per side of the watched node where a hit reached a counterparty that is not in the
+    /// graph because it lies in the trash; the amount is the newest such hit's, written only when that hit had one
+    /// counterparty, as on a hit's line.
+    /// </summary>
+    /// <param name="at">The watch and its node.</param>
+    /// <param name="hits">Its hits, newest first.</param>
+    /// <param name="snapshot">The snapshot.</param>
+    /// <param name="trash">What the trash hides.</param>
+    /// <param name="nodeOf">The nodes by address.</param>
+    /// <returns>The hits into the trash, at most one per side.</returns>
+    private static IEnumerable<WatchTrashHit> TrashHits(
+        WatchAt at, IReadOnlyList<WatchHit> hits, WatchSnapshot snapshot, TrashFilter trash,
+        Dictionary<ChainAddress, string> nodeOf)
+    {
+        if (trash.IsEmpty)
+        {
+            yield break;
+        }
+
+        foreach (var direction in new[] { WatchDirection.Out, WatchDirection.In })
+        {
+            var reaching = hits.Where(hit => hit.Match.Direction == direction && hit.Match.Counterparties.Any(party =>
+                    !nodeOf.ContainsKey(party) && trash.HidesAddress(party)))
+                .ToList();
+            if (reaching.Count == 0)
+            {
+                continue;
+            }
+
+            var newest = reaching[0];
+            var label = newest.Match.Counterparties.Count == 1 ? AmountText.WithUnit(newest.Match.Amount) : null;
+            yield return new WatchTrashHit(
+                at.Node, direction == WatchDirection.Out, at.Idle, at.Tip, label, reaching.Any(snapshot.IsNew),
+                at.Watch.Id);
+        }
+    }
+
     /// <summary>Gives a watch line or a glow per chosen counterparty in the graph without a hit line.</summary>
     /// <param name="watch">The watch.</param>
     /// <param name="node">Its node.</param>
@@ -283,4 +347,11 @@ public static class GraphWatches
 
         return string.Join(" · ", parts);
     }
+
+    /// <summary>A watch at its node in the graph, with what every mark of it shares.</summary>
+    /// <param name="Watch">The watch.</param>
+    /// <param name="Node">The watched node.</param>
+    /// <param name="Tip">What the watch looks for.</param>
+    /// <param name="Idle">Whether lookups cannot be made now.</param>
+    private sealed record WatchAt(Watch Watch, string Node, string Tip, bool Idle);
 }

@@ -173,6 +173,22 @@ internal sealed class TestNetwork : INetworkPresence
     }
 }
 
+/// <summary>The reconnecting of a fallen tunnel, as the test says; nothing waits at first.</summary>
+internal sealed class TestReconnect : IExitReconnect
+{
+    public event EventHandler? Changed;
+
+    public DateTimeOffset? NextAttempt { get; private set; }
+
+    public int Attempts { get; private set; }
+
+    public void Set(DateTimeOffset? next, int attempts)
+    {
+        (NextAttempt, Attempts) = (next, attempts);
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+}
+
 /// <summary>Builds the way out for a test, as the program wires it, on the test's own thread.</summary>
 internal static class TestWays
 {
@@ -593,7 +609,7 @@ internal sealed class GateRig
             ],
             input);
         Sanctions = new SanctionListImport(SanctionLists, Picker);
-        Way = new ExitWay(Route, Exit, Ui, network: Network);
+        Way = new ExitWay(Route, Exit, Ui, network: Network, reconnect: Reconnect);
         ExitPanel = new ExitPanelViewModel(Exit, Way, Exits, Picker, Ui);
         Settings = new SettingsViewModel(
             new AppSettings(), SettingsStore, Way, ExitPanel, AutoLock, Prices, Profiles, Vault, Cases, Build);
@@ -624,6 +640,8 @@ internal sealed class GateRig
     public TestExitRoute Route { get; } = new();
 
     public TestNetwork Network { get; } = new();
+
+    public TestReconnect Reconnect { get; } = new();
 
     public ExitWay Way { get; }
 
@@ -733,4 +751,6 @@ internal sealed class TestSanctionLists : ISanctionLists
     public IReadOnlyList<SanctionListInfo> List() => Current is { } list ? [list] : [];
 
     public SanctionMatch? Find(BitcoinAddress address) => throw new NotSupportedException();
+
+    public SanctionMatch? Find(EthereumAddress address) => throw new NotSupportedException();
 }

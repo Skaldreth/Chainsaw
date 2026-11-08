@@ -44,7 +44,7 @@ public sealed partial class GraphCanvas
     private void DrawAreas(DrawingContext dc, GraphRect visible)
     {
         var model = _model!;
-        _areas = AreaGeometry.Place(model.Checks.Areas, model.Places);
+        _areas = AreaGeometry.Place(model.Checks.Areas, model.Places, model.FrameAt);
         foreach (var place in _areas.Where(place => place.Frame.Intersects(visible)))
         {
             var tint = GraphPalette.Find(this, AreaLooks.BrushKey(place.Area.Look.Tint));
@@ -73,7 +73,10 @@ public sealed partial class GraphCanvas
         }
     }
 
-    /// <summary>Draws the dashed lines to a mixer's candidates, with the score on each.</summary>
+    /// <summary>
+    /// Draws the dashed lines to a mixer's candidates: a ranked candidate has its number at its node (sketch KF2b), and
+    /// one without a rank the score in the middle of its line.
+    /// </summary>
     /// <param name="dc">Where to draw.</param>
     /// <param name="visible">The visible part of the surface.</param>
     private void DrawCandidates(DrawingContext dc, GraphRect visible)
@@ -82,13 +85,12 @@ public sealed partial class GraphCanvas
         var accent = GraphPalette.Find(this, "Brush.Accent");
         foreach (var line in model.Checks.CandidateLines)
         {
-            if (!model.Places.TryGetValue(line.From, out var from) || !model.Places.TryGetValue(line.To, out var to)
-                || !GraphSizes.NodeFrame(from).Union(GraphSizes.NodeFrame(to)).Intersects(visible))
+            if (model.CurveBetween(line.From, line.To) is not { } curve
+                || !curve.Bounds().Inflate(GraphSizes.MarkReach).Intersects(visible))
             {
                 continue;
             }
 
-            var curve = EdgeCurve.Between(from, to, model.IsHopColumns);
             var geometry = new StreamGeometry();
             using (var context = geometry.Open())
             {
@@ -102,7 +104,7 @@ public sealed partial class GraphCanvas
             dc.DrawGeometry(null, pen, geometry);
             if (line.Rank > 0)
             {
-                DrawCandidateMark(dc, line, ToPoint(curve.Middle), accent);
+                DrawCandidateMark(dc, line, model.FrameAt(line.To, model.Places[line.To]), accent);
             }
             else
             {
@@ -114,30 +116,50 @@ public sealed partial class GraphCanvas
     }
 
     /// <summary>
-    /// Draws a candidate's mark in the middle of its line (sketch KF2b): the rank in a ring as the panel's table
-    /// numbers it, filled in accent for the chosen one, or a green check once the user has approved it. The line
-    /// stays dashed all the same: an approved candidate is the user's judgement, never a fact (principle 2).
+    /// Draws a candidate's mark at its node (sketch KF2b): the rank in a disc on the node's top-left corner, as the
+    /// panel's table numbers it, filled in accent for the chosen one; once the user has approved it, a green check in
+    /// the top-right corner, after the node's other marks. The line stays dashed all the same: an approved candidate is
+    /// the user's judgement, never a fact (principle 2).
     /// </summary>
     /// <param name="dc">Where to draw.</param>
     /// <param name="line">The candidate's line.</param>
-    /// <param name="middle">The line's middle.</param>
+    /// <param name="node">The candidate's frame.</param>
     /// <param name="accent">The accent.</param>
-    private void DrawCandidateMark(DrawingContext dc, CandidateLine line, Point middle, Brush accent)
+    private void DrawCandidateMark(DrawingContext dc, CandidateLine line, GraphRect node, Brush accent)
     {
-        const double Radius = 8;
+        const double Radius = 10;
+        const double Inset = 2;
         var ground = GraphPalette.Find(this, "Brush.Background");
         if (line.IsApproved)
         {
-            var green = GraphPalette.Find(this, "Brush.Success");
-            dc.DrawEllipse(green, new Pen(ground, 1.5), middle, Radius, Radius);
-            DrawGlyph(dc, "Icon.Check", ground, new Point(middle.X - 6, middle.Y - 6), 12);
+            const double CheckRadius = MarkSize / 2;
+            var marks = CornerMarks(line.To);
+            var right = node.Right + MarkOverhang - CheckRadius - (marks * (MarkSize + 2));
+            var at = new Point(right, node.Y - MarkOverhang + CheckRadius);
+            dc.DrawEllipse(GraphPalette.Find(this, "Brush.Success"), new Pen(ground, 2), at, CheckRadius, CheckRadius);
+            DrawGlyph(dc, "Icon.Check", ground, new Point(at.X - (MarkIconSize / 2), at.Y - (MarkIconSize / 2)),
+                MarkIconSize);
             return;
         }
 
-        dc.DrawEllipse(line.IsChosen ? accent : ground, new Pen(accent, 1.4), middle, Radius, Radius);
-        var ink = line.IsChosen ? GraphPalette.Find(this, "Brush.OnAccent") : accent;
-        var text = Text(line.Rank.ToString(CultureInfo.InvariantCulture), 10, ink, FontWeights.SemiBold);
-        dc.DrawText(text, new Point(middle.X - (text.Width / 2), middle.Y - (text.Height / 2)));
+        var centre = new Point(node.X + Inset, node.Y + Inset);
+        var edge = line.IsChosen ? accent : GraphPalette.Find(this, "Brush.TextMuted");
+        dc.DrawEllipse(line.IsChosen ? accent : GraphPalette.Find(this, "Brush.Surface"), new Pen(edge, 1.5), centre,
+            Radius, Radius);
+        var text = Text(
+            line.Rank.ToString(CultureInfo.InvariantCulture), 11, GraphPalette.Find(this, "Brush.Text"),
+            FontWeights.SemiBold);
+        dc.DrawText(text, new Point(centre.X - (text.Width / 2), centre.Y - (text.Height / 2)));
+    }
+
+    /// <summary>Gives how many marks already stand in a node's top-right corner: its badges and a watch's eye.</summary>
+    /// <param name="nodeKey">The node.</param>
+    /// <returns>How many.</returns>
+    private int CornerMarks(string nodeKey)
+    {
+        var model = _model!;
+        var badges = model.Scene?.Node(nodeKey)?.Badges.Count ?? 0;
+        return badges + (model.WatchOverlay.MarkOf(nodeKey) is null ? 0 : 1);
     }
 
     /// <summary>Writes a candidate's score in a small dashed box in the middle of its line.</summary>
@@ -261,7 +283,7 @@ public sealed partial class GraphCanvas
     {
         var frames = nodes
             .Where(_model!.Places.ContainsKey)
-            .Select(node => GraphSizes.NodeFrame(_model.Places[node]))
+            .Select(node => _model.FrameAt(node, _model.Places[node]))
             .ToList();
         if (frames.Count == 0)
         {

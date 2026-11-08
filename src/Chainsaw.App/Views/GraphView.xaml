@@ -690,13 +690,48 @@
                                     </controls:GridIcon.Style>
                                 </controls:GridIcon>
                             </Button>
+                            <!--
+                              The outputs that can never be spent (OP_RETURN, 0 BTC): marked while the graph has any, a
+                              crossed eye with a dot while they are hidden and an open eye, lit, while they are shown, so
+                              that they can always be shown again after the toast has gone or the case was opened anew.
+                            -->
+                            <Button ToolTip="{Binding UnspendableToolTip}" Command="{Binding ToggleUnspendableCommand}"
+                                    AutomationProperties.Name="Utgångar utan mottagare"
+                                    Visibility="{Binding HasUnspendable, Converter={StaticResource Visible}}">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource Button.NodeTool}">
+                                        <Setter Property="Foreground" Value="{StaticResource Brush.TextDim}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding ShowsUnspendable}" Value="True">
+                                                <Setter Property="Tag" Value="On" />
+                                                <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                                <Grid>
+                                    <controls:GridIcon Size="18" Data="{StaticResource Icon.EyeOff}"
+                                                       Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                                       Visibility="{Binding ShowsUnspendable, Converter={x:Static controls:InvertVisibility.Instance}}" />
+                                    <controls:GridIcon Size="18" Data="{StaticResource Icon.Eye}"
+                                                       Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                                       Visibility="{Binding ShowsUnspendable, Converter={StaticResource Visible}}" />
+                                    <Ellipse Width="7" Height="7" Fill="{StaticResource Brush.TextMuted}"
+                                             HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-2,-3,0"
+                                             Visibility="{Binding ShowsUnspendable, Converter={x:Static controls:InvertVisibility.Instance}}" />
+                                </Grid>
+                            </Button>
                         </StackPanel>
                     </Border>
                 </Grid>
             </StackPanel>
-            <!-- The form for an own area (sketch KF1b): under the corner, while it is open. -->
-            <views:AreaForm DataContext="{Binding Checks}" HorizontalAlignment="Right" VerticalAlignment="Top"
-                            Margin="0,56,16,0" Visibility="{Binding IsFormOpen, Converter={StaticResource Visible}}" />
+            <!--
+              The form for an own area (sketch KF1b): beside the actors it is about, to their right or else to their
+              left, while it is open; the view keeps it there through pans, zooms and drags.
+            -->
+            <views:AreaForm x:Name="OwnAreaForm" DataContext="{Binding Checks}" HorizontalAlignment="Left"
+                            VerticalAlignment="Top" SizeChanged="OnOverNodeSized"
+                            Visibility="{Binding IsFormOpen, Converter={StaticResource Visible}}" />
             <!-- The question before the graph is sorted: under the corner, at the icon, while it is open. -->
             <views:TidyConfirm HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,56,16,0"
                                Visibility="{Binding IsTidyConfirmOpen, Converter={StaticResource Visible}}" />

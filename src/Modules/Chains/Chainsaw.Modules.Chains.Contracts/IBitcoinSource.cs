@@ -130,4 +130,17 @@ public interface IBitcoinSource
     /// <param name="cancellationToken">Stops the lookup.</param>
     /// <returns>The height.</returns>
     Task<BitcoinLookup<BitcoinTip>> GetTipHeightAsync(ICase @case, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets the newest block with its hash (<c>/blocks/tip/hash</c>, always fetched anew) and its height and time from
+    /// the block itself (<see cref="GetBlockAsync"/>, checked against its own header), so that the height a lookup
+    /// was made at comes with the hash that names the chain. A source that cannot say answers
+    /// <see cref="LookupStatus.Failed"/> and sends nothing.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="cancellationToken">Stops the lookup.</param>
+    /// <returns>The newest block.</returns>
+    Task<BitcoinLookup<ChainTip>> GetTipAsync(ICase @case, CancellationToken cancellationToken = default) =>
+        Task.FromResult(new BitcoinLookup<ChainTip>(
+            LookupStatus.Failed, null, [], "Källan kan inte säga kedjans hash. Inget skickades."));
 }

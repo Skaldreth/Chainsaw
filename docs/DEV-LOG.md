@@ -2998,3 +2998,272 @@ Byggd som en etapp, eftersom den skriver i ärendet.
 - Att slå ihop för hand utan förslag (välja aktörer och *Slå ihop*) är inte skissat; `Merge` tar redan emot det.
 - `/testdata` har ingen godkänd plånbok än.
 
+
+## Kommentarsnodens skrivande och tråd, Guidens panel (2026-11-08)
+
+- **Skrivandet:** Gawks `MarkdownEdits` övertagen till `Chainsaw.SharedKernel/Text/MarkdownEdits.cs` med bara det
+  lappen behöver: Enter i en lista eller ett citat fortsätter (nästa nummer; en tom punkt avslutar listan eller går ut
+  en nivå), Tab och Shift+Tab drar in och ut (två mellanslag). Till skillnad från Gawk tål reglerna `\r\n`, eftersom
+  AvalonEdit skriver Windows radbrytningar; den nya raden får dokumentets egen radbrytning. Varje ändring är ett steg
+  för Ctrl+Z. Shift+Tab hanteras alltid, så att tangentbordet aldrig lämnar lappen.
+- **Radavståndet** medan man skriver är 1,55 som i den ritade lappen: redigeraren får ett sammansatt typsnitt
+  (`FontFamily` med `LineSpacing` 1,55 och baslinjen skalad i samma proportion som en `TextBlock` med `LineHeight`),
+  över temats `Font.Ui` och `Font.Mono`. AvalonEdit har inget eget radavstånd. Ska provas på Windows.
+- **Hjulet:** redigerarens egen rullning tar varje hjulsnurr; lappen rullar aldrig, så redigeraren släpper snurret
+  vidare (`handledEventsToo`) och grafen zoomar.
+- **Tråden:** `CommentGeometry.Resolve` läser adressen i nyckeln på alla kedjor (`address:` för Bitcoin, `account:`
+  med kedjan för kontokedjorna, `AddressOf`) och letar upp aktören med `TraceGraph.NodeOf(ChainAddress)`. Ligger
+  aktören i en ritad hög går tråden till högen. `IsThrown` använder samma uppslag.
+- **Guidens panel, länkar:** `GuideRequest.IsChoice` skiljer ett val från ett fylligare svar. Grafen säger själv till
+  vid varje val, också när svaren är desamma, så att samma nod vald igen efter en följd länk visar svaret som ett nytt
+  steg. Ett svar som kommer senare (klustrets länkar, grafen läst om) uppdaterar bara svaret där det ligger i vägen
+  tillbaka, och avsnittet och rubriken står kvar (`GuideHistory.UpdateLatest`), så att det man läser aldrig byts.
+  Ett sådant svar om något annat än det som ligger i vägen tillbaka ändrar ingenting (förut blev det ett steg).
+- **Tangentbordet:** Shift+F1 i grafen öppnar metodens avsnitt, som högerklick på metoden (Windows tangent för hjälp
+  om det som står framför). Metodens knapp tar inte fokus, så tangenten sitter på grafen; verktygstipset och
+  *Kortkommandon* säger det.
+- **Tolkaren:** en avslutande `*` eller `**` letas efter förbi kod, som texten läses (`Closes`).
+- **Smalt fönster:** kommandoraden är högst 640 px och smalnar av med 24 px luft mot fönstrets kant och mot panelen,
+  i stället för att ha fast bredd och kapas.
+- **Egna beslut:** Shift+F1 som tangent (skissen har ingen); luften kring kommandoraden 24 px.
+- Tester: `MarkdownEditsTests` i SharedKernel (7), i App `CommentGeometryTests` (hög, Ethereum, nyckelns adress),
+  `GuideTests` (länk och nytt val, fylligare svar behåller avsnittet, stjärna i kod, historiken) och
+  `GraphViewModelTests` (valet igen, Shift+F1 i tipset).
+- **Återstår:** inget av punkterna; *Historiken* för lappen är kvar i TODO.
+
+## Spara ofta (2026-11-08)
+
+Ett öppet ärende skriver arbetskopian tillbaka till `.cut` av sig självt efter skrivningar, så att en fil som lämnas
+vidare är färsk. Förut skrevs `.cut` bara vid sparning och stängning.
+
+- **När:** fem sekunder efter den senaste skrivningen utan nya, och senast en minut efter den första osparade, så att
+  ett ärende som skrivs i hela tiden ändå sparas (`CasesOptions.AutosaveQuietPeriod` och `AutosaveMaximumDelay`,
+  interna). En skrivning är en `Write` som gått igenom, en rad i journalen och en ny titel; en `Write` som kastar räknas
+  inte. Utan nya skrivningar sparas inget.
+- **Hur:** `AutosaveSchedule` (Cases, internal) bestämmer bara när, med en timer ur en `TimeProvider`, så att testerna
+  flyttar tiden själva. Själva sparningen är den befintliga `SaveUnlocked`, som skriver en ny fil bredvid (`.cut.tmp`)
+  och flyttar den på plats i ett steg, så `.cut` blir aldrig halvskriven, och som för in den nya filens hash i basen
+  före flytten, så att en krasch mitt i blir en återtagning och aldrig en konflikt.
+- **Krockar inte:** timerns tråd väntar aldrig på ärendets grind (`Lock.TryEnter`). Är ärendet upptaget av en annan
+  läsning eller skrivning provas det igen en sekund senare, och kommer timern mitt i en operation på samma tråd sparas
+  inget då. Ett ärende som håller på att stängas (låsning av valvet, `BeginClosing`) lämnas åt stängningen, som
+  sparar själv. Timern startar först när ärendet har öppnats färdigt (`StartAutosave` i `FinishOpening`), så öppningen
+  och återtagningen efter en krasch sköter sin egen sparning, och ett ärende som inte gick att öppna sparas aldrig av en
+  timer. Timern tas bort när ärendet stängs eller överges.
+- **En sparning som misslyckas** (till exempel en fil som ett antivirus håller) lämnar `.cut` orörd och det osparade
+  kvar, och provas igen efter en minut; misslyckas den igen fördubblas väntan, högst tio minuter (1, 2, 4, 8, 10).
+  Inget undantag lämnar timerns tråd: en låsning som hinner emellan kontrollerna och sparningen avslutar den tyst, och
+  allt annat fångas ytterst. Den syns inte i gränssnittet än (TODO *Säga till när sparningen inte går*).
+- **Eget beslut:** sparningen journalförs inte, som en sparning för hand inte gör det; den lägger inget till i ärendet,
+  den skriver bara det som redan förseglats till filen.
+- **Avsteg:** inget gränssnitt. Medan en sparning pågår väntar en annan operation på ärendet på grinden, som vid en
+  sparning för hand; `ICase` ska anropas utanför UI-tråden, så gränssnittet låses inte.
+- Tester: `AutosaveTests` (17) och `AutosaveScheduleTests` (13) i Cases.Tests, med `FakeTimeProvider` och utan riktiga
+  väntetider: sparning efter tystnaden och inte före, en kopia av filen medan ärendet är öppet har det nya, ny skrivning
+  flyttar sparningen, senast efter en minut, inget utan skrivningar, alla sorters skrivningar, sparning för hand, ett
+  upptaget ärende (läsning på en annan tråd och timern mitt i en skrivning), en misslyckad sparning, stängning,
+  låsning av valvet, också mellan kontrollerna och sparningen, krasch före och efter en sparning av sig självt, och
+  väntan som växer efter fel i rad.
+
+## Soptunnan och startvyns högar: det som återstod (SO1a, GR8a, 2026-11-08)
+
+- **Hög på hög:** en hög lyfts och dras som ett ärende (samma vridna bild, nu av högen). Släppt på en annan hög läggs
+  dess ärenden överst i den, under namnet på högen man släppte på, eller den dragnas när den saknade namn; släppt på
+  ett löst ärende tar högen in ärendet. Vad ett släpp betyder står i vymodellen (`CanDrop`, `DropOn`, `MergePiles`);
+  vyn frågar bara. En hög som dras får inte soptunnan att växa, eftersom en hel hög inte går att slänga än.
+- **Tab:** högarna på ringen tar tangentbordet som ärendena, med accentens ram; Enter och blanksteg fäller ut, F2
+  skriver namnet.
+- **Grafens ring på startsidan:** `FanOutLayer` lägger korten med `PileFanLayout.Ring` (EX2b) i stället för spiralen,
+  och korten är grafens brickor (156 × 40, dokumentet i en streckad fyrkant, numret och *ändrad …*). I ett litet
+  fönster dras ringen in (`FitRing`), högst till 70 %.
+- **Samma stöt och centrering i grafen:** tider, radier och ease ligger i `Graph/FanShock` (utan WPF, testad), som
+  både `FanOutLayer` och grafens yta använder. Grafen ritar de två ringarna från högen och glider ytan så att högen
+  står i mitten, och tillbaka när högen fälls ihop. **Avsteg:** inte genom `FanOutLayer`, eftersom grafens brickor
+  ritas i en `DrawingContext` med sitt eget drag och val; samma värden i stället för samma kontroll. Ytan bakom trycks
+  inte ut (står i TODO). Egna beslut: ytan går bara tillbaka om användaren inte panorerat eller zoomat under tiden, och
+  en panorering eller zoom stoppar glidningen där den är.
+- **Ett nytt ärende med ett slängt nummer:** soptunnan döljer ett ärende bara som filen var när det slängdes
+  (`CaseTrash.Hides`: skrivet senast då). En fil som skrivits efter slängningen tas ut ur soptunnan när mappen listas
+  (`ForgetRewritten`), så den står inte heller i soptunnans vy. Eget beslut: ett slängt ärende som öppnas och sparas
+  igen kommer också tillbaka, eftersom man arbetar med det.
+- **Noden krymper mot soptunnan** som i skissen: till 55 % vid soptunnan och 95 % (75 % när ett släpp slänger) i
+  opacitet, mot punkten man håller i, så att den stannar under pekaren. En dragen grupp krymper tillsammans
+  (`TrashBinViewModel.DraggedScale`, `DraggedOpacity`).
+- **Bevakningsträff in i soptunnan:** `GraphWatches` ger `WatchTrashHit` när en träffs motpart inte finns i grafen för
+  att den ligger i soptunnan (`TrashFilter.HidesAddress`). Den ritas vid porten som en kort hel linje i accenten med
+  beloppet (bara när träffen hade en motpart, som en vanlig träff), ringarna tills den är sedd och *i soptunnan* i
+  änden, och tar stumpens plats på den sidan.
+- **Test:** grafen med bara cykler och utan startpunkter (`TrashTreeTests`, två fall).
+- Tester: 2 i Tracing.Tests, 22 nya i App.Tests (`CasePileTests`, `StartTrashTests`, `TrashHitTests`,
+  `FanShockTests`).
+
+## Små rättelser mot 1.0: Källor, Bevakningens huvud, offline, `chainsaw:` och tunneln (2026-11-08)
+
+- **Källors felrad till toastern:** `SourcesViewModel.ErrorText` sägs i toastern när den kommer, som Bevakningens
+  `Problem`, och raden på sidan Källor är borttagen. Samma fel två gånger i rad sägs en gång.
+- **Bevakningens huvud (BV1a):** `monitoring_seen` fick kolumnen `seen_utc` (migrering 3, `ALTER TABLE`, så att äldre
+  ärenden öppnas). `MarkSeen` skriver tiden när en nyare träff ses, och `IMonitoringService.GetLastSeen` ger den
+  senaste. Huvudet säger *2 nya träffar sedan 09:10* med `WatchWords.When` (klockslag i dag, annars datum). Tiden är
+  användarens arbete i ärendet, inte en fakta- eller bedömningsrad, och förseglas inte, som `monitoring_seen` förut.
+- **En regel för offline:** `OfflineWords` (text, orsak, *förrän …*, tips och väntetext) och `ExitWay.Offline`, som
+  väljer mellan ingen utgång, Windows utan nät och tunneln som ansluts igen. Titelraden, grafens hörn och notiser,
+  tomma grafens fot och startpunkt, Nytt ärendes tagg och rader, och Bevakningens huvud och rader läser den. Grindens
+  `MonitoringGate` säger nu `NoExit` också när Windows är utgången och datorn inte når internet, så att bevakningen
+  inte frågar förgäves.
+- **Länken `chainsaw:`:** `Links/LinkRegistration` (utan Windows) med `ILinkRegistry`, och `Interop/
+  CurrentUserLinkRegistry` som skriver `HKCU\Software\Classes\chainsaw` (`URL Protocol`, `DefaultIcon`,
+  `shell\open\command` = `"Chainsaw.exe" "%1"`). Raden under Länkar är en strömbrytare. Eget beslut: en länk som pekar
+  på en annan kopia av Chainsaw visas som av med en rad som säger det, och strömbrytaren tar över den.
+- **Återanslutning av tunneln:** `ExitReconnector` i Network (`IExitReconnect` i Contracts). Den börjar bara när en
+  ansluten tunnel faller (`ConnectionLost`), väntar 2, 5, 15 och 30 s och sedan en minut åt gången, försöker direkt
+  när nätet kommer tillbaka (`INetworkPresence`), och slutar när utgången är ansluten, när felet inte går över med
+  tiden (konfigurationen vägrad, tunneln saknas), när användaren ansluter eller kopplar från, eller när ett försök
+  avbryts. Före varje försök läses utgångens läge, så att ett sent event aldrig gör ett försök som ingen vill ha. Ett
+  låst valv väntas ut. Titelraden säger *Ansluter igen …* och verktygstipset nästa försöks klockslag.
+- Tester: `ExitReconnectorTests` (15, utan nät, med `FakeTimeProvider` och den riktiga `ExitConnection`),
+  `MonitoringGateTests` (+1), `MonitoringServiceTests` (+1), `OfflineWordsTests` (9), `WatchHeadTests` (2),
+  `LinkRegistrationTests` (6) och `SourcesTests` (+1).
+- Återstår: utgångsrutan (UT2b) visar bara *Offline* medan tunneln ansluts igen (TODO). Väntetiderna går inte att
+  ställa.
+
+## Nytt ärende NC2a: Ethereums saldo, kedjans hash, cachen och sanktionslistans Ethereum (2026-11-08)
+
+- **Kedjans hash vid höjden:** `IBitcoinSource.GetTipAsync` och `IEthereumSource.GetTipAsync` ger `ChainTip` (höjd,
+  hash, tid). Bitcoin frågar `/blocks/tip/hash` (alltid på nytt) och läser höjd och tid ur blocket självt
+  (`GetBlockAsync`, kontrollerat mot huvudet; blocket ändras aldrig, så det hämtas en gång per nytt toppblock).
+  Ethereum frågar Blockscouts `v2/blocks?type=block` och tar höjd, hash och tid ur samma post, så att höjden och hashen
+  alltid hör ihop. Raden visar kedjans höjd som förut; tipset har kedjans hash under *Hämtat vid block N* och tx:ens
+  egen hash under *I block M*.
+- **Egna val:** Ethereums topp är Blockscouts indexerade topp (kan ligga ett block efter `eth_block_number`), eftersom
+  noden kan ha ett block som indexet inte hunnit läsa och ett uppslag av hashen då skulle misslyckas. Bitcoins block
+  läggs nu i registret med sin höjd (som Ethereums block redan gjorde): ett block på höjd N säger att kedjan nått N.
+  De nya metoderna har standardimplementationer i kontrakten (svarar *Misslyckad*, skickar inget), så att andra
+  modulers testfejk inte behövde ändras.
+- **Ethereums saldo:** `IEthereumSource.GetBalanceAsync` ger `EthereumBalance` ur `balance` (wei) och `tokenlist`
+  (ERC-20 med decimaler och saldo över noll; NFT och token utan decimaler räknas som överhoppade, USDT och USDC känns
+  igen på kontraktet och står först). Båda svaren förseglas; ett saldo hämtas alltid på nytt och kommer ur ärendet
+  offline. Går tokens inte att läsa ges ether ändå, med `IsComplete = false` och en anteckning. Raden i Nytt ärende
+  visar ETH (fyra decimaler, `≈` när fler skars bort, `< 0,0001` för damm) och USDT/USDC; andra tokens visas inte,
+  eftersom vem som helst kan skicka en token till en adress (princip 7).
+- **Blockscouts takt:** den öppna instansen svarar `Too many requests …` med status 0, vilket tidigare räknades som
+  ett fel. Nu väntar Chainsaw på det som på `Max rate limit reached`.
+- **Det förhandshämtade som cache:** `IResponseTransfer.ReadIndex` och `Seal(…, SealedResponseIndex)` för med
+  registret (höjden och tx:erna i svaret) när ett råsvar förseglas igen. `StartPointPrefetch.SealInto` gör det för
+  varje svar som besvarade ett uppslag i minnet; bakgrundsbevakningen för fortfarande in sina svar som bara bevis.
+  Registret är det källan själv räknade fram ur svaret i samma process, och uppslagen hittar ett svar bara när svaret
+  självt har rätt kedja, sort och ämne. Toppen hämtas nu **först** för varje startpunkt, så att en tx som hämtas efter
+  den vet sitt djup: en tx djupt i kedjan tas sedan ur ärendet vid grafens första expansion. Det som kan ha ändrats
+  (adressens första sida, saldot, vem som spenderar) hämtas som förut.
+- **Sanktionslistans Ethereum-adresser:** `ISanctionLists.Find(EthereumAddress)` och
+  `IAttributionService.CheckSanctions(ICase, IReadOnlyCollection<EthereumAddress>)`. Koderna ETH, USDT och USDC
+  (`SanctionCurrency.OnEthereum`) räknas; BSC, ARB och ETC är andra kedjor och räknas inte. En ETH-adress med fel
+  EIP-55-kontrollsumma räknas som överhoppad; en USDT-adress som inte är en Ethereum-adress (TRON) hoppas bara över.
+  `CaseWorkflow` märker nu också Ethereum-startpunkter. Tipset säger *(listad som USDT)* för en token.
+- Tester: `TipAndCacheTests` (11) och `EthereumBalanceTests` (16) i Chains, `EthereumSanctionTests` (4) i
+  Attribution, nya fall i `StartPointPrefetchTests` (ordningen, Ethereum-raden, saldo som saknas, sanktion, `Holding`,
+  förseglingen med register) och `CaseWorkflowTests`.
+- Återstår: Ethereums saldo visas bara i Nytt ärende, inte på kortets baksida eller i inspektören.
+
+## Grafens rester (2026-11-08, GR4, GR5, GR6c, TK1a, KF1b och KF2b)
+
+Alla punkter under *Grafen* i `docs/TODO.md`, *2. Resterna i det som är byggt*, byggda direkt mot skisserna.
+
+- **Nodens bredd (GR5):** `Graph/NodeWidths` räknar bredden ur namnets tecken (7,4 px per tecken som skissen), från
+  132 px upp till 214 px (skissens *Misstänktes plånbok*). `NodeView.Width`, `GraphScene.FrameOf` och
+  `GraphViewModel.FrameAt` bär bredden till träffprovet, linjerna, beloppen, markeringarna, områdena, rutvalet,
+  tidsbanden, bevakningens portar, soptunnans stumpar och kommentarstrådarna. Hoppkolumnerna flyttar nästa kolumn med
+  den bredaste noden (`HopLayout.ColumnGap`), så att luckan för beloppen står kvar.
+- **Eget beslut:** bara ett namn breddar noden. En adress (under namnet eller som titel) förkortas i mitten som förut,
+  eftersom en graf av adresser utan namn annars blev 214 px bred överallt; skissen GR5 förkortar också adresserna.
+- **Linjer genom noder:** `Graph/LineRouting` böjer en linje i hoppkolumnerna som skulle gå genom en annan nod, med så
+  liten böj som räcker (en kvarts rad i taget, upp till två rader åt vardera hållet), in i luckan mellan raderna.
+  Ändarna står kvar vid portarna. Valt framför att flytta aktörer mellan kolumnerna, eftersom tidsordningen nedåt i
+  kolumnen då står kvar.
+- **Tokenmärket (TK1a):** en rund bricka på 14 px (`Brush.SurfaceHover`, kant `Brush.BorderStrong`, tecknet i
+  `Brush.Text`) först i beloppet; beloppet behåller linjens färg.
+- **Swappen (TK1a):** ett piller mitt på linjen med två brickor och en pil (`Icon.ArrowRight`), som i skissen.
+  `AmountLayout.SwapBox` ger dess plats, och beloppen läggs aldrig på det. Gallringen döljer aldrig pillret.
+  `Brush.Graph.SwapPill` används nu bara av Guidens figur.
+- **Kedjornas rubriker (TK1a):** `Graph/ChainSections` ger varje kedjas del av ytan när grafen har aktörer på mer än en
+  kedja, med kedjans namn i versaler i `Brush.TextFaint` 34 px ovanför delens översta aktör. Ytan delas inte upp av
+  sig själv: rubriken står över där kedjans aktörer står.
+- **Dolda OP_RETURN:** hörnraden har en markering (överstruket öga med prick) så länge grafen har sådana utgångar, med
+  antalet i verktygstipset; ett klick visar dem (öppet öga, tänt) och döljer dem igen. Ingen skiss för markeringen;
+  formen följer hörnradens andra ikoner med prick.
+- **GR6c, tredje läget:** `Graph/StartGuide` och `GraphCanvas.Reach.cs` ritar *Expandera* bredvid en ensam startpunkt
+  som inte är expanderad och saknar linjer, med accentens sonar (ringarna står still utan animeringar), en prickad
+  linje, raden under och *Hitta uttaget* svagt efter. Ett klick på *Expandera* väljer och expanderar startpunkten.
+  *Passa in* tar med guiden. Offline säger raden det ärligt i stället för att något blir grått (avsteget i TODO).
+- **Förmågor utan synlig väg:** dubbelklick på en nod expanderar (`GraphViewModel.ExpandAt`). Högerklick på tom yta
+  öppnar en meny i samma form som nodens: *Kommentar … N* (där man klickade), *Passa in F*, *Zooma in +* och *Zooma ut
+  −* (`ViewMove`). Det ger zoomen och *Passa in* en synlig väg utan ny krom i hörnet.
+- **Egen yta (KF1b):** formuläret står bredvid aktörerna det gäller (`ChecksViewModel.FormActors`), till höger eller
+  annars till vänster, och följer med vid panorering och zoom. Utan placerade aktörer står det under hörnet som förut.
+- **Kandidaternas nummer (KF2b):** numret står i en skiva på 20 px på kandidatens nod uppe till vänster, ifylld i
+  accenten för den valda och med `Brush.TextMuted` som kant annars. **Avsteg:** skissen sätter den godkändas gröna bock
+  i övre högra hörnet; här står den där efter nodens andra markeringar, så att den inte täcker dem.
+- **Esc i Guidens panel:** `MainWindow.CancelGraphForm` stänger ett öppet formulär i grafen (Etikett, Bryt upp, Annan
+  kedja, historikens formulär, Bevaka och egen yta) före panelen, var tangentbordet än står. Nästa Esc stänger panelen.
+- Tester: `GraphReachTests` (14) i App.Tests; `TestCaseLayoutTests` mäter nu nodernas verkliga bredd.
+- **Återstår:** *Sortera grafen* (`TidyLayout`) räknar med 132 px breda noder, och en ny kommentar vid en bred nod
+  (`CommentGeometry.PlaceOfNew`) placeras efter samma bredd. Båda står i `docs/TODO.md`.
+
+## Begäran, BG1b (2026-11-08)
+
+- **Modulen Requests:** `IRequestService` (Compose, Export, ListExports, ContactsFor) med mallar på svenska och
+  engelska (`RequestTexts`, `RequestTemplates`). Dokumentet är block (`RequestBlock`: titel, rubrik, stycke, notering,
+  tabell), och både förhandsvisningen och filen görs av samma block, så att det som syns är det som exporteras.
+  Markdown skrivs av `RequestMarkdown`, som escapar det en etikett kunde göra till markup.
+- **Bara det begäran behöver** (princip 4): mottagaren, adresserna, de valda insättningarna (tid lokal med offset och
+  UTC till sekunden, exakt belopp, adress, hela txid, blockhöjd och blockhash), spåret i en mening om det tas med,
+  ärendenumret och operatörsprofilen. Aldrig ärendets titel, offrets namn eller anteckningar.
+- **Spårets steg** är förkortade adresser och bara slutet heter med sitt namn (`RequestExits`), så att ett offers
+  eller en misstänkts namn aldrig kan hamna i en begäran. Skissen skriver *Kluster 7*; eget beslut av sekretesskäl.
+- **Export:** `RequestFiles.WriteNew` skriver med `FileMode.CreateNew` och tar nästa nummer, `(2)`, `(3)`, när namnet
+  är taget (spara-dialogen frågar aldrig om att skriva över). SHA-256 av filens byte journalförs
+  (`requests.exported`) och förseglas i kedjan `requests.exports` i samma transaktion; misslyckas det tas filen bort
+  igen, så att ingen fil finns som ärendet inte känner till.
+- **Kontaktvägar:** katalogen (`ExchangeContacts.Catalogue`) är tom. Inga börsers sidor för myndigheter gick att
+  hämta och kontrollera från molnmiljön, och ingen väg läggs in ur minnet. Vyn säger ärligt att ingen verifierad
+  kontaktväg finns.
+- **Frysning** (TK1a): en egen sorts begäran till utgivaren (Tether, Circle) med token, kontrakt och det som ligger
+  kvar enligt ärendets historik, sagt som en bedömning. Den nås med inspektörens *Begäran om frysning …* och står
+  som en isblå rad efter uttagen i listan (ett tillägg till skissen).
+- **Vyn** (`RequestsView`, `RequestsViewModel`, `Controls/RequestPreview`) följer grafens scen: uttag är de blå
+  sorterna som en spårad linje når, också aktörer som ligger i en hög. Det slängda (soptunnan) är inte med.
+  Insättningarna är fakta ur grafens linjer; spårad är en insättning vars mynt spåret håller (Bitcoin) eller vars
+  linje bär spårade pengar (Ethereum, som spåras per linje).
+- **Avsteg från skissen:** språkknappen *Svenska/English* bredvid Exportera (skissen har ett språk); raden under
+  förhandsvisningen om kontaktvägen; förhandsvisningen rullar när dokumentet är längre än rutan; tider skrivs ISO
+  (`2026-10-28 21:14:05 +01:00`) i stället för *28 okt 2026 21:14*, så att en börs kan söka i sina loggar.
+  Grafens menyrad *Begäran …* har ingen tangent, eftersom R är underleverantörernas.
+- **Inte byggt:** börsens markering i grafens hörn när en begäran är exporterad (grafen byggdes om samtidigt av en
+  annan agent), se `docs/TODO.md`.
+- Tester: 35 i `Chainsaw.Modules.Requests.Tests` (mallar, Markdown, export utan överskrivning, försegling, journal,
+  verifiering, kontaktvägar) och `RequestsTests` i App.Tests (uttagen ur scenen, spåret utan namn, vymodellen,
+  exporten, pillret).
+- **Efter granskningen (två I, åtta M):**
+  - **I1:** en begäran gäller bara de adresser spårade pengar nått i uttaget (`RequestExits.Reached`), och de
+    insättningar som gick dit, också ospårade till samma adress. Klustrets andra adresser och andra kunders
+    insättningar kommer aldrig med; `Draft()` bygger mottagarens adresser av de valda insättningarna.
+  - **I2:** ett namn i en begäran kommer bara ur den etikett som gjorde aktören till ett uttag (`SafeName`), annars
+    den förkortade adressen. Detsamma gäller spårets slut i en frysning, så ett offers namn kan inte nå utgivaren.
+  - **M1–M9:** en transaktionsnod (CoinJoin) är varken steg eller hopp; radens nyckel är kind och adress, och
+    *Exporterad* matchar alla aktörens adresser; en frysning per token, och exporten förseglas under adress och token
+    (`RequestDraft.ExportKey`); `~`, `&` och radinledande `-`, `+` och `1.` escapas och noter trimmas; en fil som
+    inte kunde skrivas klart tas bort; exporten skriver *upprättad* med förhandsvisningens tid (`MadeUtc`); knappen
+    *Begäran om frysning …* syns bara när det finns en frysning; begäran säger att mottagarens sort och spåret är
+    bedömningar. `RequestExits.Find` cachas per scen (M8); `Compose` körs fortfarande på UI-tråden
+    (`docs/BACKLOG.md`).
+
+
+## Granskningen av NC2a (Ethereums saldo, hashen, cachen) rättad (2026-11-08)
+
+- **M1:** sanktionslistans Ethereum-adresser nycklas på gemener utan kontroll av EIP-55, så att en adress med fel
+  kontrollsumma ändå ger träff (ett missat sanktionsfynd är värre än ett falskt); bara text som inte är `0x` och 40
+  hex räknas som överhoppad.
+- **M3:** finns inte blocket för toppens hash (en endpoint ett block efter), frågas hashen en gång till med sitt block.
+- **M4:** `CaseWorkflow` kontrollerar sanktionslistan i ett steg per kedja; felet säger vilken kedja.
+- **M5:** `tokenlist` med status 2 ger ett ofullständigt saldo med en anteckning.
+- **M6:** tester för en skräptoken som heter USDT, wei över `long.MaxValue` och toppen följd av överföring med
+  registret på både Bitcoin och Ethereum. M2 står i `docs/BACKLOG.md`.

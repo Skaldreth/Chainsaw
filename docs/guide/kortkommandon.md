@@ -37,6 +37,7 @@ Varje knapp i Chainsaw har sitt kortkommando i tipset när du håller pekaren ö
 | Delete | Släng det valda i soptunnan (en vald kommentar tas bort), se [Soptunnan](soptunnan.md) |
 | Ctrl+Z | Ångra den senaste slängningen |
 | Ctrl+J | Förslag, se [Kontroller och förslag](kontroller-och-forslag.md) |
+| Shift+F1 | Guiden vid spårningsmetoden, som högerklick på metoden, se [Spårningsmetoder](sparningsmetoder.md) |
 | F | Passa in hela grafen |
 | + och − | Zooma; mushjulet gör samma sak |
 | Ctrl+klick | Välj flera |

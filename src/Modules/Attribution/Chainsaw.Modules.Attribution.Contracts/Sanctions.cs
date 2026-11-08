@@ -35,6 +35,19 @@ public interface ISanctionLists
     /// <see cref="SanctionListError.Tampered"/> when the stored file no longer has its hash.
     /// </exception>
     SanctionMatch? Find(BitcoinAddress address);
+
+    /// <summary>
+    /// Finds an Ethereum address on the current list: entries for ether and for the tokens on Ethereum the list names
+    /// (<see cref="SanctionCurrency.OnEthereum"/>), compared without regard to the letters' case.
+    /// </summary>
+    /// <param name="address">The address.</param>
+    /// <returns>
+    /// The list and the entries that name the address, or <see langword="null"/> when no list is imported.
+    /// </returns>
+    /// <exception cref="SanctionListException">
+    /// <see cref="SanctionListError.Tampered"/> when the stored file no longer has its hash.
+    /// </exception>
+    SanctionMatch? Find(EthereumAddress address);
 }
 
 /// <summary>The currency codes a sanction list writes, as Chainsaw reads them.</summary>
@@ -42,6 +55,20 @@ public static class SanctionCurrency
 {
     /// <summary>The code OFAC's SDN list gives Bitcoin addresses.</summary>
     public const string Bitcoin = "XBT";
+
+    /// <summary>The code OFAC's SDN list gives ether addresses.</summary>
+    public const string Ether = "ETH";
+
+    /// <summary>
+    /// The codes whose addresses are Ethereum addresses: ether, and USDT and USDC, which the list writes with the
+    /// address that holds them on Ethereum (an address under USDT that is not an Ethereum address, such as one on
+    /// TRON, is not one of them). Other chains that share Ethereum's form of address (BSC, Arbitrum, Ethereum Classic)
+    /// are other chains, and are not counted.
+    /// </summary>
+    public static IReadOnlySet<string> OnEthereum { get; } = new HashSet<string>(StringComparer.Ordinal)
+    {
+        Ether, "USDT", "USDC",
+    };
 }
 
 /// <summary>An imported sanction list.</summary>

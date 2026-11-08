@@ -320,6 +320,7 @@ public sealed class GraphViewModelTests
         Assert.Equal("haircut", rig.Graph.MethodText);
         Assert.Equal([TracingMethodKind.Fifo, TracingMethodKind.Haircut], rig.Source.Loads);
         Assert.Contains("Klicka för FIFO", rig.Graph.MethodToolTip, StringComparison.Ordinal);
+        Assert.Contains("Shift+F1", rig.Graph.MethodToolTip, StringComparison.Ordinal);
         await rig.Graph.ToggleMethodAsync();
         Assert.Equal(TracingMethodKind.Fifo, rig.Graph.Method);
     }
@@ -508,6 +509,25 @@ public sealed class GraphViewModelTests
             rig.Followed.Take(rig.Followed.Count - 1), request => Assert.Equal(GraphSamples.KKey, request!.Subject));
         Assert.Contains("Länk", rig.Followed[^2]!.Context!.Lines.Select(line => line.Text));
         Assert.Null(rig.Followed[^1]);
+        Assert.True(rig.Followed[0]!.IsChoice);
+    }
+
+    /// <summary>
+    /// Choosing the same node again tells the panel again, as a choice, so that it shows the answer after a link was
+    /// followed (sketch GD1b).
+    /// </summary>
+    [Fact]
+    public void ChoosingAgainTellsThePanelAgain()
+    {
+        var rig = new Rig();
+        rig.Graph.Choose(GraphSamples.VKey, null);
+        var told = rig.Followed.Count;
+
+        rig.Graph.Choose(GraphSamples.VKey, null);
+
+        Assert.Equal(told + 1, rig.Followed.Count);
+        Assert.True(rig.Followed[^1]!.IsChoice);
+        Assert.Equal(GraphSamples.VKey, rig.Followed[^1]!.Subject);
     }
 
     /// <summary>Expanding a chosen node asks for its addresses, shows the graph after it and says what came.</summary>
@@ -664,11 +684,12 @@ public sealed class GraphViewModelTests
 
         Assert.Equal(
             "Inget nytt att hämta.",
-            GraphViewModel.ExpansionNotice(new GraphExpansion(scene, ExpansionOutcome.Expanded, 0, []), offline: true));
+            GraphViewModel.ExpansionNotice(
+                new GraphExpansion(scene, ExpansionOutcome.Expanded, 0, []), GraphViewModel.OfflineText));
         Assert.Equal(
             "Delvis expanderad: 3 nya tx. Gränsen nåddes.",
             GraphViewModel.ExpansionNotice(
-                new GraphExpansion(scene, ExpansionOutcome.Partly, 3, ["Gränsen nåddes."]), offline: false));
+                new GraphExpansion(scene, ExpansionOutcome.Partly, 3, ["Gränsen nåddes."]), offline: null));
     }
 
     /// <summary>

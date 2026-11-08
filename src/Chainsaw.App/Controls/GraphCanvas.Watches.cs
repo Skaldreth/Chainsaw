@@ -107,12 +107,13 @@ public sealed partial class GraphCanvas
             }
         }
 
+        DrawTrashHits(dc, visible);
         foreach (var ray in overlay.Rays)
         {
             if (_model.Places.TryGetValue(ray.NodeKey, out var place)
-                && GraphSizes.NodeFrame(place).Inflate(RayLength + LineEyeSize).Intersects(visible))
+                && _model.FrameAt(ray.NodeKey, place).Inflate(RayLength + LineEyeSize).Intersects(visible))
             {
-                DrawRays(dc, ray, place);
+                DrawRays(dc, ray, _model.FrameAt(ray.NodeKey, place));
             }
         }
     }
@@ -133,7 +134,7 @@ public sealed partial class GraphCanvas
 
         var index = node.Badges.Count;
         var centre = new Point(
-            place.X + GraphSizes.NodeWidth + MarkOverhang - (MarkSize / 2) - (index * (MarkSize + 2)),
+            place.X + node.Width + MarkOverhang - (MarkSize / 2) - (index * (MarkSize + 2)),
             place.Y - MarkOverhang + (MarkSize / 2));
         var idle = GraphPalette.Find(this, "Brush.Watch.Idle");
         if (mark.Idle)
@@ -160,12 +161,11 @@ public sealed partial class GraphCanvas
         var model = _model!;
         foreach (var line in model.WatchOverlay.Lines)
         {
-            if (!model.Places.TryGetValue(line.From, out var from) || !model.Places.TryGetValue(line.To, out var to))
+            if (model.CurveBetween(line.From, line.To) is not { } curve)
             {
                 continue;
             }
 
-            var curve = EdgeCurve.Between(from, to, model.IsHopColumns);
             if (curve.Bounds().Inflate(RingRadius + RingTravel).Intersects(visible))
             {
                 yield return (line, curve);
@@ -243,12 +243,12 @@ public sealed partial class GraphCanvas
     /// <summary>Draws the rays at a port for a watch without counterparties, with the eye at their end.</summary>
     /// <param name="dc">Where to draw.</param>
     /// <param name="ray">The rays.</param>
-    /// <param name="place">The node's top-left corner.</param>
-    private void DrawRays(DrawingContext dc, WatchRay ray, GraphPoint place)
+    /// <param name="frame">The node's frame.</param>
+    private void DrawRays(DrawingContext dc, WatchRay ray, GraphRect frame)
     {
         var port = ray.IsOut
-            ? new Point(place.X + GraphSizes.NodeWidth, place.Y + (GraphSizes.NodeHeight / 2))
-            : new Point(place.X, place.Y + (GraphSizes.NodeHeight / 2));
+            ? new Point(frame.Right, frame.Y + (GraphSizes.NodeHeight / 2))
+            : new Point(frame.X, frame.Y + (GraphSizes.NodeHeight / 2));
         var straight = ray.IsOut ? 0 : 180;
         var pen = DotPen(ray.Idle);
         foreach (var turn in new[] { -RayAngle, RayAngle })
