@@ -1615,6 +1615,953 @@ mixerns kandidater, en CoinJoin eller en peel chain finns i grafen.
 
 ### Vyn Etiketter (ET1a)
 
+
+Grafen för Ethereum är inte byggd än; det som går att prova är källan, startpunkterna, Källor och Guiden.
+
+- Ctrl+, → *Källor*: chipset **Ethereum är inte längre tonat**. Det har *Blockscout* (`https://eth.blockscout.com/api/`)
+  i läget *Snabbast*. *Prova alla nu* frågar bara efter kedjans höjd (`?module=block&action=eth_block_number`) genom
+  utgången; raden visar höjd och millisekunder. TRON och Solana är fortfarande tonade.
+- *Lägg till endpoint …* för Ethereum: sorten *Blockscout*; *Prova* visar höjd och blockets hash (`v2/blocks/:höjd`).
+  En egen Blockscout på det lokala nätet går att lägga till på samma sätt (bara https).
+- Kommandoraden och Nytt ärende: en Ethereum-adress i blandade versaler med rätt kontrollsumma (EIP-55) känns igen som
+  Ethereum; ändra en bokstavs versal/gemen och den känns inte igen. Svaret säger ärligt att grafen för Ethereum inte är
+  byggd än. Samma för `chainsaw:ethereum/0x…`.
+- Guiden (F1): gruppen *Ethereum* med *Kontomodellen*, *ERC-20 och tokens*, *Interna tx* och *Kan frysas*.
+- Vid start provas nu också Ethereums endpoint (eth.blockscout.com) genom utgången, fast grafen för Ethereum inte är
+  byggd än (beslutet att prova vid start gäller alla kedjor). Sätt Ethereum på *Av* i Källor om det inte ska ske.
+
+## Endpointarna, andra delen (etapp 25)
+
+**Takt och väntan**
+- Expandera en adress med många tx i grafen: uppslagen går i takt (högst fyra i sekunden per endpoint, Chainsaws eget
+  förval) och fördelas mellan mempool.space och Blockstream (se i ärendets råsvar att båda förekommer). Grafen och
+  dialogerna ska kännas lika snabba som förut; inget fryser medan Chainsaw väntar.
+- Får en källa svara `429` (lättast med en egen proxy eller en egen Esplora bakom en hastighetsgräns): raden i *Källor*
+  får den gula markeringen *Väntar* med tiden på hovring, pricken blir inte röd, och de andra endpointarna används under
+  tiden. Statusraden säger *Väntar på källan · Bitcoin* bara medan ett uppslag faktiskt väntar (mer än en sekund), och
+  markeringen försvinner när tiden gått.
+- En källa som är död (fel adress eller avstängd server): den lämnas tyst (uppslagen lyckas genom de andra, inget fel i
+  grafen), får röd prick, och provas på sin plats igen efter en minut, sedan två, fyra … högst 30 minuter. Starta servern
+  igen och se att den kommer tillbaka och får grön prick.
+
+**Ett blocks marginal**
+- En egen Esplora som ligger exakt ett block efter (till exempel direkt efter ett nytt block): ingen gul markering, och
+  hovring på pricken säger *ett block efter räknas inte som efter*. Två block efter ger *2 block efter* som förut.
+
+**Egen nod på det lokala nätet**
+- *Lägg till endpoint …* med `https://192.168.x.x/…` (eller `https://esplora.lan/…`) utan *Lokal*: *En adress på datorn
+  eller ett privat nät kräver att den märks Lokal.* och *Lägg till* tonad. Slå på *Lokal*: felet försvinner.
+- *Lokal* på med en adress på internet som IP (till exempel `https://8.8.8.8/`): *En lokal endpoint ska ha en adress på
+  datorn eller ett privat nät.*
+- Med en egen Esplora på det lokala nätet (eget certifikat installerat bland Windows betrodda rötter): *Prova* svarar med
+  höjd och hash **också utan ansluten utgång**, raden får märket *Lokal*, och uppslag till den syns inte i utgångens
+  logg (kontrollera med Wireshark att de går direkt till noden och att inget annat går direkt ut på nätkortet med VPN
+  valt).
+- Ett namn märkt *Lokal* som pekar på internet (ändra `hosts` eller DNS): uppslaget vägras med *Adressen pekar inte på
+  datorn eller ett privat nät …* och inget skickas.
+- Efter en expansion genom den lokala noden: `/verify` grön, och råsvaren har `exit_route` = `local` och inget
+  `exit_id`.
+- `sources.json`: endpointen har `"Local": true` och `"IntervalMilliseconds": 0`. Ändra för hand en privat adress till
+  `"Local": false`: den endpointen används inte efter omstart.
+
+## Ethereum, andra delen: grafen och inspektören (etapp 23b, TK1a)
+
+Kräver en ansluten utgång (eller Windows som utgång) och Ethereum i läget *Snabbast* eller *Prioriterad* i Källor.
+
+**Startpunkter**
+- Skriv en Ethereum-adress (`0x…`, gärna med rätt EIP-55-versaler) i kommandoraden med ett öppet ärende: den läggs till
+  som startpunkt och syns som en rund nod med flaggan. Samma för en tx-hash (`0x` och 64 tecken), Nytt ärende och
+  `chainsaw:ethereum/0x…`. TRON säger fortfarande *inte byggt än*.
+
+**Expansion och linjerna**
+- Välj Ethereum-noden och tryck E: historiken hämtas i bakgrunden (tx, interna tx, tokens). Linjerna har märket först i
+  beloppet (**₮** USDT, **$** USDC, **Ξ** ether) och värdet i kronor litet under när kursen finns; en okänd token står
+  med sin symbol. Utan kurs står inget värde (inte noll). USDT och ether mellan samma två adresser är två linjer.
+- En adress med fler tx än gränsen: raden säger att resten hölls tillbaka, och noden står som delvis expanderad.
+- En adress som bytte token själv (till exempel USDT in till Uniswap och ether tillbaka i samma tx): ett litet lila
+  piller **₮ → Ξ** på linjen till poolen, också med *Inga belopp*. Ingen annan linje har pillret.
+- Spårningen: accenten följer pengarna som kom in till startadressen, per tillgång, genom de adresser som är
+  expanderade. Byt FIFO/haircut och se att de spårade beloppen ändras. Två startpunkter i varandras flöde ger den
+  ärliga raden om att spårningen inte kunde räknas.
+- Stäng av utgången och öppna ärendet igen: grafen, linjerna och värdena ritas ur ärendet utan uppslag.
+
+**Inspektören**
+- En Ethereum-nod säger *… · Ethereum* under rubriken, *Spårat in* per tillgång, och *Saldo per token* med utgivaren.
+  Har en expanderad adress USDT eller USDC kvar står snöflingan i nodens hörn, i tabellen och i en ruta som säger att
+  frysning begärs hos utgivaren. En adress som inte är expanderad säger *Inte expanderad: saldot är okänt* och får
+  ingen snöflinga.
+- En linje visar Belopp med märket, Värde (eller *Ingen kurs*), Tid, Tx, Swap när den finns, och varje tx med block och
+  blockhash (`0x…`). *Varför?* förklarar token, swap och kursen steg för steg.
+- Etikett (L) på en Ethereum-nod: sparas och syns i grafen och i Historik; ta tillbaka fungerar. Bryt upp (U) finns
+  inte (inga kluster på Ethereum). Annan kedja (K): välj en rörelse som kom in till adressen (till exempel en brygga),
+  välj TRON och klistra in en tx; en lila streckad linje går till den andra kedjans nod, och länken syns i Historik.
+- *Förslag · N* (Ctrl+J): statusraden säger att kontrollerna gäller UTXO och inte körs på Ethereum.
+
+## Ethereum klart, omgång 2 (kända kontrakt, plats i blocket, egna ytor, start-tx)
+
+Kräver en ansluten utgång och Ethereum i Källor, som ovan.
+
+- **Tornado Cash:** expandera en adress som har satt in i en Tornado Cash-pool (till exempel 1 ETH). Poolens nod blir
+  röd med mixerns ikon och etiketten *Tornado Cash 1 ETH*, och spåret tar slut där. *Varför?* på noden säger
+  *Chainsaws kända kontrakt v1 2026-11-08* och sidan adressen lästes från. Journalen har en rad *… adresser är kända
+  kontrakt*. Ta tillbaka etiketten i Historik och läs om grafen: den kommer inte tillbaka.
+- **Tidigare sanktionerad:** samma pool har en liten, nedtonad röd markering i hörnet (inte den ljusröda för
+  sanktionerad). Hovra: *Tidigare sanktionerad*. Inspektören har raden *Sanktion: Tidigare sanktionerad, OFAC SDN
+  2022-08-08 – 2025-03-21*, och *Varför?* länkar OFAC:s två meddelanden. Bildspråkets *?* har raden. I Etikett (L)
+  går sorten inte att välja. I testärendet (`/testdata`) har mixern markeringen.
+- **Brygga:** en adress som skickat ether till Arbitrums *Delayed Inbox* eller OP Mainnets *L1 Standard Bridge*:
+  noden blir lila (*Swap eller brygga*) och spåret säger *Fortsätter på annan kedja*.
+- **Swap genom Uniswap:** en adress som bytt USDT mot ether genom Uniswaps router: *Varför?* på linjen med pillret
+  **₮ → Ξ** säger *genom Uniswap …* med kontraktets adress och källan. En swap genom en okänd pool nämner ingen DEX.
+  Routern själv får ingen etikett och ingen färg.
+- **Plats i blocket:** en adress som tog emot och betalade vidare i samma block: FIFO räknar det som kom in före det
+  som gick ut, i blockets ordning (inte efter tx:ens hash).
+- **Egen yta (Z) med Ethereum-aktörer:** välj två Ethereum-noder (och gärna en Bitcoin-nod), tryck Z och spara: ytan
+  ritas runt alla valda, också efter att ärendet öppnats igen.
+- **Start-tx som inte finns i ärendet:** lägg till en Ethereum- eller Bitcoin-tx som startpunkt med kommandoraden (eller
+  i Nytt ärende) med utgången ansluten: den hämtas av sig själv, och grafen ritas om med noden. Utan utgång säger en
+  varning i toastern att den inte kunde hämtas och att Chainsaw försöker igen; anslut utgången (eller stäng och öppna
+  ärendet) och se att den hämtas och ritas utan att du gör något. Tryck E på noden medan den hämtas: den hämtas inte
+  två gånger. Lås Chainsaw medan den hämtas: inget varnar, och den hämtas när ärendet öppnas igen.
+
+## Den tomma grafen (GR6c)
+
+- **Första gången** (inga ärenden i mappen): mitt på grafen står *Nytt ärende · Ctrl+N* utan puls, under
+  den två rader om vad ett ärende är, och ärendets gång som fem prickar (Ärende först, i accent). Ett klick öppnar
+  panelen Nytt ärende.
+- **Med ärenden:** *Nytt ärende* i mitten, de fyra senast sparade ärendena runt om (nummer och *ändrad i dag 14:02*,
+  *ändrad i går …* eller datum) och *Alla ärenden … · /open* sist, med prickade linjer från mitten. Ett klick öppnar
+  ärendet; *Alla ärenden …* skriver `/open ` i kommandoraden med markören sist, så att Tab fyller i. Ringen krymper
+  i ett litet fönster (960 × 600) men alla noder syns och krockar inte med pillret.
+- **Ett ärende utan startpunkt:** *Första startpunkten* med en streckad nod (flaggan, ett fält och *Enter*),
+  brickorna Bitcoin-adress, Ethereum-adress, Bitcoin-tx och Ethereum-tx, och under dem tre svaga steg
+  (Expandera, Hitta uttaget, Bevaka) som förklarar sig på hovring.
+- Skriv eller klistra in en adress: brickan för sorten lyser grönt. **Ctrl+V var som helst på grafen** lägger texten
+  i fältet. Enter lägger till startpunkten och grafen visas; text som inte känns igen ger en röd rad.
+- Raden under brickorna säger att inget hämtas förrän du expanderar, och genom vilken utgång. Utan utgång: grå prick,
+  *Offline …*, och ramen blir grå; startpunkten går ändå att lägga till.
+- Längst ner: *Så spårar man i Chainsaw* öppnar Guiden bredvid ytan (avsnittet med de fem stegen), och bara offline
+  står *Offline* med sin prick bredvid.
+
+## Bevakningen, första delen (etapp 26, BV1a och BV2a)
+
+Kräver en ansluten utgång (eller Windows som utgång), ett ärende med en graf, och att endpointarna har provats vid
+start (en endpoint måste vara *i fas* för att bevakningen ska fråga).
+
+**Högerklick och formuläret (BV2a)**
+- Högerklicka på en adress eller ett kluster i grafen: menyn har Etikett (L), Bryt upp (U, bara kluster), Annan kedja
+  (K), **Bevaka … (B)**, Expandera (E) och Kopiera adress (Ctrl+C). En tx-nod har Bevaka tonad. Klick utanför eller Esc
+  stänger menyn.
+- *Bevaka …* (eller B på en vald nod) fäller ut formuläret under grafens hörn: riktning In/Ut/Båda, Mottagare och
+  Avsändare som brickor, Tillgång (bara Ethereum: Alla, ETH, USDT, USDC), Minsta belopp och *Hur ofta* (Varje block,
+  1, 5 eller 15 min). Håll Ctrl och
+  klicka på noder: de läggs som brickor i den rad vars sikte är rosa (klicka *Alla, eller lägg till* för att byta rad).
+  Noden själv vägras. Ctrl+klick utan öppet formulär väljer fortfarande aktörer för en egen yta (Z).
+- Enter sparar, Esc avbryter. Noden får ett **rosa öga** i hörnet.
+
+**I grafen**
+- En bevakning med mottagare: en tunn **prickad** linje i en dov turkos ton från noden till varje mottagare som inga
+  pengar gått till, med ett litet öga mitt på. Till en mottagare som redan har en linje: linjen får ett mjukt turkost
+  sken i stället. Avsändare: linjerna går in till noden.
+- Utan motparter: korta prickade strålar vid porten (höger för ut, vänster för in) med ett litet öga.
+- Koppla ner utgången: ögonen blir ihåliga och grå, linjerna och strålarna grå. Anslut igen: färgerna kommer tillbaka.
+- Vid en träff (vänta på ett nytt block med en bevakning på en aktiv adress, eller ett testärende): en rosa linje med
+  beloppet till motparten om den finns i grafen, och **ringar som rör sig** runt mitten tills du väljer noden. Med
+  *Visa animeringar i Windows* avstängt står ringarna stilla. Grafens rad säger *Bevakning slog till · …*.
+- Pillrets öga får en rosa prick vid nya träffar; den försvinner när träffarna är sedda.
+
+**Vyn Bevakning (BV1a, Ctrl+6)**
+- En rad per bevakning: läge som prick (grön aktiv, gul väntar, grå pausad), namn, kedja, pilar för riktningen,
+  motparterna som brickor, tillgången, *Senast kontrollerad* med block och en rosa prick för nya träffar.
+- Huvudet säger ärligt *Bevakar medan Chainsaw är öppet* (hovra för förklaringen), eller *Väntar på utgången · inga
+  uppslag görs* utan utgång.
+- Den valda bevakningen till höger: adressen, fakta (också *Räknas från: efter block N*), träffarna med block, och
+  knapparna Öppna i grafen, Ändra, Pausa/Fortsätt och papperskorgen (skäl valfritt, Enter tar tillbaka).
+- *Ny bevakning …* (B, eller Nytt → Bevakning i pillret): skriv en Bitcoin- eller Ethereum-adress; kedjan känns igen.
+- *Hur ofta* står bland den valda bevakningens fakta och kan ändras med Ändra.
+
+**Historiken (AN1b)**
+- Inspektörens Historik för en bevakad nod har *Bevakning · ut · 1 mottagare* med *Ta tillbaka*, ändringar och pauser,
+  träffarna som fakta, och efter borttagning raden överstruken med *Tillbakatagen: bevakningen*.
+
+**Att kontrollera**
+- `/verify` är grönt efter att bevakningar lagts till, ändrats, pausats, tagits bort och slagit till.
+- Lås Chainsaw (Ctrl+L) och vänta på ett block: inga uppslag görs (utgångens trafik står still); efter upplåsning
+  fortsätter bevakningen.
+- Ett stort Ethereum-ärende med bevakning: grafen ska inte kännas trög medan ringarna rör sig.
+- [ ] Bevakning i ett ärende utan bevakningar: ett stort öga i en mjuk rund cirkel mitt på ytan med *Inga bevakningar än*, två dämpade rader under och knappen *Ny bevakning …*; ingen räknare, inget bakgrundsläge, ingen knapp uppe till höger och ingen högerpanel.
+- [ ] Klicka på *Ny bevakning …* i det tomma läget (eller tryck B): formuläret öppnas och det tomma läget försvinner medan det är öppet.
+- [ ] Bevakning utan öppet ärende: *Inget ärende öppet* med en förklarande rad och ingen knapp.
+- [ ] Med en bevakning: listan, räknaren, bakgrundens läge i en rundad ram och *Ny bevakning … B* syns i huvudet, och högerpanelen visar den valda.
+- [ ] Bakgrundens läge i huvudet (BV1a, omgjort 2026-11-08): en rundad ram med prick och text. Hel grå ram och grön prick när den går, streckad gul ram med gul text när den väntar på utgången, streckad grå ram med grå text när den är av; hovra för förklaringen.
+- [ ] Varje rad har nodens egen ikon och färg som i grafen (en börs blå och fyrkantig, en okänd adress rund med ett frågetecken, ett kluster fyrkantigt med plånboken); en bevakning på en adress som inte finns i grafen visas som okänd eller kluster. Motparternas brickor har en liten pil för riktningen (ut till en mottagare, in från en avsändare).
+- [ ] Högerpanelen: nodens ikon i en ram på 30 px bredvid namnet, läget i lägets färg (grönt, gult eller grått), och knapparna längst ner där *Öppna i grafen* är ljusare än de andra.
+- [ ] Ett fel när bevakningen skriver eller läses (till exempel ett låst ärende) kommer som en röd toast nere till höger, inte som en röd rad i vyn.
+- [ ] Ta bort den sista bevakningen: högerpanelen fälls bort och det tomma läget kommer tillbaka.
+
+## Bevakningen, andra delen: när Chainsaw är stängt (etapp 27)
+
+Kräver Windows som utgång (*Inställningar → Nätverk*), ett ärende med en aktiv bevakning och att `Chainsaw.Watcher.exe`
+ligger bredvid `Chainsaw.exe`.
+
+**Inställningarna (ST1a, Låsning)**
+- Tre nya rader med reglage: *Bevaka när Chainsaw är stängt*, *Avisering i Windows* och *Ljud*, alla på från början.
+  Reglaget blir rosa och knappen går till höger när det är på. Meddelandet mitt på skärmen finns **inte** som rad (väntar
+  på skiss).
+
+**Processen**
+- Med en aktiv bevakning: `Chainsaw.Watcher.exe` syns i Aktivitetshanteraren (låg prioritet), utan fönster och utan
+  ikon i aktivitetsfältet. Den ska använda lite minne (kontrollera ungefär hur mycket, gärna under 60 MB) och nästan ingen
+  CPU mellan kontrollerna.
+- `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` har värdet `Chainsaw.Watcher` med sökvägen. Pausa eller ta
+  bort alla bevakningar, eller slå av *Bevaka när Chainsaw är stängt*: värdet försvinner och processen avslutas inom
+  några sekunder.
+- Starta `Chainsaw.Watcher.exe` två gånger för hand: bara en process blir kvar. `Chainsaw.Watcher.exe --stop` stoppar den.
+  Har en avisering just visats lever processen kvar upp till en minut (tills ikonen tas bort), utan att bevaka.
+- Logga ut och in med en aktiv bevakning: processen startar av sig själv.
+- Döda processen i Aktivitetshanteraren medan Chainsaw är öppet: Chainsaw startar den igen inom någon minut.
+
+**Bevakningen när Chainsaw är stängt**
+- Lägg en bevakning på en aktiv adress (eller en egen testadress du kan skicka till), stäng Chainsaw och vänta på en tx i
+  ett nytt block. En avisering i Windows säger **bara** *En bevakning har slagit till.* och *Öppna Chainsaw och lås upp
+  för att se den.*, och mynt-swooshet spelas. Ingen adress, inget belopp, inget ärende.
+- `Chainsaw.Watcher.exe --test-alert` visar aviseringen och spelar ljudet en gång, utan någon träff (lyssna: låter det
+  som ett mynt som flyger förbi och skramlar ner?).
+- Starta Chainsaw: låsskärmen har raden *En bevakning har slagit till. Den visas efter upplåsning.* med en rosa prick.
+- Lås upp och öppna ärendet: inom några sekunder står träffen i vyn Bevakning och i grafen (ringarna), journalen har
+  *Bevakningen av … slog till i bakgrunden* och *Bakgrundens bevakning förd in: …*, och `/verify` säger att ärendet är
+  helt. Raden på låsskärmen är borta nästa gång Chainsaw låses.
+- Lås Chainsaw (Ctrl+L) med ärendet öppet och vänta på en träff: bakgrunden tar över medan det är låst.
+- Medan ärendet är öppet frågar bakgrunden inte efter det ärendets adresser (bara Chainsaw gör det).
+
+**Huvudet i vyn Bevakning (BV1a)**
+- Windows som utgång och bakgrunden på: *Går i bakgrunden · genom Windows · i fas med …* (grön prick, hel ram).
+- VPN som utgång: *Bakgrunden väntar på utgången · bevakar bara medan Chainsaw är öppet* (gul, streckad ram); hovra
+  för förklaringen om valvet.
+- Bakgrunden av: *Bakgrunden är av · bevakar bara medan Chainsaw är öppet* (grå, streckad ram).
+- Ta bort `Chainsaw.Watcher.exe` och starta om: *Bakgrunden går inte · …* (gul).
+
+**Filerna**
+- `%LOCALAPPDATA%\Chainsaw\Bevakning\` har `plan.bin`, `progress.bin`, `status.json`, `queue\…` och, medan ett ärende
+  är öppet, `held\…`. Öppna `plan.bin` och en fil i `queue` i en texteditor: inga adresser ska gå att läsa (DPAPI).
+  Kopiera `plan.bin` till en annan Windows-användare: bakgrunden där bevakar ingenting.
+
+## Meddelanden och polering (TO1a, 2026-11-07)
+
+- [ ] Expandera en adress: en grön toast *N nya tx i grafen* glider in nere till höger och tonar ut efter några
+      sekunder; strecket i nederkanten krymper, och hovring stoppar det.
+- [ ] Koppla ner utgången och expandera: en toast säger varför. Ett fel ligger kvar tills det stängs med krysset, och
+      *Försök igen* gör om expansionen.
+- [ ] Sju toasts i rad: högst fem står, den äldsta tonar ut när en sjätte kommer.
+- [ ] Lås med Ctrl+L: inga toasts ligger kvar över låsskärmen.
+- [ ] Med animeringar avstängda i Windows dyker en toast upp utan glidning och försvinner utan att tona.
+- [ ] Efter skissen (TO1a, 2026-11-08): varje toast har ett färgat streck i nederkanten i sortens färg. För lyckat
+      och information krymper det med tiden (hovring stoppar det, och det fortsätter där det stod), för fel och
+      varningar står det stilla över hela bredden. Ikonen står på en rund tonad skiva i sortens färg, åtgärden
+      (*Försök igen*, *Visa dem*) är i accentfärgen, och krysset är dämpat men ljusnar vid hovring.
+- [ ] Toasterna står 76 px upp från nederkanten, så att bildspråkets *?* nere till höger i grafen går att klicka på
+      medan en toast visas.
+- [ ] Bildspråkets *?* nere till höger i grafen är tydligt, med ett skarpt frågetecken och en ring på 1,5 px.
+- [ ] Inspektörens vänsterkant har ett litet grepp mitt på; vilar pekaren där en stund tonar en mörkgrå linje in längs
+      hela kanten.
+- [ ] Etikett, Bryt upp och Annan kedja går att spara utan skäl.
+- [ ] *Inställningar → Källor → Prova alla nu* och en expansion fungerar (felet *The media type asked for is not
+      valid* är borta).
+- [ ] Välj en nod: en list med ikoner står ovanför den (Expandera i accent först), bara de som går att använda; för
+      musen över en ikon för namnet och tangenten. Panorera, zooma och dra noden: listen följer med. Nära överkanten
+      hamnar listen under noden.
+- [ ] Tryck L (eller etikettikonen): formuläret fälls ut i en ruta till höger om noden med en pil mot den; nära
+      högerkanten till vänster. Esc stänger, Enter sparar. Samma för U och K.
+- [ ] Inspektören har inga knappar längre, bara *Varför?* som rund ikon i huvudet och kopiera vid adresserna.
+- [ ] Grafens hörn uppe till höger är en rad ikoner: förslag (prick när något väntar), områden (prick när några ritas),
+      fri yta och hoppkolumner (den valda markerad), metoden som text och beloppen på linjerna (nedtonad vid *Inga
+      belopp*). Tipsen säger vad varje ikon gör.
+- [ ] Inspektörens skugga syns inte ovanför titelradens underkant.
+- [ ] Klicka på + i pillret: undermenyn växer ut ur knappen åt höger och tonar in, och raderna glider det sista
+      stycket på plats. Med animeringar avstängda i Windows dyker den bara upp.
+- [ ] Välj en nod och tryck B (eller ögat i listen): Bevaka glider in i en ruta bredvid noden med en pil mot den. Bara
+      riktningen syns, som tre stora ikoner (In, Ut, Båda), och en mening under säger vad som händer.
+- [ ] *+ Bara vissa motparter*, *+ Minsta belopp* och *+ Hur ofta* fäller ut sitt fält och blir ✓; meningen ändras med
+      det som väljs. Ctrl+klick på noder i grafen lägger till motparter. Tillgången syns bara på Ethereum.
+- [ ] Ändra en bevakning med motparter eller ett minsta belopp: de fälten är redan utfällda.
+- [ ] Tomma textfält visar en svag platshållartext där en sådan finns.
+- [ ] Utan öppet ärende har pillret bara Nytt, Guide och Inställningar; öppna ett ärende och de andra vyerna
+      fälls in animerat, stäng det och de fälls bort (en vy som kräver ett ärende byter då till grafen).
+- [ ] Tidslinje, Flöde, Exponering, Begäran och Etiketter är nedtonade, och tipset säger *Inte byggt än*. Terminal
+      finns inte längre.
+
+## Statusraden och kommandoraden som Spotlight (polering 2026-11-07)
+- [ ] Statusraden längst ner är borta; utgången står bara i titelraden, och hovring på den säger vart uppslagen går.
+- [ ] När en källa ber Chainsaw vänta syns en liten gul prick till vänster om utgången i titelraden, med texten på hovring; den försvinner när väntan är över.
+- [ ] Kommandoraden syns inte förrän Ctrl+K eller Ctrl+F; då kommer den som Spotlight nära överkanten, 640 px bred, med förstoringsglas och större text, utan mörkning (KR1a), och tonar in med en liten rörelse (direkt med animeringar avstängda).
+- [ ] Esc, ett klick utanför (också i titelraden) och ett kommando som lyckas döljer raden; tangentbordet går tillbaka dit det var.
+- [ ] Ett kommando som misslyckas låter raden stå kvar med felet i rött under fältet.
+- [ ] *Alla ärenden …* i den tomma grafen öppnar raden med "/open " och markören sist, och Tab fyller i ärendenumret.
+- [ ] Ett svar som kommer när raden är dold (nytt ärende skapat, sanktionslista importerad) visas som en toast.
+- [ ] Nytt → Startpunkt med ett ärende öppet tar fram raden med förklaringen; en chainsaw:-länk tar fram den med adressen ifylld.
+- [ ] Med Guidens panel öppen står raden mitt i ytan bredvid panelen; Ctrl+K medan Nytt ärende är öppet gör ingenting.
+
+## Ärendeväljaren (ÄV1a)
+- [ ] Klicka på ärendet i titelraden (eller *Inget ärende öppet*): ärendeväljaren fälls ut under det med samma yta, kant och skugga som utgångarnas ruta och glider in mjukt (stilla med animeringar avstängda).
+- [ ] Ctrl+O öppnar den med markören i *Sök ärendenummer*; Esc stänger den och tangentbordet går tillbaka till ärendet i titelraden.
+- [ ] Ett klick utanför stänger den utan att klicket når det som ligger under; ett klick på ärendet igen fäller in den.
+- [ ] Med ett ärende öppet står *Öppet nu* med *Inte kontrollerat sedan det öppnades*; *Verifiera* visar *Kontrollerat nu · inget ändrat* (eller felet i rött), och *Stäng* stänger ärendet medan rutan står kvar.
+- [ ] Listan visar ärendena med det senast ändrade först, med nummer och *ändrad i dag 14:02*; det öppna har accentstreck och brickan *Öppet*.
+- [ ] Sökfältet filtrerar på ärendenummer och räknaren följer med; utan träff står *Inget ärende har det numret.*
+- [ ] Upp och Ned flyttar den valda raden; Enter öppnar ärendet och rutan stängs. Ett klick väljer, ett andra klick öppnar.
+- [ ] *Nytt ärende … Ctrl+N* stänger rutan och öppnar panelen Nytt ärende.
+- [ ] Ärendeväljaren, utgångarnas ruta och kommandoraden är aldrig öppna samtidigt, och ärendeväljaren stängs när Chainsaw låses.
+
+## Ärendets kuvert (ÄR1b)
+- [ ] Lägg en kollegas ärendefil (skapad i ett annat valv, med ärendelösenord) i mappen Ärenden och öppna den i ärendeväljaren: rutan *Öppna med ärendelösenordet* kommer i mitten med kuverten som små kort (*Ett annat valv*, *Ärendelösenord* som lyser i accent, *Organisationen* och ett streckat *Du*), och ärendeväljaren fälls in.
+- [ ] *Öppna en kollegas fil …* längst ner i ärendeväljaren öppnar Windows filruta (bara `.cut`); en fil utanför mappen visas som *Från en annan plats · 4,2 MB · kopieras till Ärenden*.
+- [ ] Fel lösenord: rött *Lösenordet stämmer inte. Inget har ändrats i filen.*, ingen kopia i Ärenden och det öppna ärendet står kvar. Markören står kvar i fältet.
+- [ ] Rätt lösenord med *Lägg till ett kuvert för mig* ikryssad: filen kopieras till Ärenden, *Du* blir grönt och *Ditt kuvert ligger i filen. Nästa gång räcker huvudnyckeln.*; Enter eller *Till grafen* stänger. Stäng ärendet och öppna det igen: inget lösenord frågas.
+- [ ] Utan krysset: ärendet öppnas och rutan säger att lösenordet behövs igen nästa gång.
+- [ ] Ctrl+I, eller *Egenskaper* i ärendeväljaren, öppnar ärendets egenskaper på fliken *Kuvert*: ett kort per kuvert med flik som ett kuvert, *Du* i grönt på ditt, låset och hela fingeravtrycket i grupper (Cascadia Mono) på organisationens, streckat *Ingen delning* eller *Inget eget kuvert* när de saknas.
+- [ ] *Skapa lösenord …* och *Byt …* fäller ut två fält i kortet; olika lösenord ger *Lösenorden är inte lika.*, för kort ger felet om längden; Enter eller *Spara* sparar, Esc eller *Avbryt* fäller in.
+- [ ] *Ta bort* på lösenordet i en kollegas fil utan eget kuvert vägras med en förklaring; efter *Lägg till mitt kuvert* går det.
+- [ ] Titeln överst ändras och sparas när fältet lämnas eller med Enter; titelraden följer med. Fliken *Information* visar filen och ärendets id.
+- [ ] Varje ändring av kuverten står i journalen (`/verify` är grön efteråt).
+- [ ] Krasch med en arbetskopia som inte hör till filen (öppna ärendet, döda Chainsaw i Aktivitetshanteraren, lägg tillbaka en äldre kopia av `.cut`): när ärendet öppnas kommer *<nummer> gick åt två håll* med de två grenarna, arbetskopian vald och *Spara som <nummer>-B*.
+- [ ] *Filen* + *Öppna filen*: arbetskopian ligger orörd i `Ärenden\Återställda\<nummer> <tid>Z\`, och journalen säger var.
+- [ ] *Arbetskopian* + *Spara som …*: ett nytt ärende `<nummer>-B.cut` öppnas med journalen fram till kraschen och en rad om vilket ärende det kom ur och vilka kuvert som inte följde med; ursprungsfilen är orörd och dess arbetskopia ligger i `Återställda`. Titelraden, ärendeväljaren och en exporterad begäran säger `-B`. Öppna de två ärendena om vartannat några gånger: `/verify` är grön för båda.
+- [ ] *Öppna filen* på en skadad `.cut`: felet sägs i rutan, arbetskopian ligger kvar bredvid filen och rutan kommer tillbaka nästa gång ärendet öppnas.
+- [ ] Låses Chainsaw medan en av rutorna är öppen stängs den.
+
+## Ikonlisten vid noden och zoomen (polering 2026-11-07)
+- [ ] Välj en nod och zooma ut: ikonlisten ovanför noden krymper med grafen ner till tre fjärdedelar av sin storlek, och står kvar centrerad över noden.
+- [ ] Zooma ut ännu mer (under ungefär 45 %): listen försvinner; E, L, B och de andra tangenterna fungerar ändå, och listen kommer tillbaka när man zoomar in.
+
+## Panorering i grafen (polering 2026-11-07)
+- [ ] Håll höger musknapp och dra, var som helst i grafen och också över en nod: ytan följer med och pekaren blir ett fyrpilskors.
+- [ ] Samma sak med mittknappen (hjulet nedtryckt).
+- [ ] Släpp i farten: ytan glider vidare och saktar in mjukt; ett nytt tryck eller hjulet fångar den. Släpp stilla: den står kvar.
+- [ ] Ett högerklick utan att dra öppnar nodens meny som förut, och ingen meny kommer efter en panorering.
+- [ ] Vänsterknappen på tom yta panorerar inte längre; den drar noder och väljer.
+- [ ] Med animeringar avstängda i Windows glider ytan inte efter släppet.
+- [ ] Grafens läge (var man panorerat) finns kvar när ärendet öppnas igen.
+
+## Mjuk zoom i grafen (2026-11-08, som i Gawk)
+- [ ] Ett hack på hjulet: grafen glider mjukt in eller ut på ungefär en kvarts sekund, och punkten under pekaren står helt still hela vägen.
+- [ ] Snurra snabbt flera hack: zoomen samlas till ett enda mjukt svep, utan hack eller ryck tillbaka. Byt riktning mitt i: den vänder mjukt.
+- [ ] Pekplattan (två fingrar upp och ner): zoomen följer fingrarna i små steg, lika mjukt, och blir inte ryckig.
+- [ ] Zooma ut och in till gränserna (20 % och 300 %): zoomen stannar mjukt vid gränsen och fortsätter inte; fler hack där gör ingenting.
+- [ ] + och − zoomar mjukt runt mitten av ytan på samma sätt. F passar in direkt och avbryter en zoom som pågår.
+- [ ] Släpp en panorering i farten och vrid hjulet medan ytan glider: glidningen stannar och zoomen tar över, utan att ytan hoppar.
+- [ ] Tryck med vänster-, höger- eller mittknappen mitt i en zoom: zoomen stannar där den är, utan hopp.
+- [ ] Ikonlisten och formulären vid den valda noden, kommentarslapparna och tidsbanden följer med i varje bildruta under zoomen.
+- [ ] Med animeringar avstängda i Windows: varje hack zoomar direkt ett steg, utan glidning.
+- [ ] Zooma och öppna ärendet igen: zoomnivån finns kvar (den sparas när zoomen landat, inte under den).
+
+## Grafens rester (GR4, GR5, GR6c, TK1a, KF1b och KF2b, 2026-11-08)
+- [ ] Ge en nod ett långt namn (Etikett, L): noden blir bredare så att namnet syns helt, högst ungefär 214 px, och
+      adressen under står kvar förkortad i mitten. En nod utan namn är lika bred som förut.
+- [ ] I hoppkolumnerna flyttas kolumnen efter en bred nod åt höger, så att beloppen fortfarande får plats mellan
+      kolumnerna; linjerna går ut från den breda nodens högra kant och markeringarna sitter i dess hörn.
+- [ ] Testärendet i hoppkolumner: ett hopp med fler än åtta aktörer sprids över två kolumner, och linjen till den andra
+      kolumnen (CoinJoin) böjer av mellan raderna i stället för att gå rakt genom en nod i den första.
+- [ ] Ett belopp i USDT eller ETH: tokenen står som en liten rund bricka (₮, Ξ) först i beloppet, i krämvitt på en
+      mörk skiva, och beloppet behåller linjens färg.
+- [ ] En linje med en swap: ett piller mitt på linjen med två brickor och en pil (₮ → Ξ), som linjen går in i och ut ur;
+      beloppet står bredvid pillret och aldrig på det, och pillret står kvar när beloppen gallras bort.
+- [ ] En graf med aktörer på två kedjor (till exempel efter *Annan kedja*): en svag rubrik i versaler (BITCOIN,
+      ETHEREUM) står ovanför varje kedjas del av ytan. En graf på en kedja har inga rubriker.
+- [ ] En graf med dolda OP_RETURN-utgångar: grafens hörnrad har ett överstruket öga med en prick, verktygstipset säger
+      hur många som döljs. Ett klick visar dem (ögat öppnas och lyser), ett klick till döljer dem igen. Stäng och öppna
+      ärendet: markeringen finns kvar, också när toasten är borta.
+- [ ] Nytt ärende med en startpunkt, innan något hämtats: bredvid startpunkten står guidenoden *Expandera* med streckad
+      accentram och två ringar som pulserar, en prickad linje från startpunkten och raden *Hämtar startpunktens tx och
+      ritar motparterna.* under. Efter den står *Hitta uttaget* svagt med en blå bank. Hovra båda: förklaringen visas.
+- [ ] Samma sak offline: raden under *Expandera* säger att expansionen inte kan hämta något förrän en utgång är ansluten.
+- [ ] Klicka på *Expandera* (eller tryck E med startpunkten vald): startpunkten väljs och expanderas, och guiden
+      försvinner när de första linjerna kommer. Med animeringar avstängda står ringarna still.
+- [ ] Dubbelklicka på en nod: den expanderas (som E). Dubbelklick på en hög eller en ledtråd gör inget nytt, och
+      dubbelklick på tom yta ger fortfarande en kommentar.
+- [ ] Högerklicka på tom yta: en meny med *Kommentar … N*, *Passa in F*, *Zooma in +* och *Zooma ut −*. Varje rad gör
+      det den säger; kommentaren hamnar där man högerklickade. Högerklick på en nod ger nodens meny som förut.
+- [ ] Välj två aktörer (Ctrl+klick eller ruta) och tryck Z: formuläret för en egen yta står bredvid aktörerna, till höger
+      om dem (eller till vänster när det inte får plats), och följer med när grafen panoreras och zoomas.
+- [ ] Byt namn på eller ta bort en egen yta från dess bricka: formuläret står bredvid ytans aktörer.
+- [ ] En mixers förslag med kandidater: numret (1, 2, 3) står på kandidatens nod uppe till vänster, ifyllt i accenten
+      för den valda, inte mitt på linjen. En godkänd kandidat får en grön bock uppe till höger, efter nodens andra
+      markeringar, och linjen förblir streckad.
+- [ ] Öppna Etikett (L) på en nod, klicka i Guidens panel och tryck Esc: formuläret stängs. Esc en gång till stänger
+      Guidens panel. Samma sak med Bevaka (B) och formuläret för en egen yta (Z).
+
+## Kortet, markeringarna och tidslisten (IN4a, GR9a och TL2a, 2026-11-08)
+- [ ] Alt + klick på en Bitcoin-adress med pengar kvar: noden vänds runt sin lodräta axel (0,6 s) och baksidan växer
+      till 260 px med en rad: en ring med ₿, beloppet med de sista fyra decimalerna dämpade och kronorna under. Foten
+      säger *Bitstamp · i dag 14:00* med en grön prick, och blockhöjden med en kub till höger.
+- [ ] Vänd en till nod: båda står vända samtidigt och ligger över noderna runt omkring. Alt + klick igen, eller pilen
+      uppe till höger på baksidan (syns vid hovring), vänder tillbaka.
+- [ ] En Ethereum-adress med ETH och USDT: två rader, ₮-raden med snöflingan *Kan frysas*.
+- [ ] En tom adress: raden *Tom · sedan 29 sep 10:20* med en streckad ring och ingen kurs i foten.
+- [ ] Offline (VPN vald men inte ansluten): foten har en gul klocka och *Offline · kurs 5 nov 09:14*, och kronorna är
+      streckade under. Utan kurs i ärendet: *Offline · ingen kurs i ärendet* och *– kr*.
+- [ ] Hovra en rad, foten och höjden: verktygstipset visar hur kronorna räknats, kursen i sin helhet och vilket block
+      saldot gäller. Med animeringar avstängda vänds kortet direkt.
+- [ ] En tx som bytt block (svårt att framkalla; ett ärende med en tx hämtad i ett grunt block som sedan omorganiserats):
+      ett gult runt märke i beloppets övre hörn. Hovra eller klicka: rutan *Bytte block* med förut (överstruket) och nu,
+      höjd, hash och när svaret kom. *?* öppnar Guiden på *Omorganisation av kedjan*.
+- [ ] Alla Bitcoin-källor ber Chainsaw vänta (till exempel många expansioner i följd mot publika källor): en bricka
+      med ₿ i en ring som töms och sekunderna nedräknade står i grafens huvud; hovra för källorna och hur länge.
+      Noden som expanderas får ett timglas i nedre högra hörnet som andas. Ber bara en källa om väntan syns inget.
+- [ ] Öppna det som hölls tillbaka (+N tx), välj ±48 h och stäng: tidslisten blir en lins där fönstret tar drygt
+      halva listen med dygn och timmar, de utelämnade tx:erna som korta grå streck och ankomsten som en streckad
+      accentlinje. Brickan *Valvyn · ±48 h* över linsen byter till ±7 d, ±6 h och sedan hela ärendet.
+- [ ] En adress med en obekräftad tx: tillgångens rad har en liten gul klocka; hovra raden för det som väntar i mempool.
+- [ ] Med utgången ansluten men kurskällan nere: foten säger *Ingen ny kurs · kurs …*, inte *Offline*.
+- [ ] Listen slutar prickad vid senaste blocket, en kub med höjden under; hovra kuben för höjden och tiden.
+- [ ] Zooma in i grafen tills ett dygn är brett: prickade timlinjer vid 06, 12 och 18 med timmen överst.
+
+## Grafens ikon (IK1)
+- [ ] Grafens ikon i pillret är en förgrening: en rund aktör till vänster vars linje delar sig mot en rund aktör uppe till höger och en fyrkantig tjänst nere till höger, skarp i 20 px.
+
+## Windows som utgång utan nät
+
+- [ ] Välj *Windows* i Inställningar › Nätverk med nät: titelradens utgång säger *Windows* i grönt.
+- [ ] Dra ur nätverkskabeln och stäng av Wi-Fi (eller slå på flygplansläge): inom någon sekund säger titelraden
+      *Offline* i rött, och verktygstipset säger att datorn inte har något nät.
+- [ ] Öppna utgångsrutan utan nät: mittringen och skärmikonen är röda, det står *Offline* under, och båda linjerna är
+      röda och streckade.
+- [ ] Expandera en ny adress utan nät: grafen säger offline ärligt, inget uppslag görs och ingen endpoint märks som
+      trasig i Inställningar › Källor.
+- [ ] Koppla in nätet igen: titelraden och utgångsrutan blir gröna och säger *Windows* utan att Chainsaw startas om, och
+      källorna provas igen.
+- [ ] Med *VPN* valt och en ansluten utgång ändrar en kort nätförlust inte titelraden till *Offline* av sig själv
+      (tunnelns eget läge gäller).
+- [ ] Ett nät som finns men inte når internet (till exempel ett Wi-Fi med inloggningssida) visas som *Offline* inom
+      några sekunder, och inga uppslag görs. Logga in på sidan: inom cirka 10 s blir titelraden grön och säger *Windows*.
+- [ ] I ett nät där ping (ICMP) är spärrat men https går genom datorns proxy visas *Windows* ändå grönt.
+
+## Ledtrådsnoden, valvyn och högen (EX1, EX2, EX2b, omgjort 2026-11-08)
+- [ ] Expandera en adress med många tx (över 50): vid adressen står en streckad pill `+ 243 tx` med en tunn streckad
+      linje från adressen och under pillen, litet, *äldre än 2026-03-02* (den äldsta tx som togs med).
+- [ ] Ett klick på pillen: två ringar går ut från den, grafens noder flyger ut åt alla håll (de närmaste först) och
+      adressen glider till mitten. Medan historiken läses står bara adressen kvar med *Läser historiken …*.
+- [ ] Valvyn: tx:erna som prickar i en spiral runt adressen (nyast innerst), färgen efter motpartens sort (blått uttag,
+      grått okänt, rött risk, gult spel), större prick för större belopp, fylld för ut och ihålig för in. Filterpanelen
+      till vänster, raden *bc1q…x0wl · 243 tx som hölls tillbaka · visas 42 av 243* överst, knapparna uppe till höger
+      och listen längst ner tonar in när prickarna har kommit ut. Grafens hörn och *?* syns inte under tiden.
+- [ ] Förval: ±48 h runt den spårade ankomsten (streckad accentlinje i tidsreglaget) och *Dölj damm* på. Utan spårade
+      pengar till adressen: *Allt*. Räknaren säger *42 av 243*.
+- [ ] Beloppsreglaget har fördelningen bakom sig; dra ändarna och texten blir till exempel *0,01 – allt BTC*. *In*,
+      *Ut*, *Alla*, tidsfönstret (dra bandet längs tiden, eller ±48 h, ±7 d, Allt), motpartens grupper, *Bara de som
+      inte finns i grafen* och *Gruppera per motpart* (en prick per motpart med antalet i) gallrar som de säger.
+      *Återställ* tar tillbaka förvalen. Den sista gruppen går inte att släcka.
+- [ ] En motpart med röd etikett (mixer, darknet, sanktion) pulserar med röd sonar; en utbetalning strax under det
+      spårade beloppet (97–100 %) pulserar i accenten. En motpart som redan är en nod har en liten ihålig ring i
+      hörnet, en etikett från ett annat ärende en liten romb. Hovra en prick: en ruta säger *Ut till … · belopp*, txid
+      och tid i UTC och varför den är markerad. Med animeringar avstängda i Windows står sonaren still.
+- [ ] *Tidsbåge*: prickarna i en båge över adressen, vinkeln är tiden och avståndet beloppet, med streckade bågar för
+      0,01, 0,1 och 1 BTC, dagar (eller månader) i ytterkanten och den spårade ankomsten som en streckad accentstråle.
+      *Tid* och *Belopp* (bara i spiralen) byter ordning; spiralen säger då månader eller *störst*, *< 1 BTC* …
+- [ ] Klick väljer en prick (ring i accenten), ett nytt klick släpper den; Shift-klick väljer alla mellan den förra och
+      denna. *Lasso · L*: dra en ring runt prickar. *Största 10*, *Välj pulserande* (bara när något pulserar) och
+      *Rensa* (bara när något är valt). Listen säger *12 valda · 4,97 BTC · 12 motparter* och *Plocka ut 12 · Enter*
+      blir terrakotta.
+- [ ] *Avbryt · Esc* eller Esc: grafen kommer tillbaka (noderna landar, de närmaste först). Enter eller *Plocka ut*:
+      grafen kommer tillbaka och de valda tx:erna hämtas in; är de fler än åtta nya motparter på en sida hamnar de i en
+      hög. Pillen säger nu *231 tx* och under den *12 plockade · äldst 2025-08-04*.
+- [ ] Utan nät och utan sparad historik: ett fel säger *Det som hölls tillbaka kunde inte läsas.* med *Försök igen*,
+      och grafen kommer tillbaka. Ett ärende som läst historiken förut öppnar valvyn också offline.
+- [ ] En tx-expansion med fler mottagare än gränsen har också en pill; ett klick där hämtar nästa del (ingen valvy).
+- [ ] Ett kluster med två expanderade adresser som båda hölls tillbaka: pillen räknar båda, och valvyn visar tx från
+      båda (samma antal som pillen när inget annat i grafen tar dem). En utplockad tx hamnar vid rätt adress. Har
+      klustret också en tx-expansion som hölls tillbaka står en egen pill för den.
+- [ ] En tx där adressen betalar tillsammans med andra (CoinJoin): pricken har streckad ring och svag fyllning, och
+      tipset säger *Flera betalade in: adressens andel, osäkert*; beloppet är adressens insats minus växeln, inte
+      allas mynt. En tx med flera mottagare säger *Ut till 3 mottagare*, och *Nära det spårade* säger *skillnad* och
+      tx:ens avgift.
+- [ ] En obekräftad tx syns i fönstret ±48 h när det når nuet och alltid under *Allt*, och tipset säger *obekräftad*.
+- [ ] En konsolidering till sig själv syns som *Till sig själv · 0,49 BTC*, inte som damm.
+- [ ] Stäng ärendet medan valvyn läser: inget fel visas.
+- [ ] Högen ritas som en kortlek (två kort bakom), *12 mottagare* och *4,97 BTC · 12 tx*, med en grå linje som är
+      tjockare ju mer den bär och säger *4,97 BTC · 12 tx*.
+- [ ] Ett klick på högen dimmar resten av grafen och korten flyger ut i en ring runt den (tolv i den inre, resten i
+      yttre ringar, aldrig på varandra), med en liten studs. Varje kort har sortens ikon, namnet och *0,038 BTC · 1 tx*;
+      ett kort med röd etikett har en röd prick i hörnet. Ett nytt klick på högen, Esc eller ett klick på det dimmade
+      fäller ihop den.
+- [ ] Klick väljer ett kort, Shift-klick fler. Dra ett kort ut på det dimmade och släpp: det blir en egen nod där, de
+      andra valda under det, och högen säger *11 mottagare*. Släpps kortet på högen ligger det kvar. Enter plockar ut de
+      valda på sina vanliga platser.
+- [ ] Högerklick och hjulet gör inget medan högen är utfälld eller valvyn är öppen.
+- [ ] Stäng ärendet och öppna det igen: de utplockade står kvar, högen och pillen med *12 plockade* finns kvar.
+- [ ] Välj en utplockad nod i ett kluster: *Lägg tillbaka i högen* lägger tillbaka den, också om klustrets
+      representant har bytts sedan den plockades ut.
+- [ ] Verifiera ärendet efteråt: verifieringen går igenom (historiken som lästes är förseglad som andra svar).
+- [ ] Bevaka en adress som ligger i en hög (eller välj den som motpart i en bevakning): den lämnar högen och står som
+      egen nod med ögat, vaktlinjen och, vid en träff, ringarna; högen säger en mottagare färre. Ta bort bevakningen:
+      adressen går tillbaka i högen.
+- [ ] Fäll ut en hög med 50 kort och öppna valvyn med hundratals prickar: utfällningen och prickarna rör sig mjukt,
+      också med många belopp på linjerna i grafen bakom.
+- [ ] Flytta en hög eller en pill i ett kluster och expandera så att klustret växer (en annan adress kan bli
+      representant): högen och pillen står kvar där de flyttades. Ett klick på pillens tunna linje öppnar valvyn som
+      ett klick på pillen.
+
+## Utgångar utan mottagare döljs (OP_RETURN)
+- [ ] Expandera en adress som tillhör en pool (coinbase-tx med OP_RETURN på 0 BTC): noderna för OP_RETURN syns inte,
+      och en toast säger till exempel *49 utgångar utan mottagare döljs.* med *Visa dem*. Toasten står kvar i 20 s
+      (de vanliga 6 s).
+- [ ] *Visa dem* visar dem i grafen, och en ny toast erbjuder *Dölj dem*. Valet finns kvar när ärendet öppnas igen.
+- [ ] *Visa dem* och *Dölj dem* i ett stort ärende (tusentals noder): grafen hackar inte när de visas eller döljs, och
+      ett ärende som sparat *visas* öppnar direkt med dem utan att grafen ritas två gånger.
+- [ ] En OP_RETURN som bränner pengar (mer än 0 BTC) döljs aldrig.
+
+## Grafen använder ytan
+- [ ] Med många motparter i samma hopp (under gränsen för högen, eller efter att många plockats ut) står de i flera
+      kolumner sida vid sida i ett ungefär kvadratiskt block, inte i en lång kolumn; i hoppkolumnerna är hoppets band
+      lika brett som blocket.
+- [ ] Beloppen på linjerna hamnar aldrig ovanpå varandra: ett belopp som skulle krocka visas när pekaren är över
+      linjen eller när noden är vald.
+
+## Testärendet (/testdata)
+- [ ] Bygg och kör i Debug (`dotnet run --project src/Chainsaw.App`), lås upp och skriv `/testdata` i kommandoraden (Ctrl+K). Efter några sekunder står *Testärendet TEST-0001 skapades med påhittade data och är öppet*, och grafen visar det; ett andra `/testdata` ger TEST-0002. I ett Release-bygge finns kommandot inte, och `/help` visar det bara i Debug.
+- [ ] Ärendeväljaren visar också TEST-0001-KOLLEGA, kollegans ärende där etiketten från ett annat ärende sattes.
+- [ ] Grafen har startpunktens flagga (offrets betalning till bedragaren är startpunkten), och varje sort i bildspråket finns: offer, kluster, okänd, börs (Nordbörsen med *Uttag funnet*), utan KYC (Snabbväxlaren, streckad), nästlad, OTC, automat, kort, spel, handel, presentkort, darknet (Skuggtorget med sanktionsmärket), garanti (Garantitorget med märket *från ett annat ärende*), mixer, CoinJoin (Whirlpool-tx:en), sanktion, swap, delad tx (gruvbelöningens mynt och en annan ägare), mynt (gruvbelöningens P2PK och OP_RETURN) och annan kedja (lila, från Bytaren). *Kan frysas* saknas (kräver Ethereum, se TODO).
+- [ ] *Varför?* på *Bedragarens plånbok* förklarar konsolideringen (common-input-ownership); klustret med växeladressen förklarar växeln med tre tecken.
+- [ ] *Förslag · N* har *Troliga utgångar ur mixern* att avgöra (två kandidater), och områden för CoinJoin, peel chain och föreslagna plånböcker; den egna ytan *Uttagsvägar* ligger runt börserna.
+- [ ] Bevakningen *Bedragarens andra plånbok* har ett öga i grafen och en träff som väntar (ett nytt offer betalar in) med animerade ringar; vyn Bevakning visar träffen. Inget av testärendet hamnar i bakgrundsprocessens plan.
+- [ ] Expandera själv: *Navet* (fler än 50 tx, så resten hålls tillbaka, och många motparter), mixerns troliga utgång (går vidare till Sydbörsen), *Offret* (utbetalat från Nordbörsens heta plånbok), en av Whirlpool-utgångarna och bedragarens andra plånbok (det nya offrets betalning).
+- [ ] Allt fungerar med VPN valt och ingen utgång ansluten: testärendet frågar aldrig nätet efter kedjedata. Ett riktigt ärende som öppnas samtidigt frågar som vanligt genom utgången.
+- [ ] `/verify` på testärendet säger att inget har ändrats, och en tx i inspektören visar källan *testdata* och endpointen *testdata (påhittade data, bara Debug)*.
+
+## Ärenden i högar (GR8a)
+- [ ] Utan öppet ärende: dra ett ärende runt *Nytt ärende* och släpp det på ett annat. Medan det dras följer en lite
+      vriden bild av kortet pekaren, och ärendet eller högen under som tar emot det växer lite. De två blir en hög:
+      en fyrkantig nod med två kort bakom sig, ikonen med lagren, antalet och *senast ändrad …* under namnet.
+- [ ] Namnet skrivs direkt i den nya högen (*Namnge högen* i fältet). Enter eller ett klick utanför behåller det,
+      Esc lämnar högen utan namn, och en hög utan namn heter *Namnlös*. Högst 40 tecken.
+- [ ] Dra ett tredje ärende till högen: antalet ökar. Släpps ett ärende utanför något händer inget, och Esc under
+      dragningen lägger tillbaka det.
+- [ ] Ett klick på ett ärende (utan att dra) öppnar det som förut.
+- [ ] Ett klick på högen: två ringar går ut från högen, ytan trycks ut lite och dimmas, högen glider till mitten och
+      korten fjädrar ut runt den i samma ring som grafens samlingsnod (en ellips, upp till tolv kort, de första
+      uppifrån), med tunna linjer till dem. Korten ser ut som grafens: dokumentet i en streckad fyrkant, numret och
+      *ändrad …*. I ett litet fönster dras ringen in så att korten får plats.
+- [ ] Med animeringar avstängda i Windows (Inställningar › Hjälpmedel › Visuella effekter) står allt direkt på sin
+      plats, utan ringar eller rörelse.
+- [ ] Shift-klick väljer kort (terrakottaram), raden längst ner säger *2 valda · dra ut dem tillsammans*. Dra ett valt
+      kort ut på det dimmade: de valda följer med under det, högen fälls ihop och de ligger lösa runt *Nytt ärende*,
+      också när de är äldre än de fyra senaste. Enter tar ut de valda på samma sätt.
+- [ ] Ett kort som släpps på högen i mitten glider tillbaka till sin plats.
+- [ ] Ett klick på ett kort öppnar ärendet. Esc, ett klick på högen i mitten eller på det dimmade fäller ihop högen.
+- [ ] Pennan i den utfällda högen byter namn på den.
+- [ ] Dra en hög och släpp den på en annan hög: den andra växer lite medan den tar emot, och de blir en hög med den
+      dragnas ärenden överst och namnet från högen man släppte på (eller den dragnas, om den saknade namn). Släpp en
+      hög på ett löst ärende: ärendet hamnar i högen.
+- [ ] Tab når högarna som ärendena, med en terrakottaram runt den som har tangentbordet. Enter eller blanksteg fäller
+      ut den, F2 skriver namnet.
+- [ ] En hög som töms försvinner.
+- [ ] Starta om Chainsaw: högarna står kvar med namn (`%LOCALAPPDATA%\Chainsaw\piles.json`). Ta bort en ärendefil
+      ur mappen: den försvinner ur sin hög när Chainsaw listar ärendena igen.
+
+## Polering 2026-11-08
+
+- Öppna ett ärende utan att välja något i grafen: inspektören till höger syns inte. Välj en aktör eller linje: den fälls
+  fram. Ctrl+J (Förslag) fäller också fram den. Esc eller klick på tom yta fäller bort den igen.
+- Tom startpunkt: ingen puls runt rutan och ingen prickad ring kring flaggan. *Nytt ärende* i startvyn har ingen puls, inte heller
+  första gången.
+- Utan ärende: Graf-ikonen syns inte i pillret, och ingen dubbel skiljelinje. Startvyns fot säger inte *Utgång: …*,
+  bara *Offline* när inga uppslag går.
+- Osäkra (streckade) linjer: korta, fina streck oavsett hur tjock linjen är, inte grova korvar.
+- Guiden bredvid arbetet (F1 eller *?*): ingen skugga över titelraden. Längst ner tonar texten ut mot panelens botten så
+  länge det finns mer att läsa; vid slutet försvinner toningen.
+- Ctrl+W med ett öppet ärende: ärendet sparas och stängs och startvyn visas. Utan ärende händer inget. *Stäng* i
+  ärendeväljaren säger Ctrl+W i sitt tips.
+
+## Sidan Källor (KL2b) och Chainabuse
+
+- [ ] Ctrl+, → *Källor*: en mittkolumn med Bitcoin, Ethereum, TRON och Solana (prick, namn och under det läget och
+      antalet påslagna, till exempel *Snabbast · 2 av 2*; Solana säger *Inte byggt än*). Den valda raden ligger på den
+      upphöjda ytan, utan färgad list i kanten. Sidan rullar inte med rubriken; mittkolumnen går hela vägen ner.
+- [ ] Till höger: kedjans namn, lägets namn och tre ikoner (blixt, numrerad lista, strömbrytare). Hovra en ikon: namnet
+      i fetstil och vad läget gör. Den valda ikonen står i accenten (Av i kräm).
+- [ ] *ANVÄNDS*: den som används är ett upphöjt kort med prick, namn, ★, svarstiden stort (*146 ms*), adressen i
+      Cascadia Mono och *Höjd 921 404* (hashen bara efter *Prova* i formuläret, inte efter provet vid start). Ingen
+      stapel under kortet. Hovra kortet: brytaren och × kommer fram.
+- [ ] *RESERVER efter svarstid* i Snabbast: tysta rader med prick, namn, hus för egen nod, *↓ N block efter* i gult,
+      *Väntar* med klocka, *Svarar inte* i rött, och svarstiden till höger, utan staplar. Hovra en rad: adressen, brytaren
+      och × kommer fram, och raden blir tydlig. Tab till brytaren visar den också.
+- [ ] Stäng av en endpoint: den hamnar under *Avstängda · 1*, som är ihopfälld. Ett klick fäller ut den: streckad ram,
+      tom prick, nyckelikon om den har en API-nyckel, brytaren för att slå på igen och × på hovring.
+- [ ] *Prioriterad*: *RESERVER i din ordning, dra i greppet*, grepp och nummer (1, 2, 3 bland de påslagna) på kortet
+      och raderna. Dra en reserv i greppet upp över kortet: den blir den som används. Alt+↑/↓ med fokus på greppet
+      flyttar och fokus följer med, också förbi avstängda.
+- [ ] *Av*: en streckad ruta säger *Inga uppslag för Bitcoin …*, inget kort, rubriken *ENDPOINTS används inte medan
+      läget är Av*, raderna tonade. *Prova alla nu* är tonad.
+- [ ] Foten: *+ Lägg till endpoint …* med streckad ram (formuläret fälls ut ovanför foten, fokus i adressen; Esc fäller
+      in), *Provade hh:mm* och *Prova alla nu* med pilarna i en ring.
+- [ ] *Etiketter* under kedjorna: *Chainabuse*, *Av* under namnet och tom prick. Ett klick visar namnet, raden
+      *Rapporter om bedrägerier, från allmänheten och partner (TRM Labs)*, brytaren (av), *API-NYCKEL* med ett maskerat
+      fält och *Spara*, och noten *En vanlig nyckel ger 10 anrop i månaden; uppslag görs när du ber om det.* Ingen knapp
+      för uppslag.
+- [ ] Slå på Chainabuse: raden säger *På · ingen nyckel* med gul prick. Skriv en nyckel och tryck Enter (eller *Spara*):
+      fältet töms och ersätts av *•••••••••••• Sparad i valvet* med *Ta bort*; raden säger *På* med grön prick. Nyckeln
+      visas aldrig igen i klartext. Kontrollera i Valvet att nyckeln ligger under tjänsten *Chainabuse*.
+- [ ] *Ta bort*: nyckeln försvinner ur valvet och fältet kommer tillbaka.
+- [ ] Starta om Chainsaw: Chainabuse är fortfarande på (`"AttributionProviders": [ "chainabuse" ]` i
+      `%LOCALAPPDATA%\Chainsaw\settings.json`). Stäng av: listan blir tom.
+- Chainabuse med en knapp: slå på Chainabuse under Inställningar › Källor › Etiketter och spara en nyckel. Välj en nod
+  med en adress (Bitcoin eller Ethereum): ikonen *Fråga om rapporter* (skölden) står i ikonlisten, och R gör samma sak.
+  Ett kluster, offline eller med Chainabuse av: ikonen syns inte. Svaret kommer som en toast; finns rapporter får noden
+  en röd markering *Rapporterad* och etiketten står i Historik med Chainabuse som källa.
+- Klicka på en ledtråd `+N tx` vid en adress med lång historik och tryck Esc medan *Läser historiken …* står: läsningen
+  stoppas, grafen kommer tillbaka och en toast säger att det som redan hämtats ligger kvar i ärendet. Inget fel visas.
+
+## Nytt ärende NC2a (2026-11-08)
+
+- [ ] Chainsaw startar utan felrutan *Provide value on 'System.Windows.StaticResourceExtension' … Line 541* (rättat
+      2026-11-08), och fältens svaga platshållare syns i titeln och i raden *Lägg till*.
+- [ ] Ctrl+N: panelen från höger är 520 px bred, resten mörkas. Rubriken *Nytt ärende*, *Ctrl+N* och × (Esc). Markören står
+      i det stora fältet *Ärendenummer* med *t.ex. 2026-0117* svagt; ramen är i accenten medan fältet har tangentbordet.
+- [ ] Skriv `2026-0117`: en grön bock i fältet och under det hänglåset och *Krypterad fil 2026-0117.cut*. Ett nummer som redan finns
+      ger ingen bock utan *Ett ärende med numret finns redan* i rött. *Skapa ärende* är nedtonad tills ett nummer finns.
+- [ ] *Titel, valfri* är en tyst rad med bara en linje under, som blir accent med tangentbordet.
+- [ ] Utan startpunkter: listan har bara raden *+ Lägg till adress eller tx · Ctrl+V klistrar in flera*, och under den
+      brickorna ₿ Bitcoin, Ξ Ethereum, TRON och *Bara adressen eller tx:en skickas.* Vid rubriken *Startpunkter* står
+      *via Windows* (skärmen) eller *via <utgången>* (skölden); hovra för vad som skickas.
+- [ ] Skriv en Bitcoin-adress i raden: när du slutar skriva (knappt en sekund) blir den en rad, och fältet töms. Enter gör
+      det direkt. Raden skimrar (tre pulserande streck och en snurra till höger) och fylls sedan med saldo i BTC, antal
+      tx och *mars 2024 → 29 okt* (eller *senast 29 okt* när adressen har fler än de nyaste tx:erna), och kuben med
+      blockhöjden till höger. Hovra kuben: *Hämtat vid block …*, *Senaste tx i block …* och blockets hash.
+- [ ] Jämför saldot och antalet tx med mempool.space för samma adress. Inget visas som källan inte gav.
+- [ ] En Ethereum-adress visar antal tx (med `+` när det finns äldre) och aktiviteten, inget saldo (källan ger inget). En
+      Bitcoin-tx visar beloppet ut, antal in och ut och dagen; en Ethereum-tx ether, antal överföringar och dagen.
+- [ ] En TRON-adress får TRON-märket och *TRON hämtas inte, inte byggt än*. Skriv `hej` och Enter: en rad med streckad
+      ruta, *?* och *Känns inte igen som adress eller tx*, och × syns hela tiden. *Skapa ärende* säger då vilken rad.
+- [ ] Kopiera fyra adresser på var sin rad och tryck Ctrl+V i raden (eller var som helst i panelen utom i ett fält): fyra
+      rader. Samma adress två gånger blir en rad. Text som inte känns igen sägs i en rad längst ner.
+- [ ] Hovra en rad: den ljusnar och × kommer fram; × tar bort raden.
+- [ ] En adress på den importerade sanktionslistan får den röda brickan *Sanktionerad*; hovra för listan, datumet och
+      namnet. Efter *Skapa ärende* har adressen etiketten Sanktionerad i grafen.
+- [ ] Offline (VPN vald och inte ansluten, eller Windows utan nät): brickan säger *Offline* i rött, raderna klockan och *Väntar på
+      utgången*, och under listan en gång *Offline: hämtas när utgången är ansluten. Ärendet kan skapas ändå.* Anslut:
+      raderna hämtas utan att något görs. Kontrollera i utgångens logg att inget gick ut medan den var nere.
+- [ ] Skapa ärendet efter att raderna hämtats: journalen har *N råsvar som hämtades i Nytt ärende innan ärendet fanns
+      förseglades i ärendet* (`app.prefetch-sealed`) och `/verify` säger att inget har ändrats.
+- [ ] Avbryt efter hämtningar: ingen fil skapas i Ärenden och inget ligger kvar i `%TEMP%` eller `%LOCALAPPDATA%`.
+- [ ] *Kan öppnas av en kollega*: ikonen med två personer, reglaget till höger; påslaget fäller ut *Ärendelösenord* och
+      *Upprepa* (38 px, rundade) indragna under texten.
+- [ ] Med Windows animeringar avstängda står skimret och snurran stilla.
+
+## Luft i grafen och områden bara när de väljs (TODO 34, 2026-11-08)
+
+Förberedelse: `/testdata` i ett Debug-bygge och öppna `TEST-0001` (gör om testärendet, eftersom ett äldre kan ha sparat
+platser och en vy).
+
+- [ ] Grafen öppnas läsbar (zoom ungefär 75 % eller mer), med startpunkten uppe till vänster; resten nås genom att
+      panorera. F passar in igen på samma sätt. En liten graf står mitt på ytan i naturlig storlek.
+- [ ] Inga noder ligger på varandra, varken på den fria ytan eller i hoppkolumnerna. Mellan kolumnerna är det luft nog
+      för de längsta beloppen (*0,689997 av 1,0000*), och raderna i en kolumn har gott om plats.
+- [ ] Inget belopp ligger på ett annat belopp eller på en nod. Ett belopp som inte får plats mitt på linjen står en bit
+      längre fram eller bak på den, eller precis ovanför eller under linjen.
+- [ ] Pengar fram och tillbaka mellan två noder (växeltx:en `3d0c…` och `bc1q…vd0j`) ritas som två linjer bredvid
+      varandra, var och en med sitt belopp, aldrig ovanpå varandra.
+- [ ] Expandera navet (`bc1q…k298`): högarna och `+N tx` får plats, och beloppen krockar fortfarande inte.
+- [ ] Dra en nod mitt i en solfjäder av linjer: beloppen flyttar sig undan medan du drar, utan att det hackar.
+- [ ] Inga områden ritas när ärendet öppnas. Menyn bredvid *Förslag · N* visar sorterna utan bock och med antal; en bock
+      visar sortens områden, och bocken bort döljer dem igen. Valet står kvar när ett annat ärende öppnas.
+- [ ] Gå igenom förslagen (Ctrl+J): det visade förslagets område syns bakom dess aktörer, men inga andra.
+- [ ] Rita en egen yta (välj aktörer, Z): den syns direkt, och sorten den sparades som har fått bock i menyn.
+
+## Tidslinjen under grafen (TL1a)
+
+Förberedelse: ett ärende med en graf som har bekräftade tx över flera dygn (`/testdata` i Debug, eller expandera
+några steg).
+
+- Mellan dygnen står tunna prickade linjer över hela grafen, som tonar in upptill och ut nertill. Överst i varje band
+  står dagen (*3 mars*). Dra en aktör till ett annat dygns band på den fria ytan: linjen böjer sig runt den i stället
+  för att flytta den. I hoppkolumnerna står linjerna i stort sett raka.
+- Zooma ut i ett ärende med många dygn: dygnen slås ihop till band med flera dagar (*3 mars – 5 mars*) i stället för
+  en vägg av linjer. Ett dagnamn som inte får plats i sitt band visas inte.
+- Längst ner står en tunn list som tonar in och ut i ändarna, hel fram till den sista tx:en och prickad efter, med ett
+  streck per tx och dagarna under. Utan en enda bekräftad tx visas varken listen eller banden.
+- Hovra över ett streck: det blir ljust och högre, ett kort ovanför säger tiden och vad som flyttades
+  (*bc1q…x0wl → Börs A · 0,6 BTC*), och en svag prickad linje visar var tiden går genom grafen.
+- Klicka på ett streck (eller mellan två): en hel ljus linje står vid tiden med tiden i ett piller överst, och det som
+  kom senare (aktörer, linjer, belopp, dagnamn och streck) bleknar. Huvudet säger *Grafen vid 5 mars 12:00 · det som
+  kom senare är blekt*. I listen står en prick med en sonar som vidgas och tonar ut.
+- *Till nu* bredvid listen (bara när en tid är vald) och Esc går tillbaka till grafen som den är nu.
+- Stäng av animeringar i Windows (Hjälpmedel › Visuella effekter): sonaren står still som en svag ring.
+- Panorera och zooma en stor graf med en vald tid: inget hackar. Öppna urvalsvyn för det som hölls tillbaka: listen
+  döljs så länge den är öppen.
+
+## Inspektören (IN2b, GR5, TK1a och AN1b, 2026-11-08)
+
+- [ ] Välj startpunkten utan namn: inspektören (420 px från början) glider in från höger och har sortens ikon i en rund ram (38 px), adressen förkortad i
+      grått som rubrik och *Okänd · Bitcoin · startpunkt* under. En nod med namn har namnet i krämvitt. Ett kluster
+      säger *… · 6 adresser*. *Varför?* är en rund knapp (32 px) i hörnet, med hovring, och bredvid den ett × (*Stäng ·
+      Esc*) som avmarkerar noden eller linjen och stänger inspektören, som Esc och ett klick på tom yta.
+- [ ] Flikarna *Fakta* och *Historik* står på en egen linje med accenten under den valda.
+- [ ] *Fakta* i två kolumner: *In*, *Ut*, *Spårat in*, *Tx*, *Hopp*, *Först in* och *Senast* (*block 974 990*, med
+      mellanslag mellan tusentalen). Ingen *Sort* och ingen *Kedja* bland fakta längre.
+- [ ] Adressen står i full längd i en mörk ruta i Cascadia Mono, med kopiera (30 px, rundad) till höger. Kopiera lägger
+      adressen i urklipp. En linje: varje txid i rutan med block och blockhash under i mindre text; fler än 12 tx ger
+      *och N till* sist.
+- [ ] En Ethereum-adress: *Saldo per token* med märket i en rund bricka, namnet med snöflingan när det kan frysas,
+      *Utgivare: Tether* under, och till höger det som ligger kvar (*20,0000 USDT*) med SEK under (*≈ 210 kr*). Hovra
+      SEK: kursen och hur det räknades. Inget kvar: beloppet är nedtonat. Utan kurs i ärendet står ingen SEK.
+- [ ] Rutan om frysning är kall blå med ljus text. *Begäran om frysning …* visas inte (den går inte att göra än).
+- [ ] *Historik*: runda markörer (18 px) på en tunn linje, tiden till höger i svag text, och *Ta tillbaka* eller
+      *Ångra* som ett litet piller under raden. Ett klick fäller ut skälet under; pillret får accentens ram så länge.
+      Det tillbakatagna står kvar överstruket och nedtonat.
+
+## Soptunnan (SO1a)
+
+- Dra en nod mot soptunnan nere till vänster i grafen: ikonen växer till en rund yta, och nära blir den ljus med en
+  ringvåg och *Släpp*. Släpp en ände (till exempel damm): den döljs direkt, och toasten säger *Slängde 1 aktör* med
+  *Ångra · Ctrl+Z*, som lägger tillbaka den där den stod.
+- Släpp en nod mitt i grafen: rutan *Det här följer med* öppnas vid soptunnan med trädet, det som följer med får en
+  streckad ram och resten tonas ned. Esc stänger utan att något händer; Enter slänger alla.
+- En linje till något i soptunnan blir en kort streckad stump med *i soptunnan* vid porten. Inget rött.
+- Dra en nod mot soptunnan: den krymper mot pekaren ju närmare den kommer (till ungefär hälften vid soptunnan) och
+  blir lite blekare när ett släpp slänger den. Dra flera valda: alla krymper tillsammans.
+- Släng en mottagare som en bevakning har, och låt bevakningen slå till mot den: vid den bevakade nodens port står en
+  kort hel linje i terrakotta med beloppet och ringar som rör sig tills träffen är sedd, och *i soptunnan* i änden,
+  i stället för den streckade stumpen. Grå när utgången inte är ansluten.
+- Välj en nod och tryck Delete: samma sak som att dra den. I en utfälld hög: Shift-klicka kort och tryck Delete.
+- Släng något som är bevakat (eller har en bevakning längre ner): raden har ett öga och *Avsluta*. Med *Avsluta* på
+  avslutas bevakningen (syns i vyn Bevakning); med den av fortsätter den, och soptunnans vy säger *bevakas*.
+- Klicka på soptunnan: vyn visar en slängning per rad (när, vem, hur många) med det slängda överst och resten indraget
+  under. *Lägg tillbaka* på en rad tar med det som ligger under; *Lägg tillbaka allt* tar hela slängningen. Esc eller
+  krysset går tillbaka till grafen.
+- Stäng och öppna ärendet: det slängda är fortfarande dolt. `/verify` säger att allt är orört.
+- Startvyn utan ärende: lyft ett ärende, dra det mot soptunnan och släpp. Det försvinner från startsidan, toasten har
+  *Ångra*, och filen ligger kvar i `%LOCALAPPDATA%\Chainsaw\Ärenden`. Soptunnans vy listar det under *Ärenden från
+  startsidan* med *Lägg tillbaka*. Starta om Chainsaw: det är fortfarande dolt.
+- Med animeringar avstängda i Windows står ringvågen stilla.
+- Släng ett ärende på startsidan, ta bort filen och skapa ett nytt ärende med samma nummer: det nya står på
+  startsidan och inte i soptunnans vy. Ett slängt ärende vars fil skrivs igen (öppnas och sparas) kommer också
+  tillbaka.
+- Släng en nod och byt ärende: Ctrl+Z och toastens *Ångra* lägger inget tillbaka i det nya ärendet, utan säger att
+  Ångra gäller ett annat ärende.
+- Släng startpunkten: en varning *Startpunkten ligger i soptunnan* med *Lägg tillbaka*. Släng allt: grafen säger att
+  allt ligger i soptunnan.
+- Släng en nod med en kommentarslapp: lappen försvinner med noden och kommer tillbaka med den.
+- Tryck Delete två gånger snabbt på samma nod: den slängs en gång.
+
+### Kommentarer, egna ytor och högar i soptunnan (2026-11-08)
+
+- [ ] Klicka på en kommentarslapp och tryck Delete: lappen och dess prickade tråd försvinner, toasten säger *Slängde 1
+      kommentar* med *Ångra · Ctrl+Z*, och Ctrl+Z lägger tillbaka den där den stod med samma text.
+- [ ] Dra en lapp mot soptunnan: soptunnan växer som för en nod, och ett släpp på den slänger lappen. Släppt utanför
+      står lappen där den släpptes.
+- [ ] Töm all text i en lapp och klicka utanför: lappen slängs (inte borttagen), och *Lägg tillbaka* i soptunnans vy ger
+      tillbaka den gamla texten.
+- [ ] Soptunnans vy visar lappen med lappens ikon i en fyrkant och dess första rad som namn, och raden räknar *1
+      kommentar*, inte *1 aktör*. Huvudets *dolda i grafen* räknar med lappen.
+- [ ] Välj en egen yta (klicka på dess bricka) och tryck Delete: ytan försvinner men aktörerna står kvar; toasten säger
+      *Slängde 1 yta*, och *Lägg tillbaka* i soptunnans vy (ytans ikon) ger tillbaka den. Krysset på brickan tar
+      fortfarande bort ytan med skäl, som förut.
+- [ ] Stäng och öppna ärendet: slängda lappar och ytor är fortfarande dolda. `/verify` säger att allt är orört.
+- [ ] Startvyn: lyft en hel hög och dra den mot soptunnan; soptunnan växer, och ett släpp slänger hela högen. Toasten
+      säger *Högen … ligger i soptunnan* med *Ångra*, som ger tillbaka högen hel med namn och ordning.
+- [ ] Fäll ut en hög och dra ett kort mot soptunnan (den syns över det dimmade): kortet slängs och högen fälls ihop med
+      ett ärende mindre. Shift-klicka flera kort och tryck Delete: alla slängs. *Ångra* lägger tillbaka dem i högen.
+- [ ] Soptunnans vy under *Ärenden från startsidan*: en slängd hög står som en rad med högens ikon, namn och antal, och
+      ärendena hängda under med ├ och └. *Lägg tillbaka högen* ger tillbaka hela, *Lägg tillbaka* på ett ärende bara
+      det, i högen.
+- [ ] Starta om Chainsaw: en slängd hög är fortfarande dold och kommer tillbaka hel (`%LOCALAPPDATA%\Chainsaw\trash.json`).
+
+## Kommentarsnoden (KN1a)
+- [ ] Klicka på en lapp: inspektören öppnas med lappens första rad som rubrik, *Kommentar* under, utan *Varför?*, och
+      fakta om vem som skrev den, när, vem som ändrade den sist och vilken nod tråden går till. En vald nod släpps.
+- [ ] Fliken *Historik* på lappen: *Kommentar skriven*, *Texten ändrad* (med början av den nya texten), *Tråd till …*,
+      *Tråden lossad*, *Slängd i soptunnan* och *Lagd tillbaka ur soptunnan*, i tidsordning med vem och tid, utan
+      knappar. Skriv i lappen och lämna den: rubriken och historiken följer med.
+- [ ] Välj en nod medan en lapp är vald: inspektören visar noden och lappen släpps. Krysset eller Esc stänger.
+- [ ] Välj en nod och tryck **N** (eller ikonen *Kommentar* i listen över noden, eller *Kommentar …* i högerklicket):
+      en lapp öppnas uppe till höger om noden med en tunn prickad tråd till den och en prick vid noden. Tomma lappen är
+      en streckad kontur med *Skriv … # **fet** - lista*, och markören står i den.
+- [ ] Dubbelklick på tom yta (eller N utan vald nod, vid pekaren) ger en lapp utan tråd där man klickade.
+- [ ] Skriv `## Rubrik`, `**fet**`, `*kursiv*`, `- punkt`, `` `kod` `` och `[tx](chainsaw:bitcoin/<adress>)`: tecknen
+      är dämpade medan man skriver, rubriken större och fet, fet och kursiv syns direkt, koden i mono på mörkare grund.
+      Lappen växer med texten. Foten säger *Markdown · Esc lämnar*.
+- [ ] Esc, Ctrl+Enter eller ett klick utanför lämnar lappen: den ritas utan tecken (rubrik, fet, kursiv, punkter med
+      •, kod och länken med prickad understrykning). En lapp som lämnas tom försvinner och inget sparas.
+- [ ] Journalen har *Kommentar skriven: Rubrik*; `/verify` är grön. Ändra texten och lämna: *Kommentaren ändrades*.
+      Samma text igen ger ingen ny rad. Töm en lapp och lämna den: *Kommentaren togs bort* (texten finns kvar i den
+      förseglade historiken).
+- [ ] Hovra en lapp eller välj den: ramen ljusnar när den är vald, foten säger vem och när (*Namn · 14:32 8 nov*) och
+      handtaget syns i nedre högra hörnet. Dra handtaget: lappen blir 200–620 bred och minst 110–420 hög; texten bryts
+      om och lappen blir aldrig lägre än texten. Dra lappen i ramen: den flyttas, och tråden följer.
+- [ ] Panorera med höger- eller mittknappen över en lapp och zooma med hjulet: lapparna följer grafen. Högerklick i
+      en lapp som skrivs i ger *Klipp ut, Kopiera, Klistra in, Markera allt*.
+- [ ] Dra pricken vid nodens ände av tråden till en annan nod: tråden knyts dit (*Kommentarens tråd knöts till en
+      annan nod* i journalen). Släpp den på tom yta: tråden tas bort.
+- [ ] Välj en lapp (klick, sedan Esc så att den inte skrivs i) och tryck **Delete**: lappen tas bort med en journalrad.
+- [ ] Klicka på länken `chainsaw:bitcoin/…` i en lapp: noden väljs och visas. En länk till något som inte finns i
+      grafen säger *Det länken pekar på finns inte i grafen än.* En vanlig webbadress ritas grå och följs aldrig.
+- [ ] Stäng och öppna ärendet: lapparna står kvar med text, plats, storlek och tråd. Ett kluster som byter
+      representant behåller tråden.
+- [ ] Medan en lapp skrivs i gör E, L, B, U, K, F, + och − ingenting i grafen; bokstäverna hamnar i lappen.
+- [ ] `/testdata`: en lapp *Uttag via Nordbörsen?* står ovanför grafen med tråd till offret och en länk till
+      Nordbörsens insättning.
+
+**Skrivandet och tråden (2026-11-08)**
+- [ ] Skriv `- ett` och Enter: nästa rad börjar med `- `. Enter på en tom punkt avslutar listan; på en tom inskjuten
+      punkt flyttas den ut en nivå. `1. ett` och Enter ger `2. `, `> citat` och Enter ger `> `. I ett kodblock (efter
+      ```` ``` ````) är Enter en vanlig ny rad. Ctrl+Z ångrar fortsättningen i ett steg.
+- [ ] Tab på en punkt drar in den två steg; Shift+Tab drar ut den. Markera flera rader och tryck Tab: alla dras in.
+      Tab på en vanlig rad skriver mellanslag, och Shift+Tab lämnar aldrig lappen.
+- [ ] Radavståndet medan man skriver är detsamma som när lappen är ritad: lämna lappen och öppna den igen, så står
+      raderna på samma höjd och texten hoppar inte. Kod och rubriker följer med.
+- [ ] Rulla hjulet över en lapp som man skriver i: grafen zoomar som över en ritad lapp, och lappen rullar inte.
+- [ ] Skriv en lapp på en adress som sedan hamnar i en hög (EX2b): tråden går till högen. Plocka ut adressen ur högen:
+      tråden går till noden igen.
+- [ ] En lapp på en adress på Ethereum behåller sin tråd när ärendet stängs och öppnas igen.
+
+## Sortera grafen (2026-11-08, efter användarens beskrivning)
+- [ ] På den fria ytan, i ett ärende med minst två aktörer, står en ikon i grafens hörn uppe till höger, efter
+      växeln Fri yta · Hoppkolumner (spridda prickar, en pil och prickarna på rad). Hovring: *Sortera grafen …*.
+      I hoppkolumnerna, utan ärende och med bara en aktör syns den inte.
+- [ ] Dra isär grafen så att den blir stökig och klicka på ikonen: en liten ruta under hörnet frågar *Sortera om
+      grafen? N aktörer flyttas från där du har lagt dem.* med *Avbryt · Esc* och *Sortera · Enter*. Inget har flyttats.
+- [ ] Esc eller *Avbryt*: rutan stängs och allt står kvar. Enter eller *Sortera*: aktörerna flyttas till sina nya
+      platser, grafen anpassas till skärmen och meddelandet *Grafen sorterad* med *Ångra* står en stund nere till höger.
+- [ ] Den sorterade grafen är luftig, inte kompakt: pengarna går från vänster till höger i hoppens ordning, varje hopp
+      i en kolumn, kolumnerna centrerade kring samma mittlinje, mottagare i höjd med sina avsändare så att linjerna
+      korsar varandra så lite som möjligt, och beloppen på linjerna får plats mellan noderna. Ett hopp med många
+      motparter sprids ut i flera kolumner bredvid varandra, aldrig en lång kolumn.
+- [ ] En hög och en ledtrådsnod hamnar vid sin aktör. En kommentar som är knuten till en aktör följer med och står kvar
+      lika långt från den; en lös kommentar står kvar där den var.
+- [ ] *Ångra* i meddelandet: varje aktör och kommentar står exakt där den stod före sorteringen. Ctrl+Z ångrar inte
+      sorteringen (den hör till soptunnan och förslagen).
+- [ ] Stäng och öppna ärendet: den sorterade (eller ångrade) grafen står kvar. En graf som redan är sorterad: ett klick
+      säger *Grafen är redan sorterad.* utan att fråga.
+
+## Välja flera med en ruta (2026-11-08, efter användarens beskrivning)
+- [ ] Tryck vänsterknappen på tom yta i grafen och dra: en tunn ruta i accentfärgen (terrakotta) med svag fyllning
+      följer pekaren, åt vilket håll man än drar. Aktörer som rutan rör får accentramen direkt medan man drar, och
+      släpper ramen när rutan dras tillbaka.
+- [ ] Utan tangent ersätter rutan det som var valt. Med Shift läggs det till. Med Ctrl vänds det: valda blir ovalda,
+      ovalda blir valda, som i Utforskaren.
+- [ ] Esc medan rutan dras: rutan försvinner och valet blir som före rutan; att släppa knappen efteråt gör inget.
+- [ ] Ett klick på tom yta (utan att dra) släpper valet, också det som gjorts med Ctrl+klick. Ett vanligt klick på en
+      nod väljer bara den.
+- [ ] Dra en av de valda aktörerna: alla valda följer med, och kommentarer som är knutna till dem följer med på den
+      fria ytan. I hoppkolumnerna går de bara upp och ner i sina kolumner. Stäng och öppna ärendet: alla står kvar.
+- [ ] Dra en aktör som inte är vald: bara den flyttas.
+- [ ] Delete med flera valda: alla åker i soptunnan (varningen vid soptunnan visar dem om något hänger under). Dra de
+      valda till soptunnan: samma sak, och de står kvar där de var om man avbryter.
+- [ ] Z med flera valda: formuläret för en egen yta räknar dem.
+- [ ] Dra rutan mot grafens kant: ytan rullar och rutan växer vidare utanför det som syntes.
+- [ ] Inget av detta händer i valvyn eller i en utfälld hög; där fungerar ringen och korten som förut. Att dra en
+      kommentar, dess tråd, en hög eller en nod fungerar som förut.
+
+## Små rättelser mot 1.0 (2026-11-08)
+
+**Källor**
+- [ ] Gör en ändring under Inställningar › Källor som inte går att spara (till exempel med filen skrivskyddad): felet
+      kommer som en röd toast nere till höger, en gång, och står inte längre som en röd rad på sidan.
+
+**Bevakningens huvud (BV1a)**
+- [ ] Välj en bevakning med nya träffar, vänta tills en ny träff kommer och titta på vyns huvud: det står till exempel
+      *2 nya träffar sedan 09:10*, där tiden är när du senast tittade på träffarna. Ett ärende där inget har setts säger
+      bara antalet.
+- [ ] Stäng och öppna ärendet: tiden står kvar (den sparas i ärendet).
+
+**Offline när Windows saknar nät**
+- [ ] Välj *Windows* och dra ur nätet. Tomma grafens fot säger *Offline: datorn når inte internet*, startpunkten säger
+      att inget hämtas förrän datorn når internet igen, och verktygstipset nämner ingen utgång.
+- [ ] Grafens hörn *Offline* och en expansion som inte gick säger *datorn når inte internet*, inte *ingen utgång*.
+- [ ] Nytt ärende: taggen *Offline* har samma verktygstips, och en startpunkt som väntar säger *Väntar på nätet*.
+- [ ] Bevakning: huvudet säger *Väntar på nätet · inga uppslag görs* och raderna *Väntar på nätet*; bevakningen frågar
+      inget förrän nätet är tillbaka.
+- [ ] Med *VPN* utan ansluten utgång står det som förut: *ingen utgång ansluten* och *Väntar på utgången*.
+
+**Länken `chainsaw:` (Inställningar › Länkar)**
+- [ ] Slå på *Öppna chainsaw:-länkar*. I `regedit` finns `HKEY_CURRENT_USER\Software\Classes\chainsaw` med
+      `URL Protocol` och `shell\open\command` = `"…\Chainsaw.exe" "%1"`. Inget skrivs under `HKEY_LOCAL_MACHINE`.
+- [ ] Skriv `chainsaw:bitcoin/<en adress>` i Kör (Win+R) eller i webbläsarens adressfält: Chainsaw öppnas (eller tar
+      emot länken om det redan är igång) och ber om ärende.
+- [ ] Slå av: nyckeln är borta, och länken öppnar inget.
+- [ ] Peka länken på en annan kopia av Chainsaw (kör den andra och slå på där): raden säger att länken öppnar en annan
+      Chainsaw, och strömbrytaren är av tills du slår på den igen.
+
+**Återanslutning av tunneln**
+- [ ] Anslut en VPN-utgång, och låt datorn sova en stund. När den vaknar säger titelraden *Ansluter igen …*, och
+      verktygstipset säger att tunneln föll och när nästa försök görs. Inom några sekunder efter att nätet är tillbaka
+      är utgången ansluten igen utan att du gör något.
+- [ ] Döda processen `chainsaw-tunnel.exe` i Aktivitetshanteraren: utgången ansluts igen efter ett par sekunder.
+- [ ] Utan nät väntar Chainsaw allt längre mellan försöken (2 s, 5 s, 15 s, 30 s och sedan en gång i minuten), och
+      försöker direkt när nätet kommer tillbaka.
+- [ ] Koppla från utgången för hand medan Chainsaw väntar på nästa försök: inget nytt försök görs.
+- [ ] En bevakning som väntade på utgången går igen av sig själv när tunneln är tillbaka.
+
+## Begäran (BG1b, 2026-11-08)
+
+- Öppna testärendet och spåra till en börs. Begäran i pillret (Ctrl+5) är inte längre nedtonad. Vänster: *Uttag som
+  nåtts i ärendet · N*, en rad per uttag med den blå fyrkanten som i grafen (streckad för börs utan KYC), kedjan,
+  antal insättningar och summan. Hovring ger en mjuk bakgrund och pekhand; den valda raden har ram.
+- Utan spårade pengar till ett uttag står ikonen och en ärlig text mitt i vyn, inga påhittade rader.
+- Höger: *Ta med* med en bricka per insättning (hel kant och accentprick för spårade pengar, streckad kant för andra
+  insättningar till adressen), *Spåret dit* när spåret når hit, språkknappen *Svenska/English* och *Exportera .md …*.
+  Ett klick på en bricka tar med eller lämnar insättningen, och förhandsvisningen ändras direkt. Utan insättningar
+  står *Välj minst en insättning att ta med.* och exporten går inte.
+- Förhandsvisningen: rubrik, *Ärende … upprättad … av* (din profil), *Det vi ber om*, insättningsadressen,
+  insättningarna som tabell (tid lokal med offset, UTC, belopp, adress, tx, block, blockhash; tx och hashar i
+  Cascadia Mono, förkortade bara när de inte får plats, hela på hovring) och *Spåret dit* i en mening. Inget
+  offernamn, ingen ärendetitel och inga anteckningar får stå i den.
+- *Exportera .md …* (eller Ctrl+S i vyn) öppnar Windows spara-dialog med förslaget
+  `<ärendenummer> Begäran <börs> <datum>.md`. Välj en fil som redan finns: dialogen frågar **inte** om att skriva
+  över, och filen blir `… (2).md`. Öppna filen i Anteckningar: samma innehåll som förhandsvisningen.
+- Efter exporten: en grön toast med filnamn och SHA-256, raden får en grön dokumentikon (hovring: *Exporterad …*),
+  och *Exporterade* nere till vänster visar filen, tiden och SHA-256 (hela på hovring). Kontrollera med
+  `Get-FileHash -Algorithm SHA256` att hashen stämmer, och att journalen har en rad `requests.exported`; `/verify`
+  är grön.
+- Stäng och öppna ärendet: *Exporterade* står kvar.
+- Under förhandsvisningen står att ingen verifierad kontaktväg finns för börsen (katalogen är tom med avsikt).
+- Nytt → Begäran (R) öppnar vyn när ett ärende är öppet, och är nedtonad utan ärende.
+- Högerklick på en börs som spårade pengar når: *Begäran …* i menyn öppnar vyn med börsen vald. Andra noder har
+  inte raden.
+- En Ethereum-adress med USDT eller USDC kvar: inspektörens snöflingeruta har *Begäran om frysning …*, som öppnar
+  vyn med raden *Tether · …* (isblå fyrkant) och en begäran till utgivaren med det som ligger kvar.
+
+## Sökningen i kommandoraden (KR1a)
+- [ ] Ctrl+K eller Ctrl+F och *kra* (med en etikett Kraken i ärendet): *Bästa träff* överst, stor, med rutan i nodens form och färg, *Etikett* litet bredvid och en rad om var den står och källorna; under den grupperna Etiketter, Adresser, Tx, Kluster och Guide i den ordningen, det skrivna i fetstil.
+- [ ] Den valda raden visas direkt i grafen: grafen glider så att noden hamnar under rutan, med en ring i accent och en ring som pulserar utåt, och resten tonas ner. Med animeringar avstängda hoppar grafen och ringen står still.
+- [ ] Pil upp och ner byter rad, och grafen följer med; *Visa i grafen* med Enter-tecknet står bara vid den valda raden.
+- [ ] Enter (eller ett andra klick på den valda raden) stänger rutan och lämnar noden vald i grafen; Esc stänger utan att välja något, och ringen försvinner.
+- [ ] *bc1q*: gruppen Adresser visar fyra och *4 av N · Tab visar alla*; Tab fäller ut gruppen (högst 100), och Tab igen går till nästa grupp.
+- [ ] En tx som är hämtad men inte står på någon linje säger *Hämtad, inte i grafen* och *Inte i grafen* i stället för att flytta grafen.
+- [ ] *utxo* (eller */guide utxo*): Guidens panel fälls ut från höger vid avsnittet, raden säger *Öppna i Guiden* och foten *Enter öppnar Guiden*; byter man till en rad i ärendet fälls panelen in igen. Enter lämnar panelen öppen.
+- [ ] *utxo* säger *Inget i ärendet heter utxo. Guiden svarar på begrepp.*
+- [ ] En adress som inte finns i ärendet: brickan *₿ Bitcoin* i fältet och raden *Lägg till som startpunkt* med *Inget hämtas förrän du expanderar den, och då bara adressen, genom <utgången>*; offline säger den när det kan hämtas. Enter eller ett klick lägger till startpunkten.
+- [ ] Utan öppet ärende söks bara Guiden, och raden säger det.
+- [ ] Ett stort ärende (tusentals adresser): raden hänger aldrig medan man skriver.
+- [ ] */help* listar */guide*, och */gu* med Tab fyller i kommandot.
+
+## Inställningarna mot 1.0 (BV4a, ST2a, FS2a och UT3b)
+
+- **Låsning › När en bevakning slår till:** tre rader med ikon (Avisering i Windows, Ljud, Meddelande mitt på
+  skärmen). Brickan blir terrakotta när sättet är på. *Lyssna* spelar mynt-swooshet, *Prova* visar kortet mitt på
+  skärmen. Slå av alla tre: en gul rad säger att en träff bara syns i Bevakning.
+- **Kortet mitt på skärmen:** ett litet kort med ögat och tre ringar som går ut (stilla med animeringar avstängda),
+  ingenting mörkas. Det ligger överst över alla fönster, går att dra, Esc stänger och Enter tar åtgärden. *Prova*:
+  *Visa* öppnar Bevakning.
+- **Kortet från bakgrunden:** slå på *Meddelande mitt på skärmen*, stäng Chainsaw och kör `Chainsaw.Watcher.exe
+  --test-alert`. Kortet visar *Chainsaw · Bevakning* uppe till vänster och *Öppna Chainsaw*. Med Chainsaw igång (öppet
+  eller låst) står *Visa Chainsaw*, och Enter tar fram fönstret. Bara ett kort åt gången.
+- **Om Chainsaw (inställningarna):** fingeravtrycket i fyra rader om fyra grupper, *Kopiera* blir *Kopierat* med en
+  bock, och klistrat är det gruppat. Utan inbyggd nyckel: *Ingen nyckel* och en gul streckad varning. Lägg en rad
+  `REVOKED <fingeravtryck>` i nyckelfilen: den står överstruken under *Återkallade*, hela på hovring.
+- **Om Chainsaw från låsskärmen:** *Om Chainsaw · commit* i hörnet öppnar samma sida utan menyn, med raden *Visas före
+  upplåsningen …*. Esc, × och ett klick på det mörka stänger den, och tangentbordet går tillbaka till fältet.
+- **Förstagångens steg Utgång:** Windows är förvalt, med vägen grön (Datorn, Windows, Blockkedjor) och *Fortsätt*.
+  Utan nät: rött och streckat, *Fortsätt offline*. VPN: det streckade fältet för en WireGuard-fil (släpp en fil på det
+  eller klicka), sedan raden med filen, × och strömknappen; ansluten blir vägen grön med utgångens namn. Efter
+  *Fortsätt* står samma val i Inställningar › Nätverk.
+- **Nätverk › utgångarna som tabell:** kolumnerna Utgång, Plats och Syns som. Ett klick fäller ut raden med namn,
+  land (listan) och stad, som sparas när fältet lämnas eller med Enter, och rutan *Kontroll*. *Kontrollera nu* går
+  bara på en ansluten utgång och visar adressen och landet; fel land blir gult. *Ta bort utgången …* frågar först,
+  och Esc ångrar.
+- **Kontrollera vid anslutning:** på från början. Anslut en utgång vars land är satt till något annat än där den
+  faktiskt går ut: toastern varnar en gång. Slå av: ingen fråga när den ansluts.
+
+## Etiketter (ET1a, 2026-11-08)
 - [ ] Öppna testärendet (`/testdata`) och vyn Etiketter i pillret (Ctrl+7): ikonen är inte längre nedtonad. Till
       vänster står KÄLLOR (Sanktionslistor, Egna, Chainabuse, Beteende, Andra ärenden) med antal, och under dem
       BIBLIOTEKET med Hela biblioteket, Kom in, Gick ut och Sprids inte.

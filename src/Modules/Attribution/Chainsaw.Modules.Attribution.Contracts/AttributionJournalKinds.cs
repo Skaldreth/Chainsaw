@@ -15,6 +15,9 @@ public static class AttributionJournalKinds
     /// <summary>Addresses were checked against a sanction list and hits were labelled.</summary>
     public const string SanctionsMatched = "attribution.sanctions-matched";
 
+    /// <summary>Addresses were found on Chainsaw's list of known contracts and labelled.</summary>
+    public const string KnownContractsMatched = "attribution.known-contracts-matched";
+
     /// <summary>Labels from other cases came in from the label library.</summary>
     public const string LabelsFromLibrary = "attribution.labels-from-library";
 

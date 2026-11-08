@@ -87,6 +87,10 @@ Inget sedan etapp 1 är provat på Windows. Användaren provar efter `docs/TESTE
   tx som spenderar samma pengar i stället kräver uppslag på de spenderade utgångarna.
 - **Ångra en godkänd plånbok** (PL1b, vald): Ctrl+Z och *Ångra* i KF2b-panelen bekräftas i grafen.
 - **Spåret genom en swap** (SW1a, vald) [etapp]: värdet följer med, och valet per swap i pillret.
+- **En DEX:s router i grafen** [skiss]: listan över kända kontrakt (omgång 2) har Uniswaps, 1inchs och 0x:s routrar,
+  men de får ingen etikett, eftersom ingen sort i bildspråket passar: *Swap eller brygga* avslutar spåret som
+  *Fortsätter på annan kedja*, och ett byte på samma kedja byter inte ägare. Namnet står i *Varför?* för swappen. En
+  egen sort, eller en markering i hörnet, skissas.
 - **Sökningen:** en etikett från ett annat ärende kan inte säga vilket, eftersom ursprunget saknar ärendenumret
   [etapp]; *Lägg tillbaka* direkt på raden *I soptunnan* [direkt] (nu öppnar Enter soptunnan).
 - **Exponering, mixerns troliga utgångar** [direkt, efter EP1b]: godkända troliga utgångar ur en mixer som streckade

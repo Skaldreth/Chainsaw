@@ -4,6 +4,7 @@ using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Checks.Contracts;
 using Chainsaw.Modules.Clustering.Contracts;
 using Chainsaw.Modules.Tracing.Contracts;
+using Chainsaw.SharedKernel;
 
 namespace Chainsaw.App.Graph;
 
@@ -147,6 +148,21 @@ public static class GraphAreas
     public static IReadOnlyList<string> NodesOf(
         GraphScene scene, IEnumerable<BitcoinAddress> addresses, IEnumerable<Txid> transactions)
     {
+        ArgumentNullException.ThrowIfNull(addresses);
+        return NodesOf(scene, addresses.Select(address => address.ToChainAddress()), transactions);
+    }
+
+    /// <summary>
+    /// Gives the actors that hold addresses on any chain (Bitcoin addresses and Ethereum accounts) and transactions,
+    /// in the graph's order.
+    /// </summary>
+    /// <param name="scene">The graph.</param>
+    /// <param name="addresses">The addresses, each with its chain.</param>
+    /// <param name="transactions">The transactions that are actors of their own.</param>
+    /// <returns>The nodes' keys.</returns>
+    public static IReadOnlyList<string> NodesOf(
+        GraphScene scene, IEnumerable<ChainAddress> addresses, IEnumerable<Txid> transactions)
+    {
         ArgumentNullException.ThrowIfNull(scene);
         var graph = scene.Snapshot.Graph;
         var keys = addresses.Select(graph.NodeOf).OfType<GraphNode>().Select(node => node.Key)
@@ -165,10 +181,25 @@ public static class GraphAreas
         ArgumentNullException.ThrowIfNull(scene);
         return
         [
-            .. nodes.Select(scene.Node).OfType<NodeView>().SelectMany(node => node.Node.GraphAddresses.Count > 0
-                ? node.Node.GraphAddresses.Select(CheckRules.MemberOf)
-                : node.Node.Transaction is { } txid ? [CheckRules.MemberOf(txid)] : []).Distinct(StringComparer.Ordinal),
+            .. nodes.Select(scene.Node).OfType<NodeView>().SelectMany(node => MembersOf(node.Node))
+                .Distinct(StringComparer.Ordinal),
         ];
+    }
+
+    /// <summary>
+    /// Gives one actor's members: its addresses on any chain (a Bitcoin cluster's or an Ethereum account), or the
+    /// transaction when it is an actor of its own.
+    /// </summary>
+    /// <param name="node">The actor.</param>
+    /// <returns>The members.</returns>
+    private static IEnumerable<string> MembersOf(GraphNode node)
+    {
+        if (node.Addresses.Count > 0)
+        {
+            return node.Addresses.Select(CheckRules.MemberOf);
+        }
+
+        return node.Transaction is { } txid ? [CheckRules.MemberOf(txid)] : [];
     }
 
     /// <summary>Gives a check's area: around its actors, without the candidates the user dismissed.</summary>
@@ -226,12 +257,11 @@ public static class GraphAreas
             return null;
         }
 
-        var addresses = new List<BitcoinAddress>();
+        var addresses = new List<ChainAddress>();
         var txids = new List<Txid>();
         foreach (var member in area.Members)
         {
-            if (member.StartsWith(CheckRules.AddressMember, StringComparison.Ordinal)
-                && BitcoinAddress.TryParse(member[CheckRules.AddressMember.Length..], out var address))
+            if (CheckRules.AddressOf(member) is { } address)
             {
                 addresses.Add(address);
             }

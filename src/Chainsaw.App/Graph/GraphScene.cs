@@ -692,6 +692,11 @@ public sealed record GraphScene(
         {
             badges.Add(NodeBadge.Sanctioned);
         }
+        else if (sort != NodeSort.Sanctioned && labels.Any(label => label.Kind == LabelKind.FormerlySanctioned))
+        {
+            // A sanction in force outweighs a former one; the former is only drawn without it.
+            badges.Add(NodeBadge.FormerlySanctioned);
+        }
 
         if (labels.Any(label => label.Kind == LabelKind.Reported))
         {

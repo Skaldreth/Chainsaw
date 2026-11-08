@@ -589,16 +589,33 @@ internal sealed class TestTracing : ITracingService
 
     public bool RemoveStartPoint(ICase @case, TraceStartPoint startPoint) => throw new NotSupportedException();
 
-    public Task<ExpansionResult> ExpandAsync(
+    /// <summary>
+    /// Gets or sets what an expansion waits for before it answers (honouring its cancellation), so that a test can
+    /// act while it runs; <see langword="null"/> answers at once.
+    /// </summary>
+    public Task? ExpandGate { get; set; }
+
+    /// <summary>Gets or sets the outcome every expansion has; <see langword="null"/> for the default rule.</summary>
+    public ExpansionOutcome? ForcedOutcome { get; set; }
+
+    public async Task<ExpansionResult> ExpandAsync(
         ICase @case, ExpansionRequest request, CancellationToken cancellationToken = default)
     {
-        Expanded.Add(request);
-        var outcome = Expanded.Count == 1 || NewPerExpansion.Count > 0
+        lock (Expanded)
+        {
+            Expanded.Add(request);
+        }
+
+        if (ExpandGate is { } gate)
+        {
+            await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        var outcome = ForcedOutcome ?? (Expanded.Count == 1 || NewPerExpansion.Count > 0
             ? ExpansionOutcome.Expanded
-            : ExpansionOutcome.NotExpanded;
+            : ExpansionOutcome.NotExpanded);
         var problem = outcome == ExpansionOutcome.NotExpanded ? "Ingen utgång är ansluten." : null;
-        return Task.FromResult(new ExpansionResult(
-            outcome, NewPerExpansion, problem, Graph ?? throw new NotSupportedException()));
+        return new ExpansionResult(outcome, NewPerExpansion, problem, Graph ?? throw new NotSupportedException());
     }
 
     public HeldBackList? HeldBack { get; set; }

@@ -99,6 +99,32 @@ public sealed partial class GraphSceneTests
     }
 
     /// <summary>
+    /// A former sanction is a toned-down mark beside the mixer, said in the inspector and the legend; a sanction in
+    /// force outweighs it.
+    /// </summary>
+    [Fact]
+    public void AFormerSanctionIsAToneDownMarkSaidInTheInspectorAndTheLegend()
+    {
+        var former = GraphSamples.Label(
+            GraphSamples.U, LabelKind.FormerlySanctioned, "OFAC SDN 2022-08-08 – 2025-03-21");
+        var mixer = GraphSamples.Label(GraphSamples.U, LabelKind.Mixer, "Blandaren");
+        var scene = GraphSamples.Scene(On(GraphSamples.UKey, mixer, former));
+        var both = GraphSamples.Scene(On(
+            GraphSamples.UKey, mixer, former, GraphSamples.Label(GraphSamples.U, LabelKind.Sanctioned)));
+
+        var node = scene.Node(GraphSamples.UKey)!;
+        Assert.Equal(NodeSort.Mixer, node.Look.Sort);
+        Assert.Equal([NodeBadge.FormerlySanctioned], node.Badges);
+        Assert.Contains("Tidigare sanktionerad", node.ToolTip, StringComparison.Ordinal);
+        var fact = Assert.Single(
+            InspectorContent.ForNode(scene, node).Facts, each => each.Name == InspectorContent.FormerSanctionFact);
+        Assert.Contains("2022-08-08 – 2025-03-21", fact.Value, StringComparison.Ordinal);
+        Assert.DoesNotContain(NodeBadge.FormerlySanctioned, both.Node(GraphSamples.UKey)!.Badges);
+        Assert.Contains(Legend.Badges, mark => mark.Look.Badge == NodeBadge.FormerlySanctioned);
+        Assert.Equal("Brush.Mark.FormerlySanctioned", GraphInkKeys.Of(GraphInk.FormerlySanctioned));
+    }
+
+    /// <summary>
     /// A label on the start point says what it is; the start is never the victim by itself, only by the victim's
     /// label (sketch GR5), and a start that is a cluster stays a cluster.
     /// </summary>
@@ -300,8 +326,9 @@ public sealed partial class GraphSceneTests
         Assert.Equal(NodeSort.Gambling, VisualLanguage.SortOf(LabelKind.Gambling));
         Assert.Equal(NodeSort.Unknown, VisualLanguage.SortOf(LabelKind.Unknown));
         Assert.All(
-            // A supplier's report is a mark beside the node's sort, not a sort of its own.
-            Enum.GetValues<LabelKind>().Where(kind => kind is not (LabelKind.Unknown or LabelKind.Reported)),
+            // A supplier's report and a former sanction are marks beside the node's sort, not sorts of their own.
+            Enum.GetValues<LabelKind>().Where(kind =>
+                kind is not (LabelKind.Unknown or LabelKind.Reported or LabelKind.FormerlySanctioned)),
             kind => Assert.NotEqual(NodeSort.Unknown, VisualLanguage.SortOf(kind)));
         Assert.True(VisualLanguage.IsCashOut(NodeSort.Atm));
         Assert.False(VisualLanguage.IsCashOut(NodeSort.Gambling));

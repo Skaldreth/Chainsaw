@@ -65,6 +65,9 @@ public sealed partial class CaseWorkflow
     /// <summary>The taking in of the open case's labels under way, waited for before the case is closed.</summary>
     private Task _absorbing = Task.CompletedTask;
 
+    /// <summary>The fetching of the start points that are transactions the case lacks.</summary>
+    private readonly StartTransactionFetches _fetches;
+
     /// <summary>Keeps two openings, creations or closings from running at once.</summary>
     private bool _busy;
 
@@ -97,6 +100,40 @@ public sealed partial class CaseWorkflow
         _vault = vault;
         _session = session;
         _library = library;
+        _fetches = new StartTransactionFetches(tracing);
+        _fetches.Fetched += (_, _) => StartPointAdded?.Invoke(this, EventArgs.Empty);
+        _fetches.Missed += (_, text) => StartTransactionsMissed?.Invoke(this, text);
+        vault.StateChanged += (_, state) =>
+        {
+            // Nothing is looked up while Chainsaw is locked; what is left is tried when the case is opened again.
+            if (state != VaultState.Unlocked)
+            {
+                _fetches.Cancel();
+            }
+        };
+    }
+
+    /// <summary>
+    /// Raised off the UI thread when start points that are transactions could not be fetched, with the reason in
+    /// Swedish and that Chainsaw tries again (principle 9).
+    /// </summary>
+    public event EventHandler<string>? StartTransactionsMissed;
+
+    /// <summary>
+    /// Gets the fetching of start points under way, which never fails; an expansion waits for it, so that the same
+    /// transaction is not fetched twice.
+    /// </summary>
+    public Task StartTransactionsSettled => _fetches.Settled;
+
+    /// <summary>
+    /// Tries again to fetch the open case's start points that are transactions it lacks, as when the exit connects.
+    /// </summary>
+    public void RetryStartTransactions()
+    {
+        if (_session.Current is { IsClosed: false } openCase && _vault.State == VaultState.Unlocked)
+        {
+            _fetches.Start(openCase);
+        }
     }
 
     /// <summary>
@@ -260,6 +297,9 @@ public sealed partial class CaseWorkflow
 
             _session.Open(created.Case);
             _absorbing = AbsorbAsync(created.Case);
+            _fetches.Start(
+                created.Case,
+                [.. request.StartPoints.Take(MaximumStartPoints).Select(ToTrace).OfType<TraceStartPoint>()]);
             isCreated = true;
             var text = $"{closed.Prefix}Ärendet {CaseSession.NameOf(created.Case)} skapades.";
             return created.Missed.Count == 0
@@ -291,6 +331,7 @@ public sealed partial class CaseWorkflow
             if (added)
             {
                 StartPointAdded?.Invoke(this, EventArgs.Empty);
+                _fetches.Start(openCase, [traced]);
             }
 
             var shown = CaseTexts.Shorten(startPoint.Value);
@@ -506,6 +547,8 @@ public sealed partial class CaseWorkflow
         }
 
         var name = CaseSession.NameOf(current);
+        // A start point being fetched is stopped first; it is tried again when the case is opened.
+        await _fetches.StopAsync();
         // The labels set while it was open go into the library before it closes, so that the next case gets them.
         await _absorbing;
         await AbsorbAsync(current);

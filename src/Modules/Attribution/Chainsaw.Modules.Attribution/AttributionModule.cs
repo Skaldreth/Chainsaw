@@ -40,6 +40,7 @@ public static class AttributionModule
         services.AddSingleton<ISanctionLists, SanctionLists>();
         services.AddSingleton<IAttributionService, AttributionService>();
         services.AddSingleton<ILabelLibrary, LabelLibrary>();
+        services.AddSingleton<IKnownContractLabels, KnownContractLabels>();
         services.AddSingleton<ITrailEndClassifier, LabelTrailEnds>();
         services.AddSingleton<IAttributionProvider>(_ => new ChainabuseProvider(options.ChainabuseUri));
         services.AddSingleton<IAttributionProviders, AttributionProviders>();

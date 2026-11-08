@@ -19,7 +19,15 @@ internal sealed class TracingSchema : ICaseSchemaContributor
     /// <summary>The table of the user's links to other chains.</summary>
     public const string CrossChainTable = "tracing_cross_chain";
 
-    /// <summary>The sealed columns of a link or its removal, in order.</summary>
+    /// <summary>
+    /// The sealed columns of a link or its removal, in order. For one checking the rows by hand: <c>from_txid</c> and
+    /// <c>from_output</c> name where the money left. From a Bitcoin coin they are its txid and the output's index;
+    /// from an Ethereum movement <c>from_txid</c> is the movement's kind and transaction, <c>native:0x…</c>,
+    /// <c>internal:0x…</c> or <c>token:0x…</c>, and <c>from_output</c> its position in the transaction (0 for the
+    /// ether the transaction sent, the trace's index for an internal one, the log's index for a token). A Bitcoin
+    /// txid never holds a colon, so the two never mix. <c>to_chain</c> and <c>to_id</c> name the other chain's
+    /// transaction.
+    /// </summary>
     public static readonly IReadOnlyList<string> CrossChainColumns =
     [
         "action", "link_sequence", "from_txid", "from_output", "to_chain", "to_id", "reason", "journal_sequence",

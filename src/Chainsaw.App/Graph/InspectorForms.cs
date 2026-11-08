@@ -99,16 +99,16 @@ public static class InspectorForms
 
     /// <summary>
     /// Gets the sorts a label can say, in the legend's order with the victim and the unknown first (an unknown with a
-    /// name is the user's own name for an actor). <see cref="LabelKind.Sanctioned"/> and <see cref="LabelKind.Reported"/>
-    /// are left out: they come only from an imported list or a supplier's reports, and an own judgement must never be
-    /// drawn as one (principle 2).
+    /// name is the user's own name for an actor). <see cref="LabelKind.Sanctioned"/>, <see cref="LabelKind.Reported"/>
+    /// and <see cref="LabelKind.FormerlySanctioned"/> are left out: they come only from an imported list, a supplier's
+    /// reports or Chainsaw's list of known contracts, and an own judgement must never be drawn as one (principle 2).
     /// </summary>
     public static IReadOnlyList<LabelKindOption> Kinds { get; } =
     [
         .. new[] { LabelKind.Victim, LabelKind.Unknown }
             .Concat(Enum.GetValues<LabelKind>()
                 .Where(kind => kind is not (LabelKind.Victim or LabelKind.Unknown or LabelKind.Sanctioned
-                    or LabelKind.Reported)))
+                    or LabelKind.Reported or LabelKind.FormerlySanctioned)))
             .Select(kind => new LabelKindOption(kind, VisualLanguage.Of(VisualLanguage.SortOf(kind))))
             .OrderBy(option => option.Kind is LabelKind.Victim or LabelKind.Unknown ? -1 : LegendOrder(option.Look)),
     ];

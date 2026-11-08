@@ -40,6 +40,10 @@ public enum GraphInk
 
     /// <summary>The snowflake <em>Kan frysas</em>: a pale ice blue, apart from the exchanges' blue.</summary>
     Freeze,
+
+    /// <summary>A toned-down red: was on a sanction list and has been taken off it (user's decision 2026-11-08).
+    /// </summary>
+    FormerlySanctioned,
 }
 
 /// <summary>A node's frame: the shape says what it is (sketch GR3a).</summary>
@@ -171,6 +175,13 @@ public enum NodeBadge
     /// and its issuer can freeze it on request (CLAUDE.md, sketch TK1a).
     /// </summary>
     CanBeFrozen,
+
+    /// <summary>
+    /// <em>Tidigare sanktionerad</em>: the address was on a sanction list and has been taken off it, as Tornado Cash's
+    /// contracts (the user's decision 2026-11-08). The sanctioned mark, toned down; a judgement with its source, never
+    /// a sanction in force.
+    /// </summary>
+    FormerlySanctioned,
 }
 
 /// <summary>How a sort is drawn.</summary>
@@ -236,6 +247,7 @@ public static class VisualLanguage
         new(NodeBadge.RequestExported, "Begäran exporterad", "Icon.Request", GraphInk.CashOut),
         new(NodeBadge.FromOtherCase, "Etikett från ett annat ärende", "Icon.Tag", GraphInk.Cluster),
         new(NodeBadge.Sanctioned, "Sanktionerad", "Icon.Kind.Ban", GraphInk.Sanctioned),
+        new(NodeBadge.FormerlySanctioned, "Tidigare sanktionerad", "Icon.Kind.Ban", GraphInk.FormerlySanctioned),
         new(NodeBadge.Reported, "Rapporterad", "Icon.Alert", GraphInk.Risk),
         new(NodeBadge.CanBeFrozen, "Kan frysas", "Icon.Snow", GraphInk.Freeze),
         new(NodeBadge.Watched, "Bevakad", "Icon.Eye", GraphInk.Accent),

@@ -47,18 +47,19 @@ public sealed record AccountGraph(
     public bool IsEmpty => Transfers.Count == 0 && Fees.Count == 0 && Transactions.Count == 0 && ReadAccounts.Count == 0;
 
     /// <summary>
-    /// Gives the order Chainsaw applies movements in: by block (unconfirmed last), then by the transaction's hash, then
-    /// by position in the transaction. The sources do not give a transaction's place in its block, so two transactions
-    /// in the same block are ordered by hash; that only matters to FIFO when an account both receives and pays in
-    /// one block.
+    /// Gives the order Chainsaw applies movements in: by block (unconfirmed last), then by the transaction's place in
+    /// the block (<see cref="EthereumBlockReference.TransactionIndex"/>), then by the transaction's hash, then by
+    /// position in the transaction. A transaction whose place no answer gave comes after those in the same block whose
+    /// place is known, ordered by hash; that only matters to FIFO when an account both receives and pays in one block.
     /// </summary>
     /// <param name="transfer">The movement.</param>
     /// <returns>The key to sort by.</returns>
-    public static (long Block, string Transaction, long Position, int Kind) ChainOrder(EthereumTransfer transfer)
+    public static (long Block, long Index, string Transaction, long Position, int Kind) ChainOrder(
+        EthereumTransfer transfer)
     {
         ArgumentNullException.ThrowIfNull(transfer);
-        return (transfer.Block?.Height ?? long.MaxValue, transfer.Transaction.Value, transfer.Position,
-            (int)transfer.Kind);
+        return (transfer.Block?.Height ?? long.MaxValue, transfer.Block?.TransactionIndex ?? long.MaxValue,
+            transfer.Transaction.Value, transfer.Position, (int)transfer.Kind);
     }
 }
 
@@ -72,7 +73,15 @@ public sealed record AccountGraph(
 /// <param name="Account">The account that swapped.</param>
 /// <param name="Sold">What the account sent away in it, summed.</param>
 /// <param name="Bought">What it received back in another asset, summed.</param>
-public sealed record TokenSwap(EthereumTxHash Transaction, ChainAddress Account, AssetAmount Sold, AssetAmount Bought);
+public sealed record TokenSwap(EthereumTxHash Transaction, ChainAddress Account, AssetAmount Sold, AssetAmount Bought)
+{
+    /// <summary>
+    /// Gets the known exchange or aggregator the swap went through (<see cref="KnownContracts"/>): the contract the
+    /// transaction was sent to, or a contract the account sent to or received from in it; <see langword="null"/> when
+    /// none of them is on the list. It names the swap in <em>varför?</em>, and rests on the list's source.
+    /// </summary>
+    public KnownContract? Venue { get; init; }
+}
 
 /// <summary>A movement the traced money starts in on an account chain.</summary>
 /// <param name="Transaction">The transaction it is in.</param>

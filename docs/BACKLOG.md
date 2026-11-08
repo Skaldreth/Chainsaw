@@ -18,6 +18,11 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
   - **Tx:ens plats i blocket:** källornas historik ger inte `transactionIndex`, så två tx i samma block ordnas efter
     hash. Det påverkar bara FIFO när en adress både tar emot och betalar i samma block. Läs `transactionIndex` i
     Blockscout-tolkningen (Chains, etapp 25 arbetar där samtidigt).
+
+    andelen i bytet är en bedömning (analys med namn och version) och behöver ett beslut om hur andelen räknas.
+  - **Tx:ens plats i blocket för en hel tx:** `transactionIndex` läses också ur `gettxinfo` när svaret har det, men
+    det är inte kontrollerat att Blockscouts `gettxinfo` ger fältet; utan det ordnas en start-tx som bara är hämtad hel
+    efter hash i sitt block, efter de tx vars plats är känd. Pröva mot en riktig Blockscout (omgång 2).
   - **Välja vad som spåras:** frön väljs av `AccountSeedPicker` (allt som kom in till startadressen, eller en start-tx:s
     rörelser till andra än den som signerade); att välja dem i grafen saknas, som för Bitcoin.
   - **Saldot och snöflingan** räknas ur grafens linjer för en expanderad adress, alltså bara så långt historiken är
@@ -36,23 +41,19 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
     tx som inte längre nås (ett ärende från före rättelsen, eller en läsning som stannade vid 50 sidor) läses inte om;
     spara höjderna med expansionen. Att expandera en adress igen efter lång tid kan kosta upp till 150 uppslag; visa
     det som väntan. Golvet räknas med en läsning av hela Ethereum-delen; det räcker att läsa adressens egna sidor.
-  - **Egna ytor (Z) och områdena** tar inte Ethereum-noder (`OwnArea` lagrar Bitcoin-adresser och txid;
-    `GraphAreas.MembersOf` läser bara `GraphAddresses`), så valda Ethereum-aktörer ger en tom yta (granskningen av
-    etapp 23b, M4). Använd `Node.Addresses`, eller säg att det inte går.
-  - **En start-tx som inte finns i ärendet** (Ethereum, och likadant för Bitcoin) blir bara en rad i grafens problem;
-    det finns ingen nod att expandera, så den hämtas inte från appen. Hämta den när startpunkten läggs till, eller visa
-    en nod som kan expanderas (granskningen av etapp 23b, M1).
-  - **Den förseglade länkens kolumner** `from_txid` och `from_output` håller för en Ethereum-rörelse `token:0x…` och
-    positionen; det står i koden men inte i någon beskrivning av tabellerna för den som kontrollerar raderna för hand
-    (granskningen av etapp 23b, M6).
   - **Kontrollerna (KF1a)** körs inte på Ethereum; listan säger det. Kontoheuristikerna och Tornado Cash nedan.
-  - **OFAC:s ETH-adresser** (`Digital Currency Address - ETH`) läses inte; sanktionskontrollen är Bitcoins.
+  - **Sanktionskontrollen av grafens adresser:** OFAC:s ETH-adresser läses och startpunkterna kontrolleras när ärendet
+    skapas, för båda kedjorna, men adresser som kommer in vid en expansion kontrolleras inte (inte heller på
+    Bitcoin). Kontrollera dem som de kända kontrakten, när grafen läses (omgång 2).
+  - **Listan över kända kontrakt** (`KnownContracts`, v1 2026-11-08) har Tornado Cash Classic på Ethereum, Uniswap,
+    1inch, 0x och bryggorna till Arbitrum One, OP Mainnet, Base och Polygon PoS, var och en ur operatörens egen sida.
+    Fler (SushiSwap, Curve, Balancer, Paraswap, CoW, Stargate, Across, Hop, Wormhole, deBridge, THORChain) läggs till
+    när deras adresser kan beläggas med en offentlig källa; höj då versionen.
   - **Länk till annan kedja från Ethereum** lagras i samma förseglade kolumner som ett mynt (`token:0x…` och
     positionen). Spårningen stannar fortfarande vid bryggan som *inte expanderad* eller dess etikett; länken ritas som
     lila linje men för inte de spårade pengarna vidare.
   - **Kontoheuristiker** (`IAccountHeuristic`): börsens insättningsadresser som töms till samma hot wallet, och
     adresser som betalar varandras gas. Kräver att kluster och bevis kan hålla `ChainAddress`.
-  - **Tornado Cash** och andra kända kontrakt (DEX, bryggor) som etiketter och slut på spåret (se nedan).
 - **Ethereum-källan, det som återstår** (etapp 23):
   - **Etherscan med API-nyckel:** Etherscan tar nyckeln bara som `apikey` i adressen, som förseglas i ärendet (CLAUDE.md:
     nycklar aldrig i ärendet). Byggs först när Network kan skicka en nyckel i adressen och adressen förseglas utan den.
@@ -83,10 +84,12 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
     eget uppslag säger att den saknar decimaler.
   - **`BitcoinLookup<T>`** används av båda kedjorna och borde heta `ChainLookup<T>`; byts när ingen annan etapp rör
     Chains.
-- **Tornado Cash** (användarens fråga 2026-11-07) kommer med Ethereum: kontrakten känns igen som mixer och blir *Spåret
-  tar slut här*. Poolerna har fasta belopp (0,1, 1, 10 och 100 ETH), så beloppet säger inget, och de troliga utgångarna
-  kräver egna heuristiker ur forskningen: samma adress in och ut, ovanligt gaspris, adresser som betalar varandras gas,
-  flera insättningar som tas ut tillsammans och tid. De blir streckade kandidater som mixerns.
+- **Tornado Cash, de troliga utgångarna** (användarens fråga 2026-11-07): poolerna känns igen som mixer och blir *Spåret
+  tar slut här* (omgång 2, `KnownContracts`). Poolerna har fasta belopp (0,1, 1, 10 och 100 ETH), så beloppet säger
+  inget, och de troliga utgångarna kräver egna heuristiker ur forskningen: samma adress in och ut, ovanligt gaspris,
+  adresser som betalar varandras gas, flera insättningar som tas ut tillsammans och tid. De blir streckade kandidater
+  som mixerns. Uttagen går till en adress genom poolens kontrakt (eller en relayer), så en pools historik behöver läsas
+  också för de uttag som inte rör grafens adresser.
 - **TRON och USDT (TRC-20)**, efter Ethereums andra del: återanvänder kontomodellen, `IAccountTracingMethod`,
   `KnownTokens.TronUsdt` och *Kan frysas*.
 - **Fler kedjor** efter behov: Litecoin, BSC.
