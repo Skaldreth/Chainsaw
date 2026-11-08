@@ -330,8 +330,8 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   *Huvudnyckel* som ledtext, och *Lås upp · Enter* visas först när något är skrivet. Titelraden är tom. Förklaringen
   om nyckeln ligger bakom ett *?* nere i vänstra hörnet, och nere till höger står *Återställningsnyckel · <commit>*.
   Ingen prick för bevakningen (användarens beslut: brus). **Kedjan svarar på nyckeln:** varje tecken får en bas att
-  lossna ur spiralen; fel nyckel rycker i bandet, som pulserar i felfärgen och släpper en pust tecken medan fältet
-  skakar; rätt nyckel sträcker bandet, vrider spiralen runt sin axel tills ett helt varv ligger i mitten med strängarna
+  lossna ur spiralen; fel nyckel rycker i bandet, som pulserar **rött** (`#D7322B`, inte den rosa felfärgen) och släpper
+  en pust tecken medan fältet skakar; rätt nyckel sträcker bandet, vrider spiralen runt sin axel tills ett helt varv ligger i mitten med strängarna
   längst isär, trycker ihop det till en rundad rektangel, och den krymper till noden *Nytt ärende* där den står i den
   tomma grafen (GR6c), medan kättingarna och resten av spiralen släpper.
 - **Färger: ID9b, terrakotta och skiffer** (användarens beslut 2026-11-07, ersätter Gawks gråskala och Magenta): en
