@@ -1254,7 +1254,9 @@ ligger bredvid `Chainsaw.exe`.
       dragningen lägger tillbaka det.
 - [ ] Ett klick på ett ärende (utan att dra) öppnar det som förut.
 - [ ] Ett klick på högen: två ringar går ut från högen, ytan trycks ut lite och dimmas, högen glider till mitten och
-      korten fjädrar ut runt den i samma spiral som grafens samlingsnod, med tunna linjer till dem.
+      korten fjädrar ut runt den i samma ring som grafens samlingsnod (en ellips, upp till tolv kort, de första
+      uppifrån), med tunna linjer till dem. Korten ser ut som grafens: dokumentet i en streckad fyrkant, numret och
+      *ändrad …*. I ett litet fönster dras ringen in så att korten får plats.
 - [ ] Med animeringar avstängda i Windows (Inställningar › Hjälpmedel › Visuella effekter) står allt direkt på sin
       plats, utan ringar eller rörelse.
 - [ ] Shift-klick väljer kort (terrakottaram), raden längst ner säger *2 valda · dra ut dem tillsammans*. Dra ett valt
@@ -1263,6 +1265,12 @@ ligger bredvid `Chainsaw.exe`.
 - [ ] Ett kort som släpps på högen i mitten glider tillbaka till sin plats.
 - [ ] Ett klick på ett kort öppnar ärendet. Esc, ett klick på högen i mitten eller på det dimmade fäller ihop högen.
 - [ ] Pennan i den utfällda högen byter namn på den.
+- [ ] Dra en hög och släpp den på en annan hög: den andra växer lite medan den tar emot, och de blir en hög med den
+      dragnas ärenden överst och namnet från högen man släppte på (eller den dragnas, om den saknade namn). Släpp en
+      hög på ett löst ärende: ärendet hamnar i högen. Soptunnan växer inte när en hög dras (en hel hög går inte att
+      slänga än).
+- [ ] Tab når högarna som ärendena, med en terrakottaram runt den som har tangentbordet. Enter eller blanksteg fäller
+      ut den, F2 skriver namnet.
 - [ ] En hög som töms försvinner.
 - [ ] Starta om Chainsaw: högarna står kvar med namn (`%LOCALAPPDATA%\Chainsaw\piles.json`). Ta bort en ärendefil
       ur mappen: den försvinner ur sin hög när Chainsaw listar ärendena igen.
@@ -1426,6 +1434,11 @@ några steg).
 - Släpp en nod mitt i grafen: rutan *Det här följer med* öppnas vid soptunnan med trädet, det som följer med får en
   streckad ram och resten tonas ned. Esc stänger utan att något händer; Enter slänger alla.
 - En linje till något i soptunnan blir en kort streckad stump med *i soptunnan* vid porten. Inget rött.
+- Dra en nod mot soptunnan: den krymper mot pekaren ju närmare den kommer (till ungefär hälften vid soptunnan) och
+  blir lite blekare när ett släpp slänger den. Dra flera valda: alla krymper tillsammans.
+- Släng en mottagare som en bevakning har, och låt bevakningen slå till mot den: vid den bevakade nodens port står en
+  kort hel linje i terrakotta med beloppet och ringar som rör sig tills träffen är sedd, och *i soptunnan* i änden,
+  i stället för den streckade stumpen. Grå när utgången inte är ansluten.
 - Välj en nod och tryck Delete: samma sak som att dra den. I en utfälld hög: Shift-klicka kort och tryck Delete.
 - Släng något som är bevakat (eller har en bevakning längre ner): raden har ett öga och *Avsluta*. Med *Avsluta* på
   avslutas bevakningen (syns i vyn Bevakning); med den av fortsätter den, och soptunnans vy säger *bevakas*.
@@ -1437,6 +1450,9 @@ några steg).
   *Ångra*, och filen ligger kvar i `%LOCALAPPDATA%\Chainsaw\Ärenden`. Soptunnans vy listar det under *Ärenden från
   startsidan* med *Lägg tillbaka*. Starta om Chainsaw: det är fortfarande dolt.
 - Med animeringar avstängda i Windows står ringvågen stilla.
+- Släng ett ärende på startsidan, ta bort filen och skapa ett nytt ärende med samma nummer: det nya står på
+  startsidan och inte i soptunnans vy. Ett slängt ärende vars fil skrivs igen (öppnas och sparas) kommer också
+  tillbaka.
 - Släng en nod och byt ärende: Ctrl+Z och toastens *Ångra* lägger inget tillbaka i det nya ärendet, utan säger att
   Ångra gäller ett annat ärende.
 - Släng startpunkten: en varning *Startpunkten ligger i soptunnan* med *Lägg tillbaka*. Släng allt: grafen säger att

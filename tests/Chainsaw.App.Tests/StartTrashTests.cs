@@ -1,4 +1,5 @@
 using Chainsaw.App.ViewModels;
+using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Security.Contracts;
 
 namespace Chainsaw.App.Tests;
@@ -63,6 +64,57 @@ public sealed class StartTrashTests
 
         Assert.Contains("2026-0129", rig.Loose);
         Assert.False(rig.Start.Bin.HasThrows);
+    }
+
+    [Fact]
+    public async Task A_new_case_with_the_number_of_a_thrown_one_stands_on_the_ring_and_leaves_the_trash()
+    {
+        var rig = new Rig();
+        await rig.ListAsync("2026-0131", "2026-0129");
+        rig.Start.Lift("2026-0129");
+        rig.Start.LiftNear(0);
+        rig.Start.DropOnBin("2026-0129");
+        rig.Start.Drop();
+        Assert.DoesNotContain("2026-0129", rig.Loose);
+
+        // The thrown file is gone from the folder, and a new case with the same number is written after the throw.
+        rig.Store.Files.RemoveAll(file => file.CaseNumber == "2026-0129");
+        rig.Store.AddFile("2026-0129", minutesAgo: -5);
+        await rig.Workflow.RefreshCasesAsync();
+
+        Assert.Contains("2026-0129", rig.Loose);
+        Assert.False(rig.Trash.Contains("2026-0129"));
+        Assert.False(rig.Start.Bin.HasThrows);
+    }
+
+    [Fact]
+    public async Task A_thrown_case_whose_file_is_unchanged_stays_hidden_when_the_folder_is_read_again()
+    {
+        var rig = new Rig();
+        await rig.ListAsync("2026-0131", "2026-0129");
+        rig.Start.Lift("2026-0129");
+        rig.Start.LiftNear(0);
+        rig.Start.DropOnBin("2026-0129");
+        rig.Start.Drop();
+
+        await rig.Workflow.RefreshCasesAsync();
+
+        Assert.DoesNotContain("2026-0129", rig.Loose);
+        Assert.True(rig.Trash.Contains("2026-0129"));
+    }
+
+    [Fact]
+    public void The_trash_hides_a_file_only_as_it_was_when_thrown()
+    {
+        var clock = new TestClock();
+        var trash = new CaseTrash(clock);
+        trash.Throw("2026-0129");
+        var thrownAt = clock.UtcNow;
+
+        Assert.True(trash.Hides(new CaseFileInfo("2026-0129", "2026-0129.cut", 1, thrownAt.AddMinutes(-1))));
+        Assert.True(trash.Hides(new CaseFileInfo("2026-0129", "2026-0129.cut", 1, thrownAt)));
+        Assert.False(trash.Hides(new CaseFileInfo("2026-0129", "2026-0129.cut", 1, thrownAt.AddSeconds(1))));
+        Assert.False(trash.Hides(new CaseFileInfo("2026-0131", "2026-0131.cut", 1, thrownAt.AddMinutes(-1))));
     }
 
     [Fact]

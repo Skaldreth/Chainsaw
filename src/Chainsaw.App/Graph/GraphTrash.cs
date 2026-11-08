@@ -1,4 +1,5 @@
 using Chainsaw.Modules.Tracing.Contracts;
+using Chainsaw.SharedKernel;
 
 namespace Chainsaw.App.Graph;
 
@@ -64,6 +65,20 @@ public sealed class TrashFilter
     /// <param name="key">The key.</param>
     /// <returns><see langword="true"/> when it lies in the trash.</returns>
     public bool Hides(string key) => _keys.Contains(key);
+
+    /// <summary>
+    /// Says whether an address lies in the trash: on Bitcoin by its address key, which every thrown actor is found by,
+    /// on an account chain by its node key.
+    /// </summary>
+    /// <param name="address">The address.</param>
+    /// <returns><see langword="true"/> when it does.</returns>
+    public bool HidesAddress(ChainAddress address)
+    {
+        ArgumentNullException.ThrowIfNull(address);
+        return Hides(address.Chain == Chain.Bitcoin
+            ? GraphPile.AddressKeyPrefix + address.Value
+            : GraphPile.AccountKey(address));
+    }
 
     /// <summary>
     /// Gives the keys a node is known by in the trash: every address of an actor on Bitcoin, since a cluster's key

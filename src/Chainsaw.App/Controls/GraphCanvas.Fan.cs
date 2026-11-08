@@ -7,9 +7,12 @@ using Chainsaw.App.ViewModels;
 namespace Chainsaw.App.Controls;
 
 /// <summary>
-/// The pile (sketch EX2b): drawn as a deck of cards, and fanned out as tiles in a ring around it over the dimmed graph.
-/// A click chooses a tile, Shift-click more, and a tile dragged out onto the dimmed graph is picked out where it is
-/// dropped, with the other chosen under it. A click on the pile or the dimmed graph, or Esc, folds it again.
+/// The pile (sketch EX2b): drawn as a deck of cards, and fanned out as tiles in a ring around it over the dimmed graph,
+/// with the same circular shock and centring as the start page's piles (<see cref="FanShock"/>, sketch GR8a): two rings
+/// leave the pile while the surface glides it to the middle, and it glides back when the pile folds, unless the user
+/// moved the surface meanwhile. A click chooses a tile, Shift-click more, and a tile dragged out onto the dimmed graph
+/// is picked out where it is dropped, with the other chosen under it. A click on the pile or the dimmed graph, or Esc,
+/// folds it again.
 /// </summary>
 public sealed partial class GraphCanvas
 {
@@ -59,6 +62,21 @@ public sealed partial class GraphCanvas
 
     /// <summary>When the pile began to open or fold, and from how open.</summary>
     private (DateTime Start, double From, double To)? _fanMove;
+
+    /// <summary>When the shock's rings left the pile, or <see langword="null"/> while none move.</summary>
+    private DateTime? _fanShock;
+
+    /// <summary>The surface's glide that centres the pile, or brings it home: when it began and which way.</summary>
+    private (DateTime Start, bool Home)? _fanGlide;
+
+    /// <summary>The viewport before the pile was centred, to go back to when it folds; null when there is none.</summary>
+    private Viewport? _fanHome;
+
+    /// <summary>The viewport the centring last set, so that a pan or a zoom by the user stops it.</summary>
+    private Viewport? _fanSet;
+
+    /// <summary>The fanned pile's centre on the surface, which the centring brings to the middle.</summary>
+    private GraphPoint _fanPile;
 
     /// <summary>Takes a press while a pile is fanned out: on a tile, on the pile, or on the dimmed graph.</summary>
     /// <param name="at">The press on screen.</param>
@@ -216,6 +234,15 @@ public sealed partial class GraphCanvas
             return;
         }
 
+        if (fan is null)
+        {
+            BeginFanHome();
+        }
+        else
+        {
+            BeginFanCentring(fan);
+        }
+
         if (!AnimationsOn)
         {
             _fanOpen = target;
@@ -228,13 +255,20 @@ public sealed partial class GraphCanvas
         KeepMoving();
     }
 
-    /// <summary>Moves the pile's opening one frame on.</summary>
-    /// <returns><see langword="true"/> while it still moves.</returns>
+    /// <summary>Moves the pile's opening, its shock and the surface's glide one frame on.</summary>
+    /// <returns><see langword="true"/> while something still moves.</returns>
     private bool StepFan()
     {
+        var gliding = StepFanGlide();
+        if (_fanShock is { } shock && DateTime.UtcNow - shock >= FanShock.Length)
+        {
+            _fanShock = null;
+        }
+
+        var shaking = _fanShock is not null;
         if (_fanMove is not { } move)
         {
-            return false;
+            return gliding || shaking;
         }
 
         var t = HeldBackMotion.Unit((DateTime.UtcNow - move.Start) / HeldBackMotion.FanTime);
@@ -250,7 +284,149 @@ public sealed partial class GraphCanvas
             _fanShown = null;
         }
 
+        return gliding || shaking;
+    }
+
+    /// <summary>
+    /// Starts the shock from a pile that fans out and the surface's glide that brings it to the middle; without
+    /// animations the pile stands in the middle at once and no rings go.
+    /// </summary>
+    /// <param name="fan">The fan.</param>
+    private void BeginFanCentring(PileFanViewModel fan)
+    {
+        StopGlide();
+        StopZoom();
+        _fanPile = fan.Centre;
+        _fanHome = _viewport;
+        if (!AnimationsOn)
+        {
+            SetFanViewport(FanShock.Centring(_fanHome, _fanPile, ScreenMiddle, 1), stored: true);
+            return;
+        }
+
+        _fanShock = DateTime.UtcNow;
+        _fanGlide = (DateTime.UtcNow, false);
+        _fanSet = _viewport;
+    }
+
+    /// <summary>
+    /// Brings the surface back to where it was before the pile was centred, as the pile folds; not when the user
+    /// panned or zoomed meanwhile, since the surface is then where the user wants it.
+    /// </summary>
+    private void BeginFanHome()
+    {
+        _fanShock = null;
+        if (_fanHome is null || _viewport != _fanSet)
+        {
+            ForgetFanCentring();
+            return;
+        }
+
+        if (!AnimationsOn)
+        {
+            SetFanViewport(_fanHome, stored: true);
+            ForgetFanCentring();
+            return;
+        }
+
+        // A pile folded before it reached the middle goes home from where it is: the ease is symmetric, so starting the
+        // way home as far along as the way out has left to go keeps the surface still.
+        var now = DateTime.UtcNow;
+        var reached = _fanGlide is { Home: false } outward
+            ? HeldBackMotion.Unit((now - outward.Start) / FanShock.GlideTime)
+            : 1;
+        _fanGlide = (now - (HeldBackMotion.FanTime * (1 - reached)), true);
+    }
+
+    /// <summary>
+    /// Moves the surface's glide one frame on: towards the middle as the pile opens, home as it folds. A pan or a zoom
+    /// by the user stops it where it is.
+    /// </summary>
+    /// <returns><see langword="true"/> while it still moves.</returns>
+    private bool StepFanGlide()
+    {
+        if (_fanGlide is not { } glide || _fanHome is not { } home)
+        {
+            return false;
+        }
+
+        if (_viewport != _fanSet)
+        {
+            _fanGlide = null;
+            return false;
+        }
+
+        var length = glide.Home ? HeldBackMotion.FanTime : FanShock.GlideTime;
+        var share = HeldBackMotion.Unit((DateTime.UtcNow - glide.Start) / length);
+        var done = share >= 1;
+        SetFanViewport(FanShock.Centring(home, _fanPile, ScreenMiddle, glide.Home ? 1 - share : share), done);
+        if (!done)
+        {
+            return true;
+        }
+
+        _fanGlide = null;
+        if (glide.Home)
+        {
+            ForgetFanCentring();
+        }
+
         return false;
+    }
+
+    /// <summary>Puts the surface where the centring has it, and stores the place once it has landed.</summary>
+    /// <param name="viewport">The viewport.</param>
+    /// <param name="stored">Whether it has landed, so that the case stores it.</param>
+    private void SetFanViewport(Viewport viewport, bool stored)
+    {
+        _viewport = viewport;
+        _fanSet = viewport;
+        if (stored)
+        {
+            _model?.ViewportChanged(_viewport);
+        }
+
+        InvalidateVisual();
+    }
+
+    /// <summary>Forgets where the surface was before the pile was centred.</summary>
+    private void ForgetFanCentring()
+    {
+        _fanGlide = null;
+        _fanHome = null;
+        _fanSet = null;
+    }
+
+    /// <summary>Gets the middle of the surface on screen, where a fanned pile is centred.</summary>
+    private GraphPoint ScreenMiddle => new(ActualWidth / 2, ActualHeight / 2);
+
+    /// <summary>
+    /// Draws the shock's two rings from the fanned pile (<see cref="FanShock"/>), in screen pixels whatever the zoom,
+    /// over the dimmed graph.
+    /// </summary>
+    /// <param name="dc">Where to draw, in the surface's units.</param>
+    private void DrawFanShock(DrawingContext dc)
+    {
+        if (_fanShock is not { } start)
+        {
+            return;
+        }
+
+        var elapsed = DateTime.UtcNow - start;
+        var zoom = _viewport.Zoom;
+        var pen = PenOf(GraphPalette.Find(this, "Brush.BorderHover"), 1.5 / zoom);
+        var centre = new Point(_fanPile.X, _fanPile.Y);
+        for (var index = 0; index < FanShock.RingCount; index++)
+        {
+            if (FanShock.Ring(index, elapsed) is not { } ring)
+            {
+                continue;
+            }
+
+            dc.PushOpacity(ring.Opacity);
+            dc.DrawEllipse(null, pen, centre, ring.Radius / zoom, ring.Radius / zoom);
+            dc.Pop();
+        }
     }
 
     /// <summary>
@@ -273,6 +449,7 @@ public sealed partial class GraphCanvas
             null,
             new Rect(visible.X, visible.Y, visible.Width, visible.Height));
         dc.Pop();
+        DrawFanShock(dc);
         DrawPile(dc, pile, place, open: true);
         var lifted = _cardDraggedTo is not null && _cardPressed is { } pressed ? fan.Taking(pressed) : [];
         for (var index = 0; index < fan.Shown.Count; index++)

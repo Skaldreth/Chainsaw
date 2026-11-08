@@ -1,3 +1,5 @@
+using Chainsaw.Modules.Cases.Contracts;
+
 namespace Chainsaw.App.ViewModels;
 
 /// <summary>
@@ -64,10 +66,20 @@ public sealed partial class GraphStartViewModel
     /// <param name="caseNumber">The case.</param>
     public void RestoreCase(string caseNumber) => _caseTrash?.Restore(caseNumber);
 
-    /// <summary>Says whether a case lies in the trash, so that the ring leaves it out.</summary>
-    /// <param name="caseNumber">The case.</param>
-    /// <returns><see langword="true"/> when it does.</returns>
-    private bool IsThrown(string caseNumber) => _caseTrash?.Contains(caseNumber) == true;
+    /// <summary>
+    /// Says whether a case file is hidden by the trash, so that the ring leaves it out; a new case with a thrown number
+    /// is not (<see cref="CaseTrash.Hides"/>).
+    /// </summary>
+    /// <param name="file">The case file.</param>
+    /// <returns><see langword="true"/> when it is hidden.</returns>
+    private bool IsThrown(CaseFileInfo file) => _caseTrash?.Hides(file) == true;
+
+    /// <summary>
+    /// Takes out of the trash the cases written after they were thrown, once the folder has been read, so that the
+    /// trash's view does not list a case that stands on the ring.
+    /// </summary>
+    /// <param name="files">The case files.</param>
+    private void ForgetRewrittenThrows(IEnumerable<CaseFileInfo> files) => _caseTrash?.ForgetRewritten(files);
 
     /// <summary>Shows the ring again, with a case put back among the loose ones whatever its age.</summary>
     private void OnTrashChanged()
