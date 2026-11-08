@@ -2,7 +2,8 @@
 
 Senast uppdaterad: 2026-11-08.
 
-Läget och nästa steg, kort. Specifikation, arkitektur och arbetssätt står i `CLAUDE.md`, vägen till 1.0 i `docs/TODO.md`, det som kommer efter i `docs/BACKLOG.md`,
+Läget och nästa steg, kort. Specifikation, arkitektur och arbetssätt står i `CLAUDE.md`, vägen till 1.0 i
+`docs/TODO.md`, det som kommer efter i `docs/BACKLOG.md`,
 och vad varje etapp byggde i `docs/DEV-LOG.md`.
 
 ## Läget
