@@ -62,6 +62,12 @@ public enum GuideTopic
 
     /// <summary><em>Så spårar man i Chainsaw</em>: a case's course, from the empty graph (sketch GR6c).</summary>
     HowToTrace,
+
+    /// <summary>
+    /// <em>Hur Chainsaw kontrollerar svaren mot kedjan</em>: the answers checked against the chain, and a transaction
+    /// that left its block (sketch GR9a).
+    /// </summary>
+    ChainCheck,
 }
 
 /// <summary>Reads <see cref="GuideTopic"/>.</summary>
@@ -99,6 +105,7 @@ public static class GuideTopics
         GuideTopic.CanBeFrozen => "kan-frysas",
         GuideTopic.Prices => "kurser",
         GuideTopic.HowToTrace => "sa-sparar-man",
+        GuideTopic.ChainCheck => "kontroll-mot-kedjan",
         _ => "utxo-modellen",
     };
 
@@ -125,6 +132,7 @@ public static class GuideTopics
         GuideTopic.CanBeFrozen => "Kan frysas",
         GuideTopic.Prices => "Kurser och omräkning",
         GuideTopic.HowToTrace => "Så spårar man i Chainsaw",
+        GuideTopic.ChainCheck => "Hur Chainsaw kontrollerar svaren mot kedjan",
         _ => "UTXO-modellen",
     };
 

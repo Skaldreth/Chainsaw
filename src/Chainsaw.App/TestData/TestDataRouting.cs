@@ -62,6 +62,16 @@ public sealed class TestDataBitcoinRouter(IBitcoinSource real, Lazy<IBitcoinSour
     public Task<BitcoinLookup<ChainTip>> GetTipAsync(ICase @case, CancellationToken cancellationToken = default) =>
         For(@case).GetTipAsync(@case, cancellationToken);
 
+    /// <inheritdoc/>
+    public Task<BitcoinLookup<ChainTip>> GetTipAsync(
+        ICase @case, LookupMode mode, CancellationToken cancellationToken = default) =>
+        For(@case).GetTipAsync(@case, mode, cancellationToken);
+
+    /// <inheritdoc/>
+    public Task<IReadOnlyList<BlockChange>> GetBlockChangesAsync(
+        ICase @case, CancellationToken cancellationToken = default) =>
+        For(@case).GetBlockChangesAsync(@case, cancellationToken);
+
     /// <summary>Chooses the source for a case.</summary>
     /// <param name="case">The case.</param>
     /// <returns>The made-up source for a test case, the real one otherwise.</returns>

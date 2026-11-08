@@ -306,6 +306,105 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
         return failed! with { Origins = Ordered(origins) };
     }
 
+    /// <inheritdoc/>
+    public Task<BitcoinLookup<ChainTip>> GetTipAsync(
+        ICase @case, LookupMode mode, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        return mode == LookupMode.CaseOnly
+            ? Task.Run(() => @case.Read(StoredTip), cancellationToken)
+            : GetTipAsync(@case, cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public Task<IReadOnlyList<BlockChange>> GetBlockChangesAsync(
+        ICase @case, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        return Task.Run<IReadOnlyList<BlockChange>>(
+            () => @case.Read(reader => _store.BlockChangeCandidates(reader)
+                .Select(txid => BlockChangeOf(reader, txid))
+                .OfType<BlockChange>()
+                .ToList()),
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Reads the newest block the case has fetched as the chain's newest: the newest sealed hash of the chain's tip
+    /// and its block, without asking the source.
+    /// </summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <returns>The block, or <see cref="LookupStatus.NotInCase"/> when the case has none.</returns>
+    private BitcoinLookup<ChainTip> StoredTip(ICaseReader reader)
+    {
+        const string NotRead = "Läst bara ur ärendet; inget skickades.";
+        var hash = SourceLookups.StoredAs(
+            _store.Latest(reader, ResponseKinds.TipHash, string.Empty), body => EsploraParser.ParseTipHash(body));
+        if (hash is not { } tip)
+        {
+            return new BitcoinLookup<ChainTip>(LookupStatus.NotInCase, null, [], NotRead);
+        }
+
+        var block = SourceLookups.StoredAs(
+            _store.Latest(reader, ResponseKinds.Block, tip.Value.Value), body => EsploraParser.ParseBlock(body, tip.Value));
+        if (block is not { } newest)
+        {
+            return new BitcoinLookup<ChainTip>(LookupStatus.NotInCase, null, [tip.Response.Origin], NotRead);
+        }
+
+        var fetched = SourceLookups.LocalText(tip.Response.Origin.ReceivedLocal);
+        return new BitcoinLookup<ChainTip>(
+            LookupStatus.FromCaseMayBeOutdated,
+            new ChainTip(newest.Value.Height, newest.Value.Hash.Value, newest.Value.Time),
+            Ordered([tip.Response.Origin, newest.Response.Origin]),
+            $"Det nyaste blocket i ärendet, hämtat {fetched}; kedjan kan ha vuxit sedan.");
+    }
+
+    /// <summary>
+    /// Compares the first sealed answer that had a transaction in a block with the newest: another block, no block or
+    /// a later answer that the source does not know it means that the chain was reorganised (principle 1: both stay).
+    /// </summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <param name="txid">The transaction.</param>
+    /// <returns>The change, or <see langword="null"/> when its block is the same.</returns>
+    private BlockChange? BlockChangeOf(ICaseReader reader, Txid txid)
+    {
+        var sightings = new List<BlockSighting>();
+        foreach (var response in _store.AllWithTransaction(reader, txid))
+        {
+            var found = SourceLookups.StoredAs(response, body => response.Kind == ResponseKinds.Transaction
+                ? _parser.ParseTransaction(body, txid)
+                : _parser.ParseTransactionInList(body, txid));
+            if (found is { } transaction)
+            {
+                var block = transaction.Value.Block;
+                sightings.Add(new BlockSighting(
+                    block?.Height, block?.Hash.Value, response.Origin.ReceivedLocal, response.Origin.Sequence));
+            }
+        }
+
+        // The answers come newest first; the first in a block is the one the case first saw it confirmed in.
+        sightings.Reverse();
+        if (sightings.FirstOrDefault(sighting => sighting.Hash is not null) is not { } before)
+        {
+            return null;
+        }
+
+        if (_store.NewestNotFound(reader, txid) is { } gone && gone.Sequence > sightings[^1].Sequence)
+        {
+            return new BlockChange(
+                txid, BlockChangeKind.Gone, before, new BlockSighting(null, null, gone.ReceivedLocal, gone.Sequence));
+        }
+
+        var now = sightings[^1];
+        if (now.Sequence <= before.Sequence || now.Hash == before.Hash)
+        {
+            return null;
+        }
+
+        return new BlockChange(txid, now.Hash is null ? BlockChangeKind.Unconfirmed : BlockChangeKind.Moved, before, now);
+    }
+
     /// <summary>Gives sealed responses once each, in the order they were sealed.</summary>
     /// <param name="origins">The responses.</param>
     /// <returns>The responses.</returns>

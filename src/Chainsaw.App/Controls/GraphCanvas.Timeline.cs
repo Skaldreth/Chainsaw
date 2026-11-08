@@ -87,6 +87,8 @@ public sealed partial class GraphCanvas
             DrawBandLine(dc, bands, line, visible, band, BandPixels, BandDots);
         }
 
+        DrawHourLines(dc, bands, visible);
+
         if (timeline.Hovered is { } hovered && bands.Line(timeline.Axis.Hours(hovered)) is { } front)
         {
             DrawBandLine(dc, bands, front, visible, BrushColor("Brush.TextDim"), BandPixels, BandDots);
@@ -119,6 +121,8 @@ public sealed partial class GraphCanvas
             var right = index < kept.Count ? kept[index] : null;
             DrawBandName(dc, bands, left, right, y);
         }
+
+        DrawHourNames(dc, bands);
 
         if (timeline.Chosen is { } chosen && bands.Line(timeline.Axis.Hours(chosen)) is { } line)
         {

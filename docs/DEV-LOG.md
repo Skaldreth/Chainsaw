@@ -3217,3 +3217,31 @@ Alla punkter under *Grafen* i `docs/TODO.md`, *2. Resterna i det som är byggt*,
 - **M5:** `tokenlist` med status 2 ger ett ofullständigt saldo med en anteckning.
 - **M6:** tester för en skräptoken som heter USDT, wei över `long.MaxValue` och toppen följd av överföring med
   registret på både Bitcoin och Ethereum. M2 står i `docs/BACKLOG.md`.
+
+## Grafen: kortets baksida, markeringarna och tidslisten som lins (IN4a, GR9a och TL2a, 2026-11-08)
+
+- **IN4a:** Alt + klick vänder en adress eller ett kluster runt sin lodräta axel (0,6 s, still utan animeringar), och
+  baksidan växer till 260 px med en rad per tillgång. Flera kort kan stå vända; de ritas över noderna i ett eget pass
+  (`GraphCanvas.Cards.cs`). Saldot hämtas genom utgången (`IGraphChainState`, `GraphChainState`): Bitcoin ur
+  adressens sammanfattning (bekräftat mottaget minus spenderat, för högst tio adresser i ett kluster), Ethereum ur
+  `IEthereumSource.GetBalanceAsync` med ETH och de tokens vars utgivare Chainsaw känner (USDT, USDC). Dagens kurs är
+  den senaste avslutade timmen hos Bitstamp (eller dagen före när den inte finns än), förseglad i ärendet som varje
+  kurs; offline den senaste kursen i ärendet med datum och kronorna streckade under. Höjden i foten är kedjans topp
+  när saldot hämtades.
+- **GR9a, bytt block:** `IBitcoinSource.GetBlockChangesAsync` läser bara ärendet: tx:er där ett senare förseglat svar
+  visar en annan höjd, ingen höjd eller där källan svarat `404`, och jämför sedan det första svaret som hade tx:en i
+  ett block med det nyaste (hash, inte bara höjd). **Inga nya skrivningar i ärendet:** båda svaren fanns redan
+  förseglade (Chains hämtar om ett svar i ett grunt block), och jämförelsen görs vid läsning. Märket sitter i
+  beloppets övre hörn, gult för *Bytte block* och *Tillbaka i mempool*, rött med överstruket belopp för *Finns inte
+  längre*; rutan har förut och nu med höjd, hash och tid, och *?* öppnar Guiden (nytt ämne `ChainCheck`).
+- **GR9a, Väntar på källan:** brickan i grafens huvud visas bara när varje påslagen endpoint för en kedja ber om
+  väntan eller inte svarar, och minst en ber om väntan (`SourceWait`). Ringen töms till den första väntan är över,
+  och vyn räknar ned varje sekund. Noden som expanderas får ett timglas som andas.
+- **TL2a:** valvyns fönster blir listens lins när valvyn stängs (±48 h, ±7 d, ±6 h, sedan hela ärendet med brickan).
+  Linsen tar 56 % av listen med dygn och timmar, resten trycks ihop med bara måndagarna. Listen slutar prickad vid det
+  nyaste block ärendet har (`GetTipAsync(…, LookupMode.CaseOnly)`, inget uppslag). Inzoomade dygnsband (minst 320 px)
+  får prickade timlinjer vid 06, 12 och 18.
+- **Avsteg:** foten säger *Hämtar kurs genom utgången*, inte utgångens namn. En tx som inte längre finns streckar inte
+  linjerna och aktörerna efter sig. Valvyns fönster har inte ±6 h, så det finns bara i listens steg. Rutan över
+  *Väntar på källan* är verktygstipset, inte en egen panel.
+- **Återstår:** se `docs/TODO.md` under *Grafen: kortet, markeringarna och listen*.

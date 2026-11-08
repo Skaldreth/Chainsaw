@@ -18,7 +18,7 @@ namespace Chainsaw.App.Controls;
 /// Only the strip itself takes the pointer: the room above it, where the card opens, is left to the graph. The sonar
 /// stands still when Windows has animations turned off.
 /// </remarks>
-public sealed class TimeStrip : FrameworkElement
+public sealed partial class TimeStrip : FrameworkElement
 {
     /// <summary>How far above the bottom the line runs.</summary>
     private const double LineFromBottom = 26;
@@ -119,7 +119,8 @@ public sealed class TimeStrip : FrameworkElement
     /// <summary>Gets the strip's layout at its current size, or <see langword="null"/> when there is nothing to show.</summary>
     private TimeStripLayout? Layout => _model is { IsShown: true } model && ActualWidth > 2 * FadeRoom
         ? new TimeStripLayout(
-            model.Axis, [.. model.Times.Ticks.Select(tick => tick.Time)], FadeRoom, ActualWidth - FadeRoom)
+            model.Axis, [.. model.Times.Ticks.Select(tick => tick.Time)], FadeRoom, ActualWidth - FadeRoom,
+            LensOf(model).Window, LensOf(model).Newest)
         : null;
 
     /// <summary>Gets where the line runs, from the top.</summary>
@@ -137,11 +138,15 @@ public sealed class TimeStrip : FrameworkElement
 
         // A transparent ground under the strip only, so that the strip takes the pointer and the room above does not.
         drawingContext.DrawRectangle(
-            Brushes.Transparent, null, new Rect(0, LineY - HitReach, ActualWidth, ActualHeight - LineY + HitReach));
+            Brushes.Transparent, null, new Rect(0, GroundTop, ActualWidth, ActualHeight - GroundTop));
+        DrawLensGround(drawingContext, layout);
         DrawLine(drawingContext, layout);
+        DrawLensMarks(drawingContext, layout);
         DrawTicks(drawingContext, layout);
         DrawDays(drawingContext, layout);
+        DrawNewestBlock(drawingContext, layout);
         DrawChosen(drawingContext, layout);
+        DrawLensChip(drawingContext, layout);
         DrawCard(drawingContext, layout);
     }
 
@@ -185,6 +190,13 @@ public sealed class TimeStrip : FrameworkElement
             return;
         }
 
+        if (OnChip(e.GetPosition(this)))
+        {
+            _model.StepLens();
+            e.Handled = true;
+            return;
+        }
+
         var x = e.GetPosition(this).X;
         _hoveredTick = layout.NearestTick(x, TickTolerance);
         _hoveredHours = layout.HoursAt(x);
@@ -224,7 +236,8 @@ public sealed class TimeStrip : FrameworkElement
             DashCap = PenLineCap.Round,
         };
         dotted.Freeze();
-        dc.DrawLine(dotted, new Point(layout.LastTickX + 6, y), new Point(ActualWidth, y));
+        var end = layout.NewestBlock is null ? ActualWidth : layout.EndX - 12;
+        dc.DrawLine(dotted, new Point(layout.LastTickX + 6, y), new Point(end, y));
     }
 
     /// <summary>
@@ -326,10 +339,12 @@ public sealed class TimeStrip : FrameworkElement
             return;
         }
 
-        var title = Text(layout.Axis.TimeName(time), 13, GraphPalette.Find(this, "Brush.Text"), FontWeights.SemiBold);
-        var line = _hoveredTick is { } tick
-            ? Text(_model!.Times.Ticks[tick].Text, 12, GraphPalette.Find(this, "Brush.TextMuted"), FontWeights.Normal)
-            : null;
+        var onBlock = _hoveredTick is null && OnNewestBlock(layout, layout.X(_hoveredHours.Value));
+        var (titleText, lineText) = onBlock ? NewestBlockCard() : (layout.Axis.TimeName(time), TickText());
+        var title = Text(titleText, 13, GraphPalette.Find(this, "Brush.Text"), FontWeights.SemiBold);
+        var line = lineText is null
+            ? null
+            : Text(lineText, 12, GraphPalette.Find(this, "Brush.TextMuted"), FontWeights.Normal);
         var width = Math.Max(title.Width, line?.Width ?? 0) + (2 * CardPadding);
         var height = title.Height + (line is null ? 0 : line.Height + 3) + 20;
         var x = Math.Clamp(layout.X(layout.Axis.Hours(time)) - (width / 2), 0, Math.Max(0, ActualWidth - width));
@@ -351,6 +366,10 @@ public sealed class TimeStrip : FrameworkElement
             dc.DrawText(line, new Point(card.X + CardPadding, card.Y + 10 + title.Height + 3));
         }
     }
+
+    /// <summary>Gives what moved in the hovered stroke, or <see langword="null"/> when no stroke is hovered.</summary>
+    /// <returns>The text.</returns>
+    private string? TickText() => _hoveredTick is { } tick ? _model!.Times.Ticks[tick].Text : null;
 
     /// <summary>Gives a brush of the theme that fades in at the strip's left end and out at its right.</summary>
     /// <param name="key">The brush's resource key.</param>

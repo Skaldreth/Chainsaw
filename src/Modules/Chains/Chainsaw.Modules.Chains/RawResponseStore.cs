@@ -129,6 +129,73 @@ internal sealed class RawResponseStore(TimeZoneInfo timeZone, string chainName)
     }
 
     /// <summary>
+    /// Gives the transactions whose block may have changed since the case first saw them in one: a later answer that
+    /// shows another height or none, two or more answers to the transaction itself (a shallow one is asked for
+    /// again), or a later answer that the source does not know it. Only the indexes and the statuses are read, so that
+    /// the answers themselves are read only for these few.
+    /// </summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <returns>The transactions, in txid order.</returns>
+    public IReadOnlyList<Txid> BlockChangeCandidates(ICaseReader reader)
+    {
+        using var command = reader.CreateCommand(
+            $"""
+            SELECT a.txid FROM chains_bitcoin_seen a
+                JOIN chains_bitcoin_seen b ON b.chain = a.chain AND b.txid = a.txid AND b.sequence > a.sequence
+                WHERE a.chain = $chain AND a.block_height IS NOT NULL
+                    AND (b.block_height IS NULL OR b.block_height <> a.block_height)
+            UNION
+            SELECT subject FROM chains_lookup WHERE chain = $chain AND kind = $kind
+                GROUP BY subject HAVING COUNT(*) > 1
+            UNION
+            SELECT r.subject FROM {ChainsSchema.RawResponsesTable} r
+                JOIN chains_bitcoin_seen s ON s.chain = r.chain AND s.txid = r.subject AND s.sequence < r.sequence
+                WHERE r.chain = $chain AND r.kind = $kind AND r.status_code = $gone AND s.block_height IS NOT NULL
+            ORDER BY 1
+            """);
+        Add(command, "$chain", ChainName);
+        Add(command, "$kind", ResponseKinds.Transaction);
+        Add(command, "$gone", NotFoundStatus);
+        var txids = new List<Txid>();
+        using var rows = command.ExecuteReader();
+        while (rows.Read())
+        {
+            if (Txid.TryParse(rows.GetString(0), out var txid))
+            {
+                txids.Add(txid);
+            }
+        }
+
+        return txids;
+    }
+
+    /// <summary>
+    /// Finds the newest answer in which the source said that it does not know a transaction (<c>404</c>), sealed as
+    /// every answer is but never used as one.
+    /// </summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <param name="txid">The transaction.</param>
+    /// <returns>The answer's number and when it came, in local time, or <see langword="null"/> when there is none.</returns>
+    public (long Sequence, DateTimeOffset ReceivedLocal)? NewestNotFound(ICaseReader reader, Txid txid)
+    {
+        using var command = reader.CreateCommand(
+            $"""
+            SELECT sequence, received_local FROM {ChainsSchema.RawResponsesTable}
+            WHERE chain = $chain AND kind = $kind AND subject = $txid AND status_code = $gone
+            ORDER BY sequence DESC LIMIT 1
+            """);
+        Add(command, "$chain", ChainName);
+        Add(command, "$kind", ResponseKinds.Transaction);
+        Add(command, "$txid", txid.Value);
+        Add(command, "$gone", NotFoundStatus);
+        using var row = command.ExecuteReader();
+        return row.Read() ? (row.GetInt64(0), ParseTime(row.GetString(1))) : null;
+    }
+
+    /// <summary>The status with which a source says that it does not know what was asked about.</summary>
+    private const long NotFoundStatus = 404;
+
+    /// <summary>
     /// Gives the highest block the case knows of: the newest height fetched, or the highest block a fetched
     /// transaction is in, whichever is higher. The chain is at least this high.
     /// </summary>

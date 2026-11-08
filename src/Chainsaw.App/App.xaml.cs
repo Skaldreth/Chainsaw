@@ -185,6 +185,7 @@ public partial class App : Application
                     Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, "Chainsaw.exe")))
                 .AddSingleton<SettingsViewModel>()
                 .AddSingleton<IGraphSource, GraphSource>()
+                .AddSingleton<IGraphChainState, GraphChainState>()
                 .AddSingleton<IGraphEditor, GraphEditor>()
                 .AddSingleton<ICheckSource, CheckSource>()
                 .AddSingleton<IGraphComments, GraphComments>()
