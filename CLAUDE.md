@@ -553,3 +553,4 @@ Canvas: https://claude.ai/artifact/LVMLEqgJteM68jjc7vuq1h. **Den är uppdelad i 
 | **Ärendeväljaren** | ÄV1a (i titelraden), ÄV1b (panel) | ÄV1a vald |
 | **Kontroller och förslag** | KF1a (lista att gå igenom), KF1b (områden bakom aktörerna, också för plånböcker, tid och egna ytor); KF2a, KF2b (omgjorda, professionellare) | KF1a byggd i etapp 22, ersätts av KF2b (vald 2026-11-08), med områdena från KF1b |
 | **Meddelanden** | TO1a (toastern nere till höger) | TO1a godkänd och byggd |
+| **Mot 1.0** | IN4, TL2, GR9 (grafen); ET1, EP1, RP1 (Etiketter, Exponering, Rapporten); KU1, BV4, ST2, FS2 (kurser, meddelandet, återställningsnyckeln, steget Utgång); UT3, ÄR1, KR1 (utgångarna, ärendet, sökningen), två varianter vardera | Väntar på användarens val (2026-11-08) |
