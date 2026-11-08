@@ -52,14 +52,16 @@
                             <TextBlock Text="{Binding ChangedText}" FontSize="12" Margin="0,1,0,0"
                                        Foreground="{StaticResource Brush.TextDim}" />
                         </StackPanel>
-                        <Border Grid.Column="2" CornerRadius="9" BorderThickness="1.5" BorderBrush="{StaticResource Brush.Accent}"
-                                Padding="7,1" VerticalAlignment="Center"
-                                Visibility="{Binding IsOpenCase, Converter={StaticResource Visible}}">
-                            <TextBlock Text="Öppet" FontSize="11.5" Foreground="{StaticResource Brush.Accent}" />
-                        </Border>
-                        <TextBlock Grid.Column="2" Text="Enter öppnar" FontSize="12" VerticalAlignment="Center"
-                                   Foreground="{StaticResource Brush.TextDim}"
-                                   Visibility="{Binding ShowsEnterHint, Converter={StaticResource Visible}}" />
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding EnterHint}" FontSize="12" VerticalAlignment="Center"
+                                       Foreground="{StaticResource Brush.TextDim}"
+                                       Visibility="{Binding ShowsEnterHint, Converter={StaticResource Visible}}" />
+                            <Border CornerRadius="9" BorderThickness="1.5" BorderBrush="{StaticResource Brush.Accent}"
+                                    Padding="7,1" VerticalAlignment="Center" Margin="8,0,0,0"
+                                    Visibility="{Binding IsOpenCase, Converter={StaticResource Visible}}">
+                                <TextBlock Text="Öppet" FontSize="11.5" Foreground="{StaticResource Brush.Accent}" />
+                            </Border>
+                        </StackPanel>
                     </Grid>
                 </Border>
             </Button>
@@ -111,6 +113,29 @@
                             </TextBlock.Style>
                         </TextBlock>
                     </DockPanel>
+                    <TextBlock Text="{Binding VerifyDetail}" FontSize="11.5" Margin="14,2,14,0" HorizontalAlignment="Right"
+                               Foreground="{StaticResource Brush.TextDim}" TextTrimming="CharacterEllipsis"
+                               Visibility="{Binding HasVerifyDetail, Converter={StaticResource Visible}}" />
+                    <!-- AK1a: a replaced anchor is no fault in the file, so it is a calm yellow line with Varför?. -->
+                    <Border Margin="10,8,10,0" Padding="10,8" CornerRadius="8" Background="{StaticResource Brush.PendingTint}"
+                            Visibility="{Binding HasAnchorChange, Converter={StaticResource Visible}}">
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right" Style="{StaticResource Button.Icon}" Width="26" Height="26"
+                                    VerticalAlignment="Center" Command="{Binding WhyAnchorCommand}"
+                                    ToolTip="Varför? Öppnar förklaringen i Guiden" AutomationProperties.Name="Varför?">
+                                <controls:GridIcon Size="16" Data="{StaticResource Icon.Why}"
+                                                   Foreground="{StaticResource Brush.Pending}" />
+                            </Button>
+                            <controls:GridIcon DockPanel.Dock="Left" Size="14" Data="{StaticResource Icon.Pin}"
+                                               Foreground="{StaticResource Brush.Pending}" VerticalAlignment="Top"
+                                               Margin="0,2,8,0" />
+                            <StackPanel>
+                                <TextBlock Text="{Binding AnchorText}" FontSize="12.5" Foreground="{StaticResource Brush.Pending}" />
+                                <TextBlock Text="{Binding AnchorCauseText}" FontSize="11.5"
+                                           Foreground="{StaticResource Brush.TextDim}" />
+                            </StackPanel>
+                        </DockPanel>
+                    </Border>
                     <TextBlock Text="{Binding OpenName}" FontSize="15" FontWeight="SemiBold" Margin="14,6,14,0"
                                TextTrimming="CharacterEllipsis" ToolTip="{Binding OpenName}" />
                     <StackPanel Orientation="Horizontal" Margin="14,10,14,12">
@@ -139,6 +164,37 @@
                     <Border Height="1" Margin="10,0" Background="{StaticResource Brush.BorderStrong}" />
                 </StackPanel>
 
+                <!--
+                  LN1a: a link that waited while Chainsaw was locked, at the top: where it came from, its chain and the
+                  whole value. The search and the list under it choose the case to lay it in.
+                -->
+                <StackPanel Visibility="{Binding HasLink, Converter={StaticResource Visible}}">
+                    <DockPanel Margin="14,12,10,0">
+                        <Button DockPanel.Dock="Right" Style="{StaticResource Button.Icon}" Width="26" Height="26"
+                                Command="{Binding CloseCommand}" ToolTip="Släng länken (Esc)"
+                                AutomationProperties.Name="Släng länken">
+                            <controls:GridIcon Size="14" Data="{StaticResource Icon.Close}" />
+                        </Button>
+                        <controls:GridIcon DockPanel.Dock="Left" Size="14" Data="{StaticResource Icon.Link}"
+                                           Foreground="{StaticResource Brush.Accent}" VerticalAlignment="Center"
+                                           Margin="0,0,8,0" />
+                        <TextBlock Text="{Binding LinkArrivedText}" FontSize="12" VerticalAlignment="Center"
+                                   Foreground="{StaticResource Brush.TextDim}" />
+                    </DockPanel>
+                    <Border Margin="10,8,10,0" Padding="12,10" CornerRadius="8" Background="{StaticResource Brush.Background}"
+                            BorderBrush="{StaticResource Brush.Accent}" BorderThickness="1.5">
+                        <StackPanel>
+                            <Border HorizontalAlignment="Left" CornerRadius="9" Padding="8,1"
+                                    Background="{StaticResource Brush.SurfaceRaised}">
+                                <TextBlock Text="{Binding LinkChainText}" FontSize="11.5"
+                                           Foreground="{StaticResource Brush.TextMuted}" />
+                            </Border>
+                            <TextBlock Text="{Binding LinkValue}" FontSize="12.5" FontFamily="{StaticResource Font.Mono}"
+                                       TextWrapping="Wrap" Margin="0,6,0,0" Foreground="{StaticResource Brush.Text}" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
                 <!-- The search on the case number. -->
                 <TextBox x:Name="SearchBox" Style="{StaticResource TextBox.Field}" Height="34" FontSize="14" Margin="10,10,10,0"
                          Background="{StaticResource Brush.Background}" Tag="Sök ärendenummer"
@@ -148,7 +204,7 @@
                 <DockPanel Margin="14,10,14,4">
                     <TextBlock DockPanel.Dock="Right" Text="{Binding CountText}" FontSize="12"
                                Foreground="{StaticResource Brush.TextDim}" />
-                    <TextBlock Text="Senaste" FontSize="12" Foreground="{StaticResource Brush.TextDim}" />
+                    <TextBlock Text="{Binding ListHeading}" FontSize="12" Foreground="{StaticResource Brush.TextDim}" />
                 </DockPanel>
 
                 <!-- The case files, newest first; virtualized, since a folder can hold many. -->
@@ -178,13 +234,13 @@
 
                 <Border Height="1" Margin="10,4,10,0" Background="{StaticResource Brush.BorderStrong}" />
                 <Button Style="{StaticResource Button.MenuItem}" Margin="4" Command="{Binding NewCaseCommand}"
-                        ToolTip="Nytt ärende (Ctrl+N)">
+                        ToolTip="{Binding NewCaseText}">
                     <DockPanel>
                         <TextBlock DockPanel.Dock="Right" Text="Ctrl+N" FontSize="12" VerticalAlignment="Center"
                                    Foreground="{StaticResource Brush.TextDim}" />
                         <controls:GridIcon Size="16" Data="{StaticResource Icon.Plus}" Foreground="{StaticResource Brush.TextMuted}"
                                            Margin="0,0,10,0" />
-                        <TextBlock Text="Nytt ärende …" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding NewCaseText}" VerticalAlignment="Center" />
                     </DockPanel>
                 </Button>
                 <Button Style="{StaticResource Button.MenuItem}" Margin="4,0,4,4" Command="{Binding OpenFileCommand}"

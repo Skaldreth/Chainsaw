@@ -744,6 +744,28 @@ public sealed partial class ShellViewModel : ObservableObject
         PutInBar(startPoint);
     }
 
+    /// <summary>What the toast says under a start point laid in a case from a link (sketch LN1a).</summary>
+    public const string LinkPlacedText = "Hämtas genom utgången. Journalen säger att adressen kom med en länk.";
+
+    /// <summary>
+    /// Offers the start point of a link that waited while Chainsaw was locked (sketch LN1a): the case picker folds out
+    /// by itself with the link at the top, for the user to lay it in a case or start a new one. With Nytt ärende shown,
+    /// or no picker, it goes as any link does.
+    /// </summary>
+    /// <param name="startPoint">The recognised start point.</param>
+    /// <param name="arrivedUtc">When the link came.</param>
+    public void OfferWaitingLink(ChainStartPoint startPoint, DateTimeOffset arrivedUtc)
+    {
+        ArgumentNullException.ThrowIfNull(startPoint);
+        if (CasePicker is null || NewCase.IsOpen || Settings.IsOpen)
+        {
+            Offer(startPoint);
+            return;
+        }
+
+        CasePicker.OpenForLink(startPoint, arrivedUtc);
+    }
+
     /// <summary>Gets whether a start point from a link waits for the bar to be empty.</summary>
     public bool HasWaitingLink => _waitingLink is not null;
 
@@ -800,6 +822,9 @@ public sealed partial class ShellViewModel : ObservableObject
     private void FollowCasePicker(CasePickerViewModel picker)
     {
         picker.NewCaseWanted += (_, _) => Show(AppView.New);
+        picker.NewCaseWithLinkWanted += (_, text) => NewCase.Show(text);
+        picker.LinkPlaced += (_, reply) => _toaster?.Show(
+            reply.IsError ? ToastKind.Error : ToastKind.Success, reply.Text, LinkPlacedText);
         picker.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(CasePickerViewModel.IsOpen) && picker.IsOpen)

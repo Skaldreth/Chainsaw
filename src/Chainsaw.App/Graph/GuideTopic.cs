@@ -76,6 +76,9 @@ public enum GuideTopic
 
     /// <summary><em>Flödet</em>: the money as bands from the victims, hop by hop (sketch FL1a).</summary>
     Flow,
+
+    /// <summary><em>Ankaret och flera datorer</em>: why an anchor was replaced (sketch AK1a).</summary>
+    Anchors,
 }
 
 /// <summary>Reads <see cref="GuideTopic"/>.</summary>
@@ -117,6 +120,7 @@ public static class GuideTopics
         GuideTopic.ChainCheck => "kontroll-mot-kedjan",
         GuideTopic.TimelineView => "vyn-tidslinje",
         GuideTopic.Flow => "flodet",
+        GuideTopic.Anchors => "ankaret",
         _ => "utxo-modellen",
     };
 
@@ -147,6 +151,7 @@ public static class GuideTopics
         GuideTopic.ChainCheck => "Hur Chainsaw kontrollerar svaren mot kedjan",
         GuideTopic.TimelineView => "Vyn Tidslinje",
         GuideTopic.Flow => "Flödet",
+        GuideTopic.Anchors => "Ankaret och flera datorer",
         _ => "UTXO-modellen",
     };
 

@@ -25,7 +25,8 @@ namespace Chainsaw.Modules.Cases;
 /// anew); a crash after leaves the new file, which opens with the new envelopes.</item>
 /// <item>The copy becomes the working copy, with the new file as its base, and the case goes on under the new key.</item>
 /// </list>
-/// What an interrupted replacement leaves beside the file is removed the next time (<see cref="CasePaths.DeleteRekeyLeftovers"/>).
+/// What an interrupted replacement leaves beside the file is removed the next time
+/// (<see cref="CasePaths.DeleteRekeyLeftovers"/>).
 /// </remarks>
 internal sealed partial class Case
 {
@@ -318,6 +319,25 @@ internal sealed partial class Case
     }
 
     /// <summary>
+    /// Goes back to the working copy under the old key when the new file could not be moved into place. When even that
+    /// fails, the case is closed: the old file is whole and the same as the working copy set aside, which the next
+    /// opening removes before it extracts the working copy anew.
+    /// </summary>
+    private void GoBackToOldWorkingCopy()
+    {
+        try
+        {
+            File.Move(_paths.RekeyBackup, _paths.WorkingCopy);
+            _database = OpenDatabaseAt(_paths.WorkingCopy, _fileKey);
+        }
+        catch
+        {
+            ReleaseResources();
+            throw;
+        }
+    }
+
+    /// <summary>
     /// Puts the new case file in place and goes on under the new key. Until the move, a failure goes back to the old
     /// working copy; after it, the new file is whole, and a failure closes the case so that it is opened anew from it.
     /// </summary>
@@ -338,8 +358,7 @@ internal sealed partial class Case
         }
         catch
         {
-            File.Move(_paths.RekeyBackup, _paths.WorkingCopy);
-            _database = OpenDatabaseAt(_paths.WorkingCopy, _fileKey);
+            GoBackToOldWorkingCopy();
             throw;
         }
 

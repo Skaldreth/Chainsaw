@@ -378,7 +378,7 @@ Verktyget `tools/Chainsaw.Recovery` körs på Windows (fingeravtrycket i appen p
 - [ ] Klicka på ärendet i titelraden (eller *Inget ärende öppet*): ärendeväljaren fälls ut under det med samma yta, kant och skugga som utgångarnas ruta och glider in mjukt (stilla med animeringar avstängda).
 - [ ] Ctrl+O öppnar den med markören i *Sök ärendenummer*; Esc stänger den och tangentbordet går tillbaka till ärendet i titelraden.
 - [ ] Ett klick utanför stänger den utan att klicket når det som ligger under; ett klick på ärendet igen fäller in den.
-- [ ] Med ett ärende öppet står *Öppet nu* med *Inte kontrollerat sedan det öppnades*; *Verifiera* visar *Kontrollerat nu · inget ändrat* (eller felet i rött), och *Stäng* stänger ärendet medan rutan står kvar.
+- [ ] Med ett ärende öppet står *Öppet nu* med *Inte kontrollerat sedan det öppnades*; *Verifiera* visar *Hashkedjan är hel* med *431 rader · 10:42 · topp …* under (eller felet i rött), och *Stäng* stänger ärendet medan rutan står kvar.
 - [ ] Listan visar ärendena med det senast ändrade först, med nummer och *ändrad i dag 14:02*; det öppna har accentstreck och brickan *Öppet*.
 - [ ] Sökfältet filtrerar på ärendenummer och räknaren följer med; utan träff står *Inget ärende har det numret.*
 - [ ] Upp och Ned flyttar den valda raden; Enter öppnar ärendet och rutan stängs. Ett klick väljer, ett andra klick öppnar.
@@ -392,7 +392,7 @@ Verktyget `tools/Chainsaw.Recovery` körs på Windows (fingeravtrycket i appen p
 - [ ] Fel lösenord: rött *Lösenordet stämmer inte. Inget har ändrats i filen.*, ingen kopia i Ärenden och det öppna ärendet står kvar. Markören står kvar i fältet.
 - [ ] Rätt lösenord med *Lägg till ett kuvert för mig* ikryssad: filen kopieras till Ärenden, *Du* blir grönt och *Ditt kuvert ligger i filen. Nästa gång räcker huvudnyckeln.*; Enter eller *Till grafen* stänger. Stäng ärendet och öppna det igen: inget lösenord frågas.
 - [ ] Utan krysset: ärendet öppnas och rutan säger att lösenordet behövs igen nästa gång.
-- [ ] Ctrl+I, eller *Egenskaper* i ärendeväljaren, öppnar ärendets egenskaper på fliken *Kuvert*: ett kort per kuvert med flik som ett kuvert, *Du* i grönt på ditt, låset och hela fingeravtrycket i grupper (Cascadia Mono) på organisationens, streckat *Ingen delning* eller *Inget eget kuvert* när de saknas.
+- [ ] Ctrl+I, eller *Egenskaper* i ärendeväljaren, öppnar ärendets egenskaper på fliken *Kuvert*: ett kort per kuvert, utan kuvertlinjen, *Du* i grönt på ditt, låset och hela fingeravtrycket i grupper (Cascadia Mono) på organisationens, streckat *Ingen delning* eller *Inget eget kuvert* när de saknas.
 - [ ] *Skapa lösenord …* och *Byt …* fäller ut två fält i kortet; olika lösenord ger *Lösenorden är inte lika.*, för kort ger felet om längden; Enter eller *Spara* sparar, Esc eller *Avbryt* fäller in.
 - [ ] *Ta bort* på lösenordet i en kollegas fil utan eget kuvert vägras med en förklaring; efter *Lägg till mitt kuvert* går det.
 - [ ] Titeln överst ändras och sparas när fältet lämnas eller med Enter; titelraden följer med. Fliken *Information* visar filen och ärendets id.
@@ -402,6 +402,35 @@ Verktyget `tools/Chainsaw.Recovery` körs på Windows (fingeravtrycket i appen p
 - [ ] *Arbetskopian* + *Spara som …*: ett nytt ärende `<nummer>-B.cut` öppnas med journalen fram till kraschen och en rad om vilket ärende det kom ur och vilka kuvert som inte följde med; ursprungsfilen är orörd och dess arbetskopia ligger i `Återställda`. Titelraden, ärendeväljaren och en exporterad begäran säger `-B`. Öppna de två ärendena om vartannat några gånger: `/verify` är grön för båda.
 - [ ] *Öppna filen* på en skadad `.cut`: felet sägs i rutan, arbetskopian ligger kvar bredvid filen och rutan kommer tillbaka nästa gång ärendet öppnas.
 - [ ] Låses Chainsaw medan en av rutorna är öppen stängs den.
+
+### Byt filnyckel (VT1a)
+
+- [ ] I en kollegas fil som du och kollegan båda har kuvert i, med ett ärendelösenord: fliken *Kuvert* har *Byt filnyckel …* under korten. Ett klick fäller ut bekräftelsen under korten med markören i *Huvudnyckel*; ditt kort och organisationens får den gröna brickan *Lindas om*, kollegans och ärendelösenordets blir streckade och överstrukna med den gula *Faller bort*, och knapparna i korten försvinner.
+- [ ] Bekräftelsen säger *Bara du och organisationen kan öppna filen efter bytet* (utan inbyggd återställningsnyckel: *Bara du …*) och ärligt att kopior som redan lämnats ut inte kan dras tillbaka, med vad som fortfarande öppnar dem.
+- [ ] Esc eller *Avbryt* fäller in bekräftelsen och korten blir som förut. Fel huvudnyckel: *Fel huvudnyckel. Inget ändrades.* och filen är orörd (samma storlek och tid i Utforskaren).
+- [ ] Rätt huvudnyckel och Enter: en rad säger att bytet pågår, sedan toasten *Filnyckeln är bytt* och korten visar bara ditt och organisationens; en streckad rad under säger *Filnyckeln byttes … Dragna tillbaka: … Journalrad N*.
+- [ ] Kollegan kan inte längre öppna filen, varken med sitt valv eller med det gamla lösenordet. En kopia som togs före bytet öppnas fortfarande som förut.
+- [ ] Med *Skapa ett nytt ärendelösenord efteråt* på: två fält till; olika lösenord eller för kort ger felet och inget byts. Efter bytet öppnar det nya lösenordet filen och det gamla inte.
+- [ ] `/verify` är grön efter bytet, journalen har raden *case.file-key-replaced*, och ärendet går att arbeta vidare i och öppna igen utan fråga om lösenord.
+- [ ] Administratörens verktyg (`Chainsaw.Recovery open`) öppnar filen efter bytet med organisationens nyckel.
+- [ ] Döda Chainsaw i Aktivitetshanteraren mitt i ett byte av ett stort ärende: nästa öppning ger antingen det gamla ärendet (utan raden) eller det nya (med raden), aldrig ett fel, och inga filer `.rekey` eller `.old-key` ligger kvar bredvid.
+- [ ] Ett ärende som öppnats bara med ärendelösenordet (utan eget kuvert) erbjuder inte *Byt filnyckel …*.
+
+### En länk medan Chainsaw är låst (LN1a)
+
+- [ ] Lås Chainsaw (Ctrl+L) och öppna `chainsaw:bitcoin/<en adress>` med Win+R: låsskärmen säger *En länk väntar* med *Från ett annat program …*, aldrig adressen.
+- [ ] Lås upp: ärendeväljaren fälls ut av sig själv med länken överst (*Länk från ett annat program · tid*, kedjan och hela adressen i Cascadia Mono), rubriken *Lägg i ärende*, och den valda raden säger *Lägg i · Enter*.
+- [ ] Sök ett ärendenummer och tryck Enter (eller klicka två gånger): ärendet öppnas, adressen blir en ny startpunkt och hämtas genom utgången, en toast säger det, och journalen har raden *app.start-point-from-link*.
+- [ ] *Nytt ärende med adressen …* (eller Ctrl+N i rutan) öppnar Nytt ärende med adressen som första startpunkt, förhämtad.
+- [ ] Esc eller krysset slänger länken: rutan stängs och nästa Ctrl+O visar ärendeväljaren som vanligt.
+- [ ] En länk medan Chainsaw är upplåst går som förut till kommandoraden (med ett ärende öppet) eller Nytt ärende.
+
+### Ankaret (AK1a)
+
+- [ ] Kopiera ett ärendes `.cut`, arbeta vidare i ärendet och stäng det, lägg tillbaka kopian och öppna ärendet: *Verifiera* säger ändå *Hashkedjan är hel* med rader och topp, och under en lugn gul rad *Ankaret byttes i dag …* med *Troligast: äldre kopia*.
+- [ ] *Varför?* i den gula raden stänger ärendeväljaren och öppnar Guidens panel: rubriken med tid, journalrad och `case.anchors-replaced`, *Filens hashkedja är hel från rad 1 till …*, kedjan som prickar med ankaret i gult och filens topp i grönt (rad och hash, hela hashen på hovring), en streckad bricka *Troligast: …* och vad du kan göra; *Öppna i Guide* visar avsnittet *Ankaret och flera datorer*.
+- [ ] Ta bort ankarfilen för ärendet (i mappen för ankare under `%LOCALAPPDATA%\Chainsaw`) och öppna ärendet: orsaken blir *ankaret saknas*.
+- [ ] `/verify` säger *Hashkedjan är hel …* och på nästa rad att ankaret byttes, inte ett fel.
 
 ### Ärenden i högar (GR8a)
 
@@ -1905,7 +1934,7 @@ ligger bredvid `Chainsaw.exe`.
 - [ ] Klicka på ärendet i titelraden (eller *Inget ärende öppet*): ärendeväljaren fälls ut under det med samma yta, kant och skugga som utgångarnas ruta och glider in mjukt (stilla med animeringar avstängda).
 - [ ] Ctrl+O öppnar den med markören i *Sök ärendenummer*; Esc stänger den och tangentbordet går tillbaka till ärendet i titelraden.
 - [ ] Ett klick utanför stänger den utan att klicket når det som ligger under; ett klick på ärendet igen fäller in den.
-- [ ] Med ett ärende öppet står *Öppet nu* med *Inte kontrollerat sedan det öppnades*; *Verifiera* visar *Kontrollerat nu · inget ändrat* (eller felet i rött), och *Stäng* stänger ärendet medan rutan står kvar.
+- [ ] Med ett ärende öppet står *Öppet nu* med *Inte kontrollerat sedan det öppnades*; *Verifiera* visar *Hashkedjan är hel* med *431 rader · 10:42 · topp …* under (eller felet i rött), och *Stäng* stänger ärendet medan rutan står kvar.
 - [ ] Listan visar ärendena med det senast ändrade först, med nummer och *ändrad i dag 14:02*; det öppna har accentstreck och brickan *Öppet*.
 - [ ] Sökfältet filtrerar på ärendenummer och räknaren följer med; utan träff står *Inget ärende har det numret.*
 - [ ] Upp och Ned flyttar den valda raden; Enter öppnar ärendet och rutan stängs. Ett klick väljer, ett andra klick öppnar.
@@ -1918,7 +1947,7 @@ ligger bredvid `Chainsaw.exe`.
 - [ ] Fel lösenord: rött *Lösenordet stämmer inte. Inget har ändrats i filen.*, ingen kopia i Ärenden och det öppna ärendet står kvar. Markören står kvar i fältet.
 - [ ] Rätt lösenord med *Lägg till ett kuvert för mig* ikryssad: filen kopieras till Ärenden, *Du* blir grönt och *Ditt kuvert ligger i filen. Nästa gång räcker huvudnyckeln.*; Enter eller *Till grafen* stänger. Stäng ärendet och öppna det igen: inget lösenord frågas.
 - [ ] Utan krysset: ärendet öppnas och rutan säger att lösenordet behövs igen nästa gång.
-- [ ] Ctrl+I, eller *Egenskaper* i ärendeväljaren, öppnar ärendets egenskaper på fliken *Kuvert*: ett kort per kuvert med flik som ett kuvert, *Du* i grönt på ditt, låset och hela fingeravtrycket i grupper (Cascadia Mono) på organisationens, streckat *Ingen delning* eller *Inget eget kuvert* när de saknas.
+- [ ] Ctrl+I, eller *Egenskaper* i ärendeväljaren, öppnar ärendets egenskaper på fliken *Kuvert*: ett kort per kuvert, utan kuvertlinjen, *Du* i grönt på ditt, låset och hela fingeravtrycket i grupper (Cascadia Mono) på organisationens, streckat *Ingen delning* eller *Inget eget kuvert* när de saknas.
 - [ ] *Skapa lösenord …* och *Byt …* fäller ut två fält i kortet; olika lösenord ger *Lösenorden är inte lika.*, för kort ger felet om längden; Enter eller *Spara* sparar, Esc eller *Avbryt* fäller in.
 - [ ] *Ta bort* på lösenordet i en kollegas fil utan eget kuvert vägras med en förklaring; efter *Lägg till mitt kuvert* går det.
 - [ ] Titeln överst ändras och sparas när fältet lämnas eller med Enter; titelraden följer med. Fliken *Information* visar filen och ärendets id.

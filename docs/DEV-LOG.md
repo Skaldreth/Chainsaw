@@ -4007,3 +4007,47 @@ Kollegans fil med ärendelösenordet, ärendets egenskaper med fliken *Kuvert*, 
     *fel huvudnyckel*, och `StrengthenIfWeak` behåller den gamla filen vid fel.
   - **M3:** `IVaultSecrets` krävs av `AddCasesModule` (`GetRequiredService`); bevakningsprocessen registrerar redan sin
     egen, och testernas värdar har fått en i minnet.
+
+## VT1a, LN1a och AK1a (2026-11-08): byt filnyckel, en länk till ett befintligt ärende och ankaret
+
+Byggt efter skisserna VT1a, LN1a och AK1a (användarens val 2026-11-08).
+
+- **VT1a, byt filnyckel** (`ICase.ReplaceFileKey`, `Case.FileKey.cs`): huvudnyckeln kontrolleras igen
+  (`IVault.VerifyMasterKey`, nytt, med ett förval som kastar `NotSupportedException` så att testernas valv inte
+  behöver ändras), ärendet sparas, arbetskopian kopieras till `.work.rekey` där journalraden
+  `case.file-key-replaced` förseglas under den gamla nyckeln och kopian krypteras om (SQLite3 Multiple Ciphers rekey)
+  under en ny slumpad filnyckel. Den nya filen (nytt huvud med ditt valvs kuvert, den inbyggda återställningsnyckelns
+  och vid behov ett nytt ärendelösenord, kopian och sigillet under den nya nyckeln) skrivs bredvid, arbetskopian
+  flyttas undan till `.work.old-key` och den nya filen tar den gamlas plats i en flytt. Sedan blir kopian
+  arbetskopian och ärendet fortsätter under den nya nyckeln; ankarna flyttas fram som vid varje sparning.
+  - **En krasch** före flytten lämnar den gamla filen hel (arbetskopian tas ut på nytt nästa gång), efter flytten den
+    nya; det som blir kvar (`.rekey`, `.old-key`) tas bort vid nästa öppning. Ett fel före flytten lämnar ärendet
+    öppet under den gamla nyckeln; ett fel efter flytten stänger det, och det öppnas från den nya filen.
+  - **Testerna** (`FileKeyTests`) tar en bild av mappen vid varje steg, som en krasch skulle lämna den, och öppnar
+    den: gamla filen till och med *set-aside*, nya från *replaced*. Kollegans valv, det gamla lösenordet och en
+    ändrad byte (sigillet) öppnar inte; organisationens nyckel, ett nytt lösenord och en tidigare utlämnad kopia gör det.
+  - **Fliken Kuvert:** *Byt filnyckel …* under korten (bara med eget kuvert), korten får *Lindas om* eller *Faller
+    bort* (streckat och överstruket), bekräftelsen fälls ut under korten med huvudnyckeln och strömbrytaren för ett
+    nytt ärendelösenord, och efteråt står en streckad rad med det som drogs tillbaka och journalraden (läst ur
+    journalen, så den står kvar nästa gång).
+- **LN1a:** `LinkInbox` säger när en länk börjar och slutar vänta (`WaitingChanged`), och låsskärmen säger då bara
+  *En länk väntar*. Efter upplåsningen fälls ärendeväljaren ut med länken överst (`CasePickerViewModel.OpenForLink`);
+  Enter eller ett andra klick öppnar ärendet och lägger adressen som startpunkt med raden
+  `app.start-point-from-link` i journalen (`CaseWorkflow.AddLinkedStartPointAsync`), *Nytt ärende med adressen …*
+  (Ctrl+N) öppnar NC2a med adressen, och Esc slänger länken. En länk medan Chainsaw är upplåst går som förut.
+- **AK1a:** `AnchorReplacement` (Contracts) läser raden `case.anchors-replaced`. *Verifiera* säger *Hashkedjan är
+  hel* med rader, tid och topp, och ett bytt ankare som en gul rad med *Troligast: …*; *Varför?* öppnar Guidens panel
+  (`GuideAnchorChange`) med kedjan som prickar, före och efter och orsaken som en streckad bricka. `/verify` säger
+  också att kedjan är hel och ankaret byttes, i stället för ett fel. Guideavsnittet `docs/guide/ankaret.md`.
+
+**Egna beslut och avsteg från skisserna:**
+- **Kuvert som faller bort:** också andra (icke inbyggda) återställningsnycklars och okända kuvert, eftersom Chainsaw
+  inte kan linda den nya nyckeln åt dem; de skulle annars bära en nyckel som inte öppnar något.
+- **Inga steg med förlopp** under bytet (skissens list med fyra steg): Cases säger inte hur långt det kommit, så en
+  rad säger vad som görs och att ärendet är låst under tiden, i stället för påhittade steg.
+- **Länkens ursprung:** skissen säger *Länk från Gawk*, men länken bär inte vilket program som skickade den, så det
+  står *Länk från ett annat program*. Brickan *Etikett härifrån* (etikettbiblioteket per ärende) är inte byggd.
+- **Två datorer** avgörs ur raderna: ett ankare längre fram än filens topp är en äldre kopia, annars två datorer.
+  Raden där de gick isär (*samma rader fram till 402*) står inte, eftersom raden bara sparar ankaret och toppen.
+
+**Återstår:** granskningen av VT1a (oberoende), brickan *Etikett härifrån* i LN1a, och att prova allt på Windows.

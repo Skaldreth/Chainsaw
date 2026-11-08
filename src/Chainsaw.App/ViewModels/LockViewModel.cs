@@ -28,6 +28,15 @@ public sealed partial class LockViewModel : ObservableObject
     /// </summary>
     public const string WatchHitText = "En bevakning har slagit till. Den visas efter upplåsning.";
 
+    /// <summary>
+    /// What the lock screen says when a <c>chainsaw:</c> link waits for the unlock (sketch LN1a): only that, never
+    /// the address.
+    /// </summary>
+    public const string LinkWaitingText = "En länk väntar";
+
+    /// <summary>The line under <see cref="LinkWaitingText"/>.</summary>
+    public const string LinkWaitingNote = "Från ett annat program. Vad den gäller visas när Chainsaw är upplåst.";
+
     /// <summary>What the lock screen says when the vault did not open for a reason it does not name.</summary>
     public const string UnknownFailureText = "Valvet gick inte att öppna.";
 
@@ -77,6 +86,10 @@ public sealed partial class LockViewModel : ObservableObject
     /// <summary>Gets whether a watch has hit while Chainsaw was closed or locked (the line with the dot).</summary>
     [ObservableProperty]
     public partial bool HasWatchHit { get; private set; }
+
+    /// <summary>Gets or sets whether a link waits for the unlock (sketch LN1a); the gate follows the link inbox.</summary>
+    [ObservableProperty]
+    public partial bool HasWaitingLink { get; set; }
 
     /// <summary>Gets why the last attempt failed, or an empty text.</summary>
     [ObservableProperty]

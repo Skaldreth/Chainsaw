@@ -29,8 +29,14 @@ public sealed record GuidePage(
     /// <summary>Gets whether the page shows a value's steps instead of plain answers.</summary>
     public bool HasValuation => Valuation is not null;
 
+    /// <summary>Gets the answer about a replaced anchor (sketch AK1a), or <see langword="null"/>.</summary>
+    public GuideAnchorChange? AnchorChange { get; init; }
+
+    /// <summary>Gets whether the page shows a replaced anchor instead of plain answers.</summary>
+    public bool HasAnchorChange => AnchorChange is not null;
+
     /// <summary>Gets whether the page shows plain answers above the section.</summary>
-    public bool HasPlainAnswers => HasAnswers && !HasValuation;
+    public bool HasPlainAnswers => HasAnswers && !HasValuation && !HasAnchorChange;
 
     /// <summary>Gives what a place shows, or <see langword="null"/> when its section is not in the library.</summary>
     /// <param name="library">The library.</param>
@@ -49,6 +55,7 @@ public sealed record GuidePage(
         return new GuidePage(section, place.Anchor, place.Context?.Label ?? string.Empty, answers)
         {
             Valuation = place.Context?.Valuation,
+            AnchorChange = place.Context?.AnchorChange,
         };
     }
 

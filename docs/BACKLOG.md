@@ -481,6 +481,8 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
 - **Senast öppnade ärendet** föreslås som den `.cut` som sparades senast (filens tid), inte ur en egen lista, så att
   inget om ärenden sparas utanför ärendet. Ett ärende som sparats av en kopia eller synk hamnar då först.
 - **Testklasserna saknar XML-dokumentation** (M10), som i de tidigare testprojekten.
+- **Brickan *Etikett härifrån* i LN1a:** en streckad bricka vid det ärende i listan som etikettbiblioteket har en
+  etikett på länkens adress från. Kräver en fråga till biblioteket per adress och ärende; inte byggd 2026-11-08.
 
 ## Exponering (EP1b)
 

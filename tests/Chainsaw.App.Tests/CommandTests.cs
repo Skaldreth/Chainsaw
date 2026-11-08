@@ -149,6 +149,24 @@ public sealed class CommandTests
     }
 
     [Fact]
+    public async Task Verify_says_the_chain_is_whole_when_only_the_anchor_was_replaced()
+    {
+        var rig = new GateRig(VaultState.Unlocked);
+        await rig.Workflow.CreateAsync(new NewCaseRequest("A1", string.Empty, []), null);
+        rig.Verifier.Result = new CaseVerification(
+            DateTimeOffset.UnixEpoch,
+            [CaseProblem.AnchorsReplaced],
+            [new ChainVerification("cases.journal", 3, 3, "ab", null)]);
+
+        var reply = await rig.Commands.RunAsync("/verify");
+
+        Assert.False(reply.IsError);
+        var lines = reply.Text.Split(Environment.NewLine);
+        Assert.Equal("Hashkedjan är hel: 1 kedjor och 3 poster stämmer.", lines[0]);
+        Assert.Equal(Commands.VerificationText.AnchorNote, lines[1]);
+    }
+
+    [Fact]
     public async Task Verify_says_where_a_chain_breaks()
     {
         var rig = new GateRig(VaultState.Unlocked);

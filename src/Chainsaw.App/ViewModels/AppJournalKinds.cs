@@ -15,4 +15,10 @@ public static class AppJournalKinds
     /// how many.
     /// </summary>
     public const string PrefetchSealed = "app.prefetch-sealed";
+
+    /// <summary>
+    /// A start point came with a <c>chainsaw:</c> link from another program and was laid in the case from the case
+    /// picker (sketch LN1a); the details give the chain and the value.
+    /// </summary>
+    public const string StartPointFromLink = "app.start-point-from-link";
 }

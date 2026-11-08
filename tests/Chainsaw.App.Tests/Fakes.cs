@@ -797,7 +797,7 @@ internal sealed class TestVerifier : ICaseVerifier
 /// <summary>Everything a window needs, wired as the program wires it, with test doubles for the modules.</summary>
 internal sealed class GateRig
 {
-    public GateRig(VaultState state)
+    public GateRig(VaultState state, bool withCasePicker = false)
     {
         Vault = new TestVault(state);
         AutoLock = new AutoLock(Clock, TimeSpan.FromMinutes(15));
@@ -819,15 +819,22 @@ internal sealed class GateRig
         Settings = new SettingsViewModel(
             new AppSettings(), SettingsStore, Way, ExitPanel, AutoLock, Prices, Profiles, Vault, Cases, Build);
         Toaster = new Toaster(Ui);
+        CasePicker = withCasePicker
+            ? new CasePickerViewModel(Session, Workflow, Verifier, Ui, Clock, TimeZoneInfo.Utc)
+            : null;
         Shell = new ShellViewModel(
-            Session, Commands, NewCase, Workflow, Way, Exits, Sanctions, ExitPanel, Settings, Ui, toaster: Toaster);
-        Links = new LinkInbox(Shell);
+            Session, Commands, NewCase, Workflow, Way, Exits, Sanctions, ExitPanel, Settings, Ui, toaster: Toaster,
+            casePicker: CasePicker);
+        Links = new LinkInbox(Shell, Clock);
         LockScreen = new LockViewModel(Vault, Way, AutoLock, Build);
         FirstRun = new FirstRunViewModel(Vault, Profiles, Exits, Workflow, Way, Settings, Exit);
         Gate = new GateViewModel(Vault, LockScreen, FirstRun, Shell, Session, AutoLock, Links, LockSignal, Ui);
     }
 
     public InlineUi Ui { get; } = new();
+
+    /// <summary>The case picker (sketch ÄV1a), when the rig was asked for one.</summary>
+    public CasePickerViewModel? CasePicker { get; }
 
     /// <summary>The toaster, which says an answer that comes while the command bar is hidden.</summary>
     public Toaster Toaster { get; }

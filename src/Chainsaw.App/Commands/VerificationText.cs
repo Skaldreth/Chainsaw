@@ -6,17 +6,29 @@ namespace Chainsaw.App.Commands;
 /// <summary>Says what <see cref="ICaseVerifier"/> found, in plain Swedish, one line per thing that is wrong.</summary>
 public static class VerificationText
 {
+    /// <summary>What <c>/verify</c> says under a whole chain when this computer's anchor was replaced (AK1a).</summary>
+    public const string AnchorNote =
+        "Ankaret på den här datorn byttes när ärendet öppnades (case.anchors-replaced). Verifiera i ärendeväljaren "
+        + "(Ctrl+O) säger varför.";
+
     /// <summary>Describes a verification.</summary>
     /// <param name="verification">The result.</param>
     /// <returns>A done answer when everything holds, otherwise an error with where each chain breaks.</returns>
     public static CommandReply Describe(CaseVerification verification)
     {
         ArgumentNullException.ThrowIfNull(verification);
+        var records = verification.Chains.Sum(chain => chain.RecordCount);
+        var whole = $"{verification.Chains.Count} kedjor och {records} poster stämmer.";
         if (verification.IsIntact)
         {
-            var records = verification.Chains.Sum(chain => chain.RecordCount);
-            return CommandReply.Done(
-                $"Inget har ändrats: {verification.Chains.Count} kedjor och {records} poster stämmer.");
+            return CommandReply.Done($"Inget har ändrats: {whole}");
+        }
+
+        // A replaced anchor is no fault in the file (sketch AK1a): the chain is whole, and the anchor is said under.
+        if (verification.Chains.All(chain => chain.Break is null)
+            && verification.Problems.All(problem => problem == CaseProblem.AnchorsReplaced))
+        {
+            return CommandReply.Done($"Hashkedjan är hel: {whole}{Environment.NewLine}{AnchorNote}");
         }
 
         var lines = verification.Problems.Select(For)
