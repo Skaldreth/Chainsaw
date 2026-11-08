@@ -4145,3 +4145,21 @@ topp.
     syns bara som *Onödig input*. `payjoin v1` noterar utan veto, så ett ärende stänger av vetot genom att dra
     tillbaka version 2. Tester åt båda hållen: en riktig PayJoin blir förslag, granskarens prob (bedragaren som betalar
     en börs från tre insättningar) och en vanlig plånboks betalning med ett extra mynt slås ihop.
+
+## Låsskärmens figur flyter (2026-11-08)
+
+Användaren provade på Windows: kedjan ryckte konstigt när den kom in, och rörelsen kändes som 25 bilder i sekunden.
+
+- **Takten:** `ChainFigure` följer nu skärmens bildrutor (`CompositionTarget.Rendering`, ett steg per ny `RenderingTime`)
+  i stället för en `DispatcherTimer` på 16 ms, som i Windows tickar i steg om ungefär 15,6 ms och därför gav ojämna
+  rutor (16 eller 31 ms).
+- **Ingen layout per ruta:** varje ruta spelas in i en `DrawingGroup` som elementet visar en gång, i stället för
+  `InvalidateVisual`, som begär en ny layout.
+- **Färre lager:** partiklarna ritas med styrkan i tecknets egen färg (24 steg, gjorda en gång) i stället för en
+  `PushOpacity` per tecken; länkar, strängar och steg får ett lager bara när de tonar. Pennorna görs en gång per
+  nyans, ton och bredd.
+- **Bandet räknas ut en gång per ruta** (`BandMotion.Current`) och återanvänds när rutan ritas. Modellen tar ungefär
+  0,5 ms per ruta på en sida som är 1920 px bred.
+- **Darret** när den långa länken spänns är lugnare: 8 svängningar i sekunden och 0,9 px i stället för 15 och 1,4 px,
+  som vid 60 bilder i sekunden bara fick fyra bilder per svängning och såg ut som skakigt brus.
+

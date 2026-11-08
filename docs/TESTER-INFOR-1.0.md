@@ -29,8 +29,9 @@ Jämför med skisserna ID8f, LS1b och FS1a på canvasen, gärna i 1440 × 900 oc
 - Partiklarna: små tecken och ibland en bas lossnar från spiralen och driver ut; kättingarna släpper inga.
 - Stäng av animeringar i Windows (*Animeringseffekter* av): bandet står färdigt och stilla, utan start, svaj eller
   partiklar, och upplåsningen går direkt till skalet.
-- Minimera fönstret: Chainsaw använder ingen märkbar processor medan figuren inte syns. Figuren ritas om ungefär 60
-  gånger i sekunden när den syns; skriv i fältet och dra fönstret och känn efter att inget hackar.
+- Minimera fönstret: Chainsaw använder ingen märkbar processor medan figuren inte syns. Figuren ritas om i skärmens
+  takt (60 Hz, eller mer på en snabbare skärm) när den syns: starten, svajet och övergången ska kännas helt flytande,
+  utan ryck när kättingarna glider in. Darret innan länken släpper är ett lugnt, litet darr, inte ett skakigt brus.
 - Skarpt på en skärm med 150 % skalning, och när fönstret flyttas mellan skärmar.
 
 **Låsskärmen (LS1b)**
