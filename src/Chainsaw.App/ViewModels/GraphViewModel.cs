@@ -563,6 +563,13 @@ public sealed partial class GraphViewModel : ObservableObject
     }
 
     /// <summary>
+    /// Closes the inspector by choosing nothing, as Esc and a click on the empty surface do; the cross in the
+    /// inspector's heading, so that the way out is seen and not only known.
+    /// </summary>
+    [RelayCommand]
+    public void Deselect() => Choose(null, null);
+
+    /// <summary>
     /// <em>Varför?</em>: asks for the Guide with the answers for what is chosen at the top, opened at the section and
     /// heading of the most telling answer (sketch GD1b).
     /// </summary>

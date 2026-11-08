@@ -37,6 +37,23 @@
             </Setter>
         </Style>
 
+        <!-- Close (×) after Varför? in the heading: quiet until hovered, and Esc said in the tip. -->
+        <Style x:Key="Button.CloseInspector" TargetType="Button" BasedOn="{StaticResource Button.Help}">
+            <Setter Property="Width" Value="32" />
+            <Setter Property="Height" Value="32" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{StaticResource Brush.TextMuted}" />
+            <Setter Property="ContentTemplate">
+                <Setter.Value>
+                    <DataTemplate>
+                        <controls:GridIcon Size="16" Data="{StaticResource Icon.Close}"
+                                           Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                    </DataTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!-- Copy beside an id in the dark box (sketch IN2b): a 30 px square with a 1.5 px frame on the panel's tone. -->
         <Style x:Key="Button.Copy" TargetType="Button" BasedOn="{StaticResource Button.Graph}">
             <Setter Property="Width" Value="30" />
@@ -102,6 +119,7 @@
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
                     <!-- The sort's icon in the node's own frame: round for an actor, square for a service. -->
@@ -152,6 +170,9 @@
                     <Button Grid.Column="2" Style="{StaticResource Button.Why}" VerticalAlignment="Center"
                             AutomationProperties.Name="Varför?" ToolTip="Varför? Förklaringen i Guiden, bredvid grafen"
                             Command="{Binding DataContext.AskWhyCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                    <Button Grid.Column="3" Style="{StaticResource Button.CloseInspector}" VerticalAlignment="Center"
+                            Margin="4,0,0,0" AutomationProperties.Name="Stäng" ToolTip="Stäng · Esc"
+                            Command="{Binding DataContext.DeselectCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" />
                 </Grid>
 
                 <!-- ===== The tabs (sketches IN2b and AN1b): Fakta and Historik, on a line of their own ===== -->

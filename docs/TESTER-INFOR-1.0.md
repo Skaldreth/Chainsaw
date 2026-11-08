@@ -1308,6 +1308,8 @@ ligger bredvid `Chainsaw.exe`.
 
 ## Nytt ärende NC2a (2026-11-08)
 
+- [ ] Chainsaw startar utan felrutan *Provide value on 'System.Windows.StaticResourceExtension' … Line 541* (rättat
+      2026-11-08), och fältens svaga platshållare syns i titeln och i raden *Lägg till*.
 - [ ] Ctrl+N: panelen från höger är 520 px bred, resten mörkas. Rubriken *Nytt ärende*, *Ctrl+N* och × (Esc). Markören står
       i det stora fältet *Ärendenummer* med *t.ex. 2026-0117* svagt; ramen är i accenten medan fältet har tangentbordet.
 - [ ] Skriv `2026-0117`: en grön bock i fältet och under det hänglåset och *Krypterad fil 2026-0117.cut*. Ett nummer som redan finns
@@ -1386,7 +1388,8 @@ några steg).
 
 - [ ] Välj startpunkten utan namn: inspektören (340 px) har sortens ikon i en rund ram (38 px), adressen förkortad i
       grått som rubrik och *Okänd · Bitcoin · startpunkt* under. En nod med namn har namnet i krämvitt. Ett kluster
-      säger *… · 6 adresser*. *Varför?* är en rund knapp (32 px) i hörnet, med hovring; inga andra knappar i huvudet.
+      säger *… · 6 adresser*. *Varför?* är en rund knapp (32 px) i hörnet, med hovring, och bredvid den ett × (*Stäng ·
+      Esc*) som avmarkerar noden eller linjen och stänger inspektören, som Esc och ett klick på tom yta.
 - [ ] Flikarna *Fakta* och *Historik* står på en egen linje med accenten under den valda.
 - [ ] *Fakta* i två kolumner: *In*, *Ut*, *Spårat in*, *Tx*, *Hopp*, *Först in* och *Senast* (*block 974 990*, med
       mellanslag mellan tusentalen). Ingen *Sort* och ingen *Kedja* bland fakta längre.

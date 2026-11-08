@@ -413,6 +413,25 @@ public sealed class GraphViewModelTests
         Assert.False(rig.Graph.CanExpand);
     }
 
+    /// <summary>The cross in the inspector's heading chooses nothing, for a node and for a line, and closes it.</summary>
+    [Fact]
+    public void DeselectClosesTheInspector()
+    {
+        var rig = new Rig();
+        rig.Graph.Choose(GraphSamples.KKey, null);
+
+        rig.Graph.DeselectCommand.Execute(null);
+
+        Assert.Null(rig.Graph.SelectedNode);
+        Assert.Null(rig.Graph.Inspection);
+
+        rig.Graph.Choose(null, GraphSamples.VK);
+        rig.Graph.Deselect();
+
+        Assert.Null(rig.Graph.SelectedEdge);
+        Assert.Null(rig.Graph.Inspection);
+    }
+
     /// <summary>A chosen cluster gets Clustering's answers added to its Varför?.</summary>
     [Fact]
     public void ChosenClusterIsExplained()
