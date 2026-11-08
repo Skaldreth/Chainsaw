@@ -1272,3 +1272,23 @@ ligger bredvid `Chainsaw.exe`.
 - [ ] *Kan öppnas av en kollega*: ikonen med två personer, reglaget till höger; påslaget fäller ut *Ärendelösenord* och
       *Upprepa* (38 px, rundade) indragna under texten.
 - [ ] Med Windows animeringar avstängda står skimret och snurran stilla.
+
+## Luft i grafen och områden bara när de väljs (TODO 34, 2026-11-08)
+
+Förberedelse: `/testdata` i ett Debug-bygge och öppna `TEST-0001` (gör om testärendet, eftersom ett äldre kan ha sparat
+platser och en vy).
+
+- [ ] Grafen öppnas läsbar (zoom ungefär 75 % eller mer), med startpunkten uppe till vänster; resten nås genom att
+      panorera. F passar in igen på samma sätt. En liten graf står mitt på ytan i naturlig storlek.
+- [ ] Inga noder ligger på varandra, varken på den fria ytan eller i hoppkolumnerna. Mellan kolumnerna är det luft nog
+      för de längsta beloppen (*0,689997 av 1,0000*), och raderna i en kolumn har gott om plats.
+- [ ] Inget belopp ligger på ett annat belopp eller på en nod. Ett belopp som inte får plats mitt på linjen står en bit
+      längre fram eller bak på den, eller precis ovanför eller under linjen.
+- [ ] Pengar fram och tillbaka mellan två noder (växeltx:en `3d0c…` och `bc1q…vd0j`) ritas som två linjer bredvid
+      varandra, var och en med sitt belopp, aldrig ovanpå varandra.
+- [ ] Expandera navet (`bc1q…k298`): högarna och `+N tx` får plats, och beloppen krockar fortfarande inte.
+- [ ] Dra en nod mitt i en solfjäder av linjer: beloppen flyttar sig undan medan du drar, utan att det hackar.
+- [ ] Inga områden ritas när ärendet öppnas. Menyn bredvid *Förslag · N* visar sorterna utan bock och med antal; en bock
+      visar sortens områden, och bocken bort döljer dem igen. Valet står kvar när ett annat ärende öppnas.
+- [ ] Gå igenom förslagen (Ctrl+J): det visade förslagets område syns bakom dess aktörer, men inga andra.
+- [ ] Rita en egen yta (välj aktörer, Z): den syns direkt, och sorten den sparades som har fått bock i menyn.

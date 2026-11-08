@@ -737,7 +737,10 @@ public sealed partial class GraphCanvas : FrameworkElement
         return node.IsDim ? NotExpandedOpacity : 1;
     }
 
-    /// <summary>Writes a line's amount at its middle, when the gallring and the focus say so.</summary>
+    /// <summary>
+    /// Writes a line's amount at its place from <see cref="AmountLayout"/>, when the gallring and the focus say so; a
+    /// line without a free place writes it at its middle only while it is hovered or near what is chosen.
+    /// </summary>
     /// <param name="dc">Where to draw.</param>
     /// <param name="edge">The line.</param>
     /// <param name="curve">Its curve.</param>
@@ -750,17 +753,20 @@ public sealed partial class GraphCanvas : FrameworkElement
         DrawingContext dc, EdgeView edge, EdgeCurve curve, IReadOnlySet<string> near, List<Rect> taken)
     {
         var model = _model!;
-        if (edge.Label.Length == 0)
+        var hovered = model.HoveredEdge == edge.Key;
+        var placed = model.Amounts.TryGetValue(edge.Key, out var spot);
+        if (edge.Label.Length == 0 || (!placed && !hovered && !near.Contains(edge.Key)))
         {
             return;
         }
 
-        if (!model.Labels.Shows(edge.IsTraced, model.HoveredEdge == edge.Key, model.IsFocused, near.Contains(edge.Key)))
+        var middle = placed ? spot!.Anchor : curve.Middle;
+        if (!model.Labels.Shows(edge.IsTraced, hovered, model.IsFocused, near.Contains(edge.Key)))
         {
             // The swap is not an amount, so the gallring never hides it.
             if (edge.Swap is { } alone)
             {
-                DrawSwap(dc, alone, new Point(curve.Middle.X, curve.Middle.Y - 7));
+                DrawSwap(dc, alone, new Point(middle.X, middle.Y - 7));
             }
 
             return;
@@ -777,7 +783,6 @@ public sealed partial class GraphCanvas : FrameworkElement
             : null;
         var width = Math.Max(text.Width + glyphWidth, value?.Width ?? 0);
         var height = text.Height + (value?.Height ?? 0);
-        var middle = curve.Middle;
         var box = new Rect(middle.X - (width / 2) - 5, middle.Y - (text.Height / 2) - 1, width + 10, height + 2);
         if (taken.Any(other => other.IntersectsWith(box)))
         {

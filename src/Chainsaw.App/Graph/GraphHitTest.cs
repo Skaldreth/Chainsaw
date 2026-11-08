@@ -83,7 +83,10 @@ public static class GraphHitTest
             && curve.Bounds().Inflate(GraphSizes.MarkReach).Intersects(visible));
     }
 
-    /// <summary>Gives every line's curve between its nodes' places.</summary>
+    /// <summary>
+    /// Gives every line's curve between its nodes' places; lines between the same two nodes, in either direction, are
+    /// bent apart (<see cref="EdgeCurve.ParallelSpacing"/>) so that they never lie on each other.
+    /// </summary>
     /// <param name="scene">The scene.</param>
     /// <param name="places">Each node's top-left corner.</param>
     /// <param name="hopColumns">Whether the graph is sorted in hop columns.</param>
@@ -94,16 +97,30 @@ public static class GraphHitTest
         ArgumentNullException.ThrowIfNull(scene);
         ArgumentNullException.ThrowIfNull(places);
         var curves = new Dictionary<string, EdgeCurve>(StringComparer.Ordinal);
-        foreach (var edge in scene.Edges)
+        var pairs = scene.Edges
+            .Where(edge => edge.Edge.From != edge.Edge.To
+                && places.ContainsKey(edge.Edge.From)
+                && places.ContainsKey(edge.Edge.To))
+            .GroupBy(edge => PairOf(edge.Edge.From, edge.Edge.To));
+        foreach (var pair in pairs)
         {
-            if (edge.Edge.From != edge.Edge.To
-                && places.TryGetValue(edge.Edge.From, out var from)
-                && places.TryGetValue(edge.Edge.To, out var to))
+            var lines = pair.OrderBy(edge => edge.Key, StringComparer.Ordinal).ToList();
+            for (var index = 0; index < lines.Count; index++)
             {
-                curves[edge.Key] = EdgeCurve.Between(from, to, hopColumns);
+                var edge = lines[index].Edge;
+                var curve = EdgeCurve.Between(places[edge.From], places[edge.To], hopColumns);
+                var offset = (index - ((lines.Count - 1) / 2.0)) * EdgeCurve.ParallelSpacing;
+                curves[lines[index].Key] = offset == 0 ? curve : curve.Bent(offset);
             }
         }
 
         return curves;
     }
+
+    /// <summary>Gives the two ends of a line in the same order whichever way the money went.</summary>
+    /// <param name="from">One end's key.</param>
+    /// <param name="to">The other end's key.</param>
+    /// <returns>The ends, the lower key first.</returns>
+    private static (string, string) PairOf(string from, string to) =>
+        string.CompareOrdinal(from, to) <= 0 ? (from, to) : (to, from);
 }

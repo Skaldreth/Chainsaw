@@ -23,6 +23,12 @@ public sealed record Viewport(double OffsetX, double OffsetY, double Zoom)
     /// <summary>The space kept around the graph when it is fitted to the screen, in screen pixels.</summary>
     public const double FitMargin = 48;
 
+    /// <summary>
+    /// The farthest fitting zooms out, so that names and amounts stay readable (TODO 34): a graph larger than the
+    /// screen at this zoom is shown from its start, at the top left, and the rest is panned to.
+    /// </summary>
+    public const double ReadableZoom = 0.75;
+
     /// <summary>Gets the viewport at zoom 1 with the surface's origin in the corner.</summary>
     public static Viewport Initial { get; } = new(0, 0, 1);
 
@@ -83,8 +89,9 @@ public sealed record Viewport(double OffsetX, double OffsetY, double Zoom)
     }
 
     /// <summary>
-    /// Gives the viewport that shows a part of the surface whole on a screen of a size, centred, never zoomed in past 1
-    /// so that a small graph keeps its natural size.
+    /// Gives the viewport that shows a part of the surface on a screen of a size: whole and centred when it fits at
+    /// <see cref="ReadableZoom"/> or more, never zoomed in past 1 so that a small graph keeps its natural size; a part
+    /// too large for that is shown readable from its top-left corner, where the money starts.
     /// </summary>
     /// <param name="content">The part of the surface to show.</param>
     /// <param name="width">The screen's width.</param>
@@ -98,11 +105,27 @@ public sealed record Viewport(double OffsetX, double OffsetY, double Zoom)
             return Initial;
         }
 
-        var zoom = Math.Clamp(
-            Math.Min(1, Math.Min(room.Width / Math.Max(content.Width, 1), room.Height / Math.Max(content.Height, 1))),
-            MinimumZoom,
-            MaximumZoom);
-        var centre = content.Centre;
-        return new Viewport((width / 2) - (centre.X * zoom), (height / 2) - (centre.Y * zoom), zoom);
+        var whole = Math.Min(
+            1, Math.Min(room.Width / Math.Max(content.Width, 1), room.Height / Math.Max(content.Height, 1)));
+        var zoom = Math.Clamp(Math.Max(whole, ReadableZoom), MinimumZoom, MaximumZoom);
+        return new Viewport(
+            Offset(width, room.Width, content.X, content.Width, zoom),
+            Offset(height, room.Height, content.Y, content.Height, zoom),
+            zoom);
     }
+
+    /// <summary>
+    /// Gives where the surface's origin goes on one axis: the content centred when it fits in the room, else its start
+    /// at the margin.
+    /// </summary>
+    /// <param name="screen">The screen's length on the axis.</param>
+    /// <param name="room">The room inside the margins.</param>
+    /// <param name="start">Where the content starts on the axis.</param>
+    /// <param name="length">The content's length on the axis.</param>
+    /// <param name="zoom">The zoom.</param>
+    /// <returns>The offset.</returns>
+    private static double Offset(double screen, double room, double start, double length, double zoom) =>
+        length * zoom <= room + 0.5
+            ? (screen / 2) - ((start + (length / 2)) * zoom)
+            : FitMargin - (start * zoom);
 }

@@ -106,12 +106,12 @@ public sealed class GraphLayoutTests
     public void FitCentresWithoutZoomingIn()
     {
         var small = Viewport.Fit(new GraphRect(0, 0, 100, 100), 1000, 800);
-        var large = Viewport.Fit(new GraphRect(0, 0, 4000, 1000), 1000, 800);
+        var large = Viewport.Fit(new GraphRect(0, 0, 1200, 900), 1000, 800);
 
         Assert.Equal(1, small.Zoom);
         Assert.Equal(new GraphPoint(500, 400), small.ToScreen(new GraphPoint(50, 50)));
         Assert.True(large.Zoom < 1);
-        Assert.True(large.Visible(1000, 800).Contains(new GraphPoint(4000, 1000)));
+        Assert.True(large.Visible(1000, 800).Contains(new GraphPoint(1200, 900)));
         Assert.Equal(Viewport.Initial, Viewport.Fit(new GraphRect(0, 0, 10, 10), 0, 0));
     }
 

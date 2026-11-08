@@ -86,11 +86,18 @@ public static class GraphSizes
     /// <summary>A node's height.</summary>
     public const double NodeHeight = 40;
 
-    /// <summary>The distance from one hop column to the next.</summary>
-    public const double LaneSpacing = 158;
+    /// <summary>
+    /// The distance from one hop column to the next: a node and a gap wide enough for the longest amount on a line
+    /// (<c>0,689997 av 1,0000</c>) to stand between two columns without touching either, so that the graph is airy as
+    /// in sketch GR4 and the amounts never lie on the nodes (TODO 34).
+    /// </summary>
+    public const double LaneSpacing = 292;
 
-    /// <summary>The distance from one node to the next in a hop column.</summary>
-    public const double RowSpacing = 64;
+    /// <summary>
+    /// The distance from one node to the next in a hop column: room for two amounts of a fan of lines, one above the
+    /// other, between two rows.
+    /// </summary>
+    public const double RowSpacing = 104;
 
     /// <summary>The space left of the first column.</summary>
     public const double Left = 16;
