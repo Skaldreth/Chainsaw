@@ -146,6 +146,7 @@ public sealed partial class GraphViewModel : ObservableObject
         Checks.Changed += (_, _) => Redraw?.Invoke(this, EventArgs.Empty);
         Checks.GuideWanted += (_, request) => GuideWanted?.Invoke(this, request);
         Checks.ShowWanted += (_, nodes) => ShowNodesWanted?.Invoke(this, nodes);
+        Checks.ToastWanted += (_, toast) => ToastWanted?.Invoke(this, toast);
         Forms = new InspectorFormsViewModel(session, editor, clock);
         Forms.Saved += (_, _) => _ = RefreshAsync();
         Forms.Failed += (_, text) => Tell(ToastKind.Error, text);

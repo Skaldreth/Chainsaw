@@ -244,8 +244,9 @@
     </UserControl.Resources>
 
     <UserControl.InputBindings>
-        <!-- The checks and suggestions (sketch KF1a) where the inspector stands. -->
+        <!-- The checks and suggestions (sketch KF2b) where the inspector stands; Ctrl+Z takes back the last decision. -->
         <KeyBinding Key="J" Modifiers="Control" Command="{Binding Checks.ToggleCommand}" />
+        <KeyBinding Key="Z" Modifiers="Control" Command="{Binding Checks.UndoCommand}" />
     </UserControl.InputBindings>
 
     <!-- The page clips at its edges, so that the inspector's shadow never reaches up over the title bar. -->
@@ -564,16 +565,24 @@
                     <Border CornerRadius="12" Padding="3" BorderThickness="1.5" BorderBrush="{StaticResource Brush.BorderStrong}"
                             Background="{StaticResource Brush.SurfaceRaised}">
                         <StackPanel Orientation="Horizontal">
-                            <!-- Kontroller och förslag (sketch KF1a, Ctrl+J): the list where the inspector stands. -->
-                            <Button Style="{StaticResource Button.NodeTool}" Command="{Binding Checks.ToggleCommand}"
+                            <!--
+                              Förslag · N (sketch KF2b, Ctrl+J): the panel where the inspector stands. The count of
+                              suggestions that wait stands in an accent badge, and only when something waits.
+                            -->
+                            <Button Style="{StaticResource Button.NodeTool}" Width="Auto" Command="{Binding Checks.ToggleCommand}"
                                     ToolTip="{Binding Checks.ToolTipText}" AutomationProperties.Name="Kontroller och förslag">
-                                <Grid>
-                                    <controls:GridIcon Size="18" Data="{StaticResource Icon.Suggest}"
+                                <StackPanel Orientation="Horizontal" Margin="9,0,8,0">
+                                    <controls:GridIcon Size="16" Data="{StaticResource Icon.Suggest}" VerticalAlignment="Center"
                                                        Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
-                                    <Ellipse Width="7" Height="7" Fill="{StaticResource Brush.Accent}" HorizontalAlignment="Right"
-                                             VerticalAlignment="Top" Margin="0,-2,-3,0"
-                                             Visibility="{Binding Checks.HasWaiting, Converter={StaticResource Visible}}" />
-                                </Grid>
+                                    <TextBlock Text="Förslag" FontSize="13" Margin="8,0,0,0" VerticalAlignment="Center" />
+                                    <Border MinWidth="18" Height="18" CornerRadius="9" Padding="5,0" Margin="8,0,0,0"
+                                            Background="{StaticResource Brush.Accent}" VerticalAlignment="Center"
+                                            Visibility="{Binding Checks.HasWaiting, Converter={StaticResource Visible}}">
+                                        <TextBlock Text="{Binding Checks.WaitingText}" FontSize="11" FontWeight="SemiBold"
+                                                   Foreground="{StaticResource Brush.OnAccent}" HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center" />
+                                    </Border>
+                                </StackPanel>
                             </Button>
                             <!-- Områden i grafen (sketch KF1b): which sorts of areas are drawn behind the actors. -->
                             <Grid>

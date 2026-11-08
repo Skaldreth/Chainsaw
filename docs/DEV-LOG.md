@@ -2440,3 +2440,28 @@ Rättat efter en oberoende granskning av `ListHeldBackAsync`/`TakeHeldBackAsync`
   migreringen 3→4 och ett klusters ledtråd med två adresser; i appen negativ etikett på vilken motpart som helst,
   flera adresser, obekräftad tx, tipsen och en avbruten läsning.
 - Återstår (TODO): om utplockning ska journalföras (fråga användaren) och att kunna avbryta en lång läsning.
+
+## Kontroller och förslag KF2b (2026-11-08)
+
+Panelen *Förslag* byggd om efter KF2b: översikten med *Gå igenom N att avgöra*, ett förslag i taget (huvudet *1 av N*
+med pilar och förloppslist, raden under titeln, bilden av hur pengarna flyter, brickorna, den rangordnade tabellen,
+*Varför?* och analysen med version, *Gjort av sig självt* hopfälld, beslutslisten Avfärda X, Senare J, Godkänn N Enter
+och *+ Skäl, frivilligt*) och *Allt avgjort* med ringen, sammanfattningen och loggen med *Ångra*. Knappen i grafens hörn
+är *Förslag* med antalet förslag i en accentbricka; panelen är minst 400 px.
+
+- **Modulen Checks:** ny dom `Withdrawn` (Ångra), förseglad som de andra; det gamla beslutet står kvar. Ett förslag med
+  kandidater kan avfärdas som helhet (kandidatnyckel null) men bara godkännas genom en kandidat.
+  `StoredCheck.IsSettled`: avgjort när en kandidat godkänts, helheten avfärdats eller alla kandidater avgjorts;
+  `Waiting` är 0 då. `DecisionFor` ger beslutet i kraft (null efter Ångra), och `KeepCandidates` räknar bara det.
+- **Senare** skriver ingenting: köns ordning och omgången ligger i vymodellen.
+- **Toasten** (TO1a) efter ett beslut har *Ångra · Ctrl+Z*; Ctrl+Z är bundet i grafens sida.
+- **I grafen** har kandidatens linje sitt nummer mitt på (accentfyllt för den valda) och en grön bock när den godkänts;
+  linjen förblir streckad (princip 2).
+- **Eget val:** att godkänna en kandidat avgör förslaget (skissens flöde), de andra kandidaterna lämnas utan beslut.
+- **Avsteg från skissen:** knappen *Föregående* är en spegelvänd chevron och knappen i översikten har chevron i stället
+  för en triangel (ingen sådan ikon finns); analysens namn står som text, som i skissen; numren i grafen står mitt på
+  linjen; brickorna saknar skissens siffror (*48 h*); växeladressens bild (band efter belopp) är inte byggd eftersom
+  ingen analys ger växeladresser som förslag.
+- **Tester:** modulen (helhet avfärdad, Ångra förseglad, inget att ta tillbaka) och vymodellen (översikt, kön, Senare,
+  förloppslisten, bilden och tabellen, toasten, Ctrl+Z, loggens Ångra, Allt avgjort).
+- Återstår (TODO): flera godkända kandidater, växeladressen, brickorna ur analysen, numren vid noden.

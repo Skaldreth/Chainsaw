@@ -725,25 +725,43 @@ och K först).
 Gör ett ärende med en etikett *Mixer* på en adress som tar emot pengar, och expandera några aktörer efter den, så att
 mixerns kandidater, en CoinJoin eller en peel chain finns i grafen.
 
-**Listan (KF1a)**
-- *Förslag · N* står i grafens hörn, och N är antalet kandidater som väntar. Ctrl+J och knappen fäller ut listan där
-  inspektören står och fäller in den igen; krysset i listan stänger den.
-- Grupperna *Att avgöra* (streckad ring), *Gjort av sig självt* (hel ring) och *Avgjort* (bara när något är avgjort).
-  Längst ner står tangenterna och när kontrollerna kördes, på hur många tx.
-- Den valda raden fälls ut, resten av grafen tonas ned, och bara radens område syns. J och K stegar, Enter godkänner
-  (*Godkänn bästa* först), X avfärdar, ? öppnar Guiden med *Varför?*. Tangenterna fungerar när grafen har fokus, också
-  direkt efter ett klick på *Förslag · N*. Med svenskt tangentbord ska ? (Shift och +) inte zooma medan listan är öppen.
-- Klicka på en annan kandidat och tryck Enter: den godkänns. Skriv ett skäl i fältet och tryck Enter: skälet sparas
-  (kontrollera i journalen). En avfärdad kandidat är överstruken och dess linje försvinner ur grafen.
-- Stäng och öppna ärendet: besluten står kvar, och en avfärdad kandidat kommer inte tillbaka.
-- På en kontroll visar Enter (*Visa i grafen*) dess aktörer och zoomar dit; X gör ingenting.
+**Ett förslag i taget (KF2b)**
+- I grafens hörn står *Förslag* med en accentbricka med antalet förslag som väntar (inte kandidater); brickan syns bara
+  när något väntar. Ctrl+J och knappen fäller ut panelen där inspektören står, minst 400 px bred, och fäller in den.
+- Översikten: *Gå igenom N att avgöra* i accent överst, sedan *ATT AVGÖRA* (streckade rundade rutor med ikonen) och
+  *GJORT AV SIG SJÄLVT* (hela rutor). Ingen statusrad längst ner; när kontrollerna kördes står i tipset på *Förslag*.
+  Ett klick på en kontroll zoomar grafen till dess aktörer och avgör ingenting.
+- Enter (eller knappen) börjar gå igenom: huvudet visar *1 av N* med pilarna och en tunn förloppslist (grönt avgjort,
+  accent nu, svagt kvar). Förslaget visas stort: ikon i streckad ruta, titeln, raden under (aktören, *BTC in*, datum),
+  bilden av hur pengarna flyter (bandens bredd är poängen, den valda kandidaten i accent), brickorna *Belopp − avgift*,
+  *Tid*, *Adresstyp* med förklaring på hovring, tabellen (rang, adress, belopp, tid efter insättningen, poäng som stapel
+  och tal), *Varför?* och *Mixerutgångar · v1*.
+- Ett klick på en annan kandidat i tabellen väljer den: raden lyfts, bilden och knappen följer (*Godkänn 2*), och i
+  grafen fylls dess nummer på linjen i accent.
+- Beslutslisten står still längst ner: Avfärda X, Senare J, Godkänn N Enter, och *+ Skäl, frivilligt* som fäller ut ett
+  fält (Enter i fältet godkänner). Skälet står i journalen.
+- Godkänn: nästa förslag visas, förloppslisten blir grön för det avgjorda, och en toast nere till höger säger *Trolig
+  utgång godkänd* med adress och belopp och *Ångra · Ctrl+Z*. Kandidatens linje i grafen är fortfarande streckad, med
+  en grön bock i mitten (en bedömning, princip 2).
+- Ctrl+Z (eller *Ångra* i toasten) tar tillbaka beslutet: journalen får en ny rad *Beslut om förslag ångrat*, det gamla
+  står kvar, och förslaget visas igen. `/verify` är hel efteråt.
+- Avfärda (X) avfärdar hela förslaget: dess område och linjer försvinner ur grafen.
+- Senare (J) lägger förslaget sist i kön och visar nästa; inget skrivs i ärendet eller journalen. K och pilen åt vänster
+  går tillbaka, pilen åt höger framåt.
+- *Gjort av sig självt · N* är en hopfälld rad ovanför beslutslisten; ett klick visar översikten.
+- När inget väntar: *Allt avgjort* med en ring i delar (gröna godkända, svaga avfärdade), raden *1 godkänd · 1 avfärdad
+  · inget nytt sedan 14:40*, och loggen *AVGJORT* (Godkänd i grönt, Avfärdad i grått, *Ångra* på hovring) och *GJORT
+  AV SIG SJÄLVT* (*Markerad*). *Ångra* i loggen öppnar förslaget igen.
+- Den visade förslagets aktörer syns tydligt och resten av grafen tonas ned, med bara dess område bakom; i översikten
+  och i *Allt avgjort* tonas inget ned.
+- Stäng och öppna ärendet: besluten står kvar; ett godkänt förslag kommer inte tillbaka i samma version.
 - Inspektören visar under *Här* vilka kontroller och förslag som gäller den valda aktören.
 
 **Områdena (KF1b)**
 - Svaga ytor bakom aktörerna: rött för mixer och CoinJoin, sand för peel chain, grått för plånböcker, prickat för tid.
   Ett förslag som väntar har streckad kant. Ingen aktör har två fyllningar; ett inre område syns bara som kant.
-- Brickan på kanten visar ikonen; namnet syns på brickan när den väljs. Ett klick på en kontrolls bricka öppnar listan
-  vid dess rad.
+- Brickan på kanten visar ikonen; namnet syns på brickan när den väljs. Ett klick på ett förslags bricka öppnar
+  panelen vid förslaget; en kontrolls bricka visar bara namnet.
 - Menyn bredvid *Förslag · N* (lagerikonen och antalet områden) visar sorterna med antal; en bock döljer och visar
   sortens områden.
 - Linjerna från mixern till kandidaterna är streckade i accentfärgen med poängen på, svagare ju lägre poäng.
@@ -755,7 +773,7 @@ mixerns kandidater, en CoinJoin eller en peel chain finns i grafen.
 - Z utan valda aktörer tar den valda aktören; utan någon säger formuläret hur man väljer.
 - Klicka på ytans bricka: namnet, pennan och korgen syns. Pennan byter namn, korgen tar bort ytan (med valfritt skäl).
   Journalen har en rad för varje.
-- Esc stänger formuläret, sedan menyn, sedan listan, sedan valet av aktörer.
+- Esc stänger formuläret, sedan menyn, sedan panelen, sedan valet av aktörer.
 
 ## Ethereum, första delen (etapp 23)
 
