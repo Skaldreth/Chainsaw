@@ -110,6 +110,9 @@ public sealed partial class ShellViewModel : ObservableObject
     /// The case picker under the case in the title bar (sketch ÄV1a), or <see langword="null"/>.
     /// </param>
     /// <param name="requests">The view Begäran (sketch BG1b), or <see langword="null"/>.</param>
+    /// <param name="search">
+    /// The search in the command bar (sketch KR1a), or <see langword="null"/> for one over nothing but itself.
+    /// </param>
     public ShellViewModel(
         CaseSession session,
         CommandRegistry commands,
@@ -125,8 +128,10 @@ public sealed partial class ShellViewModel : ObservableObject
         WatchBoard? watches = null,
         Toaster? toaster = null,
         CasePickerViewModel? casePicker = null,
-        RequestsViewModel? requests = null)
+        RequestsViewModel? requests = null,
+        CommandSearchViewModel? search = null)
     {
+        Search = search ?? new CommandSearchViewModel(new Guide.GuideLibrary(new Dictionary<string, string>()));
         _toaster = toaster;
         Requests = requests;
         CasePicker = casePicker;
@@ -191,7 +196,11 @@ public sealed partial class ShellViewModel : ObservableObject
         Show(ViewTable.Start);
         ShowExit();
         NewCase.FollowExit(IsExitLive, _way.IsWindows, ExitText, _way.Offline);
+        Search.FollowExit(IsExitLive, ExitText, _way.Offline.Until);
     }
+
+    /// <summary>Gets the search in the command bar (sketch KR1a).</summary>
+    public CommandSearchViewModel Search { get; }
 
     /// <summary>Gets Nytt ärende, the panel from the right.</summary>
     public NewCaseViewModel NewCase { get; }
@@ -503,6 +512,12 @@ public sealed partial class ShellViewModel : ObservableObject
             return;
         }
 
+        if (CommandSearchViewModel.Parse(text).Term is not null && Search.IsShowing(text) && Search.TryAccept())
+        {
+            // A search row was taken; the window shows it and calls FinishSearch.
+            return;
+        }
+
         IsRunning = true;
         CommandReply reply;
         try
@@ -576,6 +591,7 @@ public sealed partial class ShellViewModel : ObservableObject
         {
             CommandAnswer = string.Empty;
             IsCommandBarOpen = true;
+            Search.Reveal();
         }
 
         CommandBarWanted?.Invoke(this, EventArgs.Empty);
@@ -596,6 +612,17 @@ public sealed partial class ShellViewModel : ObservableObject
         IsCommandBarOpen = false;
         CommandAnswer = string.Empty;
         _completed = null;
+        Search.Dismiss();
+    }
+
+    /// <summary>
+    /// Ends a search whose row was taken (sketch KR1a): the bar is emptied and hidden, and the graph or the Guide shows
+    /// the row.
+    /// </summary>
+    public void FinishSearch()
+    {
+        CommandText = string.Empty;
+        CloseCommandBar();
     }
 
     /// <summary>
@@ -834,11 +861,19 @@ public sealed partial class ShellViewModel : ObservableObject
 
     /// <summary>Tells Nytt ärende the way out whenever the title bar's changes (its tag <c>via …</c>).</summary>
     /// <param name="value">The new text.</param>
-    partial void OnExitTextChanged(string value) => NewCase.FollowExit(IsExitLive, _way.IsWindows, value, _way.Offline);
+    partial void OnExitTextChanged(string value)
+    {
+        NewCase.FollowExit(IsExitLive, _way.IsWindows, value, _way.Offline);
+        Search.FollowExit(IsExitLive, value, _way.Offline.Until);
+    }
 
     /// <summary>Tells Nytt ärende whether lookups can go, so that rows waiting for the exit are fetched.</summary>
     /// <param name="value">Whether they can.</param>
-    partial void OnIsExitLiveChanged(bool value) => NewCase.FollowExit(value, _way.IsWindows, ExitText, _way.Offline);
+    partial void OnIsExitLiveChanged(bool value)
+    {
+        NewCase.FollowExit(value, _way.IsWindows, ExitText, _way.Offline);
+        Search.FollowExit(value, ExitText, _way.Offline.Until);
+    }
 
     /// <summary>
     /// Reads the connected exit's name from the vault off the UI thread, and shows it if the exit is still connected.
@@ -880,5 +915,6 @@ public sealed partial class ShellViewModel : ObservableObject
     {
         CommandAnswer = string.Empty;
         CommandHint = _commands.Hint(value);
+        _ = Search.SearchAsync(value);
     }
 }
