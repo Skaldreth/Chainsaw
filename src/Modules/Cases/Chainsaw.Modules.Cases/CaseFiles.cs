@@ -93,6 +93,36 @@ internal static class CaseFiles
         return caseFileHash;
     }
 
+    /// <summary>Checks the seal over a whole case file, reading it once and writing nothing.</summary>
+    /// <param name="paths">The case's files.</param>
+    /// <param name="caseId">The case id the key was opened for; the header must still say it.</param>
+    /// <param name="fileKey">The file key.</param>
+    /// <returns><see langword="true"/> when the seal holds.</returns>
+    /// <exception cref="Contracts.CaseException">
+    /// <see cref="Contracts.CaseError.Corrupt"/> when the header does not hold.
+    /// </exception>
+    public static bool SealHolds(CasePaths paths, Guid caseId, ReadOnlySpan<byte> fileKey)
+    {
+        using var seal = CaseFileSeal.Begin(fileKey, caseId);
+        using var input = new FileStream(paths.CaseFile, FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize);
+        if (CaseContainer.ReadHeader(input).CaseId != caseId)
+        {
+            return false;
+        }
+
+        var sealedLength = input.Length - CaseFileSeal.TrailerLength;
+        if (sealedLength <= input.Position)
+        {
+            return false;
+        }
+
+        input.Position = 0;
+        CopySealing(input, Stream.Null, sealedLength, hash: null, seal);
+        var trailer = new byte[CaseFileSeal.TrailerLength];
+        input.ReadExactly(trailer);
+        return CaseFileSeal.Holds(trailer, seal);
+    }
+
     /// <summary>
     /// Writes a whole case file: the header, the database and the seal over both, adding every byte written to a
     /// hash when one is given.

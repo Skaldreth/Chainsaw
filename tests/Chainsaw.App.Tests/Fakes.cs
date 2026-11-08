@@ -506,6 +506,9 @@ internal sealed class TestCaseStore : ICaseStore
         throw new NotSupportedException();
 
     public IReadOnlyList<string> ReadRecoveryFingerprints(string path) => throw new NotSupportedException();
+
+    public bool TryRecoveryKey(string path, System.Security.Cryptography.ECDiffieHellman privateKey) =>
+        throw new NotSupportedException();
 }
 
 /// <summary>Tracing as far as the window uses it: start points, remembered per case.</summary>

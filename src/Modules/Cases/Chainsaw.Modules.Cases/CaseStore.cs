@@ -465,6 +465,32 @@ internal sealed class CaseStore : ICaseStore, IDisposable
         return RecoveryEnvelopes.Fingerprints(ReadHeader(paths));
     }
 
+    /// <inheritdoc />
+    public bool TryRecoveryKey(string path, ECDiffieHellman privateKey)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        ArgumentNullException.ThrowIfNull(privateKey);
+        var paths = new CasePaths(System.IO.Path.GetFullPath(path));
+        RequireExists(paths);
+        var fileKey = CaseCrypto.AllocateSecret(CaseCrypto.KeySize);
+        try
+        {
+            var header = ReadHeader(paths);
+            if (!RecoveryEnvelopes.TryOpen(header, privateKey, fileKey))
+            {
+                return false;
+            }
+
+            return CaseFiles.SealHolds(paths, header.CaseId, fileKey)
+                ? true
+                : throw new CaseException(CaseError.Corrupt);
+        }
+        finally
+        {
+            Clear(fileKey);
+        }
+    }
+
     /// <summary>Stops following the vault and closes every open case.</summary>
     public void Dispose()
     {
