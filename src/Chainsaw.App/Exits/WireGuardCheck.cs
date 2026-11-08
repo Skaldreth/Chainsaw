@@ -1,4 +1,3 @@
-using System.Net;
 using System.Text;
 using Chainsaw.Modules.Network.Contracts;
 
@@ -126,9 +125,7 @@ public static class WireGuardCheck
     {
         foreach (var range in value.Split(','))
         {
-            // .NET reads a bracketed IPv6 address, which the helper and the store refuse.
-            var item = value[range].Trim();
-            if (!item.Contains('[') && IPAddress.TryParse(item, out var address) && IsPlain(address, item))
+            if (ExitRules.IsDnsServerAddress(value[range].Trim()))
             {
                 return true;
             }
@@ -136,18 +133,6 @@ public static class WireGuardCheck
 
         return false;
     }
-
-    /// <summary>
-    /// Tells whether an address is written in the form the helper accepts: IPv4 as four plain decimal numbers (not the
-    /// old short, octal or hex forms such as <c>10</c> or <c>0x0a.0.0.1</c>), or IPv6. The same rule as the exits'
-    /// store, which refuses the file otherwise.
-    /// </summary>
-    /// <param name="address">The parsed address.</param>
-    /// <param name="item">The text it was parsed from (a DNS server's address, not a secret).</param>
-    /// <returns><see langword="true"/> when the form is accepted.</returns>
-    private static bool IsPlain(IPAddress address, ReadOnlySpan<char> item) =>
-        address.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork
-        || item.SequenceEqual(address.ToString());
 
     /// <summary>The section a line is in.</summary>
     private enum Section

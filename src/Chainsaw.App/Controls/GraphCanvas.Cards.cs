@@ -503,7 +503,7 @@ public sealed partial class GraphCanvas
         _waitBreathes = false;
         if (moving && AnimationsOn && IsVisible)
         {
-            _turnTimer ??= new DispatcherTimer(TurnFrame, DispatcherPriority.Render, (_, _) => InvalidateVisual(), Dispatcher);
+            _turnTimer ??= new DispatcherTimer(TurnFrame, DispatcherPriority.Render, OnFrameWhileShown, Dispatcher);
             return;
         }
 

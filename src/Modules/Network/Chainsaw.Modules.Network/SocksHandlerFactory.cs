@@ -72,16 +72,41 @@ internal sealed class SocksHandlerFactory(NetworkOptions options) : IExitHandler
     /// Reads the trusted roots installed for the user and the computer, without the ones Windows distrusts.
     /// </summary>
     /// <returns>The roots.</returns>
+    /// <remarks>
+    /// Every certificate read and not kept is disposed at once: the stores are read for each new pipeline, also for
+    /// each probe of the internet, so their handles must not wait for the garbage collector.
+    /// </remarks>
     private static X509Certificate2Collection InstalledRoots()
     {
-        var disallowed = ReadStores(StoreName.Disallowed)
+        var distrusted = ReadStores(StoreName.Disallowed);
+        var disallowed = distrusted
             .Select(certificate => certificate.Thumbprint)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        Dispose(distrusted);
         var roots = new X509Certificate2Collection();
-        roots.AddRange(ReadStores(StoreName.Root)
-            .Where(root => !disallowed.Contains(root.Thumbprint))
-            .ToArray());
+        foreach (var root in ReadStores(StoreName.Root))
+        {
+            if (disallowed.Contains(root.Thumbprint))
+            {
+                root.Dispose();
+            }
+            else
+            {
+                roots.Add(root);
+            }
+        }
+
         return roots;
+    }
+
+    /// <summary>Disposes every certificate of a collection.</summary>
+    /// <param name="certificates">The certificates.</param>
+    private static void Dispose(X509Certificate2Collection certificates)
+    {
+        foreach (var certificate in certificates)
+        {
+            certificate.Dispose();
+        }
     }
 
     /// <summary>Reads a certificate store for the user and for the computer, as it is now.</summary>

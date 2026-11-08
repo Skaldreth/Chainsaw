@@ -1,4 +1,3 @@
-using System.Net;
 using Chainsaw.Modules.Network.Contracts;
 
 namespace Chainsaw.Modules.Network;
@@ -142,31 +141,12 @@ internal sealed class ExitStore(ExitRecords records, ExitConnection connection) 
             var isDns = parts.Length == 2
                 && section.Equals("Interface", StringComparison.OrdinalIgnoreCase)
                 && parts[0].Trim().Equals("DNS", StringComparison.OrdinalIgnoreCase);
-            if (isDns && parts[1].Split(',').Any(item => IsAddress(item.Trim())))
+            if (isDns && parts[1].Split(',').Any(item => ExitRules.IsDnsServerAddress(item.Trim())))
             {
                 return true;
             }
         }
 
         return false;
-    }
-
-    /// <summary>
-    /// Tells whether a text is an IP address in the forms the helper accepts: four plain decimal numbers for IPv4 (not
-    /// the old short, octal or hex forms such as <c>10</c>, <c>010.0.0.1</c> or <c>0x0a.0.0.1</c>, which the helper
-    /// ignores), or IPv6.
-    /// </summary>
-    /// <param name="text">The text.</param>
-    /// <returns><see langword="true"/> when it is an address.</returns>
-    private static bool IsAddress(string text)
-    {
-        // Brackets and a port are accepted by .NET but not by the helper.
-        if (text.Contains('[', StringComparison.Ordinal) || !IPAddress.TryParse(text, out var address))
-        {
-            return false;
-        }
-
-        return address.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork
-            || address.ToString() == text;
     }
 }

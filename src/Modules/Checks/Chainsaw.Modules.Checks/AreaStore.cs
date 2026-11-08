@@ -47,8 +47,13 @@ internal static class AreaStore
                         rows.GetInt64(0));
                     order.Add(id);
                     break;
-                case RenameAction when areas.TryGetValue(id, out var renamed):
-                    areas[id] = renamed with { Name = rows.GetString(3) };
+                case RenameAction:
+                    // A rename of an area not in force (removed, or never drawn) changes nothing.
+                    if (areas.TryGetValue(id, out var renamed))
+                    {
+                        areas[id] = renamed with { Name = rows.GetString(3) };
+                    }
+
                     break;
                 case RemoveAction:
                     areas.Remove(id);
