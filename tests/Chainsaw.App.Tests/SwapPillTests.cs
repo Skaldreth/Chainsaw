@@ -242,6 +242,38 @@ public sealed class SwapPillTests
             && line.Text.Contains(SwapValue.Analysis, StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void A_refused_swap_says_why_in_why_and_a_choice_on_it_says_there_is_no_swap_any_more()
+    {
+        var graph = EthSamples.Graph();
+        var refused = graph with
+        {
+            Account = graph.Account with
+            {
+                Swaps = [],
+                RefusedSwaps = [new SwapRefusal(Swap, P.ToChainAddress(), "Börs, uttag funnet (etikett)")],
+            },
+        };
+        var scene = GraphScene.Build(new GraphSnapshot(
+            refused, new Dictionary<string, IReadOnlyList<Label>>(), TracingMethodKind.Fifo, [], null, null));
+        var data = new NodeHistoryData([], [], [], null, new Dictionary<long, string> { [7] = "Maja" })
+        {
+            SwapStops = [new(Stop(), null)],
+        };
+
+        var line = InspectorContent.ForEdge(scene, scene.Edge(Sold)!).Why;
+        var node = InspectorContent.ForNode(scene, scene.Node(Key(S))!).Why;
+        var row = Assert.Single(NodeHistory.Build(scene, scene.Node(Key(S))!, data),
+            each => each.Kind == HistoryKind.SwapStop);
+
+        Assert.Null(scene.Edge(Sold)!.Swap);
+        Assert.Contains(line, each => each.Text.StartsWith("Ingen swap i tx", StringComparison.Ordinal)
+            && each.Text.Contains("Börs, uttag funnet (etikett)", StringComparison.Ordinal));
+        Assert.Contains(node, each => each.Text.StartsWith("Ingen swap i tx", StringComparison.Ordinal));
+        Assert.Contains(NodeHistory.NoSwapText, row.Text, StringComparison.Ordinal);
+        Assert.True(row.CanUndo);
+    }
+
     /// <summary>The graph over fakes, showing the swap scene.</summary>
     private sealed class Rig
     {

@@ -300,18 +300,17 @@ internal sealed class TracingService : ITracingService
         ArgumentNullException.ThrowIfNull(@case);
         ArgumentNullException.ThrowIfNull(swap);
         reason = OptionalReason(reason);
+        // Only a swap the case's own Ethereum facts show, for that account in that transaction, is chosen for, so that
+        // no choice is sealed about something the case does not hold. Only Ethereum's part is read, not the graph.
+        var state = @case.Read(GraphStateStore.Read);
+        var facts = _ethereum.ReadAsync(@case, state, CancellationToken.None).GetAwaiter().GetResult();
+        if (swap.Account.Chain != Chain.Ethereum || !facts.ReadSwaps().Swaps.Contains(swap))
+        {
+            throw new ArgumentException("The swap is not in the case's graph.", nameof(swap));
+        }
+
         return @case.Write(transaction =>
         {
-            // Only a swap whose transaction the case's graph holds is chosen for, so that no choice is sealed about
-            // something the case does not hold; the graph's state says so without reading every answer again.
-            var state = GraphStateStore.Read(transaction);
-            if (swap.Account.Chain != Chain.Ethereum || !state.EthereumTransactions
-                .Concat(state.Expansions.SelectMany(expansion => expansion.EthereumTransactions))
-                .Contains(swap.Transaction))
-            {
-                throw new ArgumentException("The swap is not in the case's graph.", nameof(swap));
-            }
-
             // One choice in force per swap; choosing again leaves the one there, so that a double click seals once.
             if (SwapValue.StopOf(swap, SwapStopStore.ReadInForce(transaction)) is { } already)
             {

@@ -211,8 +211,12 @@ public sealed class SwapEdgeTests : IDisposable
             Tx("b-swap", 110, Scammer, 0m, Token(Scammer, Pool, Usdt(1000)),
                 (EthereumTransferKind.Internal, Pool, Scammer, Ether(0.5m))));
         var elsewhere = graph.Account.Swaps[0] with { Transaction = Hash("not-in-the-case") };
+        var otherAccount = graph.Account.Swaps[0] with { Account = Other.ToChainAddress() };
 
         Assert.Throws<ArgumentException>(() => _harness.Service.StopAtSwap(_harness.Case, elsewhere, null));
+        Assert.Throws<ArgumentException>(() => _harness.Service.StopAtSwap(_harness.Case, otherAccount, null));
+        Assert.Throws<ArgumentException>(() => _harness.Service.StopAtSwap(
+            _harness.Case, graph.Account.Swaps[0] with { Transaction = Hash("b-other") }, null));
         Assert.Empty(_harness.Service.GetSwapStopHistory(_harness.Case));
     }
 }

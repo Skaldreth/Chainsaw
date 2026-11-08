@@ -266,6 +266,9 @@ public static class NodeHistory
     /// <summary>The row of a choice that the traced value does not follow through a swap (sketch SW1a).</summary>
     public const string SwapStopText = "Följer inte genom swappen";
 
+    /// <summary>What a choice not to follow a swap says when its transaction no longer reads as a swap.</summary>
+    public const string NoSwapText = "ingen swap längre";
+
     /// <summary>Who wrote a journal entry the case could not name.</summary>
     public const string UnknownOperator = "Okänd";
 
@@ -654,9 +657,7 @@ public static class NodeHistory
         foreach (var entry in data.SwapStops)
         {
             var stop = entry.Stop;
-            var pill = scene.Snapshot.Graph.Account.Swaps.FirstOrDefault(stop.Is) is { } swap
-                ? " · " + SwapMarks.Of(swap).Text
-                : string.Empty;
+            var pill = " · " + StopPill(scene.Snapshot.Graph.Account, stop);
             var key = "swap-stop/" + stop.Sequence.ToString(CultureInfo.InvariantCulture);
             var who = Who(data, stop.JournalSequence);
             var sub = stop.Reason is null ? who : $"{who} · {stop.Reason}";
@@ -674,6 +675,26 @@ public static class NodeHistory
                     Who(data, undo.JournalSequence), undo.Reason));
             }
         }
+    }
+
+    /// <summary>
+    /// Writes what a choice not to follow a swap concerns: the swap's pill, or, when its transaction no longer reads as
+    /// a swap (a label set later, or a stricter reading), that there is no swap any more and why; the choice stays and
+    /// says so instead of hanging, since the money goes on as a payment and the choice no longer matters.
+    /// </summary>
+    /// <param name="account">The graph's account part.</param>
+    /// <param name="stop">The choice.</param>
+    /// <returns>For example <c>₮ → Ξ</c>, or <c>ingen swap längre: motparten har …</c>.</returns>
+    private static string StopPill(AccountGraph account, SwapStop stop)
+    {
+        if (account.Swaps.FirstOrDefault(stop.Is) is { } swap)
+        {
+            return SwapMarks.Of(swap).Text;
+        }
+
+        return account.RefusedSwaps.FirstOrDefault(refusal => stop.Is(refusal.Swap)) is { } refused
+            ? $"{NoSwapText}: motparten har {refused.Why}"
+            : NoSwapText;
     }
 
     /// <summary>Gives the row of a taking back.</summary>

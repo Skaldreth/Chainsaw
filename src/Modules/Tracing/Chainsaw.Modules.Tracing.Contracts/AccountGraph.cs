@@ -43,6 +43,12 @@ public sealed record AccountGraph(
     /// </summary>
     public IReadOnlySet<ChainAddress> PartlyRead { get; init; } = new HashSet<ChainAddress>();
 
+    /// <summary>
+    /// Gets the transactions that would read as a swap but for a counterparty the trail must reach (a known bridge or
+    /// mixer, or a label as exchange, mixer or bridge), so that <em>Varför?</em> can say why there is no swap.
+    /// </summary>
+    public IReadOnlyList<SwapRefusal> RefusedSwaps { get; init; } = [];
+
     /// <summary>Gets whether the part holds anything.</summary>
     public bool IsEmpty => Transfers.Count == 0 && Fees.Count == 0 && Transactions.Count == 0 && ReadAccounts.Count == 0;
 
@@ -136,6 +142,15 @@ public sealed record TokenSwap(EthereumTxHash Transaction, ChainAddress Account,
             && transfer.To.ToChainAddress() == Account && transfer.Amount.Asset == Bought.Asset;
     }
 }
+
+/// <summary>
+/// A transaction that would read as a swap but is not one, because a counterparty is one the trail must reach: the
+/// money goes on to it as an ordinary payment.
+/// </summary>
+/// <param name="Swap">The swap it would have been.</param>
+/// <param name="Counterparty">The counterparty the trail must reach.</param>
+/// <param name="Why">Why, in Swedish, with the label or list it rests on and its source.</param>
+public sealed record SwapRefusal(TokenSwap Swap, ChainAddress Counterparty, string Why);
 
 /// <summary>A movement the traced money starts in on an account chain.</summary>
 /// <param name="Transaction">The transaction it is in.</param>

@@ -88,6 +88,7 @@ internal sealed class GraphBuilder
             .ThenBy(edge => edge.Key, StringComparer.Ordinal)
             .ToList();
         var account = _data.Account;
+        var (swaps, refused) = account.ReadSwaps(SwapEndpoint);
         var graph = new TraceGraph(
             _data.State.StartPoints,
             nodes,
@@ -99,10 +100,11 @@ internal sealed class GraphBuilder
         {
             Account = new AccountGraph(
                 account.Transfers, account.Fees, account.Transactions, account.ReadAccounts,
-                account.Swaps(IsSwapEndpoint))
+                swaps)
             {
                 MayBeOutdated = account.MayBeOutdated,
                 PartlyRead = account.PartlyRead,
+                RefusedSwaps = refused,
             },
             SwapStops = _data.State.SwapStops,
         };
@@ -238,14 +240,16 @@ internal sealed class GraphBuilder
     }
 
     /// <summary>
-    /// Says whether an Ethereum address is one the trail must reach by its label (an exchange, a mixer, or a bridge or
+    /// Says why an Ethereum address is one the trail must reach by its label (an exchange, a mixer, or a bridge or
     /// swap service to another chain), so that a transaction with it is never read as a swap.
     /// </summary>
     /// <param name="address">The address.</param>
-    /// <returns><see langword="true"/> when it is.</returns>
-    private bool IsSwapEndpoint(EthereumAddress address) =>
-        _knowledge.AccountEnds(address.ToChainAddress()).Any(hint =>
-            hint.Reason is TrailEndReason.Exchange or TrailEndReason.Mixer or TrailEndReason.OtherChain);
+    /// <returns>The label's end and source, for example <c>Börs, uttag funnet (etikett: …)</c>, or null.</returns>
+    private string? SwapEndpoint(EthereumAddress address) =>
+        _knowledge.AccountEnds(address.ToChainAddress())
+            .Where(hint => hint.Reason is TrailEndReason.Exchange or TrailEndReason.Mixer or TrailEndReason.OtherChain)
+            .Select(hint => $"{hint.Reason.Describe()} ({hint.Source})")
+            .FirstOrDefault();
 
     /// <summary>Adds an edge to another chain for every link from a coin or an Ethereum movement in the graph.</summary>
     private void AddCrossChainLinks()

@@ -515,6 +515,8 @@ public sealed record InspectorContent(
         why.AddRange(model.Ends.Select(end =>
             EndLine($"{end.Reason.Describe()}: {end.Explanation} ({end.Source})", end.Reason)));
         why.AddRange(TraceWhy(scene, node));
+        why.AddRange(RefusedSwapWhy(scene, refusal => model.Accounts.Contains(refusal.Swap.Account)
+            || model.Accounts.Contains(refusal.Counterparty)));
         why.AddRange(ExpansionWhy(model));
         if (model.Hop is { } hop)
         {
@@ -650,6 +652,31 @@ public sealed record InspectorContent(
     }
 
     /// <summary>
+    /// Says why a transaction that would be a swap is none (SW1a): a counterparty is one the trail must reach, by a
+    /// label or Chainsaw's list, so the money goes on to it as a payment and no choice is asked for.
+    /// </summary>
+    /// <param name="scene">The scene.</param>
+    /// <param name="concerns">Which refusals the chosen thing concerns.</param>
+    /// <returns>The answers.</returns>
+    private static IEnumerable<WhyLine> RefusedSwapWhy(GraphScene scene, Func<SwapRefusal, bool> concerns) =>
+        scene.Snapshot.Graph.Account.RefusedSwaps.Where(concerns).Select(refusal => new WhyLine(
+            $"Ingen swap i tx {refusal.Swap.Transaction.Value}: motparten "
+                + $"{GraphScene.Shorten(refusal.Counterparty.Value)}"
+                + $" har {refusal.Why}, och dit ska spåret nå. Pengarna följer med som en vanlig betalning.",
+            GuideTopic.Swaps));
+
+    /// <summary>Says whether a refused swap's transaction is on a line from or to the account that would swap.</summary>
+    /// <param name="refusal">The refused swap.</param>
+    /// <param name="edge">The line.</param>
+    /// <returns><see langword="true"/> when it is.</returns>
+    private static bool IsOnLine(SwapRefusal refusal, EdgeView edge)
+    {
+        var account = GraphScene.AccountKey(refusal.Swap.Account);
+        return (edge.Edge.From == account || edge.Edge.To == account)
+            && edge.Edge.Transfers.Any(transfer => transfer.Transaction.Id == refusal.Swap.Transaction.Value);
+    }
+
+    /// <summary>
     /// Says what the rule <see cref="SwapValue"/> did at a swap (sketch SW1a): the steps when the traced value
     /// follows, the user's choice when it does not, or that no traced money reached it.
     /// </summary>
@@ -754,6 +781,7 @@ public sealed record InspectorContent(
             if (account)
             {
                 why.AddRange(EthereumWhy(edge));
+                why.AddRange(RefusedSwapWhy(scene, refusal => IsOnLine(refusal, edge)));
             }
 
             why.Add(ValueWhy(edge));

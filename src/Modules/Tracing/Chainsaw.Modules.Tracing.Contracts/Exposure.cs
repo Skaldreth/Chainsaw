@@ -223,8 +223,8 @@ public sealed record ExposureResult(
         {
             text.Append(CultureInfo.InvariantCulture,
                 $" Vägen går genom {reach.Swaps.Count} swap(par), i tx {string.Join(", ", reach.Swaps)} med "
-                + $"ämnets andel av det som gick in inom parentes; där följer värdet med enligt {SwapValue.Analysis}: "
-                + $"samma andel av det som kom ut, räknat i {Total.Asset.Symbol}.");
+                + $"ämnets andel av det som {SwapSides().Known} inom parentes; där följer värdet med enligt "
+                + $"{SwapValue.Analysis}: samma andel av det som {SwapSides().Other}, räknat i {Total.Asset.Symbol}.");
         }
 
         text.Append(reach.Amount.Asset.Chain.Model() == LedgerModel.Utxo
@@ -233,6 +233,15 @@ public sealed record ExposureResult(
         text.Append(" Det är en bedömning, inte ett faktum på kedjan.");
         return text.ToString();
     }
+
+    /// <summary>
+    /// Gives a swap's sides as the explanation names them: paid out, the subject's share is of what went in and the
+    /// same share of what came out follows; got, the other way round.
+    /// </summary>
+    /// <returns>The side whose share is known, and the side that follows it, in Swedish.</returns>
+    private (string Known, string Other) SwapSides() => Direction == ExposureDirection.Out
+        ? ("gick in", "kom ut")
+        : ("kom ut", "gick in");
 
     /// <summary>Divides two whole numbers as a share, exactly enough for a percentage.</summary>
     /// <param name="part">The part.</param>

@@ -131,12 +131,22 @@ internal sealed record AccountData(
     /// other side does the same in reverse; when the signer is not known (a history that is not its own), no swap is
     /// shown.
     /// </summary>
-    /// <param name="isEndpoint">
-    /// Says whether an address is one the trail must reach (an exchange, a mixer or a bridge by its label); a
-    /// transaction with one as counterparty is never read as a swap. <see langword="null"/> knows none.
+    /// <param name="endpoint">
+    /// Says why an address is one the trail must reach (an exchange, a mixer or a bridge by its label, with its
+    /// source), or <see langword="null"/> when it is not; <see langword="null"/> knows none.
     /// </param>
     /// <returns>The swaps, in chain order.</returns>
-    public IReadOnlyList<TokenSwap> Swaps(Func<EthereumAddress, bool>? isEndpoint = null)
+    public IReadOnlyList<TokenSwap> Swaps(Func<EthereumAddress, string?>? endpoint = null) =>
+        ReadSwaps(endpoint).Swaps;
+
+    /// <summary>
+    /// Finds the swaps the transactions show, and the transactions that would be swaps but for a counterparty the
+    /// trail must reach, so that <em>Varför?</em> can say why there is none.
+    /// </summary>
+    /// <param name="endpoint">Says why an address is one the trail must reach, or <see langword="null"/>.</param>
+    /// <returns>The swaps and the refused ones, in chain order.</returns>
+    public (IReadOnlyList<TokenSwap> Swaps, IReadOnlyList<SwapRefusal> Refused) ReadSwaps(
+        Func<EthereumAddress, string?>? endpoint = null)
     {
         var signers = Fees.ToDictionary(fee => fee.Transaction, fee => fee.Payer);
         foreach (var transaction in Transactions.Values)
@@ -145,18 +155,28 @@ internal sealed record AccountData(
         }
 
         var swaps = new List<TokenSwap>();
+        var refused = new List<SwapRefusal>();
         foreach (var transaction in Transfers.GroupBy(transfer => transfer.Transaction))
         {
             var moves = transaction.Where(transfer => transfer.From != transfer.To && transfer.Amount.Units.Sign > 0)
                 .ToList();
-            if (signers.GetValueOrDefault(transaction.Key) is { } account
-                && SwapOf(transaction.Key, account, moves, isEndpoint ?? (_ => false)) is { } swap)
+            if (signers.GetValueOrDefault(transaction.Key) is not { } account
+                || SwapOf(transaction.Key, account, moves) is not { } swap)
+            {
+                continue;
+            }
+
+            if (RefusalOf(swap, account, moves, endpoint ?? (_ => null)) is { } refusal)
+            {
+                refused.Add(refusal);
+            }
+            else
             {
                 swaps.Add(swap);
             }
         }
 
-        return swaps;
+        return (swaps, refused);
     }
 
     /// <summary>
@@ -165,22 +185,20 @@ internal sealed record AccountData(
     /// <list type="bullet">
     /// <item>the signer got exactly one asset back that it did not also send (what comes back in an asset it sent, a
     /// refund, is never a purchase);</item>
+    /// <item>what came back has a value Chainsaw knows (ether, WETH or a token it knows by its contract), or the trade
+    /// went through a known exchange, so that a worthless token sent back as dust never makes a payment a
+    /// swap;</item>
     /// <item>it sent exactly one asset, and every movement of it went to the trade's side
     /// (<see cref="TradeSide"/>); one movement to anyone else, a third party or a fee collector, and it is no
-    /// swap;</item>
-    /// <item>no counterparty is a known bridge or mixer, or an address the trail must reach.</item>
+    /// swap.</item>
     /// </list>
+    /// Whether a counterparty is one the trail must reach is asked after (<see cref="RefusalOf"/>).
     /// </summary>
     /// <param name="transaction">The transaction.</param>
     /// <param name="account">The account that signed it.</param>
     /// <param name="moves">Its movements of value between two addresses.</param>
-    /// <param name="isEndpoint">Says whether an address is one the trail must reach.</param>
     /// <returns>The swap, or <see langword="null"/>.</returns>
-    private TokenSwap? SwapOf(
-        EthereumTxHash transaction,
-        EthereumAddress account,
-        List<EthereumTransfer> moves,
-        Func<EthereumAddress, bool> isEndpoint)
+    private TokenSwap? SwapOf(EthereumTxHash transaction, EthereumAddress account, List<EthereumTransfer> moves)
     {
         var outgoing = moves.Where(transfer => transfer.From == account).ToList();
         var sent = outgoing.Select(transfer => transfer.Amount.Asset).ToHashSet();
@@ -190,15 +208,13 @@ internal sealed record AccountData(
             return null;
         }
 
-        var counterparties = outgoing.Select(transfer => transfer.To).Concat(bought.Select(transfer => transfer.From));
-        if (counterparties.Any(party => isEndpoint(party)
-            || KnownContracts.Find(party)?.Category is KnownContractCategory.Bridge or KnownContractCategory.Mixer))
+        var boughtAsset = bought[0].Amount.Asset;
+        var venue = VenueOf(transaction, account, moves);
+        if (venue is null && !HasKnownValue(boughtAsset))
         {
             return null;
         }
 
-        var boughtAsset = bought[0].Amount.Asset;
-        var venue = VenueOf(transaction, account, moves);
         var side = TradeSide(transaction, account, moves, boughtAsset, venue);
         if (!outgoing.All(transfer => side.Contains(transfer.To)))
         {
@@ -214,6 +230,45 @@ internal sealed record AccountData(
             Venue = venue,
             SoldMovements = [.. outgoing.Select(AccountSeed.Of)],
         };
+    }
+
+    /// <summary>
+    /// Says whether Chainsaw knows what an asset is worth: ether, wrapped ether, or a token it knows by its contract
+    /// (<see cref="KnownTokens"/>), never by its symbol.
+    /// </summary>
+    /// <param name="asset">The asset.</param>
+    /// <returns><see langword="true"/> when it does.</returns>
+    private static bool HasKnownValue(Asset asset) =>
+        asset.Kind == AssetKind.Native || asset == KnownTokens.EthereumWeth || KnownTokens.IssuerOf(asset) is not null;
+
+    /// <summary>
+    /// Says why a swap is no swap after all: a counterparty is a known bridge or mixer, or one the trail must reach by
+    /// its label, so the money goes on to it as an ordinary payment.
+    /// </summary>
+    /// <param name="swap">The swap it would be.</param>
+    /// <param name="account">The signer.</param>
+    /// <param name="moves">The transaction's movements of value between two addresses.</param>
+    /// <param name="endpoint">Says why an address is one the trail must reach, or <see langword="null"/>.</param>
+    /// <returns>The refusal, or <see langword="null"/> when it is a swap.</returns>
+    private static SwapRefusal? RefusalOf(
+        TokenSwap swap, EthereumAddress account, List<EthereumTransfer> moves, Func<EthereumAddress, string?> endpoint)
+    {
+        var counterparties = moves.Where(move => move.From == account || move.To == account)
+            .Select(move => move.From == account ? move.To : move.From)
+            .Distinct();
+        foreach (var party in counterparties)
+        {
+            var known = KnownContracts.Find(party);
+            var why = known is { Category: KnownContractCategory.Bridge or KnownContractCategory.Mixer }
+                ? $"{known.Name} ({KnownContracts.Name} {KnownContracts.Version})"
+                : endpoint(party);
+            if (why is not null)
+            {
+                return new SwapRefusal(swap, party.ToChainAddress(), why);
+            }
+        }
+
+        return null;
     }
 
     /// <summary>

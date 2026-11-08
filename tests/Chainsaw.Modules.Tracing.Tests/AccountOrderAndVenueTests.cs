@@ -91,7 +91,21 @@ public sealed class AccountOrderAndVenueTests
             Token(Owner, pool, Usdt(100m)), (EthereumTransferKind.Internal, pool, Owner, Ether(1m)));
 
         Assert.Single(Whole(swap).Swaps());
-        Assert.Empty(Whole(swap).Swaps(address => address == pool));
+        var (swaps, refused) = Whole(swap).ReadSwaps(address => address == pool ? "Börs (etikett)" : null);
+        Assert.Empty(swaps);
+        var refusal = Assert.Single(refused);
+        Assert.Equal((pool.ToChainAddress(), "Börs (etikett)"), (refusal.Counterparty, refusal.Why));
+    }
+
+    [Fact]
+    public void Dust_of_an_unknown_token_back_never_makes_a_payment_a_swap()
+    {
+        // A deliberate obfuscation: 1 unit of a made-up token from the recipient back in the same transaction.
+        var fake = Asset.Token(SharedKernel.Chain.Ethereum, "0x1111111111111111111111111111111111111111", "FAKE", 18);
+        var payment = Tx("dust", 900, Owner, 0.001m,
+            Token(Owner, Shop, Usdt(1000m)), Token(Shop, Owner, new AssetAmount(fake, 1)));
+
+        Assert.Empty(Whole(payment).Swaps());
     }
 
     private static EthereumTransfer Transfer(string label, EthereumAddress from, EthereumAddress to, decimal ether) =>

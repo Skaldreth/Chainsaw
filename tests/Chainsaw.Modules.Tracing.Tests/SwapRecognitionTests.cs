@@ -182,6 +182,38 @@ public sealed class SwapRecognitionTests : IDisposable
     }
 
     [Fact]
+    public async Task Dust_from_the_recipient_never_makes_a_payment_a_swap_and_the_money_reaches_the_recipient()
+    {
+        // A deliberate obfuscation: a made-up token's dust from the recipient back in the same transaction.
+        var fake = Asset.Token(SharedKernel.Chain.Ethereum, "0x1111111111111111111111111111111111111111", "FAKE", 18);
+        var graph = await Build(["z-pay"],
+            Tx("z-victim", 101, Victim, 0m, Token(Victim, Scammer, Usdt(1000))),
+            Tx("z-pay", 110, Scammer, 0m, Token(Scammer, Merchant, Usdt(1000)),
+                Token(Merchant, Scammer, new AssetAmount(fake, 1))),
+            Tx("z-out", 130, Scammer, 0m, Token(Scammer, Exchange, new AssetAmount(fake, 1))));
+
+        var result = await FromVictim(graph);
+
+        Assert.Empty(graph.Account.Swaps);
+        Assert.Equal(Usdt(1000), Assert.Single(result.Ends, end => end.NodeKey == Key(graph, Merchant)).Amount.Amount);
+    }
+
+    [Fact]
+    public async Task A_label_set_later_refuses_the_swap_and_says_why()
+    {
+        _harness.Labels.Accounts[Pair.ToChainAddress()] = TrailEndReason.Exchange;
+        var graph = await Build([],
+            Tx("lr-victim", 101, Victim, 0.001m, Token(Victim, Scammer, Usdt(1000))),
+            Tx("lr-swap", 110, Scammer, 0.001m, Token(Scammer, Pair, Usdt(1000)),
+                Token(Pair, Scammer, new AssetAmount(KnownTokens.EthereumUsdc, 999_000_000))));
+
+        var refusal = Assert.Single(graph.Account.RefusedSwaps);
+
+        Assert.Equal(Pair.ToChainAddress(), refusal.Counterparty);
+        Assert.Contains(TrailEndReason.Exchange.Describe(), refusal.Why, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task A_refund_in_the_asset_sent_is_never_a_purchase()
     {
         var graph = await Build(["u-refund"],

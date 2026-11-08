@@ -3976,3 +3976,16 @@ Inga C; två I med samma rot i hur en swap känns igen, och fyra M.
 - **M:** exponeringens *Varför?* ger ämnets andel i siffror per swap (`ExposureSwap`); `StopAtSwap` kontrollerar i
   skrivtransaktionen att swappens tx finns i grafens tillstånd, utan att läsa om grafen; tester för Begärans spår
   genom en swap och för inspektörens nya rader.
+
+## Tredje granskningen av SW1a rättad (2026-11-08)
+
+- **I, damm som gör en betalning till en swap:** det som kom tillbaka måste ha ett värde Chainsaw känner (ether, WETH
+  eller en token igenkänd på sitt kontrakt), eller bytet ha gått genom en känd DEX eller aggregator; annars ingen
+  swap, och pengarna når mottagaren. Granskarens prob är ett test.
+- **M-1:** en tx som skulle vara en swap men har en motpart som spåret ska nå (känd brygga eller mixer, eller en
+  etikett som börs, mixer eller brygga, också satt senare) sparas som `SwapRefusal` (`AccountGraph.RefusedSwaps`).
+  *Varför?* på linjen och noderna säger *Ingen swap i tx …* med etiketten och källan, och ett förseglat *Följer inte*
+  utan swap står i Historik med *ingen swap längre* och kan tas tillbaka.
+- **M-2:** exponeringens *Varför?* läst in säger andelen av det som kom ut.
+- **M-3:** `StopAtSwap` läser ärendets Ethereum-fakta (inte hela grafen) och kräver att just den tx:en är en swap för
+  just det kontot.
