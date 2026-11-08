@@ -410,9 +410,11 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   *Inställningar för anslutning*. *Lägg till WireGuard-fil* görs i Inställningar, inte i rutan. **Guiden är GD1b**: en panel från höger bredvid
   arbetet, öppnad från *Varför?*, *?* och spårningsmetoden, med svaret för det valda överst och *Öppna i Guide* till
   hela vyn (F1).
-- **Kontroller och förslag är KF1a** (användarens beslut 2026-11-07): knappen *Förslag · N* i grafens huvud (Ctrl+J)
-  fäller ut en lista där inspektören står, i grupperna *Att avgöra* och *Gjort av sig självt*. J och K stegar, Enter
-  godkänner, X avfärdar och ? visar *Varför?*. Den valda raden tonar ned resten av grafen och visar sitt **område**
+- **Kontroller och förslag är KF2b** (användarens beslut 2026-11-08, ersätter KF1a): knappen *Förslag · N* i grafens
+  huvud (Ctrl+J) fäller ut en panel där inspektören står som visar **ett förslag i taget** (*1 av 3* med en förloppslist):
+  en liten bild av hur pengarna flyter, underlaget som brickor, kandidaterna som en rangordnad tabell, *Varför?* och
+  analysen med version, och en fast beslutslist längst ner (Avfärda X, Senare J, Godkänn Enter, frivilligt skäl).
+  *Gjort av sig självt* är en hopfälld rad. Ett godkänt förslag förblir streckat (princip 2). K och J stegar. Den valda raden tonar ned resten av grafen och visar sitt **område**
   svagt bakom aktörerna. Områdena från KF1b följer med (användarens önskemål 2026-11-07): ett allmänt verktyg för
   förvirring, plånböcker, tjänster, annan kedja och tid, valda i en meny i grafens huvud, högst en fyllning per aktör,
   streckad kant för förslag; användaren lägger till **egna ytor** (välj aktörer, Z), med hel kant och en person-markering,
@@ -449,8 +451,10 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   *VPN* som två kort, och under VPN utgångarna som i UT1a. *Byt …* vid huvudnyckeln fäller ut tre fält under raden
   (nuvarande, ny, upprepa) med Avbryt och *Byt huvudnyckel* (användarens beslut 2026-11-07, byggt i etapp 19).
 - **Förstagångsinställningen är FS1a** (stegvis: Välkommen, Huvudnyckel, Utgång, Första ärendet, bredvid låsskärmens figur) och
-  **Nytt ärende är NC1a** (en panel från höger som mörkar resten, som kan bli ärendets egenskaper senare). Användaren lät
-  Claude välja (2026-11-07); valen följer Gawks form.
+  **Nytt ärende är NC2a** (användarens beslut 2026-11-08, ersätter NC1a): en panel från höger som mörkar resten, med
+  ärendenumret stort, titeln frivillig, och **startpunkterna som en lista med *+***, där varje rad visar kedjan, värdet och
+  det som **hämtats i förväg** genom utgången (saldo, antal tx, första och senaste aktivitet, blockhöjd, sanktion) och
+  ärligt sitt läge (hämtar, klar, väntar på utgången, inte igenkänd). *Skapa ärende* är nedtonad tills numret finns.
 - **Vyer** (alla bekräftade 2026-11-06, ordning och utseende skissas): Graf, Tidslinje, Flöde (Sankey: pengar in och ut),
   Tx-inspektör, Adresskort och kluster, Exponering (vilka tjänster ett kluster har betalat till eller fått från), Bevakning,
   Etiketter och Guide (Terminal är borttagen).
@@ -534,7 +538,7 @@ Canvas: https://claude.ai/artifact/LVMLEqgJteM68jjc7vuq1h. **Den är uppdelad i 
 | **Låsskärm och förstagång** | ID2, ID4, ID7a, ID7b (låsskärmen); FS1a, FS1b (förstagångsinställningen); ID8a–d (kättingen som blir DNA) | ID8c (ersätter ID7a) och FS1a valda och byggda |
 | **Skalet** | SH1a (sidopanel), SH1b (pillret) | SH1b vald och byggd |
 | **Vänsternavigering** | PN1 (undermenyer i pillret), B9 från Gawk (förlaga) | PN1 godkänd, byggs i etapp 11b |
-| **Ärenden** | NC1a (panel), NC1b (dialog); NC2a, NC2b (startpunkterna som lista som förhandshämtar) | NC1a vald och byggd, utan sidans rubrik; NC2 väntar på val |
+| **Ärenden** | NC1a (panel), NC1b (dialog); NC2a, NC2b (startpunkterna som lista som förhandshämtar) | NC1a byggd, ersätts av NC2a (vald 2026-11-08) |
 | **Grafen** | GR1a, GR1b; GR2a, GR2b; GR3b, GR4; GR5 (startpunkten och namnen), IN1a, IN1b (inspektörens formulär); AN1a, AN1b (ta tillbaka och ångra); TK1a, TK1b (tokens och Kan frysas); TL1a, TL1b (tidslinjen under grafen); EX1a, EX1b (det som hölls tillbaka vid en expansion); EX2a, EX2b (filtren och var de utplockade hamnar); GR6a, GR6b, GR6c (tom graf med guidenoder); IN2a, IN2b (inspektören med ikoner); KN1a, KN1b (kommentarsnoden); GR7a, GR7b (bildspråkets ruta); GR8a, GR8b (ärenden i högar i startvyn) | GR4 godkänd, förlagan för grafen; GR5 variant A, IN1a, AN1b och TK1a valda; TL1a vald; EX1a och EX1b båda, som två lägen, med filter och samlingsnoden; EX2b vald, med dimmad bakgrund; GR6c vald och byggd; IN2b vald (ikonlisten vid noden), med formulären vid noden som i IN1b; KN1a vald; GR7a vald; GR8a vald, med grafens stöt och centrering |
 | **Utgångar** | UT1a (i titelraden), UT1b (undermeny i pillret); UT2a, UT2b (lättare att läsa) | UT2b vald (ersätter UT1a) |
 | **Guiden** | GD1a (vy), GD1b (panel bredvid arbetet) | GD1b vald och byggd (etapp 18) |
@@ -543,5 +547,5 @@ Canvas: https://claude.ai/artifact/LVMLEqgJteM68jjc7vuq1h. **Den är uppdelad i 
 | **Begäran** | BG1a (i inspektören), BG1b (vyn Begäran); export till Markdown | BG1b vald |
 | **Soptunnan** | SO1a, SO1b (släppytan, varningen och vyn) | SO1a vald |
 | **Ärendeväljaren** | ÄV1a (i titelraden), ÄV1b (panel) | ÄV1a vald |
-| **Kontroller och förslag** | KF1a (lista att gå igenom), KF1b (områden bakom aktörerna, också för plånböcker, tid och egna ytor); KF2a, KF2b (omgjorda, professionellare) | KF1a vald, med områdena från KF1b; byggd i etapp 22; KF2 väntar på val |
+| **Kontroller och förslag** | KF1a (lista att gå igenom), KF1b (områden bakom aktörerna, också för plånböcker, tid och egna ytor); KF2a, KF2b (omgjorda, professionellare) | KF1a byggd i etapp 22, ersätts av KF2b (vald 2026-11-08), med områdena från KF1b |
 | **Meddelanden** | TO1a (toastern nere till höger) | TO1a godkänd och byggd |

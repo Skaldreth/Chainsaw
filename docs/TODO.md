@@ -103,11 +103,8 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
 36. **Streckade linjer på Windows:** strecken mättes i linjens tjocklek, så tjocka osäkra linjer fick grova korvar.
     Nu i pixlar som i GR3a (2 5 och 7 5). Bevakningens öga i nodens hörn har inga ringar längre (BV2a har dem bara
     på träffens linje). *Rättat 2026-11-08.*
-37. **Kontroller och förslag (KF1a) designas om** (användarens beslut 2026-11-08: *betydligt mer professionellt*).
-    Skissas i två varianter.
-38. **Nytt ärende (NC1a) designas om** (användarens beslut 2026-11-08): startpunkterna ska vara en lista med *+*,
-    inte en stor textruta, och varje startpunkt **förhandshämtar** lite information (sort, saldo, antal tx, första
-    och senaste aktivitet) genom utgången. Skissas i två varianter.
+37. **Kontroller och förslag är KF2b** (användarens beslut 2026-11-08). Byggs.
+38. **Nytt ärende är NC2a** (användarens beslut 2026-11-08). Byggs.
 39. **Granskning av alla byggda vyer mot skisserna** (användarens synpunkt 2026-11-08: många delar är kraftigt
     förenklade). Gjord 2026-11-08. Skalet och dialogerna följer skisserna nära; förenklingarna sitter i grafens
     arbetsytor. Att bygga om, i ordning:
@@ -509,9 +506,8 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
   nästa del med ett klick. Historiken läses högst 2 000 tx bakåt (`HeldBackList.Most`), och högst 500 till runt den
   spårade ankomsten när grafen har en tx vid adressen att läsa bakåt från; längre historik behöver ett tidsfönster
   mot källan (se *Tidsfönster för en adress historik*).
-- **Fråga användaren: ska utplockningen journalföras?** *Plocka ut* sparar tx:erna i expansionen (vanlig data, som
-  grafens läge) men skriver ingen rad i journalen. Ska varje utplockning få en rad (vad, var, hur många)?
-- **En lång läsning av historiken går inte att avbryta** (upp till 2 000 tx i källans takt, några dussin uppslag):
+- **En lång läsning av historiken går inte att avbryta** (användarens beslut 2026-11-08: Esc avbryter; utplockningen
+  journalförs inte, den är grafens läge) (upp till 2 000 tx i källans takt, några dussin uppslag):
   stöten och *Läser …* står kvar tills den är klar. Lägg en *Avbryt* (Esc) vid ledtråden som avbryter läsningen; det
   som redan hämtats ligger förseglat i ärendet ändå.
 - **Avsteg från skissen:** pillen står där hopplayouten lägger den i adressens kolumn, inte alltid rakt under adressen;
