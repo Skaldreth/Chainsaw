@@ -62,6 +62,7 @@ public sealed record LabelOrigin(
             LabelSource.SanctionList => $"{SourceName} ({SourceVersion}), kontrollerad av {who}",
             LabelSource.OpenSource => $"öppen källa {SourceName} ({SourceVersion}), hämtad av {who}",
             LabelSource.Behaviour => $"beteende enligt {SourceName} {SourceVersion}, av {who}",
+            LabelSource.Provider => $"underleverantören {SourceName} ({SourceVersion}), hämtad av {who}",
             _ => $"{SourceName} ({SourceVersion}), av {who}",
         };
         var line = IsFromOtherCase ? $"Från ett annat ärende: {what}" : char.ToUpperInvariant(what[0]) + what[1..];

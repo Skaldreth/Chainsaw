@@ -3,8 +3,9 @@ using Chainsaw.Modules.Cases.Contracts;
 namespace Chainsaw.Modules.Attribution;
 
 /// <summary>
-/// The Attribution module's table in the case: every label and every taking back, sealed in one hash chain, so that a
-/// label can never change silently and what was believed when can always be read (principle 1).
+/// The Attribution module's tables in the case: every label and every taking back, sealed in one hash chain, so that a
+/// label can never change silently and what was believed when can always be read; and every raw response from a
+/// supplier of attribution, sealed in another (principle 1).
 /// </summary>
 internal sealed class AttributionSchema : ICaseSchemaContributor
 {
@@ -23,6 +24,19 @@ internal sealed class AttributionSchema : ICaseSchemaContributor
         "action", "label_sequence", "origin_id", "subject_kind", "subject", "kind", "name", "source",
         "original_source", "source_name", "source_version", "set_by", "set_utc", "reason", "note", "do_not_spread",
         "journal_sequence", "recorded_utc",
+    ];
+
+    /// <summary>The sealed chain of the suppliers' raw responses.</summary>
+    public const string ResponsesChain = "attribution.responses";
+
+    /// <summary>The table of the suppliers' raw responses.</summary>
+    public const string ResponsesTable = "attribution_responses";
+
+    /// <summary>The sealed columns of a supplier's response, in order.</summary>
+    public static readonly IReadOnlyList<string> ResponseColumns =
+    [
+        "provider", "url", "chain", "address", "status_code", "content_type", "requested_utc", "received_utc",
+        "received_local", "time_zone", "exit_id", "route", "fetched_by", "sha256", "body",
     ];
 
     /// <summary>The first version of the table.</summary>
@@ -51,13 +65,43 @@ internal sealed class AttributionSchema : ICaseSchemaContributor
         ) STRICT;
         """;
 
+    /// <summary>The second version: the suppliers' raw responses.</summary>
+    private const string Version2 = """
+        CREATE TABLE attribution_responses (
+            sequence INTEGER PRIMARY KEY,
+            provider TEXT NOT NULL,
+            url TEXT NOT NULL,
+            chain TEXT NOT NULL,
+            address TEXT NOT NULL,
+            status_code INTEGER NOT NULL,
+            content_type TEXT,
+            requested_utc TEXT NOT NULL,
+            received_utc TEXT NOT NULL,
+            received_local TEXT NOT NULL,
+            time_zone TEXT NOT NULL,
+            exit_id TEXT,
+            route TEXT NOT NULL,
+            fetched_by TEXT NOT NULL,
+            sha256 BLOB NOT NULL,
+            body BLOB NOT NULL,
+            hash BLOB NOT NULL
+        ) STRICT;
+        """;
+
     /// <inheritdoc/>
     public string Module => ModuleName;
 
     /// <inheritdoc/>
     public IReadOnlyList<CaseSchemaStep> Steps { get; } =
-        [new(1, "Etiketter med ursprung och tillbakatagningar", Version1)];
+        [
+            new(1, "Etiketter med ursprung och tillbakatagningar", Version1),
+            new(2, "Underleverantörernas svar", Version2),
+        ];
 
     /// <inheritdoc/>
-    public IReadOnlyList<SealedChain> SealedChains { get; } = [new(LabelsChain, LabelsTable, LabelColumns)];
+    public IReadOnlyList<SealedChain> SealedChains { get; } =
+    [
+        new(LabelsChain, LabelsTable, LabelColumns),
+        new(ResponsesChain, ResponsesTable, ResponseColumns),
+    ];
 }

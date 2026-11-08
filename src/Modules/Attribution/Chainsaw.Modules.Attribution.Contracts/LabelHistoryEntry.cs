@@ -32,8 +32,8 @@ public sealed record LabelHistoryEntry(LabelEntry Label, LabelRetraction? Retrac
     public bool IsUsersOwn => Label.Origin.Source is LabelSource.Own or LabelSource.OpenSource;
 
     /// <summary>
-    /// Gets whether the user can take the label back: it is the user's own and not taken back already (a label taken
-    /// back is set anew instead).
+    /// Gets whether the user can take the label back: it is the user's own, or a supplier's report the user does not
+    /// believe, and not taken back already (a label taken back is set anew instead).
     /// </summary>
-    public bool CanRetract => IsUsersOwn && !IsRetracted;
+    public bool CanRetract => (IsUsersOwn || Label.Origin.Source == LabelSource.Provider) && !IsRetracted;
 }

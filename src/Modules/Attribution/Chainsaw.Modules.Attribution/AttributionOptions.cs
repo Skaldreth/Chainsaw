@@ -17,6 +17,9 @@ public sealed class AttributionOptions
     public string Directory { get; set; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Chainsaw");
 
+    /// <summary>Gets or sets Chainabuse's API address; tests and the user's own proxy can change it.</summary>
+    public Uri ChainabuseUri { get; set; } = new("https://api.chainabuse.com/v0/");
+
     /// <summary>Gets the sanction lists' folder.</summary>
     internal string SanctionDirectory => Path.Combine(Directory, SanctionFolder);
 

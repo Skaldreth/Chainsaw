@@ -14,4 +14,7 @@ public static class AttributionJournalKinds
 
     /// <summary>Labels from other cases came in from the label library.</summary>
     public const string LabelsFromLibrary = "attribution.labels-from-library";
+
+    /// <summary>A supplier of attribution was asked about an address, and its response sealed.</summary>
+    public const string ProviderAsked = "attribution.provider-asked";
 }

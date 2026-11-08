@@ -2400,3 +2400,16 @@ etiketten från kollegans ärende. Bygget är utan varningar i Debug och Release
 
 **Återstår (TODO, *Testärendet*):** Ethereum och *Kan frysas*, påhittade kurser, ett steg för uppbrytning och avgjort
 förslag, att rensa kollegans etiketter ur biblioteket. **Inte provat på Windows** (TESTER-INFOR, *Testärendet*).
+
+## Chainabuse som underleverantör (2026-11-08)
+
+- `IAttributionProviders` i Attribution: flera underleverantörer, var och en frågas bara när den är på (namnen skickas
+  in, så att strömbrytarna kan ligga i appens inställningar). Chainabuse är den första (`GET /v0/reports`, Basic med
+  nyckeln som både namn och lösenord, nyckeln ur valvet under tjänsten *Chainabuse*).
+- Varje svar förseglas i den nya kedjan `attribution.responses` (schemasteg 2), också 401, 403, 429 och fel, med
+  utgång, tider, vem och SHA-256. Rapporterna blir en etikett per kategori med sorten `Reported` (röd, risk) och
+  källan `LabelSource.Provider`; ursprunget pekar på det förseglade svaret. En kategori som redan har en etikett,
+  också en tillbakatagen, sätts inte igen.
+- Egna val: bara rapporter som nämner adressen används; en sida (50 rapporter) per uppslag för att spara anrop;
+  en tillbakatagen rapport dras tillbaka också ur biblioteket, som en egen etikett.
+- Återstår: sidan i inställningarna, när uppslagen görs (nyckelns gräns), TRON och grafens form för *Rapporterad*.

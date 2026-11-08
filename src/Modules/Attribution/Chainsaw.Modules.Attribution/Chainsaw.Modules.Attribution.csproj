@@ -9,6 +9,7 @@
     <ProjectReference Include="..\Chainsaw.Modules.Attribution.Contracts\Chainsaw.Modules.Attribution.Contracts.csproj" />
     <ProjectReference Include="..\..\Clustering\Chainsaw.Modules.Clustering.Contracts\Chainsaw.Modules.Clustering.Contracts.csproj" />
     <ProjectReference Include="..\..\Tracing\Chainsaw.Modules.Tracing.Contracts\Chainsaw.Modules.Tracing.Contracts.csproj" />
+    <ProjectReference Include="..\..\Network\Chainsaw.Modules.Network.Contracts\Chainsaw.Modules.Network.Contracts.csproj" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Chainsaw.Modules.Attribution.Tests" />

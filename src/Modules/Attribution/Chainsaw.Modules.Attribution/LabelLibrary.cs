@@ -75,10 +75,10 @@ internal sealed class LabelLibrary(IPurposeKeys keys, AttributionOptions options
 
         // A label the user set here and then took back is withdrawn everywhere: the copies other cases got from the
         // library are taken back there too, and it is never given again. Only the user's own judgement (own or from
-        // an open source) is withdrawn so; a copy, a sanction hit or an analysis's label taken back here only leaves
+        // an open source, or a supplier's report) is withdrawn so; a copy, a sanction hit or an analysis's label taken back here only leaves
         // the library from this case. A label near a victim only stays out (above).
         var withdrawn = inCase.All
-            .Where(label => label.Origin.Source is LabelSource.Own or LabelSource.OpenSource
+            .Where(label => label.Origin.Source is LabelSource.Own or LabelSource.OpenSource or LabelSource.Provider
                 && inCase.Retracted.Contains(label.Sequence))
             .Select(label => label.Origin.OriginId)
             .ToHashSet(StringComparer.Ordinal);

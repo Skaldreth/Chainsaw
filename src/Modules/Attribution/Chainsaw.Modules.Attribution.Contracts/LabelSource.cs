@@ -20,4 +20,10 @@ public enum LabelSource
     /// the other case's number, the note or why it was set there.
     /// </summary>
     OtherCase,
+
+    /// <summary>
+    /// A supplier of attribution that Chainsaw asks about an address (for example Chainabuse), with the name, the
+    /// sealed response the label rests on and when it was fetched. Its reports are judgements, never facts.
+    /// </summary>
+    Provider,
 }

@@ -506,7 +506,14 @@ kandidater; resten av katalogen ovan läggs till som nya analyser (`ICheckAnalys
   https://docs.trmlabs.com/guides/chainabuse/welcome-to-chainabuse-api) samarbetar med brottsbekämpande myndigheter.
   Chainsaw hämtar rapporterna för en adress ur deras API, genom utgången och med nyckeln i valvet; bara adressen
   skickas (princip 4), svaret förseglas i ärendet (princip 1) och rapporterna blir etiketter som är bedömningar med
-  källa, aldrig fakta (princip 2), eftersom de skrivs in av allmänheten. Sidan i inställningarna skissas först.
+  källa, aldrig fakta (princip 2), eftersom de skrivs in av allmänheten. **Hämtningen är byggd 2026-11-08**
+  (`IAttributionProviders`, `ChainabuseProvider`): Bitcoin och Ethereum (TRON när etiketter går att sätta där), en
+  etikett *Rapporterad* per kategori, varje svar förseglat också vid avslag. Kvar: sidan i inställningarna med
+  strömbrytarna och nyckeln (skissas), och **när** Chainsaw frågar. En vanlig nyckel ger bara **10 anrop i månaden**
+  (partner: 5 000 i timmen), så automatiska uppslag på varje nod kräver partnernyckel; frågan till användaren är om
+  det ska vara ett knapptryck i ikonlisten eller automatiskt vid expansion. Sorten *Rapporterad* ritas som okänd i
+  grafen tills den har en form (rött, risk). Rapportens beskrivning, förluster och kategorier som API:t lägger till
+  läses inte än.
 - **Flera attributionskällor samtidigt, var och en med en strömbrytare** (användarens beslut 2026-11-08): Chainsaw
   hämtar från alla källor som är på, inte bara en, och varje källa kan stängas av.
 - **Öppna källor:** till exempel ransomwhe.re (öppen datamängd med ransomware-adresser), WalletExplorer (äldre BTC-kluster). Varje källa granskas för licens och kvalitet innan den byggs in. `LabelSource.OpenSource`

@@ -3,6 +3,7 @@ using Chainsaw.Modules.Cases;
 using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Clustering;
 using Chainsaw.Modules.Clustering.Contracts;
+using Chainsaw.Modules.Network.Contracts;
 using Chainsaw.Modules.Security.Contracts;
 using Chainsaw.Modules.Tracing.Contracts;
 using Chainsaw.SharedKernel;
@@ -27,6 +28,9 @@ internal sealed class Harness : IDisposable
         services.AddSingleton<IPurposeKeys>(Keys);
         services.AddSingleton<IOperatorProfileStore>(Profiles);
         services.AddSingleton<IClock>(Clock);
+        Http = new FakeExitHttp(Clock);
+        services.AddSingleton<IExitHttp>(Http);
+        services.AddSingleton<IApiKeyStore>(ApiKeys);
         services.AddCasesModule(options =>
         {
             options.Directory = System.IO.Path.Combine(Directory, "cases");
@@ -47,6 +51,12 @@ internal sealed class Harness : IDisposable
     public FakeClock Clock { get; } = new();
 
     public FakePurposeKeys Keys { get; } = new();
+
+    public FakeExitHttp Http { get; }
+
+    public FakeApiKeys ApiKeys { get; } = new();
+
+    public IAttributionProviders Providers => _provider.GetRequiredService<IAttributionProviders>();
 
     public ICaseStore Store { get; }
 

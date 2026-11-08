@@ -56,6 +56,12 @@ public enum LabelKind
 
     /// <summary>Something the user has looked at but does not know what it is.</summary>
     Unknown,
+
+    /// <summary>
+    /// Reported for fraud or another abuse to a supplier of attribution (for example Chainabuse); the label's name
+    /// says what it was reported as.
+    /// </summary>
+    Reported,
 }
 
 /// <summary>The colour group of a <see cref="LabelKind"/> in the graph, after what happens to the money.</summary>
@@ -92,7 +98,7 @@ public static class LabelKinds
             or LabelKind.CryptoAtm or LabelKind.CryptoCard => LabelGroup.Withdrawal,
         LabelKind.Gambling or LabelKind.Merchant or LabelKind.GiftCard => LabelGroup.Spending,
         LabelKind.Darknet or LabelKind.EscrowMarket or LabelKind.Mixer or LabelKind.CoinJoin
-            or LabelKind.Sanctioned => LabelGroup.Risk,
+            or LabelKind.Sanctioned or LabelKind.Reported => LabelGroup.Risk,
         LabelKind.SwapBridge => LabelGroup.OtherChain,
         LabelKind.Victim => LabelGroup.Victim,
         _ => LabelGroup.Neutral,
@@ -120,6 +126,7 @@ public static class LabelKinds
         LabelKind.SwapBridge => "Swap eller brygga",
         LabelKind.Victim => "Offer",
         LabelKind.Unknown => "Okänd",
+        LabelKind.Reported => "Rapporterad",
         _ => kind.ToString(),
     };
 }
