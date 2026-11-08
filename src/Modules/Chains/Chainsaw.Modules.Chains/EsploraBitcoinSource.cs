@@ -264,7 +264,8 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
             Parse,
             _ => ResponseIndex.None,
             reader => SourceLookups.StoredAs(_store.Latest(reader, ResponseKinds.OutputSpends, txid.Value), Parse),
-            spends => SettledAt(spends, transaction));
+            spends => SettledAt(spends, transaction),
+            Changed: SpendChange);
         return await _lookups.LookupAsync(@case, query, mode, cancellationToken).ConfigureAwait(false);
     }
 
@@ -581,6 +582,49 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
             CultureInfo.InvariantCulture, $"Tx:en låg tidigare i block {earlier.Height} ({earlier.Hash})");
         return $"{earlierText} men {where}: blocket är inte längre en del av kedjan enligt källan (en omorganisation). "
             + "Båda svaren är sparade i ärendet.";
+    }
+
+    /// <summary>
+    /// Says when an output the case knew to be spent is now spent by another transaction, or by the same one in
+    /// another block, or is unspent again: the chain was reorganised or the spending transaction was replaced (etapp
+    /// 15, the answer about spent outputs compared with the last). An output first seen spent is no change.
+    /// </summary>
+    /// <param name="before">The case's last answer.</param>
+    /// <param name="now">The new answer.</param>
+    /// <returns>What changed, in Swedish, or <see langword="null"/>.</returns>
+    internal static string? SpendChange(IReadOnlyList<BitcoinOutputSpend> before, IReadOnlyList<BitcoinOutputSpend> now)
+    {
+        var changes = new List<string>();
+        foreach (var earlier in before)
+        {
+            if (earlier.SpentBy is not { } was)
+            {
+                continue;
+            }
+
+            var later = now.FirstOrDefault(each => each.Index == earlier.Index)?.SpentBy;
+            if (later is null)
+            {
+                changes.Add(string.Create(CultureInfo.InvariantCulture,
+                    $"utgång {earlier.Index} spenderades av {was.Txid} men är nu ospenderad"));
+            }
+            else if (later.Txid != was.Txid)
+            {
+                changes.Add(string.Create(CultureInfo.InvariantCulture,
+                    $"utgång {earlier.Index} spenderades av {was.Txid} men nu av {later.Txid}"));
+            }
+            else if (was.Block is { } block && later.Block?.Hash != block.Hash)
+            {
+                changes.Add(string.Create(CultureInfo.InvariantCulture,
+                    $"utgång {earlier.Index} spenderas av samma tx, men den låg i block {block.Height} och ligger nu "
+                    + $"{(later.Block is { } moved ? $"i block {moved.Height}" : "inte i något block")}"));
+            }
+        }
+
+        return changes.Count == 0
+            ? null
+            : "Enligt källan har " + string.Join("; ", changes)
+                + " (en omorganisation eller en ersatt tx). Båda svaren är sparade i ärendet.";
     }
 
     /// <summary>The lookup of the chain's height, which always changes.</summary>
