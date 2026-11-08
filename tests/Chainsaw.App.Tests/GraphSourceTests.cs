@@ -127,6 +127,26 @@ internal sealed class TestClustering : IClusteringService
         ICase @case, IReadOnlyCollection<BitcoinAddress> addresses) =>
         addresses.Distinct().ToDictionary(address => address, address => GetCluster(@case, address));
 
+    public WithdrawPreview? PreviewWithdraw(ICase @case, HeuristicId heuristic) => Preview;
+
+    public IReadOnlyList<HeldBackConclusion> GetHeldBack(ICase @case) => HeldBack;
+
+    public HeldBackDecision? DecideHeldBack(ICase @case, Txid txid, ConclusionChoice choice, string? reason)
+    {
+        var decision = new HeldBackDecision(
+            Decisions.Count + 1, txid, [], [], choice, reason, Decisions.Count + 1, DateTimeOffset.UnixEpoch);
+        Decisions.Add(decision);
+        return decision;
+    }
+
+    public IReadOnlyList<HeldBackDecision> GetHeldBackDecisions(ICase @case) => Decisions;
+
+    public WithdrawPreview? Preview { get; set; }
+
+    public List<HeldBackConclusion> HeldBack { get; } = [];
+
+    public List<HeldBackDecision> Decisions { get; } = [];
+
     public ClusteringRun Analyse(ICase @case, IReadOnlyCollection<BitcoinTransaction> transactions) =>
         throw new NotSupportedException();
 

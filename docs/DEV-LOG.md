@@ -4145,3 +4145,45 @@ topp.
     syns bara som *Onödig input*. `payjoin v1` noterar utan veto, så ett ärende stänger av vetot genom att dra
     tillbaka version 2. Tester åt båda hållen: en riktig PayJoin blir förslag, granskarens prob (bedragaren som betalar
     en börs från tre insättningar) och en vanlig plånboks betalning med ett extra mynt slås ihop.
+
+## Ytorna för omgång 4 (2026-11-08): KV1a, HB1a, BU1a, DM1a, HP1a och TJ1b
+
+Byggt efter skisserna som valdes 2026-11-08 (andra omgången), på backend från omgång 4.
+
+- **Clustering:** `PreviewWithdraw` räknar ut klustren före och efter ett tillbakadragande ur det som är sparat
+  (`ClusterChanges`), utan att spara något. Det en körning håller tillbaka sparas som arbetsläge i
+  `clustering_held_back` (ersätts av nästa körning som håller tillbaka något annat, inte förseglat eftersom det alltid
+  kan räknas ut igen), och `GetHeldBack` ger slutsatserna med vad som saknades och senaste beslutet.
+  `DecideHeldBack` förseglar *Låt stå* eller *Släpp slutsatsen* i den nya kedjan `clustering.held_back_decisions`
+  (schema version 5) med en rad i journalen; adresserna sparas med beslutet så att historiken kan visa det också
+  efter att slutsatsen släppts. En släppt tx:s slutsatser före beslutet räknas inte längre (som ett tillbakadragande
+  för en tx), och nästa körning sparar det den kommer fram till nu.
+- **KV1a:** `ClusterWhyViewModel` och `ClusterWhyView` i inspektören, `ChangeBarView` för staplarna, spöket under
+  noden och nedtoningen i `GraphCanvas.Rounds`. *Ta tillbaka* i Historik och *Ångra* på toasten.
+- **HB1a:** ringen och hovringen i `GraphCanvas.Rounds`, kortet i Historik (`HistoryUndo.DecideHeldBack`) med *Låt stå*
+  bredvid *Släpp slutsatsen*.
+- **BU1a:** `PairPath` (stegen, den svagaste länken och vad ett snitt bryter ut) och `InspectorFormsViewModel.Pair`.
+  Ett snitt sparas som uppbrytningen av det som lämnar (`InspectorForms.BreakOut`), så att samma regler gäller som
+  för att bryta ut adresser. Två noder valda med Ctrl+klick i grafen ger paret när U öppnas.
+- **DM1a och HP1a:** `ObfuscationMarks` läser `dust v1` och `pass-through v1` ur de sparade kontrollerna;
+  `GraphViewModel.Obfuscation` tonar ned, fäller ihop och frågar före kopiering. Bara visning, inget sparas.
+- **TJ1b:** `InspectorFormsViewModel.Check` öppnar etikettformuläret från kontrollen med källan som
+  `LabelSource.Behaviour` (`service-behaviour`, `v1`), förseglad av Attribution som andra etiketter.
+
+**Egna beslut och avsteg från skisserna:**
+- Enum-namnet `ConclusionChoice` (inte `HeldBackChoice`, som redan finns i appen för EX1).
+- KV1a: bekräftelsen fälls ut under raderna i inspektören, inte fast längst ner; raden längst ner säger när men inte
+  vem. Förhandsvisningen räknar på det som är sparat (TODO).
+- HB1a: hovringen säger vad slutsatsen byggde på, inte vad som ersatte den (väntar på *Ersatt av vilken tx*).
+- BU1a: Ctrl+klick sker i formulärets lista över adresser, eftersom klustret inte öppnas som kort i grafen här;
+  varningen nås genom två valda noder i grafen.
+- DM1a: jämförelsen står överst i inspektören (som skissen säger) och kopiering av den liknande lyser upp den, i
+  stället för en egen ruta vid noden; dammets linjer är oförändrade.
+- HP1a: utfällt står noderna på sina platser och *Fäll ihop* är en bricka ovanför raden.
+- TJ1b: *Som etikett …* står i inspektörens rad, eftersom `service-behaviour` är en kontroll som inte står i
+  KF2b-panelen (fråga i TODO); panelen tonas därför inte.
+- Testärendet fylls inte på än (TODO).
+
+**Tester:** Clustering 6 nya (förhandsvisningen, det som hålls tillbaka, *Låt stå*, *Släpp* och nästa körning),
+App 14 nya i `RoundFourSurfacesTests`. Ett befintligt test räknar en läsning till av klustret (Varför?).
+

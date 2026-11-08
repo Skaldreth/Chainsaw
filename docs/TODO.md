@@ -46,6 +46,8 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`.
     - En etikett på ett offer sprids aldrig till andra ärenden. Den regeln är sessionens egen och står kvar tills du
       säger annat.
     - Ska *Sprid inte* också gå att sätta för ett helt ärende?
+12. **En trolig tjänst** (TJ1b): kontrollen `service-behaviour` är en kontroll, inte ett förslag, så den står inte i
+    KF2b-panelen. *Nu:* *Som etikett …* står i inspektören vid noden. Ska svepet bli ett förslag som väntar i panelen?
 
 **Äldre, där sessionen valt det säkraste:**
 - **Återkallade återställningsnycklar** (etapp 9):
@@ -138,21 +140,23 @@ byggt ur BACKLOG; det som skriver i ärendet granskas oberoende.
 9. **Egen nod och eget index**, hitta fortsättningen på en annan kedja själv, och mönsterigenkänning som analys
    (utan språkmodell, princip 5).
 
-**Ur omgång 4 (klustring, förvirring och kontroller), väntar på en yta** [skiss]:
-- **Dra tillbaka en version:** `IClusteringService.Withdraw` finns, men ingen knapp eller rad i gränssnittet; var
-  den står (inspektörens *Varför?*, Guiden eller Inställningar) och hur bekräftelsen ser ut skissas.
-- **Slutsatser som hålls tillbaka** (`ClusteringRun.HeldBack`): när en körning saknar en tx som en sparad slutsats
-  bygger på står den gamla slutsatsen kvar; gränssnittet bör visa det (en obekräftad tx som ersatts kan aldrig
-  skickas med igen).
-- **Uppbrytning av ett par som inte hör ihop:** gränssnittet bör föreslå länken på vägen mellan dem
-  (`ExplainConnection`) och varna när de inte är i samma kluster.
-- **Damm och den liknande adressen tonas ned** i grafen (`dust v1` markerar dem med ett område men tonar inte ned).
-- **Många hopp fälls ihop** till en länk i grafen (`pass-through v1` markerar raden med ett område).
-- **En trolig tjänst blir en etikett:** `service-behaviour v1` är en kontroll; att godkänna den som en egen etikett
-  (med namn) behöver en form.
-- **Testärendet** (`/testdata`) visar inte de nya kontrollerna än: en uppdelning med delar som möts, damm, en
-  adressförgiftning, ett svep till Sydbörsens hot wallet och en möjlig PayJoin behöver läggas in i berättelsen
-  (`TestStoryChain`) med stegen som hämtar dem [direkt].
+**Ur omgång 4, ytorna KV1a, HB1a, BU1a, DM1a, HP1a och TJ1b** (byggda 2026-11-08, rester):
+- **Testärendet** (`/testdata`) visar inte de nya kontrollerna och ytorna än [direkt]: damm, en adressförgiftning
+  (en look-alike till Sydbörsen), ett svep till Sydbörsens hot wallet (för *Som etikett …*), en rad med många hopp
+  (fem hopp med en in och en ut, med ett uppehåll på några dygn), en uppdelning med delar som möts och en möjlig
+  PayJoin behöver läggas in i berättelsen (`TestStoryChain`) med stegen som hämtar dem. En slutsats som hålls tillbaka
+  kräver en obekräftad tx som ersätts, som testkedjan inte kan visa än.
+- **Ersatt av** i hovringen av en slutsats som hålls tillbaka (HB1a) väntar på punkten *Ersatt av vilken tx* ovan;
+  nu står bara vilken tx slutsatsen byggde på.
+- **Ångra ett släppt beslut** (HB1a): *Släpp slutsatsen* är förseglat och kan inte tas tillbaka i Historik än.
+- **Förhandsvisningen av ett tillbakadragande** (KV1a) räknar på det som är sparat: det v1 slår ihop i tx som v1
+  aldrig kört syns först efter nästa körning. Raden längst ner säger när, men inte vem (det står i journalen).
+- **Dammets linjer** (DM1a) är inte hårfina och prickade och har kvar beloppet; noderna tonas ned och förgiftningens
+  mask står i full styrka. Den liknande adressen visar inte mer av mitten på noden (*TQ5nX7…zmK8e*).
+- **Hoppen utfällda** (HP1a): noderna står på sina vanliga platser och linjerna utan väntan; *Fäll ihop* är en
+  bricka ovanför raden, inte en båge.
+- **Som etikett …** (TJ1b) står i inspektörens rad med *Varför?* och *Historik*, inte i KF2b-panelen: kontrollen
+  `service-behaviour` är en kontroll och inte ett förslag, så den står inte i panelen (*Väntar på dig*, 12). Ingen toast med *Ångra* efter etiketten (den tas tillbaka i Historik).
 
 **Beslutat 2026-11-08** (står i CLAUDE.md): spårningen genom en swap (förvalet följer värdet, utredaren väljer per
 swap; valet i pillret skissas [skiss]), VPN i bakgrunden (byggs i omgång 3) och metoderna för privacy coins

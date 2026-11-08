@@ -71,6 +71,12 @@ public sealed partial class InspectorHistoryViewModel : ObservableObject
     public const string AlreadyText = "Det var redan tillbakataget; historiken läses om.";
 
     /// <summary>The open case.</summary>
+    /// <summary>
+    /// What submitting a held back conclusion's form decides: letting it go (Enter, <em>Släpp slutsatsen</em>), or
+    /// letting it stand while <see cref="KeepAsync"/> submits.
+    /// </summary>
+    private ConclusionChoice _heldChoice = ConclusionChoice.Release;
+
     private readonly CaseSession _session;
 
     /// <summary>The modules' readers and writers.</summary>
@@ -150,7 +156,7 @@ public sealed partial class InspectorHistoryViewModel : ObservableObject
     /// <summary>Gets the row whose form is open, or <see langword="null"/>.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsOpen), nameof(IsLabelOpen), nameof(IsSplitOpen), nameof(IsLinkOpen))]
-    [NotifyPropertyChangedFor(nameof(IsMergeOpen), nameof(IsConfirmOpen))]
+    [NotifyPropertyChangedFor(nameof(IsMergeOpen), nameof(IsConfirmOpen), nameof(IsHeldOpen))]
     [NotifyPropertyChangedFor(nameof(SubmitText), nameof(CanSubmit), nameof(ReachesLibrary))]
     public partial HistoryRowViewModel? OpenRow { get; private set; }
 
@@ -171,6 +177,15 @@ public sealed partial class InspectorHistoryViewModel : ObservableObject
     /// merge of the user's that held a heuristic's link back (AN1b, the user's decision 2026-11-07).
     /// </summary>
     public bool IsConfirmOpen => IsSplitOpen || IsMergeOpen;
+
+    /// <summary>
+    /// Gets whether the open form decides about a conclusion that is held back, with <em>Låt stå</em> beside
+    /// <em>Släpp slutsatsen</em> (sketch HB1a).
+    /// </summary>
+    public bool IsHeldOpen => OpenRow?.Event.Undo == HistoryUndo.DecideHeldBack;
+
+    /// <summary>Gets the button that lets a held back conclusion stand.</summary>
+    public string KeepText => NodeHistory.KeepText;
 
     /// <summary>Gets whether the open form takes a link to another chain back.</summary>
     public bool IsLinkOpen => OpenRow?.Event.Undo == HistoryUndo.Unlink;
@@ -357,6 +372,10 @@ public sealed partial class InspectorHistoryViewModel : ObservableObject
                 HistoryUndo.RetractLabel => await _editor.RetractLabelAsync(openCase, row.Event.LabelSequence, reason),
                 HistoryUndo.UndoSplit => await _editor.UndoSplitsAsync(openCase, row.Event.SplitSequences, reason),
                 HistoryUndo.UndoMerge => await _editor.UndoMergesAsync(openCase, row.Event.MergeSequences, reason),
+                HistoryUndo.TakeBackWithdrawal =>
+                    await _editor.TakeBackWithdrawalAsync(openCase, row.Event.WithdrawalSequence, reason),
+                HistoryUndo.DecideHeldBack =>
+                    await _editor.DecideHeldBackAsync(openCase, row.Event.HeldTxid!, _heldChoice, reason),
                 _ => await _editor.UnlinkAsync(openCase, row.Event.Link!, reason),
             };
             if (!outcome.Done)
@@ -377,6 +396,30 @@ public sealed partial class InspectorHistoryViewModel : ObservableObject
         finally
         {
             IsSaving = false;
+        }
+    }
+
+    /// <summary>
+    /// Lets the held back conclusion in the open form stand (<em>Låt stå</em>, sketch HB1a), sealed as a decision
+    /// like letting it go.
+    /// </summary>
+    /// <returns>A task that completes when it is stored or could not be.</returns>
+    [RelayCommand]
+    public async Task KeepAsync()
+    {
+        if (!IsHeldOpen)
+        {
+            return;
+        }
+
+        _heldChoice = ConclusionChoice.Keep;
+        try
+        {
+            await SubmitAsync();
+        }
+        finally
+        {
+            _heldChoice = ConclusionChoice.Release;
         }
     }
 

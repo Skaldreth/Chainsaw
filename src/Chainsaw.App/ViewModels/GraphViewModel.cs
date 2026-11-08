@@ -184,6 +184,9 @@ public sealed partial class GraphViewModel : ObservableObject
         };
         History.Saved += (_, notice) => _ = RefreshThenSayAsync(notice);
         History.Failed += (_, text) => Tell(ToastKind.Error, text);
+        _editor = editor;
+        ClusterWhy = new ClusterWhyViewModel(session, editor);
+        WireClusterWhy();
 
         // The node's actions over it follow the chosen node, its facts, the expansion and the forms (sketch IN2b).
         Forms.PropertyChanged += (_, e) =>
@@ -392,6 +395,15 @@ public sealed partial class GraphViewModel : ObservableObject
 
     /// <summary>Gets the inspector's tabs and its history, with taking back and undoing (sketch AN1b).</summary>
     public InspectorHistoryViewModel History { get; }
+
+    /// <summary>
+    /// Gets the heuristics behind a chosen cluster, <em>Varför är de en plånbok?</em>, with drawing a version back
+    /// (sketch KV1a).
+    /// </summary>
+    public ClusterWhyViewModel ClusterWhy { get; }
+
+    /// <summary>The inspector's way into the modules, also for what the graph reads beside the scene.</summary>
+    private readonly IGraphEditor _editor;
 
     /// <summary>
     /// Gets the checks and suggestions (sketch KF1a, Ctrl+J) and the areas behind the actors with the own areas
@@ -762,8 +774,13 @@ public sealed partial class GraphViewModel : ObservableObject
     /// <param name="point">The point.</param>
     /// <param name="tolerance">How close to a line counts, in the surface's units.</param>
     /// <returns>The node's or the line's key; both <see langword="null"/> over empty surface.</returns>
-    public (string? Node, string? Edge) HitTest(GraphPoint point, double tolerance) =>
-        Scene is { } scene ? GraphHitTest.At(scene, Places, Curves, point, tolerance) : (null, null);
+    public (string? Node, string? Edge) HitTest(GraphPoint point, double tolerance)
+    {
+        var (node, edge) = Scene is { } scene ? GraphHitTest.At(scene, Places, Curves, point, tolerance) : (null, null);
+
+        // What a folded row of many hops hides cannot be hit (sketch HP1a).
+        return node is not null && IsFoldedAway(node) ? (null, edge) : (node, edge);
+    }
 
     /// <summary>
     /// Moves a node while it is dragged: anywhere on the free surface, up and down in its column. A picked node takes
@@ -1299,6 +1316,7 @@ public sealed partial class GraphViewModel : ObservableObject
         };
         Why = Inspection?.Why ?? [];
         Forms.Follow(scene, node);
+        ClusterWhy.Follow(scene, node);
         if (comment is not null)
         {
             History.FollowComment(scene, comment);
@@ -1309,6 +1327,8 @@ public sealed partial class GraphViewModel : ObservableObject
         }
 
         Checks.Inspect(node?.Key);
+        ServiceCheck = ServiceCheckOf(Checks.Stored, node);
+        FollowPoison();
         if (node is { Node.Kind: GraphNodeKind.Cluster } && _session.Current is { } openCase)
         {
             _ = ExplainClusterAsync(openCase, node);

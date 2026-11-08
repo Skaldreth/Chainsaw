@@ -276,4 +276,47 @@ public interface IClusteringService
     /// <param name="case">The open case.</param>
     /// <returns>The withdrawals, each with its taking back.</returns>
     IReadOnlyList<VersionWithdrawal> GetWithdrawals(ICase @case);
+
+    /// <summary>
+    /// Says what drawing a version back would do to the clusters (<see cref="WithdrawPreview"/>), for the
+    /// confirmation the user sees first (sketch KV1a). Nothing is stored.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="heuristic">The analysis and version.</param>
+    /// <returns>
+    /// The preview, or <see langword="null"/> when the version could not be drawn back (see
+    /// <see cref="Withdraw"/>) or is drawn back already.
+    /// </returns>
+    WithdrawPreview? PreviewWithdraw(ICase @case, HeuristicId heuristic);
+
+    /// <summary>
+    /// Reads the conclusions the latest run held back (<see cref="ClusteringRun.HeldBack"/>) that still count, each
+    /// with what was missing and the user's latest decision about it (sketch HB1a).
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <returns>The held back conclusions, in the order the latest run gave them.</returns>
+    IReadOnlyList<HeldBackConclusion> GetHeldBack(ICase @case);
+
+    /// <summary>
+    /// Seals the user's decision about a conclusion the latest run held back, with a line in the journal: let it
+    /// stand, or let it go (<see cref="ConclusionChoice"/>). Nothing is removed.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="txid">The transaction whose conclusions are held back.</param>
+    /// <param name="choice">What the user decided.</param>
+    /// <param name="reason">Why, or <see langword="null"/>; the reason is optional.</param>
+    /// <returns>
+    /// The decision, or <see langword="null"/> when the transaction's conclusions are not held back now (nothing is
+    /// sealed).
+    /// </returns>
+    /// <exception cref="ArgumentException">The reason is too long.</exception>
+    /// <exception cref="CaseException">
+    /// <see cref="CaseError.NoOperatorProfile"/> or <see cref="CaseError.Closed"/>.
+    /// </exception>
+    HeldBackDecision? DecideHeldBack(ICase @case, Txid txid, ConclusionChoice choice, string? reason);
+
+    /// <summary>Reads every decision about held back conclusions, oldest first.</summary>
+    /// <param name="case">The open case.</param>
+    /// <returns>The decisions.</returns>
+    IReadOnlyList<HeldBackDecision> GetHeldBackDecisions(ICase @case);
 }

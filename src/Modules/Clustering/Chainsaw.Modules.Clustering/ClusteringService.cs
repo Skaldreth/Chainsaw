@@ -95,6 +95,8 @@ internal sealed class ClusteringService : IClusteringService
             var heldBack = analysed.Where(entry => !KnowsBasis(entry.Txid, latest, txids))
                 .Select(entry => entry.Txid)
                 .ToList();
+            HeldBackStore.Replace(
+                transaction, [.. heldBack.Select(txid => (txid, MissingBasis(txid, latest, txids)))]);
             var changed = analysed.Where(entry => !heldBack.Contains(entry.Txid))
                 .SelectMany(entry => entry.Results)
                 .Where(entry => Replaces(entry.Result, entry.Fingerprint, latest))
@@ -457,6 +459,101 @@ internal sealed class ClusteringService : IClusteringService
     }
 
     /// <inheritdoc/>
+    public WithdrawPreview? PreviewWithdraw(ICase @case, HeuristicId heuristic)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(heuristic);
+        var versions = _versions.FirstOrDefault(group => group[0].Id.Name == heuristic.Name);
+        if (heuristic.Name == UserMerges.Name || versions is null || versions.All(known => known.Id != heuristic))
+        {
+            return null;
+        }
+
+        return @case.Read(reader =>
+        {
+            var inForce = EvidenceStore.ReadWithdrawals(reader).Where(known => known.IsInForce).ToList();
+            var instead = versions.FirstOrDefault(registered => registered.Id != heuristic
+                && inForce.All(known => known.Heuristic != registered.Id));
+            if (inForce.Any(known => known.Heuristic == heuristic) || instead is null)
+            {
+                return null;
+            }
+
+            var merges = MergeStore.ReadInForce(reader);
+            var splits = EvidenceStore.ReadSplits(reader);
+            var before = EvidenceStore.ReadLatest(reader, withFindings: false).Evidence;
+            var after = EvidenceStore.ReadLatestWithout(reader, heuristic);
+            var changes = ClusterChanges.Between(
+                new ClusterGraph(before, merges, splits), new ClusterGraph(after, merges, splits), before, after);
+            return new WithdrawPreview(heuristic, instead.Id, changes);
+        });
+    }
+
+    /// <inheritdoc/>
+    public IReadOnlyList<HeldBackConclusion> GetHeldBack(ICase @case)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        return @case.Read(reader =>
+        {
+            var held = HeldBackStore.Read(reader);
+            var decisions = HeldBackStore.ReadDecisions(reader);
+            var conclusions = EvidenceStore.ReadLatest(reader, held.Select(entry => entry.Txid).ToHashSet());
+            return (IReadOnlyList<HeldBackConclusion>)
+            [
+                .. held.Select(entry => new HeldBackConclusion(
+                        entry.Txid,
+                        conclusions[entry.Txid].Evidence,
+                        entry.Missing,
+                        decisions.LastOrDefault(decision => decision.Txid == entry.Txid)))
+                    // A conclusion let go no longer counts, so there is nothing left to hold back.
+                    .Where(conclusion => conclusion.Evidence.Count > 0),
+            ];
+        });
+    }
+
+    /// <inheritdoc/>
+    public HeldBackDecision? DecideHeldBack(ICase @case, Txid txid, ConclusionChoice choice, string? reason)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(txid);
+        var checkedReason = OptionalReason(reason);
+        return @case.Write(transaction =>
+        {
+            var held = HeldBackStore.Read(transaction).FirstOrDefault(entry => entry.Txid == txid);
+            var evidence = EvidenceStore.ReadLatest(transaction, txid, withFindings: false).Evidence;
+            if (held.Txid is null || evidence.Count == 0)
+            {
+                return null;
+            }
+
+            var addresses = evidence.SelectMany(proposal => proposal.Addresses).Distinct().ToList();
+
+            var summary = choice == ConclusionChoice.Keep
+                ? "Slutsatsen om {0} står kvar fast den bygger på en tx som inte fanns i senaste körningen."
+                : "Slutsatsen om {0} är släppt: den räknas inte längre, men står kvar förseglad.";
+            var journal = transaction.AppendJournal(new JournalDraft(
+                ClusteringJournalKinds.HeldBackDecided,
+                string.Format(CultureInfo.InvariantCulture, summary, txid.Value),
+                JsonSerializer.Serialize(new
+                {
+                    txid = txid.Value,
+                    missing = held.Missing.Select(missing => missing.Value),
+                    choice = choice.ToString(),
+                    reason = checkedReason,
+                })));
+            return HeldBackStore.AppendDecision(
+                transaction, txid, held.Missing, addresses, choice, checkedReason, journal);
+        });
+    }
+
+    /// <inheritdoc/>
+    public IReadOnlyList<HeldBackDecision> GetHeldBackDecisions(ICase @case)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        return @case.Read(HeldBackStore.ReadDecisions);
+    }
+
+    /// <inheritdoc/>
     public TransactionConclusions GetConclusions(ICaseReader reader, Txid txid)
     {
         ArgumentNullException.ThrowIfNull(reader);
@@ -789,6 +886,25 @@ internal sealed class ClusteringService : IClusteringService
             return null;
         }
     }
+
+    /// <summary>
+    /// Gives the transactions that the counting stored results of a transaction rest on and the run does not know,
+    /// so that the user can see what a held back conclusion was built on (sketch HB1a).
+    /// </summary>
+    /// <param name="txid">The transaction.</param>
+    /// <param name="latest">What is stored.</param>
+    /// <param name="known">The transactions the run knows.</param>
+    /// <returns>The missing transactions.</returns>
+    private static IReadOnlyList<Txid> MissingBasis(
+        Txid txid, Dictionary<(Txid Txid, HeuristicId Heuristic), StoredResult> latest, HashSet<Txid> known) =>
+    [
+        .. latest.Where(entry => entry.Key.Txid == txid)
+            .GroupBy(entry => entry.Key.Heuristic.Name)
+            .Select(group => group.MaxBy(entry => entry.Key.Heuristic.Version))
+            .SelectMany(entry => entry.Value.Basis)
+            .Where(basis => !known.Contains(basis))
+            .Distinct(),
+    ];
 
     /// <summary>
     /// Says whether the run knows every transaction that any counting stored result of a transaction (the highest

@@ -298,6 +298,12 @@ public sealed partial class GraphViewModel
     /// <summary>Copies the chosen node's address (Ctrl+C).</summary>
     public void CopyAddress()
     {
+        if (AskBeforeCopy())
+        {
+            // A look-alike is compared with the genuine address first (sketch DM1a); nothing is copied yet.
+            return;
+        }
+
         if (Scene?.Node(SelectedNode) is { } node && node.Node.Addresses.Count > 0)
         {
             CopyWanted?.Invoke(this, node.Node.Addresses[0].Value);

@@ -1,0 +1,187 @@
+<UserControl x:Class="Chainsaw.App.Views.ClusterWhyView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:Chainsaw.App.Controls"
+             xmlns:vm="clr-namespace:Chainsaw.App.ViewModels"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             d:DataContext="{d:DesignInstance Type=vm:ClusterWhyViewModel}"
+             mc:Ignorable="d">
+
+    <!--
+      Varför är de en plånbok? (sketch KV1a): a row per heuristic with its version and the transaction it rests on, a
+      menu on the row (the guide, Bryt upp and Dra tillbaka …), and the confirmation of drawing a version back with the
+      clusters before and after as bars. Only wiring; what is shown is worked out in ClusterWhyViewModel.
+    -->
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="Visible" />
+    </UserControl.Resources>
+
+    <StackPanel Visibility="{Binding HasRows, Converter={StaticResource Visible}}">
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+            <controls:GridIcon Size="12" Data="{StaticResource Icon.Why}" Foreground="{StaticResource Brush.TextDim}"
+                               Margin="0,0,7,0" VerticalAlignment="Center" />
+            <TextBlock Text="VARFÖR ÄR DE EN PLÅNBOK?" FontSize="11" Foreground="{StaticResource Brush.TextDim}" />
+        </StackPanel>
+
+        <ItemsControl ItemsSource="{Binding Rows}" Focusable="False">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate DataType="{x:Type vm:HeuristicRowViewModel}">
+                    <Border x:Name="Row" Padding="0,7" BorderThickness="0,0,0,1" BorderBrush="{StaticResource Brush.Surface}"
+                            Background="Transparent">
+                        <DockPanel>
+                            <Ellipse x:Name="Dot" DockPanel.Dock="Left" Width="6" Height="6" Margin="0,7,12,0"
+                                     VerticalAlignment="Top" Fill="{StaticResource Brush.TextDim}" />
+                            <Grid DockPanel.Dock="Right" VerticalAlignment="Center"
+                                  Visibility="{Binding HasMenu, Converter={StaticResource Visible}}">
+                                <Button x:Name="MenuButton" Style="{StaticResource Button.Icon}" Width="26" Height="26"
+                                        AutomationProperties.Name="Meny" ToolTip="Meny"
+                                        CommandParameter="{Binding}"
+                                        Command="{Binding DataContext.ToggleMenuCommand, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                                    <controls:GridIcon Size="16" Data="{StaticResource Icon.Dots}" />
+                                </Button>
+                                <Popup PlacementTarget="{Binding ElementName=MenuButton}" Placement="Bottom" HorizontalOffset="-230"
+                                       AllowsTransparency="True" StaysOpen="False" Focusable="False"
+                                       IsOpen="{Binding IsMenuOpen, Mode=TwoWay}">
+                                    <Border Margin="12,4,12,20" Width="270" Padding="6" CornerRadius="10" BorderThickness="1"
+                                            BorderBrush="{StaticResource Brush.BorderStrong}" Background="{StaticResource Brush.Floating}">
+                                        <Border.Effect>
+                                            <DropShadowEffect BlurRadius="24" ShadowDepth="8" Direction="270" Opacity="0.4" Color="Black" />
+                                        </Border.Effect>
+                                        <StackPanel>
+                                            <Button Style="{StaticResource Button.MenuItem}" CommandParameter="{Binding}"
+                                                    Command="{Binding DataContext.AskGuideCommand, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                                                <DockPanel>
+                                                    <controls:GridIcon DockPanel.Dock="Left" Size="16" Data="{StaticResource Icon.Guide}"
+                                                                       Foreground="{StaticResource Brush.TextMuted}" Margin="0,0,10,0" />
+                                                    <TextBlock DockPanel.Dock="Right" Text="F1" FontSize="11.5"
+                                                               Foreground="{StaticResource Brush.TextDim}" VerticalAlignment="Center" />
+                                                    <TextBlock Text="{Binding GuideText}" FontSize="13" VerticalAlignment="Center" />
+                                                </DockPanel>
+                                            </Button>
+                                            <Button Style="{StaticResource Button.MenuItem}"
+                                                    Command="{Binding DataContext.AskSplitCommand, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                                                <DockPanel>
+                                                    <controls:GridIcon DockPanel.Dock="Left" Size="16" Data="{StaticResource Icon.Scissors}"
+                                                                       Foreground="{StaticResource Brush.TextMuted}" Margin="0,0,10,0" />
+                                                    <TextBlock DockPanel.Dock="Right" Text="U" FontSize="11.5"
+                                                               Foreground="{StaticResource Brush.TextDim}" VerticalAlignment="Center" />
+                                                    <TextBlock Text="Bryt upp …" FontSize="13" VerticalAlignment="Center" />
+                                                </DockPanel>
+                                            </Button>
+                                            <Border Height="1" Margin="4,4" Background="{StaticResource Brush.Border}"
+                                                    Visibility="{Binding CanWithdraw, Converter={StaticResource Visible}}" />
+                                            <Button Style="{StaticResource Button.MenuItem}" CommandParameter="{Binding}"
+                                                    Visibility="{Binding CanWithdraw, Converter={StaticResource Visible}}"
+                                                    Command="{Binding DataContext.AskWithdrawCommand, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                                                <DockPanel>
+                                                    <controls:GridIcon DockPanel.Dock="Left" Size="16" Data="{StaticResource Icon.Rollback}"
+                                                                       Foreground="{StaticResource Brush.Kind.Spent}" Margin="0,0,10,0" />
+                                                    <TextBlock Text="{Binding WithdrawText}" FontSize="13" VerticalAlignment="Center"
+                                                               TextTrimming="CharacterEllipsis" />
+                                                </DockPanel>
+                                            </Button>
+                                        </StackPanel>
+                                    </Border>
+                                </Popup>
+                            </Grid>
+                            <StackPanel>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock x:Name="Name" Text="{Binding Name}" FontSize="13.5" />
+                                    <TextBlock x:Name="Tag" Text="{Binding Tag}" FontSize="11.5" Margin="8,0,0,0"
+                                               VerticalAlignment="Center" Foreground="{StaticResource Brush.TextDim}"
+                                               Visibility="{Binding HasTag, Converter={StaticResource Visible}}" />
+                                </StackPanel>
+                                <TextBlock Text="{Binding Detail}" FontSize="11.5" Margin="0,2,0,0"
+                                           Foreground="{StaticResource Brush.TextDim}" />
+                            </StackPanel>
+                        </DockPanel>
+                    </Border>
+                    <DataTemplate.Triggers>
+                        <DataTrigger Binding="{Binding IsWithdrawn}" Value="True">
+                            <Setter TargetName="Name" Property="TextDecorations" Value="Strikethrough" />
+                            <Setter TargetName="Name" Property="Foreground" Value="{StaticResource Brush.TextDim}" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding CountsAgain}" Value="True">
+                            <Setter TargetName="Dot" Property="Fill" Value="{StaticResource Brush.Success}" />
+                            <Setter TargetName="Tag" Property="Foreground" Value="{StaticResource Brush.Success}" />
+                        </DataTrigger>
+                        <Trigger SourceName="Row" Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Row" Property="Background" Value="{StaticResource Brush.SurfaceRaised}" />
+                        </Trigger>
+                    </DataTemplate.Triggers>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <TextBlock Text="{Binding Footer}" FontSize="12" Margin="0,8,0,0" Foreground="{StaticResource Brush.TextDim}">
+            <TextBlock.Style>
+                <Style TargetType="TextBlock">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding Footer}" Value="">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </TextBlock.Style>
+        </TextBlock>
+
+        <!-- The confirmation (sketch KV1a): the clusters before and after as bars, the reason, Avbryt and Dra tillbaka. -->
+        <Border Margin="0,14,0,0" Padding="16,14" CornerRadius="10" BorderThickness="1"
+                BorderBrush="{StaticResource Brush.BorderStrong}" Background="{StaticResource Brush.Surface}"
+                Visibility="{Binding IsConfirmOpen, Converter={StaticResource Visible}}">
+            <Border.InputBindings>
+                <KeyBinding Key="Enter" Command="{Binding SubmitCommand}" />
+                <KeyBinding Key="Escape" Command="{Binding CancelCommand}" />
+            </Border.InputBindings>
+            <StackPanel>
+                <StackPanel Orientation="Horizontal">
+                    <controls:GridIcon Size="16" Data="{StaticResource Icon.Rollback}" Foreground="{StaticResource Brush.Kind.Spent}"
+                                       Margin="0,0,9,0" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding ConfirmTitle}" FontSize="14" FontWeight="SemiBold" />
+                </StackPanel>
+                <TextBlock Text="{Binding ConfirmText}" FontSize="12.5" TextWrapping="Wrap" LineHeight="19" Margin="0,8,0,0"
+                           Foreground="{StaticResource Brush.TextMuted}" />
+                <ItemsControl ItemsSource="{Binding Bars}" Focusable="False" Margin="0,10,0,0">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type vm:ChangeBar}">
+                            <Grid Margin="0,4">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="90" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="64" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="{Binding Name}" FontSize="12.5" TextTrimming="CharacterEllipsis" />
+                                <controls:ChangeBarView Grid.Column="1" Height="6" Margin="8,0" VerticalAlignment="Center"
+                                                        Kept="{Binding KeptShare}" Changed="{Binding ChangedShare}"
+                                                        Grows="{Binding Grows}" />
+                                <TextBlock Grid.Column="2" Text="{Binding Text}" FontSize="12.5" HorizontalAlignment="Right" />
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock Text="{Binding MoreText}" FontSize="12" Foreground="{StaticResource Brush.TextDim}" />
+                <TextBlock Text="{Binding Notice}" FontSize="12.5" TextWrapping="Wrap" Margin="0,6,0,0"
+                           Foreground="{StaticResource Brush.TextMuted}" />
+                <TextBox Style="{StaticResource TextBox.Field}" Tag="Skäl, frivilligt" Margin="0,10,0,0"
+                         Text="{Binding Reason, UpdateSourceTrigger=PropertyChanged}" />
+                <DockPanel Margin="0,12,0,0" LastChildFill="False">
+                    <Button DockPanel.Dock="Right" Style="{StaticResource Button.Primary}" Height="32" Padding="12,0"
+                            FontSize="13" Command="{Binding SubmitCommand}" IsEnabled="{Binding CanSubmit}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Dra tillbaka" />
+                            <TextBlock Text="Enter" Margin="7,0,0,0" FontWeight="Normal" Opacity="0.6" />
+                        </StackPanel>
+                    </Button>
+                    <Button DockPanel.Dock="Right" Style="{StaticResource Button.Secondary}" Height="32" Padding="12,0"
+                            FontSize="13" Margin="0,0,8,0" Command="{Binding CancelCommand}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Avbryt" />
+                            <TextBlock Text="Esc" Margin="7,0,0,0" Foreground="{StaticResource Brush.TextDim}" />
+                        </StackPanel>
+                    </Button>
+                </DockPanel>
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</UserControl>

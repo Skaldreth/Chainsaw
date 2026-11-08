@@ -60,6 +60,18 @@ internal sealed class ClusteringSchema : ICaseSchemaContributor
         "withdrawal_sequence", "reason", "journal_sequence", "recorded_utc",
     ];
 
+    /// <summary>The sealed chain of the user's decisions about conclusions a run held back.</summary>
+    public const string HeldBackDecisionsChain = "clustering.held_back_decisions";
+
+    /// <summary>The table of the user's decisions about conclusions a run held back.</summary>
+    public const string HeldBackDecisionsTable = "clustering_held_back_decisions";
+
+    /// <summary>The sealed columns of a decision about a held back conclusion, in order.</summary>
+    public static readonly IReadOnlyList<string> HeldBackDecisionColumns =
+    [
+        "txid", "missing", "addresses", "choice", "reason", "journal_sequence", "recorded_utc",
+    ];
+
     /// <summary>The sealed columns of a version drawn back, in order.</summary>
     public static readonly IReadOnlyList<string> WithdrawalColumns =
     [
@@ -198,6 +210,30 @@ internal sealed class ClusteringSchema : ICaseSchemaContributor
         ) STRICT;
         """;
 
+    /// <summary>
+    /// The fifth version: what the latest run held back (working state, replaced by every run that holds back
+    /// something else, so not sealed: it is worked out again from the sealed conclusions), and the user's sealed
+    /// decisions about it (sketch HB1a). The reasons are optional.
+    /// </summary>
+    private const string Version5 = """
+        CREATE TABLE clustering_held_back (
+            position INTEGER PRIMARY KEY,
+            txid TEXT NOT NULL,
+            missing TEXT NOT NULL
+        ) STRICT;
+        CREATE TABLE clustering_held_back_decisions (
+            sequence INTEGER PRIMARY KEY,
+            txid TEXT NOT NULL,
+            missing TEXT NOT NULL,
+            addresses TEXT NOT NULL,
+            choice TEXT NOT NULL,
+            reason TEXT,
+            journal_sequence INTEGER NOT NULL,
+            recorded_utc TEXT NOT NULL,
+            hash BLOB NOT NULL
+        ) STRICT;
+        """;
+
     /// <inheritdoc/>
     public string Module => ModuleName;
 
@@ -208,6 +244,7 @@ internal sealed class ClusteringSchema : ICaseSchemaContributor
         new(2, "Ångrade uppbrytningar (förseglade)", Version2),
         new(3, "Användarens sammanslagningar och deras ångrande (förseglade)", Version3),
         new(4, "Versioner av analyser som dragits tillbaka och tillbakatagandena (förseglade)", Version4),
+        new(5, "Slutsatser som hålls tillbaka och besluten om dem (besluten förseglade)", Version5),
     ];
 
     /// <inheritdoc/>
@@ -220,5 +257,6 @@ internal sealed class ClusteringSchema : ICaseSchemaContributor
         new(MergeUndosChain, MergeUndosTable, MergeUndoColumns),
         new(WithdrawalsChain, WithdrawalsTable, WithdrawalColumns),
         new(WithdrawalUndosChain, WithdrawalUndosTable, WithdrawalUndoColumns),
+        new(HeldBackDecisionsChain, HeldBackDecisionsTable, HeldBackDecisionColumns),
     ];
 }
