@@ -38,10 +38,12 @@ public static class ChainLink
         "-51.4 -5.8 -51.2 -9 -50.9 -12.1 -50.4 -16.4 -49.6 -16.4 -33.5Z";
 
     /// <summary>
-    /// The link's two straight bars below the joint. They reach two units into the joints above and below, so that the
-    /// pieces overlap and no seam shows between them; they are drawn as their own shape, so the overlap never cancels.
+    /// The link's two straight bars below the joint, exactly as wide as the links where they leave the joint's bottom
+    /// edge (left from -61.6 to -31.7, right from 31 to 61), so that no step shows where they meet. They reach two units
+    /// into the joints above and below, so that the pieces overlap and no seam shows between them; they are drawn as
+    /// their own shape, so the overlap never cancels.
     /// </summary>
-    public const string Bars = "M-61.5 58H-31.5V102.5H-61.5ZM31.1 58H61.1V102.5H31.1Z";
+    public const string Bars = "M-61.6 58H-31.7V102.5H-61.6ZM31 58H61V102.5H31Z";
 
     /// <summary>The height of one joint.</summary>
     public const double JointHeight = 120;
@@ -52,11 +54,19 @@ public static class ChainLink
     /// <summary>Where the bars end below the joint's centre, where the chain gives way to the helix.</summary>
     public const double BarsEnd = 100.5;
 
-    /// <summary>Where a bar's centre lies across the link, on either side; the helix's strands start there.</summary>
-    public const double BarCenter = 46;
+    /// <summary>
+    /// How far a bar's centre lies from the middle between the bars, on either side; the helix's strands start there.
+    /// </summary>
+    public const double BarCenter = 46.325;
+
+    /// <summary>
+    /// Where the middle between the bars lies across the link: the logo is traced by hand, so its links sit a third of
+    /// a unit left of the joint's centre. The helix's axis runs there, so that the strands meet the bars exactly.
+    /// </summary>
+    public const double BarOffset = -0.325;
 
     /// <summary>The width of a bar; the helix's strands keep it.</summary>
-    public const double BarWidth = 30;
+    public const double BarWidth = 29.9;
 
     /// <summary>Gets the distance from one joint to the next.</summary>
     public static double Pitch => JointHeight + LinkStraight;

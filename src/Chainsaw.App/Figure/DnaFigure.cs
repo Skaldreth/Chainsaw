@@ -27,8 +27,8 @@ public sealed class DnaFigure
     /// <summary>How far down the chain the links let go, as a share of the axis on the page.</summary>
     public const double Split = 0.5;
 
-    /// <summary>How much wider than the chain the helix has grown at the bottom: 120 % more.</summary>
-    public const double Widening = 1.2;
+    /// <summary>How much wider than the chain the helix has grown at the bottom: 260 % more.</summary>
+    public const double Widening = 2.6;
 
     /// <summary>
     /// How steeply a strand crosses the axis (across per along). The twist slows as the helix widens, so that the
@@ -43,7 +43,13 @@ public sealed class DnaFigure
     public const double RungWidth = 5;
 
     /// <summary>The share of the helix over which the twist starts.</summary>
-    private const double TwistShare = 0.25;
+    private const double TwistShare = 0.3;
+
+    /// <summary>
+    /// How far the strands run straight on from the bars before they start to twist and widen, in pixels, so that the
+    /// chain lets go of them without a bend at the bars' ends.
+    /// </summary>
+    private const double CalmLength = 18;
 
     /// <summary>How much the second strand's turn falls behind half a turn once twisted: the helix's two grooves.</summary>
     private const double GrooveShare = 0.28;
@@ -52,7 +58,7 @@ public sealed class DnaFigure
     private const double BehindFrom = 0.6;
 
     /// <summary>How far into the twist the rungs begin.</summary>
-    private const double RungsFrom = 0.35;
+    private const double RungsFrom = 0.55;
 
     /// <summary>The shortest rung drawn, in pixels; shorter ones are hidden by the strands where they cross.</summary>
     private const double ShortestRung = 6;
@@ -87,6 +93,15 @@ public sealed class DnaFigure
     /// <summary>The strands' distance from the axis where they leave the bars.</summary>
     private readonly double _radius;
 
+    /// <summary>Where the middle between the bars lies across the axis, which the strands turn around.</summary>
+    private readonly double _middle;
+
+    /// <summary>Where the strands start to twist and widen, <see cref="CalmLength"/> below the bars.</summary>
+    private readonly double _calm;
+
+    /// <summary>The strands' turn, every <see cref="StrandStep"/> from <see cref="Start"/>, summed up once.</summary>
+    private readonly double[] _turns;
+
     /// <summary>Lays the figure out on a page.</summary>
     /// <param name="width">The page's width, in device-independent pixels.</param>
     /// <param name="height">The page's height.</param>
@@ -99,6 +114,7 @@ public sealed class DnaFigure
         _across = new FigurePoint(Math.Cos(angle), Math.Sin(angle));
         _topX = TopX * Math.Min(1, width / DesignWidth);
         _radius = ChainLink.BarCenter * Scale;
+        _middle = ChainLink.BarOffset * Scale;
 
         var pitch = ChainLink.Pitch * Scale;
         var first = -JointsAbove * pitch;
@@ -107,8 +123,10 @@ public sealed class DnaFigure
         var joints = (int)Math.Round((length * Split - bars - first) / pitch);
         Start = first + joints * pitch + bars;
         End = Math.Min(height / _along.Y + Overdraw / 2, (_topX + Overdraw) / -_along.X);
-        _growth = Math.Max(1, length - Start);
-        _twisted = Start + TwistShare * _growth;
+        _calm = Start + CalmLength;
+        _growth = Math.Max(1, length - _calm);
+        _twisted = _calm + TwistShare * _growth;
+        _turns = SumTurns();
 
         Joints = Enumerable.Range(0, joints + 1)
             .Select(k => At(first + k * pitch, 0))
@@ -163,24 +181,71 @@ public sealed class DnaFigure
         _along.Y * along + _across.Y * across);
 
     /// <summary>
-    /// Gives the two strands at a place along the axis. The helix widens linearly to <see cref="Widening"/> over its
-    /// own length, and its turn is the integral of <see cref="CrossingSlope"/> over the radius, so that the strands
-    /// cross at the same angle however wide the helix has grown.
+    /// Gives the two strands at a place along the axis. The helix eases out of the bars and widens to
+    /// <see cref="Widening"/> over its own length, and it turns at <see cref="CrossingSlope"/> over its radius as the
+    /// twist comes in, so that the strands cross at the same angle however wide the helix has grown and never bend
+    /// sharply where the chain lets them go.
     /// </summary>
     /// <param name="along">The place along the axis.</param>
     /// <returns>The strands there.</returns>
     public HelixSlice Helix(double along)
     {
-        var inside = Math.Clamp(along - Start, 0, _growth);
-        var beyond = Math.Max(0, along - Start - _growth);
-        var radius = _radius * (1 + Widening * inside / _growth);
-        var turn = CrossingSlope * _growth / (_radius * Widening) * Math.Log(1 + Widening * inside / _growth)
-            + CrossingSlope * beyond / (_radius * (1 + Widening));
-        var twist = Smooth(Start, _twisted, along);
-        var first = turn * twist;
+        var radius = Radius(along);
+        var twist = Twist(along);
+        var first = Turn(along);
         var second = first + Math.PI * (1 - GrooveShare * twist);
         return new HelixSlice(
-            twist, radius * Math.Cos(first), radius * Math.Cos(second), Math.Sin(first), Math.Sin(second));
+            twist,
+            _middle + radius * Math.Cos(first),
+            _middle + radius * Math.Cos(second),
+            Math.Sin(first),
+            Math.Sin(second));
+    }
+
+    /// <summary>
+    /// Gives the strands' distance from the axis: the bars' own until the calm run ends, then growing from rest, slowly
+    /// at first and steadily towards the bottom, so that the strands leave the bars without a kink.
+    /// </summary>
+    /// <param name="along">The place along the axis.</param>
+    /// <returns>The distance.</returns>
+    private double Radius(double along)
+    {
+        var u = Math.Clamp((along - _calm) / _growth, 0, 1);
+        return _radius * (1 + Widening * u * u * (2 - u));
+    }
+
+    /// <summary>Gives how far the twist has started, from 0 through the calm run to 1.</summary>
+    /// <param name="along">The place along the axis.</param>
+    /// <returns>The twist.</returns>
+    private double Twist(double along) => Smooth(_calm, _twisted, along);
+
+    /// <summary>Gives the strands' turn at a place along the axis, between the summed steps.</summary>
+    /// <param name="along">The place along the axis.</param>
+    /// <returns>The turn, in radians.</returns>
+    private double Turn(double along)
+    {
+        var place = Math.Clamp((along - Start) / StrandStep, 0, _turns.Length - 1);
+        var index = Math.Min((int)place, _turns.Length - 2);
+        return index < 0 ? 0 : _turns[index] + (place - index) * (_turns[index + 1] - _turns[index]);
+    }
+
+    /// <summary>
+    /// Sums the turn down the helix: at each step it turns by <see cref="CrossingSlope"/> over the radius, as far as the
+    /// twist has come in. Turning by the rate rather than scaling the whole turn by the twist keeps the bend gentle where
+    /// the twist starts.
+    /// </summary>
+    /// <returns>The turn at every <see cref="StrandStep"/> from <see cref="Start"/>.</returns>
+    private double[] SumTurns()
+    {
+        var count = Math.Max(2, (int)Math.Ceiling((End - Start) / StrandStep) + 2);
+        var turns = new double[count];
+        for (var i = 1; i < count; i++)
+        {
+            var middle = Start + (i - 0.5) * StrandStep;
+            turns[i] = turns[i - 1] + CrossingSlope * Twist(middle) / Radius(middle) * StrandStep;
+        }
+
+        return turns;
     }
 
     /// <summary>The smooth step from 0 to 1 between two edges.</summary>
@@ -206,7 +271,7 @@ public sealed class DnaFigure
         foreach (var strand in new[] { 1, -1 })
         {
             // A strand starts a little inside its bar, so that the two run together without a seam.
-            var points = new List<FigurePoint> { At(Start - 4 * Scale, strand * _radius) };
+            var points = new List<FigurePoint> { At(Start - 8 * Scale, _middle + strand * _radius) };
             bool? inFront = null;
             for (var along = Start; along <= End; along += StrandStep)
             {
@@ -283,8 +348,8 @@ public readonly record struct Rung(FigurePoint First, FigurePoint Middle, Figure
 
 /// <summary>The two strands at one place along the axis.</summary>
 /// <param name="Twist">How far the twist has started, from 0 at the chain to 1.</param>
-/// <param name="First">Strand one's distance across the axis.</param>
-/// <param name="Second">Strand two's distance across the axis.</param>
+/// <param name="First">Strand one's place across the axis.</param>
+/// <param name="Second">Strand two's place across the axis.</param>
 /// <param name="FirstDepth">Strand one's depth: below zero it passes behind.</param>
 /// <param name="SecondDepth">Strand two's depth.</param>
 public readonly record struct HelixSlice(double Twist, double First, double Second, double FirstDepth, double SecondDepth);

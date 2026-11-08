@@ -21,6 +21,28 @@ public sealed class ChainLinkTests
         Assert.Equal(160, ChainLink.Pitch);
     }
 
+    [Fact]
+    public void The_bars_continue_the_links_where_they_leave_the_joints_bottom_edge()
+    {
+        // The joint's bottom edge: the left link runs from -61.6 to -31.7, the right from 31 to 61.
+        foreach (var corner in new[] { "-61.6 60.5", "-31.7 60.5", " 31 60.5", " 61 60.5" })
+        {
+            Assert.Contains(corner, ChainLink.Joint, StringComparison.Ordinal);
+        }
+
+        Assert.Equal("M-61.6 58H-31.7V102.5H-61.6ZM31 58H61V102.5H31Z", ChainLink.Bars);
+    }
+
+    [Fact]
+    public void The_strands_run_down_the_middle_of_the_bars_as_wide_as_them()
+    {
+        var (left, right) = ((-61.6 + -31.7) / 2, (31 + 61) / 2.0);
+
+        Assert.Equal(ChainLink.BarOffset - ChainLink.BarCenter, left, tolerance: 0.01);
+        Assert.Equal(ChainLink.BarOffset + ChainLink.BarCenter, right, tolerance: 0.01);
+        Assert.InRange(ChainLink.BarWidth, 29.9, 30);
+    }
+
     /// <summary>Finds the repository's root from where the tests run.</summary>
     private static string RepositoryRoot()
     {
@@ -76,10 +98,11 @@ public sealed class DnaFigureTests
     {
         var slice = Sketch.Helix(Sketch.Start);
         var bar = ChainLink.BarCenter * DnaFigure.Scale;
+        var middle = ChainLink.BarOffset * DnaFigure.Scale;
 
         Assert.Equal(0, slice.Twist);
-        Assert.Equal(bar, slice.First, 6);
-        Assert.Equal(-bar, slice.Second, 6);
+        Assert.Equal(middle + bar, slice.First, 6);
+        Assert.Equal(middle - bar, slice.Second, 6);
         Assert.Equal(ChainLink.BarWidth * DnaFigure.Scale, DnaFigure.StrandThickness);
     }
 
@@ -89,9 +112,11 @@ public sealed class DnaFigureTests
         // Where it leaves the chain the helix is as wide as the link; over a full turn near the bottom it is wider by
         // the widening.
         var chain = ChainLink.BarCenter * DnaFigure.Scale;
-        var bottom = Enumerable.Range(0, 200).Max(i => Math.Abs(Sketch.Helix(Sketch.End - 400 + i * 2).First));
+        var middle = ChainLink.BarOffset * DnaFigure.Scale;
+        var bottom = Enumerable.Range(0, 200)
+            .Max(i => Math.Abs(Sketch.Helix(Sketch.End - 400 + i * 2).First - middle));
 
-        Assert.Equal(chain, Sketch.Helix(Sketch.Start).First, 6);
+        Assert.Equal(chain, Sketch.Helix(Sketch.Start).First - middle, 6);
         Assert.Equal(chain * (1 + DnaFigure.Widening), bottom, 0);
     }
 
