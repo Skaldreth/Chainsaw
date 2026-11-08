@@ -22,25 +22,43 @@ på vägen, tx:erna och det andelen bygger på. *Visa vägen i grafen* (G) öppn
 ## Hur andelarna räknas
 
 Andelarna räknas av analysen **exposure** med version, och med grafens **spårningsmetod** (FIFO eller haircut, se
-[Spårningsmetoder](sparningsmetoder.md)). Varje aktör läses som en plånbok: dess överföringar står i tidsordning, och
-metoden säger hur mycket av det som kom in som följer med varje överföring ut, på samma sätt som i
-[kontomodellen](kontomodellen.md).
+[Spårningsmetoder](sparningsmetoder.md)). Hur pengarna följs beror på kedjan:
 
-- **Betalat till:** allt klustret betalat ut är pengarna. Går de till en tjänst räknas de där. Går de till en aktör
-  utan etikett följs de vidare genom den aktörens plånbok, hopp för hopp.
-- **Fått från:** allt klustret fått är pengarna. Hos en aktör på vägen frågar metoden vilka av aktörens inbetalningar
-  som pengarna till klustret kom ifrån, och följer dem bakåt.
+- **Bitcoin** följs **mynt för mynt**, precis som spåret i grafen: metoden säger hur mycket av varje tx:s inputs som
+  hamnar i varje output och i avgiften. Exponeringen säger därför aldrig emot grafen om vart ett mynt gick. En aktör
+  är summan av sina mynt, och växel tillbaka till samma aktör följs vidare utan att räknas som ett hopp.
+- **Ethereum** läses **plånbok för plånbok**: aktörens överföringar står i tidsordning, och metoden säger hur mycket av
+  det som kom in som följer med varje överföring ut, som i [kontomodellen](kontomodellen.md).
 
-Vilka aktörer som är tjänster bestäms av etiketterna och sorterna i grafen, och de är också bedömningar.
+Åt båda hållen:
+
+- **Betalat till:** allt ämnet betalat ut är pengarna. Går de till en tjänst räknas de där. Går de till en aktör
+  utan etikett följs de vidare, hopp för hopp.
+- **Fått från:** allt ämnet fått är pengarna. Hos en aktör på vägen frågar metoden vilka av aktörens inbetalningar
+  (eller vilka inputs i myntets tx) som pengarna kom ifrån, och följer dem bakåt.
+
+Vilka aktörer som är tjänster bestäms av etiketterna och sorterna i grafen, också för det som ligger i soptunnan, och
+de är också bedömningar.
+
+## Rundturer
+
+Pengar går ibland i cirkel: från klustret till en aktör, tillbaka till klustret och ut igen, eller fram och tillbaka
+mellan två aktörer. Det som kommer tillbaka till **ämnet** (klustret eller adressen) räknas som *Gick tillbaka* och
+följs inte vidare, eftersom det redan räknas från ämnet. Kommer pengar tillbaka till en **aktör på vägen** läses
+aktören om, så att också det som kom senare följer med ut. En aktör läses om högst åtta gånger. Går pengarna runt fler
+varv än så sägs resten ärligt som *Gick runt fler varv än analysen följer*.
 
 ## Okänt
 
 Det som inte når en tjänst sägs ärligt som **Okänt**, med skälet när du håller pekaren över raden:
 
 - *Nådde ingen tjänst inom djupet*: pengarna gick vidare till en aktör utan etikett längre bort än ringarna.
-- *Ligger kvar hos en aktör på vägen*: enligt metoden har pengarna inte lämnat aktören.
-- *Gick tillbaka till klustret*: pengarna kom tillbaka på vägen.
+- *Aktören är inte expanderad*: pengarna är hos en aktör vars historik grafen inte har läst helt. Expandera den.
+- *Ligger kvar hos en aktör på vägen*: aktören är läst helt, och enligt metoden har pengarna inte lämnat den.
+- *Gick till avgifter*: pengarna betalade tx-avgifter.
+- *Gick tillbaka till klustret* (eller *adressen*): pengarna kom tillbaka på vägen.
 - *Kom före historiken i grafen*: aktören hade pengar innan det grafen har läst, och det säger inte varifrån.
+- *Gick runt fler varv än analysen följer*: se Rundturer ovan.
 
 Expandera grafen så kan Okänt bli mindre.
 

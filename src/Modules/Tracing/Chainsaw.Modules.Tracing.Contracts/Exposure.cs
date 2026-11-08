@@ -18,8 +18,26 @@ public enum ExposureDirection
 /// <summary>Where a part of the subject's money ends that did not reach a service (the grey <em>Okänt</em>).</summary>
 public enum ExposureRest
 {
-    /// <summary>It still lies with an actor on the way, by the method (only when read out).</summary>
+    /// <summary>
+    /// It still lies with an actor on the way whose history the graph holds in full, by the method (only when read
+    /// out).
+    /// </summary>
     Remains,
+
+    /// <summary>
+    /// It is with an actor on the way whose history the graph does not hold in full: not expanded, or with transactions
+    /// an expansion held back. Expanding it may tell where the money went.
+    /// </summary>
+    NotExpanded,
+
+    /// <summary>It went to the miner as a fee (only when read out on a UTXO chain).</summary>
+    Fees,
+
+    /// <summary>
+    /// It was still on its way when the analysis stopped following a circle: money that went round more times than an
+    /// actor is read.
+    /// </summary>
+    StillMoving,
 
     /// <summary>
     /// It went on to an actor the analysis does not follow: one beyond the chosen depth, or one that is not an actor
@@ -154,7 +172,9 @@ public sealed record ExposureResult(
             ? "."
             : string.Create(CultureInfo.InvariantCulture,
                 $", genom {reach.Transactions.Count} tx: {string.Join(", ", reach.Transactions.Select(t => t.Id))}."));
-        text.Append(" Varje aktör räknas som en plånbok där metoden säger hur mycket som följer med varje överföring.");
+        text.Append(reach.Amount.Asset.Chain.Model() == LedgerModel.Utxo
+            ? " Metoden följer varje mynt genom tx:erna, som i grafen."
+            : " Varje aktör räknas som en plånbok där metoden säger hur mycket som följer med varje överföring.");
         text.Append(" Det är en bedömning, inte ett faktum på kedjan.");
         return text.ToString();
     }
@@ -173,8 +193,9 @@ public sealed record ExposureResult(
 /// <summary>
 /// The analysis <em>exposure</em> (sketch EP1b), a step with a name and a version: given the graph, a subject and a
 /// tracing method, it says which services the subject's money reached (paid out) or came from (got), directly and over
-/// hops, and what reached none. Every actor is read as a wallet whose transfers of one asset stand in time order, and
-/// the method says how much of what came in goes on with each transfer, the way the account model's methods do.
+/// hops, and what reached none. On a UTXO chain the money is followed coin by coin through the transactions with the
+/// method registered for the chain, as the graph traces; on an account chain every actor is read as a wallet whose
+/// transfers of one asset stand in time order, and the method says how much of what came in goes on with each.
 /// </summary>
 public interface IExposureAnalysis
 {

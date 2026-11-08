@@ -704,7 +704,7 @@ public sealed record GraphScene(
     /// <param name="node">The actor.</param>
     /// <param name="labels">Its labels, the best supported first.</param>
     /// <returns>The sort.</returns>
-    private static NodeSort SortOf(GraphNode node, IReadOnlyList<Label> labels)
+    public static NodeSort SortOf(GraphNode node, IReadOnlyList<Label> labels)
     {
         switch (node.Kind)
         {

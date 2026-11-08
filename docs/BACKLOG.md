@@ -556,8 +556,9 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
 
 ## Exponering (EP1b)
 
-- Analysen körs på UI-tråden när grafen läses om; flytta den till en bakgrundsuppgift om stora grafer känns tröga
-  (princip 6).
+- **M4 från granskningen:** Ethereums gasavgifter finns inte som poster i grafens linjer, så plånboksläsningen räknar
+  dem inte; pengar som betalade gas står som kvar hos aktören.
+- **M7 från granskningen av EP1b** (se granskningen).
 - *Fått från* kör metoden en gång per inbetalning hos varje aktör på vägen; en aktör med tusentals överföringar kan
   behöva en metod som delar upp på källor i ett svep.
 

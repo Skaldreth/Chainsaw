@@ -4,6 +4,36 @@ using Chainsaw.SharedKernel;
 namespace Chainsaw.App.Graph;
 
 /// <summary>
+/// The graph's names and looks for the view Exponering: the actors drawn, and every node's sort, also one in the trash.
+/// </summary>
+/// <param name="Actors">The actors drawn, by key.</param>
+/// <param name="Looks">Every node's sort, by key.</param>
+public sealed record ExposureNames(
+    IReadOnlyDictionary<string, NodeView> Actors, IReadOnlyDictionary<string, SortLook> Looks)
+{
+    /// <summary>Gets names and looks for no graph.</summary>
+    public static ExposureNames None { get; } =
+        new(new Dictionary<string, NodeView>(), new Dictionary<string, SortLook>());
+
+    /// <summary>Reads them from a graph.</summary>
+    /// <param name="scene">The graph.</param>
+    /// <returns>The names and looks.</returns>
+    public static ExposureNames Of(GraphScene scene) => new(ExposureMap.Actors(scene), ExposureMap.Looks(scene));
+
+    /// <summary>Gives a node's sort: as drawn, as its labels make it, or unknown.</summary>
+    /// <param name="key">The node.</param>
+    /// <returns>The sort's look.</returns>
+    public SortLook LookOf(string key) =>
+        Actors.GetValueOrDefault(key)?.Look ?? Looks.GetValueOrDefault(key) ?? VisualLanguage.Of(NodeSort.Unknown);
+
+    /// <summary>Gives a node's name: as drawn, or its key's subject shortened.</summary>
+    /// <param name="key">The node.</param>
+    /// <returns>The name.</returns>
+    public string NameOf(string key) => Actors.GetValueOrDefault(key)?.Name
+        ?? GraphScene.Shorten(key[(key.IndexOf(':', StringComparison.Ordinal) + 1)..]);
+}
+
+/// <summary>
 /// An actor in the rings of the view Exponering (sketch EP1b): a service as a node in the visual language, larger the
 /// larger its share, or an actor on the way as a small point.
 /// </summary>
@@ -173,19 +203,19 @@ public static class ExposureLayout
     /// <param name="subject">The subject.</param>
     /// <param name="paid">What it paid out, or <see langword="null"/>.</param>
     /// <param name="got">What it got, or <see langword="null"/>.</param>
-    /// <param name="actors">The graph's actors, for their names and sorts.</param>
+    /// <param name="graph">The graph's actors and sorts, for their names and looks.</param>
     /// <returns>The picture.</returns>
     public static ExposurePicture Build(
-        NodeView subject, ExposureResult? paid, ExposureResult? got, IReadOnlyDictionary<string, NodeView> actors)
+        NodeView subject, ExposureResult? paid, ExposureResult? got, ExposureNames graph)
     {
         ArgumentNullException.ThrowIfNull(subject);
-        ArgumentNullException.ThrowIfNull(actors);
+        ArgumentNullException.ThrowIfNull(graph);
         var depth = paid?.Depth ?? got?.Depth ?? 1;
         var places = new List<RingPlace>();
         var lines = new List<RingLine>();
         foreach (var result in new[] { paid, got }.OfType<ExposureResult>())
         {
-            var side = Side(result, actors);
+            var side = Side(result, graph);
             places.AddRange(side.Places);
             lines.AddRange(side.Lines);
         }
@@ -208,10 +238,9 @@ public static class ExposureLayout
 
     /// <summary>Lays out one side: its actors ring by ring, and its lines.</summary>
     /// <param name="result">The side's exposure.</param>
-    /// <param name="actors">The graph's actors.</param>
+    /// <param name="graph">The graph's names and looks.</param>
     /// <returns>The places and lines.</returns>
-    private static (List<RingPlace> Places, List<RingLine> Lines) Side(
-        ExposureResult result, IReadOnlyDictionary<string, NodeView> actors)
+    private static (List<RingPlace> Places, List<RingLine> Lines) Side(ExposureResult result, ExposureNames graph)
     {
         var arrived = result.Flows.GroupBy(flow => flow.Far, StringComparer.Ordinal).ToDictionary(
             group => group.Key,
@@ -236,7 +265,7 @@ public static class ExposureLayout
                 var key = ring[index];
                 var offset = (index - ((ring.Count - 1) / 2.0)) * step;
                 offsets[key] = offset;
-                places[key] = Place(result, key, hop, offset, reached.GetValueOrDefault(key), actors);
+                places[key] = Place(result, key, hop, offset, reached.GetValueOrDefault(key), graph);
             }
         }
 
@@ -277,7 +306,7 @@ public static class ExposureLayout
     /// <param name="hop">Its ring.</param>
     /// <param name="offset">Its angle from the side's middle, in degrees, downwards positive.</param>
     /// <param name="reach">The service's row, or <see langword="null"/> for an actor on the way.</param>
-    /// <param name="actors">The graph's actors.</param>
+    /// <param name="graph">The graph's names and looks.</param>
     /// <returns>The place.</returns>
     private static RingPlace Place(
         ExposureResult result,
@@ -285,16 +314,15 @@ public static class ExposureLayout
         int hop,
         double offset,
         ExposureReach? reach,
-        IReadOnlyDictionary<string, NodeView> actors)
+        ExposureNames graph)
     {
         var degrees = result.Direction == ExposureDirection.Out ? offset : 180 - offset;
         var radians = degrees * Math.PI / 180;
         var at = new GraphPoint(
             Centre.X + (Rings[hop] * Math.Cos(radians)), Centre.Y + (Rings[hop] * Math.Sin(radians)));
-        var node = actors.GetValueOrDefault(key);
-        var look = node?.Look ?? VisualLanguage.Of(NodeSort.Unknown);
-        var name = node?.Name ?? GraphScene.Shorten(key[(key.IndexOf(':', StringComparison.Ordinal) + 1)..]);
-        var sanctioned = node?.Badges.Contains(NodeBadge.Sanctioned) ?? false;
+        var look = graph.LookOf(key);
+        var name = graph.NameOf(key);
+        var sanctioned = graph.Actors.GetValueOrDefault(key)?.Badges.Contains(NodeBadge.Sanctioned) ?? false;
         if (reach is null)
         {
             return new RingPlace(key, result.Direction, at, ViaSize, hop, false, look, name, string.Empty, sanctioned);

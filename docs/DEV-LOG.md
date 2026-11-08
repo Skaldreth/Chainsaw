@@ -3371,3 +3371,22 @@ Alla punkter under *Grafen* i `docs/TODO.md`, *2. Resterna i det som är byggt*,
 - Tester: 21 i `Chainsaw.Modules.Tracing.Tests` (facit med syntetiska överföringar för FIFO och haircut, båda hållen,
   djupet, kvar, tillbaka, före historiken, vägen, tx-nod, annan tillgång, summan) och 18 i App.Tests (kartan,
   layouten, vymodellen, pillret och grafens väg).
+
+### Granskningen av EP1b rättad (2026-11-08)
+
+- **I1:** på Bitcoin följs pengarna nu mynt för mynt (`UtxoExposureRun`) med den UTXO-metod som är registrerad för
+  kedjan, med `UtxoGraph.Spends` och metoden per tx; aktörerna är summor av sina mynt. Metoden väljs efter sitt
+  `Scope` (`TracingMethods.For`). Kontokedjorna läses som förut plånbok för plånbok (`AccountExposureRun`); det
+  gemensamma (hopp, vägar, resultat) ligger i `ExposureTally`. En CoinJoin-nod som är en tjänst stoppar pengarna där.
+- **I2:** nytt skäl `NotExpanded` (*Aktören är inte expanderad*) för en aktör som inte är expanderad eller har
+  tillbakahållna tx; `Remains` bara för helt lästa.
+- **I3:** vyn räknar bara när den visas (`IsShown`); en ny scen när den är dold markerar den inaktuell. Analysen körs
+  i `Task.Run` med avbrott, den senaste vinner, och tillgångarna indexeras per nod i ett svep. Ett fel i analysen
+  sägs ärligt i vyn.
+- **I4:** tjänsterna tas ur `Snapshot.Graph` och etiketterna (`ExposureMap.Looks`, med `GraphScene.SortOf`), också för
+  det som ligger i soptunnan.
+- **M1–M3, M5, M6, M8:** det som fortfarande är på väg efter åtta omläsningar är ett eget skäl (*StillMoving*), utan
+  justering i efterhand; tjänsterna och resten måste bli totalen exakt, annars kastas resultatet; avgifterna är ett eget
+  skäl och en tx-nods bok ordnas efter index; en tjänsts tx är bara de som pengarna dit gick genom; *klustret* eller
+  *adressen* efter ämnet; Guiden har ett avsnitt om rundturer. Facit för cykel, omläsning och `MaxRuns`.
+- M4 och M7 står i `docs/BACKLOG.md`. Kronorna under beloppen väntar på KU1a, som inte finns på huvudgrenen än.

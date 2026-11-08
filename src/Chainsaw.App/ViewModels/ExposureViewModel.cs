@@ -123,8 +123,17 @@ public sealed partial class ExposureViewModel : ObservableObject
     /// <summary>The graph shown, or <see langword="null"/>.</summary>
     private GraphScene? _scene;
 
-    /// <summary>The graph's actors, by key.</summary>
-    private IReadOnlyDictionary<string, NodeView> _actors = new Dictionary<string, NodeView>();
+    /// <summary>The UI thread, where an analysis read off it is shown.</summary>
+    private readonly IUiThread _ui;
+
+    /// <summary>The graph's actors and sorts, by key.</summary>
+    private ExposureNames _names = ExposureNames.None;
+
+    /// <summary>Whether the graph changed while the view was hidden, so that it is read when shown.</summary>
+    private bool _stale = true;
+
+    /// <summary>Stops the analysis running, when another is asked for.</summary>
+    private CancellationTokenSource? _running;
 
     /// <summary>The subject's key, kept when the graph is read anew.</summary>
     private string? _subjectKey;
@@ -143,7 +152,33 @@ public sealed partial class ExposureViewModel : ObservableObject
 
     /// <summary>Creates the view.</summary>
     /// <param name="analysis">Tracing's analysis.</param>
-    public ExposureViewModel(IExposureAnalysis analysis) => _analysis = analysis;
+    /// <param name="ui">The UI thread.</param>
+    public ExposureViewModel(IExposureAnalysis analysis, IUiThread ui)
+    {
+        _analysis = analysis;
+        _ui = ui;
+    }
+
+    /// <summary>
+    /// Gets the analysis running off the UI thread, or the last; complete when none runs. The view's numbers are shown
+    /// when it ends.
+    /// </summary>
+    public Task Computed { get; private set; } = Task.CompletedTask;
+
+    /// <summary>
+    /// Gets or sets whether the view is shown. The analysis runs only then (principle 6): a graph read while the view
+    /// is hidden marks it stale, and showing it reads it.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool IsShown { get; set; }
+
+    /// <summary>Gets why the exposure could not be read, or an empty text.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasProblem))]
+    public partial string Problem { get; private set; } = string.Empty;
+
+    /// <summary>Gets whether the exposure could not be read.</summary>
+    public bool HasProblem => Problem.Length > 0;
 
     /// <summary>Raised when the user wants the chosen way shown in the graph.</summary>
     public event EventHandler<ExposurePath>? PathWanted;
@@ -225,12 +260,37 @@ public sealed partial class ExposureViewModel : ObservableObject
     private (ExposureResult Result, ExposureReach Reach)? Chosen =>
         Find(_paid, ExposureDirection.Out) ?? Find(_got, ExposureDirection.In);
 
-    /// <summary>Follows the graph shown: the subject, the asset and the choice stay where they can.</summary>
+    /// <summary>
+    /// Follows the graph shown. While the view is hidden the graph is only kept and the view marked stale; shown, the
+    /// subjects are found again and the subject, the asset and the choice stay where they can.
+    /// </summary>
     /// <param name="scene">The graph, or <see langword="null"/>.</param>
     public void Update(GraphScene? scene)
     {
         _scene = scene;
-        _actors = scene is null ? new Dictionary<string, NodeView>() : ExposureMap.Actors(scene);
+        _stale = true;
+        if (IsShown)
+        {
+            Refresh();
+        }
+    }
+
+    /// <summary>Reads a stale view when it is shown.</summary>
+    /// <param name="value">Whether it is shown.</param>
+    partial void OnIsShownChanged(bool value)
+    {
+        if (value && _stale)
+        {
+            Refresh();
+        }
+    }
+
+    /// <summary>Finds the subjects in the graph kept and reads the exposure.</summary>
+    private void Refresh()
+    {
+        _stale = false;
+        var scene = _scene;
+        _names = scene is null ? ExposureNames.None : ExposureNames.Of(scene);
         var subjects = scene is null ? [] : ExposureMap.Subjects(scene);
         var subject = subjects.FirstOrDefault(each => each.Key == _subjectKey) ?? subjects.FirstOrDefault();
         Show(subjects, subject);
@@ -321,8 +381,8 @@ public sealed partial class ExposureViewModel : ObservableObject
         }
 
         var (result, reach) = chosen;
-        var subject = _actors.GetValueOrDefault(result.Subject)?.Name ?? result.Subject;
-        var service = _actors.GetValueOrDefault(reach.NodeKey)?.Name ?? reach.NodeKey;
+        var subject = _names.NameOf(result.Subject);
+        var service = _names.NameOf(reach.NodeKey);
         var arrow = result.Direction == ExposureDirection.Out ? $"{subject} → {service}" : $"{service} → {subject}";
         var note = $"{arrow} · {AmountText.WithUnit(reach.Amount)} · {result.Method}";
         PathWanted?.Invoke(this, new ExposurePath(reach.Path, reach.PathEdges, note));
@@ -364,38 +424,110 @@ public sealed partial class ExposureViewModel : ObservableObject
         Compute();
     }
 
-    /// <summary>Reads the exposure on both sides and lays out the picture and the panel.</summary>
+    /// <summary>
+    /// Reads the exposure on both sides off the UI thread (principle 6), the last asked for winning, and then lays out
+    /// the picture and the panel. While the view is hidden it is only marked stale.
+    /// </summary>
     private void Compute()
     {
         Depths = [.. Enumerable.Range(1, ExposureRequest.MaxDepth).Select(DepthChoice)];
+        _running?.Cancel();
+        if (!IsShown)
+        {
+            _stale = true;
+            return;
+        }
+
         if (_scene is not { } scene || Subject is not { } subject || _asset is not { } asset)
         {
-            (_paid, _got) = (null, null);
-            Assets = [];
+            Apply(null, null, string.Empty);
+            return;
+        }
+
+        Assets = [.. subject.Assets.Select(each => new ExposureChoice(
+            each.Symbol, "Följ " + each.Symbol, each == asset, each.Symbol))];
+        var paid = ExposureMap.Request(scene, subject.Key, asset, ExposureDirection.Out, Depth);
+        var got = ExposureMap.Request(scene, subject.Key, asset, ExposureDirection.In, Depth);
+        var running = new CancellationTokenSource();
+        _running = running;
+        Computed = ReadAsync(paid, got, running.Token);
+    }
+
+    /// <summary>Runs the analysis on both sides off the UI thread and shows it, unless another was asked for.</summary>
+    /// <param name="paid">What the subject paid out.</param>
+    /// <param name="got">What it got.</param>
+    /// <param name="cancellation">Stops it when another is asked for.</param>
+    /// <returns>The reading.</returns>
+    private async Task ReadAsync(ExposureRequest paid, ExposureRequest got, CancellationToken cancellation)
+    {
+        try
+        {
+            var results = await Task.Run(
+                () => (_analysis.Analyse(paid), _analysis.Analyse(got)), cancellation).ConfigureAwait(false);
+            if (!cancellation.IsCancellationRequested)
+            {
+                _ui.Post(() => ApplyUnlessCancelled(results.Item1, results.Item2, cancellation));
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Another reading was asked for; it shows its own.
+        }
+        catch (InvalidOperationException error)
+        {
+            _ui.Post(() => Apply(null, null, "Exponeringen kunde inte räknas: " + error.Message));
+        }
+    }
+
+    /// <summary>Shows a reading, unless another was asked for since.</summary>
+    /// <param name="paid">What the subject paid out.</param>
+    /// <param name="got">What it got.</param>
+    /// <param name="cancellation">Whether another was asked for.</param>
+    private void ApplyUnlessCancelled(ExposureResult paid, ExposureResult got, CancellationToken cancellation)
+    {
+        if (!cancellation.IsCancellationRequested)
+        {
+            Apply(paid, got, string.Empty);
+        }
+    }
+
+    /// <summary>Lays out the picture and the panel for a reading, or empties them.</summary>
+    /// <param name="paid">What the subject paid out, or <see langword="null"/>.</param>
+    /// <param name="got">What it got, or <see langword="null"/>.</param>
+    /// <param name="problem">Why nothing could be read, or an empty text.</param>
+    private void Apply(ExposureResult? paid, ExposureResult? got, string problem)
+    {
+        (_paid, _got) = (paid, got);
+        Problem = problem;
+        if (paid is null || got is null || Subject is not { } subject)
+        {
+            Assets = Subject is null ? [] : Assets;
             Picture = ExposurePicture.None;
             Sides = [];
-            Services = [];
             MethodText = string.Empty;
             VersionText = string.Empty;
             Choose();
             return;
         }
 
-        Assets = [.. subject.Assets.Select(each => new ExposureChoice(
-            each.Symbol, "Följ " + each.Symbol, each == asset, each.Symbol))];
-        _paid = _analysis.Analyse(ExposureMap.Request(scene, subject.Key, asset, ExposureDirection.Out, Depth));
-        _got = _analysis.Analyse(ExposureMap.Request(scene, subject.Key, asset, ExposureDirection.In, Depth));
-        MethodText = _paid.Method.Name;
-        VersionText = $"{_paid.Method} · {ExposureResult.Analysis}";
-        Picture = ExposureLayout.Build(subject.Node, _paid, _got, _actors);
-        Sides = [SideRows("BETALAT TILL", _paid), SideRows("FÅTT FRÅN", _got)];
+        MethodText = paid.Method.Name;
+        VersionText = $"{paid.Method} · {ExposureResult.Analysis}";
+        Picture = ExposureLayout.Build(subject.Node, paid, got, _names);
+        var word = SubjectWord(subject);
+        Sides = [SideRows("BETALAT TILL", paid, word), SideRows("FÅTT FRÅN", got, word)];
         if (_selectedId is null || !Picture.Services.Any(place => place.Id == _selectedId))
         {
-            _selectedId = Largest(_paid, ExposureDirection.Out) ?? Largest(_got, ExposureDirection.In);
+            _selectedId = Largest(paid, ExposureDirection.Out) ?? Largest(got, ExposureDirection.In);
         }
 
         Choose();
     }
+
+    /// <summary>Gives the word for the subject in the rest's reasons: <em>klustret</em> or <em>adressen</em>.</summary>
+    /// <param name="subject">The subject.</param>
+    /// <returns>The word.</returns>
+    private static string SubjectWord(ExposureSubject subject) =>
+        subject.Node.Node.Kind == GraphNodeKind.Cluster ? "klustret" : "adressen";
 
     /// <summary>Makes a depth's choice.</summary>
     /// <param name="depth">The depth.</param>
@@ -416,13 +548,12 @@ public sealed partial class ExposureViewModel : ObservableObject
     /// <summary>Makes a side's rows: a share per colour that has any, <em>Okänt</em> last.</summary>
     /// <param name="title">The heading.</param>
     /// <param name="result">The side.</param>
+    /// <param name="subject">The word for the subject.</param>
     /// <returns>The rows.</returns>
-    private ExposureSideRows SideRows(string title, ExposureResult result)
+    private ExposureSideRows SideRows(string title, ExposureResult result, string subject)
     {
         var sums = result.Reached
-            .GroupBy(reach => _actors.TryGetValue(reach.NodeKey, out var node)
-                ? ExposureMap.GroupOf(node.Look)
-                : ExposureGroup.Unknown)
+            .GroupBy(reach => ExposureMap.GroupOf(_names.LookOf(reach.NodeKey)))
             .ToDictionary(
                 group => group.Key,
                 group => group.Aggregate(AssetAmount.Zero(result.Total.Asset), (sum, reach) => sum + reach.Amount));
@@ -430,7 +561,8 @@ public sealed partial class ExposureViewModel : ObservableObject
             + result.Unknown;
         var rows = ExposureMap.Order
             .Where(group => sums.TryGetValue(group, out var sum) && sum.Units.Sign > 0)
-            .Select(group => new ExposureGroupRow(group, result.ShareOf(sums[group]), GroupTip(group, sums[group], result)))
+            .Select(group => new ExposureGroupRow(
+                group, result.ShareOf(sums[group]), GroupTip(group, sums[group], result, subject)))
             .ToList();
         return new ExposureSideRows(title, AmountText.Number(result.Total), result.Total.Asset.Symbol, rows);
     }
@@ -439,28 +571,34 @@ public sealed partial class ExposureViewModel : ObservableObject
     /// <param name="group">The colour.</param>
     /// <param name="sum">Its amount.</param>
     /// <param name="result">The side.</param>
+    /// <param name="subject">The word for the subject.</param>
     /// <returns>The tooltip.</returns>
-    private static string GroupTip(ExposureGroup group, AssetAmount sum, ExposureResult result)
+    private static string GroupTip(ExposureGroup group, AssetAmount sum, ExposureResult result, string subject)
     {
         if (group != ExposureGroup.Unknown)
         {
             return AmountText.WithUnit(sum);
         }
 
-        var parts = result.Rest.Select(pair => $"{RestText(pair.Key, result.Depth)}: {AmountText.WithUnit(pair.Value)}");
+        var parts = result.Rest.Select(
+            pair => $"{RestText(pair.Key, result.Depth, subject)}: {AmountText.WithUnit(pair.Value)}");
         return string.Join("\n", parts.Prepend("Har inte nått en tjänst · " + AmountText.WithUnit(sum)));
     }
 
     /// <summary>Says why a part reached no service.</summary>
     /// <param name="rest">The reason.</param>
     /// <param name="depth">How many hops were followed.</param>
+    /// <param name="subject">The word for the subject, <em>klustret</em> or <em>adressen</em>.</param>
     /// <returns>The words.</returns>
-    public static string RestText(ExposureRest rest, int depth) => rest switch
+    public static string RestText(ExposureRest rest, int depth, string subject) => rest switch
     {
         ExposureRest.Remains => "Ligger kvar hos en aktör på vägen",
-        ExposureRest.Returned => "Gick tillbaka till klustret",
+        ExposureRest.NotExpanded => "Aktören är inte expanderad",
+        ExposureRest.Fees => "Gick till avgifter",
+        ExposureRest.StillMoving => "Gick runt fler varv än analysen följer",
+        ExposureRest.Returned => "Gick tillbaka till " + subject,
         ExposureRest.BeforeHistory => "Kom före historiken i grafen",
-        _ => depth == 1 ? "Gick vidare till en aktör utan etikett" : $"Nådde ingen tjänst inom {depth} hopp",
+        _ => depth == 1 ? "Gick vidare till en aktör som inte följs" : $"Nådde ingen tjänst inom {depth} hopp",
     };
 
     /// <summary>Lays out the panel's list and the chosen service for the choice.</summary>
@@ -500,11 +638,10 @@ public sealed partial class ExposureViewModel : ObservableObject
     private ExposureServiceRow ServiceRow(ExposureResult result, ExposureReach reach)
     {
         var id = ExposureLayout.IdOf(result.Direction, reach.NodeKey);
-        var node = _actors.GetValueOrDefault(reach.NodeKey);
         return new ExposureServiceRow(
             id,
-            node?.Look ?? VisualLanguage.Of(NodeSort.Unknown),
-            node?.Name ?? reach.NodeKey,
+            _names.LookOf(reach.NodeKey),
+            _names.NameOf(reach.NodeKey),
             reach.Hops.ToString(CultureInfo.InvariantCulture) + " hopp",
             ExposureMap.Percent(result.ShareOf(reach.Amount)),
             id == _selectedId);
@@ -516,27 +653,20 @@ public sealed partial class ExposureViewModel : ObservableObject
     /// <returns>The detail.</returns>
     private ExposureDetail DetailOf(ExposureResult result, ExposureReach reach)
     {
-        var node = _actors.GetValueOrDefault(reach.NodeKey);
         var way = result.Direction == ExposureDirection.Out ? reach.Path : [.. reach.Path.Reverse()];
         var crumbs = way.Select((key, index) => new ExposureCrumb(
-                NameOf(key), _actors.GetValueOrDefault(key)?.Look.IsDashed ?? false, index < way.Count - 1))
+                _names.NameOf(key), _names.LookOf(key).IsDashed, index < way.Count - 1))
             .ToList();
         return new ExposureDetail(
-            node?.Look ?? VisualLanguage.Of(NodeSort.Unknown),
-            node?.Name ?? reach.NodeKey,
+            _names.LookOf(reach.NodeKey),
+            _names.NameOf(reach.NodeKey),
             AmountText.WithUnit(reach.Amount),
             ExposureMap.Percent(result.ShareOf(reach.Amount)),
             result.Direction == ExposureDirection.Out ? "av det som gått ut" : "av det som kommit in",
             crumbs,
             TransactionsText(reach),
-            BasisOf(result, node));
+            BasisOf(result, reach.NodeKey));
     }
-
-    /// <summary>Gives an actor's name in the way, or its key shortened.</summary>
-    /// <param name="key">The actor.</param>
-    /// <returns>The name.</returns>
-    private string NameOf(string key) => _actors.GetValueOrDefault(key)?.Name
-        ?? GraphScene.Shorten(key[(key.IndexOf(':', StringComparison.Ordinal) + 1)..]);
 
     /// <summary>Writes the transactions on the way, each shortened.</summary>
     /// <param name="reach">The service.</param>
@@ -554,9 +684,9 @@ public sealed partial class ExposureViewModel : ObservableObject
     /// labels with where they came from.
     /// </summary>
     /// <param name="result">The side.</param>
-    /// <param name="node">The service.</param>
+    /// <param name="service">The service's node.</param>
     /// <returns>The chips.</returns>
-    private List<ExposureBasis> BasisOf(ExposureResult result, NodeView? node)
+    private List<ExposureBasis> BasisOf(ExposureResult result, string service)
     {
         var basis = new List<ExposureBasis>
         {
@@ -569,7 +699,7 @@ public sealed partial class ExposureViewModel : ObservableObject
                 "Klustring", "Icon.Kind.Wallet", $"{cluster.Name}: {cluster.Count}, enligt heuristikerna"));
         }
 
-        foreach (var label in node?.Labels ?? [])
+        foreach (var label in _scene?.Snapshot.Labels.GetValueOrDefault(service) ?? [])
         {
             var tip = string.Join("\n", label.Origins.Select(origin => origin.Describe()));
             basis.Add(new ExposureBasis(label.Name ?? VisualLanguage.Of(VisualLanguage.SortOf(label.Kind)).Name,

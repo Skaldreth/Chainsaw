@@ -128,21 +128,36 @@ public static class ExposureMap
     }
 
     /// <summary>
-    /// Gives the actors whose exposure can be read: the clusters and addresses that paid or got something along the
-    /// graph's lines; the start points first, then the clusters with the most addresses, then the rest.
+    /// Gives the actors whose exposure can be read: the clusters and addresses drawn that paid or got something along
+    /// the graph's lines; the start points first, then the clusters with the most addresses, then the rest. The assets
+    /// are gathered from the lines in one sweep.
     /// </summary>
     /// <param name="scene">The graph.</param>
     /// <returns>The subjects.</returns>
     public static IReadOnlyList<ExposureSubject> Subjects(GraphScene scene)
     {
         ArgumentNullException.ThrowIfNull(scene);
-        var lines = scene.Snapshot.Graph.Edges.Where(edge => edge.Kind == GraphEdgeKind.Transfer).ToList();
+        var assets = new Dictionary<string, HashSet<Asset>>(StringComparer.Ordinal);
+        foreach (var edge in scene.Snapshot.Graph.Edges.Where(e => e.Kind == GraphEdgeKind.Transfer && e.From != e.To))
+        {
+            foreach (var key in new[] { edge.From, edge.To })
+            {
+                if (!assets.TryGetValue(key, out var set))
+                {
+                    set = [];
+                    assets[key] = set;
+                }
+
+                set.Add(edge.Amount.Asset);
+            }
+        }
+
         return
         [
             .. Actors(scene).Values
                 .Where(node => node.Node.Kind is GraphNodeKind.Address or GraphNodeKind.Cluster)
-                .Select(node => new ExposureSubject(node, AssetsOf(lines, node.Key)))
-                .Where(subject => subject.Assets.Count > 0)
+                .Where(node => assets.ContainsKey(node.Key))
+                .Select(node => new ExposureSubject(node, Ordered(assets[node.Key])))
                 .OrderByDescending(subject => subject.Node.IsStartPoint)
                 .ThenByDescending(subject => subject.Node.Node.ClusterSize)
                 .ThenBy(subject => subject.Name, StringComparer.CurrentCulture),
@@ -150,13 +165,35 @@ public static class ExposureMap
     }
 
     /// <summary>
-    /// Gives the services of the graph shown, where money stops: every actor whose sort means something (a victim, a
-    /// cash-out, spending, risk, another chain), whatever its label's source.
+    /// Gives how every node of the graph is drawn: as the scene draws it, or for a node the scene does not draw (one in
+    /// the trash) by its kind and labels, as the scene would. The trash is only a filter, so what it hides is still the
+    /// sort it is (CLAUDE.md, the trash).
+    /// </summary>
+    /// <param name="scene">The graph.</param>
+    /// <returns>The looks by node.</returns>
+    public static IReadOnlyDictionary<string, SortLook> Looks(GraphScene scene)
+    {
+        ArgumentNullException.ThrowIfNull(scene);
+        var drawn = Actors(scene);
+        var looks = new Dictionary<string, SortLook>(StringComparer.Ordinal);
+        foreach (var node in scene.Snapshot.Graph.Nodes)
+        {
+            looks[node.Key] = drawn.TryGetValue(node.Key, out var view)
+                ? view.Look
+                : VisualLanguage.Of(GraphScene.SortOf(node, scene.Snapshot.Labels.GetValueOrDefault(node.Key) ?? []));
+        }
+
+        return looks;
+    }
+
+    /// <summary>
+    /// Gives the services of the graph, where money stops: every node whose sort means something (a victim, a cash-out,
+    /// spending, risk, another chain), from the graph and its labels, whatever lies in the trash.
     /// </summary>
     /// <param name="scene">The graph.</param>
     /// <returns>The services' keys.</returns>
     public static IReadOnlySet<string> Services(GraphScene scene) =>
-        Actors(scene).Values.Where(node => GroupOf(node.Look) != ExposureGroup.Unknown).Select(node => node.Key)
+        Looks(scene).Where(pair => GroupOf(pair.Value) != ExposureGroup.Unknown).Select(pair => pair.Key)
             .ToHashSet(StringComparer.Ordinal);
 
     /// <summary>Makes the analysis's request for a subject.</summary>
@@ -180,16 +217,9 @@ public static class ExposureMap
     public static string Percent(double share) =>
         (Math.Round(share * 1000) / 10).ToString("0.0", CultureInfo.GetCultureInfo("sv-SE")) + " %";
 
-    /// <summary>Gives the assets an actor paid or got along the lines, the native coin first, then by symbol.</summary>
-    /// <param name="lines">The transfer lines.</param>
-    /// <param name="key">The actor.</param>
-    /// <returns>The assets.</returns>
-    private static List<Asset> AssetsOf(List<GraphEdge> lines, string key) =>
-    [
-        .. lines.Where(edge => (edge.From == key || edge.To == key) && edge.From != edge.To)
-            .Select(edge => edge.Amount.Asset)
-            .Distinct()
-            .OrderBy(asset => asset.Kind != AssetKind.Native)
-            .ThenBy(asset => asset.Symbol, StringComparer.Ordinal),
-    ];
+    /// <summary>Orders assets: the native coin first, then by symbol.</summary>
+    /// <param name="assets">The assets.</param>
+    /// <returns>The assets in order.</returns>
+    private static List<Asset> Ordered(IEnumerable<Asset> assets) =>
+        [.. assets.OrderBy(asset => asset.Kind != AssetKind.Native).ThenBy(asset => asset.Symbol, StringComparer.Ordinal)];
 }

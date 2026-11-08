@@ -273,7 +273,14 @@ public partial class MainWindow : Window
         exposure.GuideWanted += (_, request) => _guidePanel.Ask(request);
         shell.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName == nameof(ShellViewModel.IsExposureShown) && shell.IsExposureShown)
+            if (e.PropertyName != nameof(ShellViewModel.IsExposureShown))
+            {
+                return;
+            }
+
+            // The analysis runs only while the view is shown (principle 6).
+            exposure.IsShown = shell.IsExposureShown;
+            if (shell.IsExposureShown)
             {
                 Dispatcher.BeginInvoke(() => ExposurePage.Focus(), DispatcherPriority.Input);
             }

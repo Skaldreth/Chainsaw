@@ -1754,3 +1754,6 @@ några steg).
   säger vägen och beloppet. Ett klick i grafen tar bort markeringen.
 - Byt spårningsmetod i grafen (FIFO och haircut) och gå tillbaka: metoden i Exponeringens huvud följer med och
   andelarna ändras.
+- På Bitcoin: välj en börs som grafen visar spårade pengar till; exponeringen ska ge börsen samma belopp som grafens
+  linje dit. Hovra *Okänt*: en aktör som inte är expanderad sägs som *Aktören är inte expanderad*.
+- Släng en börs i soptunnan och öppna Exponering: börsen räknas fortfarande som en tjänst.

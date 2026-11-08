@@ -188,6 +188,12 @@
                     </Grid>
                 </DockPanel>
 
+                <!-- Why nothing could be read, said honestly in the room of the rings. -->
+                <TextBlock VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="420" TextWrapping="Wrap"
+                           TextAlignment="Center" FontSize="13" Text="{Binding Problem}"
+                           Foreground="{StaticResource Brush.Error}"
+                           Visibility="{Binding HasProblem, Converter={StaticResource Visible}}" />
+
                 <!-- The subject menu (sketch EP1b, I GRAFEN). -->
                 <Border VerticalAlignment="Top" HorizontalAlignment="Left" Margin="0,50,0,0" Width="300" Padding="5"
                         CornerRadius="11" BorderThickness="1" BorderBrush="{StaticResource Brush.BorderStrong}"

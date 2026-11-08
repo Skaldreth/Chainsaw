@@ -58,6 +58,12 @@ internal sealed class DirectExposure : IExposureAnalysis
     }
 }
 
+/// <summary>An analysis that refuses, as Tracing's does when money would be created or lost.</summary>
+internal sealed class FailingExposure : IExposureAnalysis
+{
+    public ExposureResult Analyse(ExposureRequest request) => throw new InvalidOperationException("Fel i analysen.");
+}
+
 /// <summary>The view Exponering (sketch EP1b): the map of the graph, the rings' layout and the view model.</summary>
 public sealed class ExposureTests
 {
@@ -113,10 +119,9 @@ public sealed class ExposureTests
     }
 
     [Fact]
-    public void Paid_out_stands_to_the_right_and_got_to_the_left_on_the_rings()
+    public async Task Paid_out_stands_to_the_right_and_got_to_the_left_on_the_rings()
     {
-        var model = Model(Labelled(), out _);
-        model.Open(VKey);
+        var model = await Opened(Labelled(), VKey);
 
         var picture = model.Picture;
         var paid = Assert.Single(picture.Services, place => place.Side == ExposureDirection.Out);
@@ -131,10 +136,9 @@ public sealed class ExposureTests
     }
 
     [Fact]
-    public void A_larger_share_is_a_larger_node_and_a_thicker_line()
+    public async Task A_larger_share_is_a_larger_node_and_a_thicker_line()
     {
-        var model = Model(Labelled(), out _);
-        model.Open(KKey);
+        var model = await Opened(Labelled(), KKey);
 
         var picture = model.Picture;
         var exchange = Assert.Single(
@@ -148,10 +152,9 @@ public sealed class ExposureTests
     }
 
     [Fact]
-    public void A_click_on_a_service_or_its_name_finds_it()
+    public async Task A_click_on_a_service_or_its_name_finds_it()
     {
-        var model = Model(Labelled(), out _);
-        model.Open(VKey);
+        var model = await Opened(Labelled(), VKey);
         var paid = model.Picture.Services.Single(place => place.Side == ExposureDirection.Out);
 
         Assert.Equal(paid, model.Picture.At(paid.At));
@@ -160,10 +163,9 @@ public sealed class ExposureTests
     }
 
     [Fact]
-    public void The_sides_show_the_shares_per_colour_with_the_rest_as_unknown()
+    public async Task The_sides_show_the_shares_per_colour_with_the_rest_as_unknown()
     {
-        var model = Model(Labelled(), out _);
-        model.Open(VKey);
+        var model = await Opened(Labelled(), VKey);
 
         var paid = model.Sides[0];
         Assert.Equal("BETALAT TILL", paid.Title);
@@ -177,10 +179,9 @@ public sealed class ExposureTests
     }
 
     [Fact]
-    public void The_largest_service_paid_to_is_chosen_with_its_way_and_what_it_rests_on()
+    public async Task The_largest_service_paid_to_is_chosen_with_its_way_and_what_it_rests_on()
     {
-        var model = Model(Labelled(), out _);
-        model.Open(VKey);
+        var model = await Opened(Labelled(), VKey);
 
         var detail = model.Detail!;
         Assert.Equal("Växlare Z", detail.Name);
@@ -196,10 +197,9 @@ public sealed class ExposureTests
     }
 
     [Fact]
-    public void Choosing_a_service_on_the_left_reads_it_as_got()
+    public async Task Choosing_a_service_on_the_left_reads_it_as_got()
     {
-        var model = Model(Labelled(), out _);
-        model.Open(VKey);
+        var model = await Opened(Labelled(), VKey);
 
         model.Pick(ExposureLayout.IdOf(ExposureDirection.In, WKey));
 
@@ -209,10 +209,9 @@ public sealed class ExposureTests
     }
 
     [Fact]
-    public void An_actor_on_the_way_is_not_chosen()
+    public async Task An_actor_on_the_way_is_not_chosen()
     {
-        var model = Model(Labelled(), out _);
-        model.Open(VKey);
+        var model = await Opened(Labelled(), VKey);
         var before = model.SelectedId;
 
         model.Pick(ExposureLayout.IdOf(ExposureDirection.Out, KKey));
@@ -221,12 +220,14 @@ public sealed class ExposureTests
     }
 
     [Fact]
-    public void The_depth_is_asked_of_the_analysis_and_kept()
+    public async Task The_depth_is_asked_of_the_analysis_and_kept()
     {
-        var model = Model(Labelled(), out var analysis);
+        var (model, analysis) = await Shown(Labelled());
         model.Open(VKey);
+        await model.Computed;
 
         model.SetDepth("1");
+        await model.Computed;
 
         Assert.Equal(1, model.Depth);
         Assert.All(analysis.Asked.TakeLast(2), request => Assert.Equal(1, request.Depth));
@@ -237,23 +238,24 @@ public sealed class ExposureTests
     }
 
     [Fact]
-    public void The_subject_stays_when_the_graph_is_read_anew()
+    public async Task The_subject_stays_when_the_graph_is_read_anew()
     {
-        var model = Model(Labelled(), out _);
-        model.Open(KKey);
+        var model = await Opened(Labelled(), KKey);
 
         model.Update(Labelled());
+        await model.Computed;
 
         Assert.Equal(KKey, model.Subject!.Key);
         Assert.True(model.Subjects.Single(row => row.Subject.Key == KKey).IsSelected);
     }
 
     [Fact]
-    public void Without_a_graph_the_view_says_so_honestly()
+    public async Task Without_a_graph_the_view_says_so_honestly()
     {
-        var model = new ExposureViewModel(new DirectExposure());
+        var model = new ExposureViewModel(new DirectExposure(), new InlineUi()) { IsShown = true };
 
         model.Update(null);
+        await model.Computed;
 
         Assert.False(model.HasSubject);
         Assert.False(model.HasDetail);
@@ -262,10 +264,9 @@ public sealed class ExposureTests
     }
 
     [Fact]
-    public void Show_the_way_hands_the_graph_the_actors_and_lines_with_a_note()
+    public async Task Show_the_way_hands_the_graph_the_actors_and_lines_with_a_note()
     {
-        var model = Model(Labelled(), out _);
-        model.Open(VKey);
+        var model = await Opened(Labelled(), VKey);
         ExposurePath? wanted = null;
         model.PathWanted += (_, path) => wanted = path;
 
@@ -279,10 +280,9 @@ public sealed class ExposureTests
     }
 
     [Fact]
-    public void Why_opens_the_guide_on_exposure_with_the_explanation()
+    public async Task Why_opens_the_guide_on_exposure_with_the_explanation()
     {
-        var model = Model(Labelled(), out _);
-        model.Open(VKey);
+        var model = await Opened(Labelled(), VKey);
         Guide.GuideRequest? asked = null;
         model.GuideWanted += (_, request) => asked = request;
 
@@ -316,18 +316,67 @@ public sealed class ExposureTests
     }
 
     [Fact]
-    public void The_unknown_rest_is_said_with_its_reason()
+    public async Task Nothing_is_read_while_the_view_is_hidden_and_a_stale_view_is_read_when_shown()
     {
-        Assert.Equal("Nådde ingen tjänst inom 3 hopp", ExposureViewModel.RestText(ExposureRest.NotReached, 3));
-        Assert.Equal("Kom före historiken i grafen", ExposureViewModel.RestText(ExposureRest.BeforeHistory, 2));
-        Assert.Equal("Gick tillbaka till klustret", ExposureViewModel.RestText(ExposureRest.Returned, 2));
+        var analysis = new DirectExposure();
+        var model = new ExposureViewModel(analysis, new InlineUi());
+
+        model.Update(Labelled());
+        model.Update(Labelled());
+
+        Assert.Empty(analysis.Asked);
+        model.IsShown = true;
+        await model.Computed;
+        Assert.Equal(2, analysis.Asked.Count);
+        Assert.True(model.Picture.HasSubject);
     }
 
-    private static ExposureViewModel Model(GraphScene scene, out DirectExposure analysis)
+    [Fact]
+    public void A_service_in_the_trash_is_still_a_service()
     {
-        analysis = new DirectExposure();
-        var model = new ExposureViewModel(analysis);
+        var scene = Labelled();
+        var trashed = scene with { Nodes = [.. scene.Nodes.Where(node => node.Key != UKey)] };
+
+        Assert.Contains(UKey, ExposureMap.Services(trashed));
+        Assert.Equal(NodeSort.Sanctioned, ExposureMap.Looks(trashed)[UKey].Sort);
+    }
+
+    [Fact]
+    public async Task An_analysis_that_fails_is_said_honestly()
+    {
+        var model = new ExposureViewModel(new FailingExposure(), new InlineUi()) { IsShown = true };
+
+        model.Update(Labelled());
+        await model.Computed;
+
+        Assert.True(model.HasProblem);
+        Assert.False(model.Picture.HasSubject);
+    }
+
+    [Fact]
+    public void The_unknown_rest_is_said_with_its_reason()
+    {
+        Assert.Equal("Nådde ingen tjänst inom 3 hopp", ExposureViewModel.RestText(ExposureRest.NotReached, 3, "klustret"));
+        Assert.Equal("Kom före historiken i grafen", ExposureViewModel.RestText(ExposureRest.BeforeHistory, 2, "klustret"));
+        Assert.Equal("Aktören är inte expanderad", ExposureViewModel.RestText(ExposureRest.NotExpanded, 2, "adressen"));
+        Assert.Equal("Gick till avgifter", ExposureViewModel.RestText(ExposureRest.Fees, 2, "adressen"));
+        Assert.Equal("Gick tillbaka till adressen", ExposureViewModel.RestText(ExposureRest.Returned, 2, "adressen"));
+    }
+
+    private static async Task<(ExposureViewModel Model, DirectExposure Analysis)> Shown(GraphScene scene)
+    {
+        var analysis = new DirectExposure();
+        var model = new ExposureViewModel(analysis, new InlineUi()) { IsShown = true };
         model.Update(scene);
+        await model.Computed;
+        return (model, analysis);
+    }
+
+    private static async Task<ExposureViewModel> Opened(GraphScene scene, string subject)
+    {
+        var (model, _) = await Shown(scene);
+        model.Open(subject);
+        await model.Computed;
         return model;
     }
 
