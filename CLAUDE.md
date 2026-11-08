@@ -72,6 +72,10 @@ coins (Monero, Zcash, Litecoin MWEB) visas först som *Spåret tar slut här*, m
   sparas, så att samma heuristik inte slår ihop dem igen.
 - **Spåra:** användaren expanderar grafen steg för steg. Hur mycket av ett belopp som följer med genom en tx räknas med en
   **vald spårningsmetod** (FIFO, LIFO, haircut eller poison), som alltid visas.
+  **Genom en swap** (användarens beslut 2026-11-08) följer det spårade **värdet** med som en utredare tänker: den
+  spårade andelen av det som gick in i bytet blir samma andel av det som kom ut, i den nya tillgången. Det är en
+  bedömning (analys med namn och version, streckad, med *Varför?*), och utredaren kan välja per swap att den inte
+  följer med.
 - **Attribuera:** etiketter från sanktionslistor, öppna källor, egna etiketter och beteende (till exempel en börs
   insättningsadresser som töms till samma hot wallet).
 - **Uttag:** målet är att hitta den punkt där pengarna lämnar kedjan, oftast en börs, och vilka insättningar det gäller.
@@ -81,7 +85,9 @@ coins (Monero, Zcash, Litecoin MWEB) visas först som *Spåret tar slut här*, m
   bakgrundsprocess som startar med Windows:
   - Den vet bara det bevakningen kräver: adresserna och ett id för ärendet, krypterat för Windows-användaren (DPAPI), så att
     den kan arbeta utan huvudnyckeln. Ärendet och valvet öppnas aldrig av den.
-  - Den går ut genom Chainsaws utgång och gör inga uppslag om utgången inte är ansluten (princip 4).
+  - Den går ut genom Chainsaws utgång och gör inga uppslag om utgången inte är ansluten (princip 4). En utgångs
+    WireGuard-fil får ligga under DPAPI utanför valvet, så att bakgrunden kan gå genom VPN (användarens beslut
+    2026-11-08).
   - Det den ser sparas i en kö och förs in i ärendet, med journal och hash, först när ärendet öppnas.
   - Aviseringen säger bara att en bevakning har slagit till, inte adressen, beloppet eller ärendet. Detaljerna visas efter
     upplåsning.
@@ -106,7 +112,8 @@ coins (Monero, Zcash, Litecoin MWEB) visas först som *Spåret tar slut här*, m
     som ligger överst tills det stängs. Alla säger bara att en bevakning har slagit till.
   - **Hur ofta källan frågas** ställs per bevakning (användarens beslut 2026-11-07), med förvalet **vid varje nytt
     block** (på kedjor utan block, eller med mycket täta block, något som motsvarar det).
-- **Redovisa:** rapporten är **RP1b** (användarens beslut 2026-11-08): ett underlag för underrättelse som byggs ur det
+- **Redovisa:** rapporten är **RP1b** (användarens beslut 2026-11-08, med operatörens namn, titel och enhet i
+  huvudet): ett underlag för underrättelse som byggs ur det
   som är markerat i grafen, med delar som slås av och på, exporterat till Markdown som Begäran (spåret med tid, UTC,
   belopp, txid, blockhöjd och hash, slutsatserna med *Varför?* och hashkedjans topphash). Exporten journalförs,
   skriver aldrig över och tar aldrig med offrens namn. Vyn *Rapport* står sist i pillret (Ctrl+8).
@@ -126,6 +133,16 @@ stället för text (princip 7) och kan förklaras med *Varför?* (princip 3). Ka
 
 **Spåret tar slut** är ett eget, uttalat läge med orsak: privacy coin, mixer eller CoinJoin, brygga eller swap till annan
 kedja, börs (uttag funnet), okänd tjänst. Ett slut är aldrig tyst.
+
+**Privacy coins** (Claudes beslut 2026-11-08, användaren lät Claude avgöra): spåret tar slut, men Chainsaw föreslår
+fortsättningar med de etablerade metoderna ur forskningen, alltid som streckade kandidater med *Varför?* (princip 2):
+- **Skyddade pooler** (Zcash t→z→t, Litecoin MWEB in och ut): samma belopp (minus avgift) som går in och kommer ut
+  inom ett tidsfönster, och mönster i tid och belopp som pekar på samma användare.
+- **Monero:** ringarnas kända svagheter, för äldre tx (ringar utan lockbete före RingCT och kedjereaktionen när en
+  utgång visats vara spenderad på annat håll) och för nya (den nyaste ringmedlemmen är oftast den riktiga, utgångar
+  som bara kan ha spenderats på ett sätt); spåret slutar ärligt när inget av det ger något.
+- **Övergången till och från kedjan:** pengar in till en swap-tjänst eller börs på en genomskinlig kedja och ut på en
+  annan, matchade på belopp och tid, som fortsättningen på annan kedja.
 
 **Cross-chain** (Claudes beslut 2026-11-06, användaren lät Claude avgöra): datamodellen har från början en kant *fortsätter
 på annan kedja* mellan två tx på olika kedjor. I första versionen känns kända bryggor och swap-tjänster igen som slut på
