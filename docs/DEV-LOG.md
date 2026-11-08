@@ -2577,3 +2577,32 @@ och *+ Skäl, frivilligt*) och *Allt avgjort* med ringen, sammanfattningen och l
   temats `Button.Secondary` (grå text) i stället för skissens ljusare; bocken i numret syns så snart numret är giltigt,
   också medan man skriver; sanktionens ikon är 12 px (minsta storleken) i stället för 11.
 - Inga nya tester: bara vyn ändrades (XAML och två händelser i koden bakom).
+
+## Luft i testärendets graf (TODO 34, 2026-11-08)
+
+- **Orsaken:** kolumnerna stod 158 enheter isär med noder på 132, så mellan två hopp fanns 26 enheter för beloppen,
+  som därför låg på noderna; raderna stod 64 isär. Grafen passades in i sin helhet, ned till zoom 0,2, så att elva hopp
+  blev små noder. Alla områden var påslagna i menyn från början och ritades över varandra.
+- **Avstånden** (`GraphSizes`): kolumnerna 292 isär (160 luft, nog för *0,689997 av 1,0000*), raderna 104 isär. GR4:s
+  158 och 120 var skissens; bredden följer nu de längsta beloppen. Gäller båda lägena, eftersom den fria ytan börjar
+  från hoppkolumnerna.
+- **Beloppen** (`AmountLayout`, utan WPF): varje linjes belopp får en plats där det inte rör ett annat belopp eller en
+  nod (med 8 enheters marginal för markeringarna). Mitt på linjen först, sedan utåt längs linjen (0,14–0,86), sist
+  precis ovanför eller under den. De spårade placeras först. Platsen räknas ur en uppskattning av textens storlek i
+  överkant (6,4 enheter per tecken vid 11 px), så att reglerna kan testas; duken mäter den riktiga texten och centrerar
+  den på samma punkt. En linje utan plats visar beloppet bara på hovring eller nära det valda, som förut. Ett rutnät på
+  160 enheter håller placeringen snabb medan noder dras.
+- **Två linjer mellan samma noder** (pengar fram och tillbaka) böjs isär 28 enheter vid mitten (`EdgeCurve.Bent`), så
+  att de inte ligger på varandra och båda beloppen får plats.
+- **Inpassningen** (`Viewport.Fit`) zoomar inte ut förbi 0,75 (`ReadableZoom`); en större graf visas från sitt övre
+  vänstra hörn, där pengarna börjar. Gäller också *Visa i grafen* för ett område.
+- **Områdena** ritas bara för de sorter som valts i menyn, och inga från början; ett kontrollområde syns annars bara
+  för det visade förslaget. En egen yta som just ritats får sin sort påslagen. Valet gäller tills Chainsaw stängs och
+  sparas inte (eget beslut: det säkraste mot brus; att spara det per dator kan läggas till). Kandidaternas streckade
+  linjer följer inte menyn: de ritas för alla förslag (bara det visade förslagets under genomgången), så att en
+  godkänd utgång ur en mixer står kvar i grafen.
+- **Tester:** `TestCaseLayoutTests` (testärendet, båda lägena, med och utan navet expanderat: inga noder närmare än 24,
+  varje belopp har en plats, inga belopp på varandra eller på noder) och `AmountLayoutTests`; tre tester i
+  `ChecksViewModelTests` visar nu sorterna först.
+- **Återstår:** en linje kan fortfarande gå genom en nod när ett hopp med fler än åtta aktörer sprids över två
+  kolumner (navet till CoinJoin i testärendet); se TODO.

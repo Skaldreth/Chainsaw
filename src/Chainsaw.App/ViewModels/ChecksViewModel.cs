@@ -157,8 +157,12 @@ public sealed partial class ChecksViewModel : ObservableObject
     /// <summary>The Checks module, off the UI thread.</summary>
     private readonly ICheckSource _source;
 
-    /// <summary>The sorts whose areas are drawn when no row is chosen.</summary>
-    private readonly HashSet<AreaSort> _shown = [.. Enum.GetValues<AreaSort>()];
+    /// <summary>
+    /// The sorts whose areas are drawn when no row is chosen: none until the user picks them in the menu (TODO 34,
+    /// principle 7), since every area drawn at once lay on top of each other; a check's area is otherwise drawn only
+    /// for the suggestion shown.
+    /// </summary>
+    private readonly HashSet<AreaSort> _shown = [];
 
     /// <summary>The actors chosen with Ctrl+click, for an own area.</summary>
     private readonly List<string> _picked = [];
@@ -341,7 +345,7 @@ public sealed partial class ChecksViewModel : ObservableObject
     /// </summary>
     public IReadOnlyList<AreaView> Areas => _areas;
 
-    /// <summary>Gets the dashed lines to the candidates of the suggestions whose areas are drawn.</summary>
+    /// <summary>Gets the dashed lines to the candidates: every suggestion's, or the shown one's alone.</summary>
     public IReadOnlyList<CandidateLine> CandidateLines => _lines;
 
     /// <summary>
@@ -771,6 +775,8 @@ public sealed partial class ChecksViewModel : ObservableObject
 
             if (mode == AreaFormMode.Create)
             {
+                // The user just drew it, so its sort is shown, as if picked in the menu.
+                _shown.Add(FormSort);
                 _picked.Clear();
             }
 
@@ -1520,7 +1526,7 @@ public sealed partial class ChecksViewModel : ObservableObject
         return GraphAreas.Fill(AllAreas.Where(area => _shown.Contains(area.Sort)));
     }
 
-    /// <summary>Works out the dashed lines to the candidates of the suggestions whose areas are drawn.</summary>
+    /// <summary>Works out the dashed lines to the candidates: every suggestion's, or the shown one's alone.</summary>
     /// <returns>The lines.</returns>
     private IReadOnlyList<CandidateLine> ShownLines()
     {
@@ -1531,7 +1537,10 @@ public sealed partial class ChecksViewModel : ObservableObject
 
         var graph = scene.Snapshot.Graph;
         var lines = new List<CandidateLine>();
-        foreach (var area in _areas.Where(area => area.CheckKey is not null))
+        // The candidates' dashed lines do not wait for the menu: an approved way out of a mixer stays in the graph
+        // whether or not its area is drawn; while a suggestion is shown, only its own lines are.
+        var reviewing = IsOpen && IsReview && Selected is not null;
+        foreach (var area in (reviewing ? _areas : AllAreas).Where(area => area.CheckKey is not null))
         {
             var check = _checks.FirstOrDefault(c => GraphAreas.KeyOf(c) == area.CheckKey);
             if (check is null || check.Finding.Candidates.Count == 0 || check.Finding.Addresses.Count == 0

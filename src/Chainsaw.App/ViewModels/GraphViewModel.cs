@@ -289,6 +289,13 @@ public sealed partial class GraphViewModel : ObservableObject
     /// <summary>Gets each line's curve between its nodes' places.</summary>
     public IReadOnlyDictionary<string, EdgeCurve> Curves { get; private set; } = new Dictionary<string, EdgeCurve>();
 
+    /// <summary>
+    /// Gets where each line's amount is written (<see cref="AmountLayout"/>); a line that is missing has no free place
+    /// and shows its amount on hovering.
+    /// </summary>
+    public IReadOnlyDictionary<string, AmountSpot> Amounts { get; private set; } =
+        new Dictionary<string, AmountSpot>();
+
     /// <summary>Gets the chosen node's key, or <see langword="null"/>.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsInspectorShown))]
@@ -1025,11 +1032,13 @@ public sealed partial class GraphViewModel : ObservableObject
 
             Places = GraphPlacement.Place(scene.LayoutNodes, Layout, scene.Columns, moved);
             Curves = GraphHitTest.Curves(scene, Places, IsHopColumns);
+            Amounts = AmountLayout.Place(scene, Places, Curves);
         }
         else
         {
             Places = new Dictionary<string, GraphPoint>();
             Curves = new Dictionary<string, EdgeCurve>();
+            Amounts = new Dictionary<string, AmountSpot>();
         }
 
         Redraw?.Invoke(this, EventArgs.Empty);

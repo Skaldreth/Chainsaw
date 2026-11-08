@@ -89,7 +89,9 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
 29. **Panorering:** *byggd 2026-11-07*, höger- och mittknappen panorerar (också över en nod) och ytan glider vidare
     som i Gawk; ett högerklick utan rörelse öppnar nodens meny. Vänsterknappen drar bara noder.
 30. **Använd ytan:** *byggt 2026-11-07, väntar på prov på Windows:* ett hopp med fler än åtta aktörer sprids över
-    kolumner sida vid sida till ett ungefär kvadratiskt block, och belopp som skulle hamna på varandra visas på hovring.
+    kolumner sida vid sida till ett ungefär kvadratiskt block. *Luftigare 2026-11-08 (TODO 34):* kolumner och rader
+    längre isär, och varje belopp får en plats på sin linje där det inte rör ett annat belopp eller en nod; bara ett
+    belopp utan plats visas på hovring.
 31. **Sonarn är borttagen** (användarens beslut 2026-11-08: *det blev inte bra alls*): ingen puls runt *Nytt ärende*,
     i första gången-läget eller runt den tomma startpunkten, och `SonarRing` är borttagen. Markeringarna i grafen som
     CLAUDE.md kallar sonar (EX2:s intressanta kort) får en egen, lugn form när de byggs, efter en skiss.
@@ -130,9 +132,10 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
 40. **Två App-tester faller ibland** (`CasePickerTests.Stang_closes_the_case_and_the_picker_stays_out`,
     `SettingsTests.The_lock_screen_says_that_lookups_go_through_windows`, och tidigare en låstidstest): gröna när de
     körs om. Troligen delat tillstånd mellan tester som körs parallellt; utreds.
-34. **Testärendet är för trångt** (användarens skärmdump 2026-11-08): grafen i `TEST-0001` är ihoptryckt, små noder
-    som ligger på varandra, belopp som krockar och alla områden ritade samtidigt över varandra. Strider mot princip 7.
-    Utreds: layouten (*Använd ytan*, punkt 30) och att områdena bara visas när de väljs i menyn.
+34. **Linjer genom noder** (kvar efter att testärendets trängsel rättades 2026-11-08): när ett hopp med fler än åtta
+    aktörer sprids över två kolumner går en linje till den andra kolumnen rakt genom en nod i den första (i
+    testärendet linjen till CoinJoin). Beloppen hålls redan undan; linjerna kunde böjas runt noderna, eller aktörer med
+    linjer vidare läggas i den kolumn som är närmast.
 
 Klart ur listan 2026-11-07: testärendet `/testdata` (punkt 27, se *Testärendet* nedan);
 *Prova alla nu* och expansionen gav *The media type asked for is not valid* (Esplora bad om

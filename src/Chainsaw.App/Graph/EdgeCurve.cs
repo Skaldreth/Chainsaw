@@ -33,6 +33,15 @@ public sealed record EdgeCurve(GraphPoint Start, GraphPoint Control1, GraphPoint
     /// <summary>How close two columns may be and still count as the same, in the surface's units.</summary>
     private const double SameColumn = 4;
 
+    /// <summary>How much of a move of both control points reaches the curve's middle.</summary>
+    private const double MiddleShare = 0.75;
+
+    /// <summary>
+    /// How far apart the middles of two lines between the same two nodes are drawn: more than an amount is tall, so
+    /// that both amounts can stand halfway.
+    /// </summary>
+    public const double ParallelSpacing = 28;
+
     /// <summary>Gets the point halfway along the curve, where its amount is written.</summary>
     public GraphPoint Middle => At(0.5);
 
@@ -86,6 +95,24 @@ public sealed record EdgeCurve(GraphPoint Start, GraphPoint Control1, GraphPoint
             new GraphPoint(start, from.Y + half),
             new GraphPoint(end, to.Y + half),
             Math.Max(MinimumPull, (end - start) / 2));
+    }
+
+    /// <summary>
+    /// Gives the curve bent up or down by a distance at its middle, so that two lines between the same two nodes, as
+    /// money that goes back and forth, are drawn apart and each keeps room for its amount (TODO 34).
+    /// </summary>
+    /// <param name="offset">How far the middle moves; below zero is up.</param>
+    /// <returns>The bent curve, its ends unchanged.</returns>
+    public EdgeCurve Bent(double offset)
+    {
+        // The middle of a cubic Bézier curve is (P0 + 3·P1 + 3·P2 + P3) / 8, so moving both control points by d moves
+        // it by 3/4 of d.
+        var shift = offset / MiddleShare;
+        return this with
+        {
+            Control1 = Control1 with { Y = Control1.Y + shift },
+            Control2 = Control2 with { Y = Control2.Y + shift },
+        };
     }
 
     /// <summary>Gives the point at a place along the curve.</summary>

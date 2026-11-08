@@ -404,6 +404,7 @@ public sealed class ChecksViewModelTests
     public async Task A_hidden_sort_leaves_its_fill_to_the_areas_shown()
     {
         var rig = await new Rig().Follow();
+        ShowEverySort(rig);
         Assert.False(rig.Checks.Areas.Single(area => area.Sort == AreaSort.Wallet).IsFilled);
 
         rig.Checks.ToggleSort(AreaSort.Obfuscation);
@@ -450,6 +451,7 @@ public sealed class ChecksViewModelTests
     public async Task The_menu_hides_and_shows_a_sorts_areas_and_counts_them()
     {
         var rig = await new Rig().Follow();
+        ShowEverySort(rig);
         var before = rig.Checks.Areas.Count;
 
         rig.Checks.ToggleSort(AreaSort.Time);
@@ -460,6 +462,40 @@ public sealed class ChecksViewModelTests
         Assert.False(time.IsShown);
         Assert.Equal("1", time.CountText);
         Assert.Equal("inga", rig.Checks.Sorts.Single(sort => sort.Sort == AreaSort.Service).CountText);
+    }
+
+    /// <summary>
+    /// No area is drawn until the menu picks its sort (TODO 34): drawn all at once they lay on top of each other. A
+    /// suggestion's area is drawn while the suggestion is shown.
+    /// </summary>
+    [Fact]
+    public async Task No_area_is_drawn_until_the_menu_picks_it()
+    {
+        var rig = await new Rig().Follow();
+
+        Assert.NotEmpty(rig.Checks.AllAreas);
+        Assert.Empty(rig.Checks.Areas);
+        Assert.False(rig.Checks.HasAreas);
+        Assert.All(rig.Checks.Sorts, sort => Assert.False(sort.IsShown));
+
+        rig.Checks.ToggleSort(AreaSort.Time);
+        Assert.Equal([AreaSort.Time], rig.Checks.Areas.Select(area => area.Sort).Distinct());
+        rig.Checks.ToggleSort(AreaSort.Time);
+        Assert.Empty(rig.Checks.Areas);
+
+        rig.Checks.Toggle();
+        rig.Checks.StartReview(null);
+        Assert.Equal(rig.Checks.Selected!.Key, Assert.Single(rig.Checks.Areas).CheckKey);
+    }
+
+    /// <summary>Shows every sort's areas, as when the user picks them all in the menu.</summary>
+    /// <param name="rig">The rig.</param>
+    private static void ShowEverySort(Rig rig)
+    {
+        foreach (var sort in rig.Checks.Sorts.Where(sort => !sort.IsShown).Select(sort => sort.Sort).ToList())
+        {
+            rig.Checks.ToggleSort(sort);
+        }
     }
 
     [Fact]
