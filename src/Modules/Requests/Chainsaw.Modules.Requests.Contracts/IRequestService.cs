@@ -70,4 +70,7 @@ public static class RequestJournalKinds
 {
     /// <summary>A request was exported to a file.</summary>
     public const string Exported = "requests.exported";
+
+    /// <summary>A report was exported to a file (sketch RP1b).</summary>
+    public const string ReportExported = "requests.report-exported";
 }

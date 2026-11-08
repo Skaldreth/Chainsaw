@@ -91,6 +91,7 @@ public partial class MainWindow : Window
     /// The background watching: the plan, the hold on the open case and its state, started here.
     /// </param>
     /// <param name="toaster">The toaster (sketch TO1a), which every part can say something through.</param>
+    /// <param name="report">The view Rapport (sketch RP1b).</param>
     public MainWindow(
         ShellViewModel shell,
         GateViewModel gate,
@@ -100,7 +101,8 @@ public partial class MainWindow : Window
         MonitoringViewModel monitoring,
         WatchRunner watchRunner,
         BackgroundLink background,
-        Toaster toaster)
+        Toaster toaster,
+        ReportViewModel report)
     {
         InitializeComponent();
         _shell = shell;
@@ -134,6 +136,7 @@ public partial class MainWindow : Window
         WireRequests(shell, graph);
         WireLabels(shell, graph);
         WireExposure(shell, graph);
+        WireReport(shell, graph, report);
         WireEmptyGraph(shell, graph.Start);
         watchRunner.Start();
         shell.Settings.SettingsChanged += (_, settings) => _ = background.ApplyAsync(settings);

@@ -89,7 +89,17 @@ internal static class RequestMarkdown
                 text.Append("# ").Append(Escape(block.Text)).Append('\n');
                 break;
             case RequestBlockKind.Heading:
-                text.Append("## ").Append(Escape(block.Text)).Append('\n');
+                text.Append("## ").Append(Escape(Heading(block))).Append('\n');
+                break;
+            case RequestBlockKind.Item:
+                text.Append("- ").Append(Escape(block.Text)).Append('\n');
+                break;
+            case RequestBlockKind.Reason:
+                // Indented under the item before it, so that the reason stays with its conclusion.
+                text.Append("  > ").Append(Escape(block.Text)).Append('\n');
+                break;
+            case RequestBlockKind.Hash:
+                text.Append(Cell(block.Text, isMono: true)).Append('\n');
                 break;
             case RequestBlockKind.Note:
                 // Emphasis needs the text to touch its stars, so the ends are trimmed.
@@ -103,6 +113,12 @@ internal static class RequestMarkdown
                 break;
         }
     }
+
+    /// <summary>Gives a heading's text with its tag after it, as the file holds it.</summary>
+    /// <param name="block">The heading.</param>
+    /// <returns>For example <c>Spåret bc1q…a8f3 → Börs A · Uttag funnet</c>.</returns>
+    private static string Heading(RequestBlock block) =>
+        block.Tag.Length > 0 ? $"{block.Text} · {block.Tag}" : block.Text;
 
     /// <summary>Writes a table: the headings, the line under them and a row per row, mono cells as code.</summary>
     /// <param name="text">The file's text, added to.</param>

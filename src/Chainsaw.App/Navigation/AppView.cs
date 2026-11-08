@@ -27,6 +27,9 @@ public enum AppView
     /// <summary>The case's labels and those of the label library.</summary>
     Labels,
 
+    /// <summary>Rapport: the report built from what is marked in the graph (sketch RP1b).</summary>
+    Report,
+
     /// <summary>The explanations: concepts, heuristics and the visual language.</summary>
     Guide,
 

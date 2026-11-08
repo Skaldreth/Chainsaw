@@ -12,7 +12,7 @@ public sealed partial class ViewTableTests
         var names = ViewTable.All.Select(e => e.Name);
 
         Assert.Equal(
-            ["Nytt", "Graf", "Tidslinje", "Flöde", "Exponering", "Begäran", "Bevakning", "Etiketter",
+            ["Nytt", "Graf", "Tidslinje", "Flöde", "Exponering", "Begäran", "Bevakning", "Etiketter", "Rapport",
              "Guide", "Inställningar"],
             names);
     }

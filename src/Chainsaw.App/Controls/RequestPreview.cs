@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Shapes;
 using Chainsaw.Modules.Requests.Contracts;
 
 namespace Chainsaw.App.Controls;
@@ -36,6 +37,15 @@ public sealed class RequestPreview : StackPanel
     /// <summary>The space between blocks (sketch BG1b: 10 px).</summary>
     private const double Gap = 10;
 
+    /// <summary>How far a reason is indented under its item (sketch RP1b: 16 px).</summary>
+    private const double ReasonIndent = 16;
+
+    /// <summary>How much closer a reason stands to its item than blocks do (sketch RP1b: 6 px).</summary>
+    private const double ReasonLift = -6;
+
+    /// <summary>A reason's line height as a share of its size (sketch RP1b: 1.45).</summary>
+    private const double ReasonLine = 1.45;
+
     /// <summary>A cell's padding (sketch BG1b: 6 px above and below, 8 px to the right).</summary>
     private static readonly Thickness CellPadding = new(0, 6, 8, 6);
 
@@ -57,8 +67,9 @@ public sealed class RequestPreview : StackPanel
 
         foreach (var block in Document.Blocks)
         {
-            FrameworkElement element = block.Kind == RequestBlockKind.Table ? CreateTable(block) : CreateText(block);
-            element.Margin = new Thickness(0, Children.Count == 0 ? 0 : Gap + TopExtra(block), 0, 0);
+            var element = Create(block);
+            var left = block.Kind == RequestBlockKind.Reason ? ReasonIndent : 0;
+            element.Margin = new Thickness(left, Children.Count == 0 ? 0 : Gap + TopExtra(block), 0, 0);
             Children.Add(element);
         }
     }
@@ -66,7 +77,130 @@ public sealed class RequestPreview : StackPanel
     /// <summary>Gives the extra space over a heading, which opens a section (sketch BG1b: 6 px).</summary>
     /// <param name="block">The block.</param>
     /// <returns>The space.</returns>
-    private static double TopExtra(RequestBlock block) => block.Kind == RequestBlockKind.Heading ? 6 : 0;
+    private static double TopExtra(RequestBlock block) => block.Kind switch
+    {
+        RequestBlockKind.Heading => 6,
+        RequestBlockKind.Reason => ReasonLift,
+        _ => 0,
+    };
+
+    /// <summary>Draws a block as its kind is drawn.</summary>
+    /// <param name="block">The block.</param>
+    /// <returns>Its element.</returns>
+    private FrameworkElement Create(RequestBlock block) => block.Kind switch
+    {
+        RequestBlockKind.Table => CreateTable(block),
+        RequestBlockKind.Item => CreateItem(block),
+        RequestBlockKind.Reason => CreateReason(block),
+        RequestBlockKind.Hash => CreateHash(block),
+        RequestBlockKind.Heading when block.Tag.Length > 0 => CreateTaggedHeading(block),
+        _ => CreateText(block),
+    };
+
+    /// <summary>Draws an item of a list: a faint bullet and the text (sketch RP1b).</summary>
+    /// <param name="block">The item.</param>
+    /// <returns>Its element.</returns>
+    private DockPanel CreateItem(RequestBlock block)
+    {
+        var bullet = new TextBlock
+        {
+            Text = "•",
+            FontSize = BodySize,
+            Margin = new Thickness(0, 0, 9, 0),
+            Foreground = Brush("Brush.TextFaint"),
+        };
+        DockPanel.SetDock(bullet, Dock.Left);
+        var text = CreateText(block);
+        text.Foreground = Brush("Brush.Text");
+        return new DockPanel { Children = { bullet, text } };
+    }
+
+    /// <summary>
+    /// Draws why the item above holds: smaller and dimmed behind a dashed line, since it is a judgement's ground
+    /// (dashed always means uncertain, sketch RP1b).
+    /// </summary>
+    /// <param name="block">The reason.</param>
+    /// <returns>Its element.</returns>
+    private DockPanel CreateReason(RequestBlock block)
+    {
+        var line = new Line
+        {
+            Y2 = 1,
+            Stretch = Stretch.Fill,
+            StrokeThickness = 2,
+            StrokeDashArray = [2, 2],
+            Stroke = Brush("Brush.BorderStrong"),
+            Margin = new Thickness(0, 0, 10, 0),
+        };
+        DockPanel.SetDock(line, Dock.Left);
+        var text = new TextBlock
+        {
+            Text = block.Text,
+            FontSize = TableSize,
+            LineHeight = Math.Round(TableSize * ReasonLine),
+            TextWrapping = TextWrapping.Wrap,
+            Foreground = Brush("Brush.TextDim"),
+        };
+        return new DockPanel { Children = { line, text } };
+    }
+
+    /// <summary>Draws a hash whole, in mono on a darker ground (sketch RP1b).</summary>
+    /// <param name="block">The hash.</param>
+    /// <returns>Its element.</returns>
+    private Border CreateHash(RequestBlock block) => new()
+    {
+        Padding = new Thickness(10, 8, 10, 8),
+        CornerRadius = new CornerRadius(7),
+        Background = Brush("Brush.Background"),
+        Child = new TextBlock
+        {
+            Text = block.Text,
+            FontSize = TableSize,
+            FontFamily = (FontFamily)FindResource("Font.Mono"),
+            TextWrapping = TextWrapping.Wrap,
+            Foreground = Brush("Brush.TextMuted"),
+        },
+    };
+
+    /// <summary>Draws a heading with its tag beside it, in the colour of where the trail ends (sketch RP1b).</summary>
+    /// <param name="block">The heading.</param>
+    /// <returns>Its element.</returns>
+    private WrapPanel CreateTaggedHeading(RequestBlock block)
+    {
+        var tone = Brush(ToneKey(block.TagTone));
+        var tag = new Border
+        {
+            Height = 20,
+            Padding = new Thickness(7, 0, 7, 0),
+            CornerRadius = new CornerRadius(5),
+            BorderThickness = new Thickness(1),
+            BorderBrush = tone,
+            VerticalAlignment = VerticalAlignment.Center,
+            Child = new TextBlock
+            {
+                Text = block.Tag,
+                FontSize = 11,
+                VerticalAlignment = VerticalAlignment.Center,
+                Foreground = tone,
+            },
+        };
+        var heading = CreateText(block);
+        heading.Margin = new Thickness(0, 0, 10, 0);
+        heading.VerticalAlignment = VerticalAlignment.Center;
+        return new WrapPanel { Children = { heading, tag } };
+    }
+
+    /// <summary>Gives the brush key of a tag's tone: the graph's colour for where the trail ends.</summary>
+    /// <param name="tone">The tone.</param>
+    /// <returns>The key.</returns>
+    private static string ToneKey(RequestTagTone tone) => tone switch
+    {
+        RequestTagTone.CashOut => "Brush.Kind.CashOut",
+        RequestTagTone.Risk => "Brush.Kind.Risk",
+        RequestTagTone.Spent => "Brush.Kind.Spent",
+        RequestTagTone.OtherChain => "Brush.Kind.OtherChain",
+        _ => "Brush.TextDim",
+    };
 
     /// <summary>Draws a title, a heading, a paragraph or a note.</summary>
     /// <param name="block">The block.</param>

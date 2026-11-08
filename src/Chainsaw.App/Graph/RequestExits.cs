@@ -381,7 +381,7 @@ public static class RequestExits
     /// <param name="tracedCoins">The coins the trace holds.</param>
     /// <param name="traced">The lines that carry traced money.</param>
     /// <returns>Whether it is traced.</returns>
-    private static bool IsTraced(
+    internal static bool IsTraced(
         AssetTransfer transfer, GraphEdge edge, HashSet<Outpoint> tracedCoins, HashSet<string> traced)
     {
         var lineTraced = traced.Contains(edge.Key);

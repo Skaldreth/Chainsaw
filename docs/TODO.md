@@ -159,6 +159,7 @@ Skisserna på canvasens sida *Mot 1.0*; vad varje val innebär står i CLAUDE.md
   utgångar som streckade lila förslag bortom mixern, *Tillbaka · Esc* i grafen efter *Visa vägen i grafen*, och
   *Exponering …* i nodens meny i grafen (`ExposureViewModel.Open` finns).
 - **Rapport RP1b** [etapp].
+
 - **Kurserna KU1a** [etapp]: kronorna via Riksbanken.
 - **Inställningarnas rester** [direkt] (efter BV4a, ST2a, FS2a och UT3b):
   - Titelraden visar inte *Syns som* på utgångens tips (UT3b har det i skissen).

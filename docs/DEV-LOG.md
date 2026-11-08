@@ -3601,3 +3601,59 @@ Tester: 9 nya i Pricing (`EuroTests`) och 20 i App (`RatesTests`).
 - **M5:** ett test med enbart utgående i mempool (en negativ väntande summa med −).
 - **M3 och M4** ur omgranskningen är inte rättade här; de står i granskningens rapport till huvudsessionen och förs
   in i `docs/BACKLOG.md` därifrån.
+
+## Rapporten, RP1b (2026-11-08)
+
+- **I modulen Requests**, inte en egen modul: rapporten delar block, Markdown, `RequestFiles` (skriver aldrig över)
+  och sättet att försegla med Begäran. `IReportService` (Check, Compose, Export, ListExports) med `ReportDraft`
+  (spåren, slutsatserna, etiketterna, metoden, delarna) och `ReportTemplate`. Exporten journalförs som
+  `requests.report-exported` och förseglas i en egen kedja, `requests.reports` (schemats steg 2), med SHA-256,
+  transaktionerna och delarna.
+- **Blocken** fick tre nya sorter, `Item`, `Reason` (*Varför:* under slutsatsen, `  >` i filen) och `Hash`, och en
+  rubrik kan ha en bricka (`Tag`, `TagTone`) som `RequestPreview` ritar i färgen för var spåret slutar.
+- **Hashkedjans topphash** är journalens (`cases.journal`) senaste förseglade rad ur `ICaseVerifier`, eftersom varje
+  skrivning i ärendet går genom journalen. Exporten kontrollerar på nytt precis före skrivningen; förhandsvisningen
+  kontrolleras när ärendet öppnas, vyn visas och efter en export. En bruten kedja sägs ärligt i filen.
+- **Ur markeringen** (`ReportSelection`, utan WPF): aktörerna är grafens val (Ctrl+klick eller ruta). Ett spår går
+  längs spårade linjer mellan markerade aktörer, från närmaste start (startpunkt eller markerad aktör som inget spårat
+  når) till varje markerad aktör som pengarna inte lämnar för en annan markerad. En transaktionsnod passeras och är
+  varken steg eller hopp. Varje steg har de överföringar som bär spårade pengar (samma regel som Begäran,
+  `RequestExits.IsTraced`), annars alla linjens.
+- **Sekretess** (fynden från Begäran): ett namn kommer bara ur en tjänsts etikett av aktörens egen sort, aldrig ur
+  ett offers, en okänds eller en rapport till en underleverantör (Chainabuse kan namnge personer); annars förkortad
+  adress. Etiketternas skäl, anteckning och vem som satte dem följer aldrig med, bara källa, version och dag. Ärendets
+  titel kommer aldrig med, bara numret.
+- **Slutsatserna:** kluster (heuristik med version och tx ur `IClusteringService`, läst utanför UI-tråden), etiketter
+  (källorna) och spårningsmetoden. Spårat belopp och SEK sägs vara bedömningar; SEK bara när grafen har en kurs för
+  linjen, annars säger delen ärligt att ingen kurs finns.
+- **Vyn** (`ReportView`, `ReportViewModel`, `Controls/ReportMiniGraph`): material och dokument byggs i `Task.Run`,
+  och en äldre omgång visas aldrig över en nyare. Rå Markdown är virtualiserad.
+- **Avsteg från skissen:** markeringen är Ctrl+klick eller ruta (Shift används i högen); ingen *← Rapport*-knapp i
+  grafen och ingen *Visa i mappen* i toasten (`docs/BACKLOG.md`); tider ISO som i Begäran; de exporterade filerna står
+  med namn och SHA-256 i verktygstipset under förhandsvisningen.
+- **Inte med:** godkända förslag (troliga utgångar) som slutsatser. Testärendet behöver inget nytt: rapporten byggs ur
+  grafen.
+- Tester: 21 nya i `Chainsaw.Modules.Requests.Tests` (mall, delar, sekretess i Markdown, export utan överskrivning,
+  försegling, journal, topphash, återöppning) och 23 i `ReportTests` i App.Tests (spåren ur scenen, offrets och
+  rapportens namn, kluster, bilden, vymodellen, exporten, pillret).
+
+## Granskningen av RP1b rättad (2026-11-08)
+
+- **I1:** kronvärdet räknas på den spårade delen, inte hela linjen: varje linjes spårade andel av dess spårade
+  överföringar, var och en till ärendets kurs vid sin tid (`IPriceService`, bara ur ärendet, aldrig ut). Saknas en
+  kurs, en tid eller blandas valutor blir värdet `null`. Andelen antas lika för linjens överföringar (en bedömning).
+- **I2 och M2:** ett spår är delgrafen av följda linjer som leder till slutet (`ReportTrails`): alla starter, grenar och
+  pengar som vänder står med, och *Spårat* summeras per tillgång över alla linjer in i slutet. Ett slut är en
+  markerad aktör där pengarna lämnar kedjan eller spåret slutar, eller som pengarna bara går vidare från till aktörer
+  som skickar tillbaka; av aktörer som pengarna cirkulerar mellan står den första för alla.
+- **I3a:** topphashen är SHA-256 över de sorterade raderna `kedja:sekvens:hash` för alla förseglade kedjor ur
+  `ICaseVerifier`, med antalet kedjor och journalens rad. **I3b:** *inte kontrollerad* (ingen kontroll) skiljs från
+  *bruten* (`LedgerBroken`); ett sunt ärende utan journalkedja ger `CaseError.Corrupt`.
+- **M1:** har journalen vuxit mellan kontrollen och sigillet rullas exporten tillbaka, filen tas bort och den görs om
+  (högst tre gånger; den sista förseglas ändå, eftersom filen är sann för den rad den nämner). Kontrollen läser bara
+  journalens sekvens i transaktionen, så en kedja som växer utan journalrad fångas inte.
+- **M3:** steg vars överföring inte kan sägas spårad märks *(ej spårad)*. **M4:** `CaseChains.Journal` i
+  Cases.Contracts. **M5:** rapporten byggs och topphashen kontrolleras bara när vyn visas. **M6:** exporten skriver det
+  utkast som den visade rapporten gjordes av. **M8:** tester för två starter, romb, cykel, värdet, saknad kurs, ospårade
+  steg, flera tillgångar, topphashen, bruten och saknad kedja, ny export efter en ändring, dold vy och visat utkast.
+- **M7** (operatören i huvudet) står kvar som i Begäran.

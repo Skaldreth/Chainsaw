@@ -215,6 +215,7 @@ public partial class App : Application
                 .AddSingleton<RequestsViewModel>()
                 .AddSingleton<LabelsViewModel>()
                 .AddSingleton<ExposureViewModel>()
+                .AddSingleton<ReportViewModel>()
                 .AddSingleton<IBackgroundProcess, WindowsBackgroundProcess>()
                 .AddSingleton<IAutostart, RunKeyAutostart>()
                 .AddSingleton(provider => new BackgroundParts(

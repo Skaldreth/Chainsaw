@@ -268,7 +268,7 @@ public sealed partial class ShellViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CurrentEntry), nameof(IsGraphShown), nameof(IsGuideShown),
         nameof(IsMonitoringShown), nameof(IsRequestsShown), nameof(IsLabelsShown), nameof(IsExposureShown),
-        nameof(IsPlaceholderShown))]
+        nameof(IsReportShown), nameof(IsPlaceholderShown))]
     public partial AppView Current { get; private set; }
 
     /// <summary>Gets whether the graph is shown (sketch GR4).</summary>
@@ -295,10 +295,13 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <summary>Gets whether the shown view is not built yet, so that the page says so.</summary>
     public bool IsPlaceholderShown =>
         !IsGraphShown && !IsGuideShown && !IsMonitoringShown && !IsRequestsShown && !IsLabelsShown
-        && !IsExposureShown;
+        && !IsExposureShown && !IsReportShown;
 
     /// <summary>Gets the view Exponering, or <see langword="null"/> when the shell is built without it.</summary>
     public ExposureViewModel? Exposure { get; }
+
+    /// <summary>Gets whether the view Rapport is shown (sketch RP1b).</summary>
+    public bool IsReportShown => Current == AppView.Report;
 
     /// <summary>Gets the view Begäran, or <see langword="null"/> when the shell is built without it.</summary>
     public RequestsViewModel? Requests { get; }

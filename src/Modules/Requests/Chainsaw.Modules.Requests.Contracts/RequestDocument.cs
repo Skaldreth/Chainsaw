@@ -17,6 +17,18 @@ public enum RequestBlockKind
 
     /// <summary>A table: the addresses, or the deposits with their transactions, heights and hashes.</summary>
     Table,
+
+    /// <summary>An item of a list (<c>-</c>): a conclusion, a cash-out or a label in a report.</summary>
+    Item,
+
+    /// <summary>
+    /// Why the item before it holds (<c>&gt;</c> under the item): the heuristic, the source, the version and the
+    /// transaction a conclusion rests on (principle 3).
+    /// </summary>
+    Reason,
+
+    /// <summary>A hash written whole as code, such as the top hash of the case's hash chain.</summary>
+    Hash,
 }
 
 /// <summary>
@@ -27,6 +39,14 @@ public enum RequestBlockKind
 /// <param name="Text">The text of a title, a heading, a paragraph or a note; empty for a table.</param>
 public sealed record RequestBlock(RequestBlockKind Kind, string Text)
 {
+    /// <summary>
+    /// Gets a heading's tag, a short word on how the section ends, such as <c>Uttag funnet</c>; empty for none.
+    /// </summary>
+    public string Tag { get; init; } = string.Empty;
+
+    /// <summary>Gets how a heading's tag is meant: what the trail it heads ends in; none for any other block.</summary>
+    public RequestTagTone TagTone { get; init; }
+
     /// <summary>Gets a table's column headings; empty for any other block.</summary>
     public IReadOnlyList<string> Columns { get; init; } = [];
 
@@ -62,6 +82,25 @@ public sealed record RequestBlock(RequestBlockKind Kind, string Text)
             MonoColumns = new HashSet<int>(mono),
         };
     }
+}
+
+/// <summary>What a heading's tag says about where a trail ends, which the preview gives its colour.</summary>
+public enum RequestTagTone
+{
+    /// <summary>No tag, or a trail that goes on.</summary>
+    None,
+
+    /// <summary>The money left the chain at a cash-out (blue in the graph).</summary>
+    CashOut,
+
+    /// <summary>The trail ends at a risk: a mixer, a sanction, a darknet (red in the graph).</summary>
+    Risk,
+
+    /// <summary>The money was spent (yellow in the graph).</summary>
+    Spent,
+
+    /// <summary>The money goes on on another chain (purple in the graph).</summary>
+    OtherChain,
 }
 
 /// <summary>A request composed from its template: the blocks, the Markdown written from them, the file's name.
