@@ -397,6 +397,28 @@ public sealed partial class GraphCanvas
         _fanSet = null;
     }
 
+    /// <summary>
+    /// Gives how the graph behind an open pile is pushed out from it (sketch EX2b, as the start page's
+    /// <c>FanOutLayer</c>): a little, round the pile's centre, as far as the pile is open; nothing when no pile is.
+    /// </summary>
+    /// <returns>The transform, in the surface's units.</returns>
+    private Transform FanPush()
+    {
+        if (_fanOpen <= 0 || _fanShown is not { } fan)
+        {
+            return Transform.Identity;
+        }
+
+        var scale = FanShock.Push(_fanOpen);
+        return new ScaleTransform(scale, scale, fan.Centre.X, fan.Centre.Y);
+    }
+
+    /// <summary>Says whether a node is the pile fanned out now, which is drawn over the dimmed graph instead.</summary>
+    /// <param name="key">The node's key.</param>
+    /// <returns><see langword="true"/> when it is.</returns>
+    private bool IsFannedPile(string key) =>
+        _fanOpen > 0 && _fanShown is { } fan && string.Equals(fan.Pile.Key, key, StringComparison.Ordinal);
+
     /// <summary>Gets the middle of the surface on screen, where a fanned pile is centred.</summary>
     private GraphPoint ScreenMiddle => new(ActualWidth / 2, ActualHeight / 2);
 

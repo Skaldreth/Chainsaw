@@ -93,6 +93,20 @@ public interface IEthereumSource
         ICase @case, EthereumAddress address, CancellationToken cancellationToken = default) =>
         Task.FromResult(new BitcoinLookup<EthereumBalance>(
             LookupStatus.Failed, null, [], "Källan kan inte säga adressens saldo. Inget skickades."));
+
+    /// <summary>
+    /// Gets the transactions that a newer sealed answer shows in another block than the case first saw them in, or
+    /// unconfirmed again, or no longer known to the source: the reorganisations the case has seen, compared as
+    /// Bitcoin's are (<see cref="IBitcoinSource.GetBlockChangesAsync"/>). Only what was fetched while its block was
+    /// shallow can change, since Ethereum's blocks are final after 64. It reads the case only and sends nothing;
+    /// every answer stays in the case as it was sealed (principle 1).
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="cancellationToken">Stops the reading.</param>
+    /// <returns>The changes, each on <see cref="SharedKernel.Chain.Ethereum"/>; empty when there are none.</returns>
+    Task<IReadOnlyList<BlockChange>> GetBlockChangesAsync(
+        ICase @case, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<BlockChange>>([]);
 }
 
 /// <summary>The settings of the Ethereum source.</summary>

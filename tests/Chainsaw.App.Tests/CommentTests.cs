@@ -656,9 +656,21 @@ public sealed class CommentGeometryTests
     public void A_new_note_stands_up_and_to_the_right_of_its_node_or_where_it_was_asked_for()
     {
         Assert.Equal(new GraphPoint(9, 9), CommentGeometry.PlaceOfNew(null, new GraphPoint(9, 9)));
-        var beside = CommentGeometry.PlaceOfNew(new GraphPoint(0, 200), new GraphPoint(9, 9));
+        var beside = CommentGeometry.PlaceOfNew(GraphSizes.NodeFrame(new GraphPoint(0, 200)), new GraphPoint(9, 9));
         Assert.True(beside.X > GraphSizes.NodeWidth);
         Assert.True(beside.Y < 200);
+    }
+
+    [Fact]
+    public void A_new_note_beside_a_wide_node_stands_clear_of_its_whole_width()
+    {
+        var at = new GraphPoint(9, 9);
+        var narrow = CommentGeometry.PlaceOfNew(GraphSizes.NodeFrame(new GraphPoint(0, 200)), at);
+        var wide = CommentGeometry.PlaceOfNew(GraphSizes.NodeFrame(new GraphPoint(0, 200), NodeWidths.Widest), at);
+
+        Assert.True(wide.X > NodeWidths.Widest);
+        Assert.Equal(NodeWidths.Widest - GraphSizes.NodeWidth, wide.X - narrow.X);
+        Assert.Equal(narrow.Y, wide.Y);
     }
 
     [Fact]

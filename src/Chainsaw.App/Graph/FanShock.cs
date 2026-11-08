@@ -36,6 +36,12 @@ public static class FanShock
     /// <summary>How long the pile takes to glide to the middle.</summary>
     public static readonly TimeSpan GlideTime = TimeSpan.FromMilliseconds(560);
 
+    /// <summary>
+    /// How far the surface behind an open pile is pushed out from it: a little, a shock and not a zoom, the same on the
+    /// start page and in the graph.
+    /// </summary>
+    public const double PushScale = 1.1;
+
     /// <summary>Gets how long the whole shock lasts, until the last ring has faded.</summary>
     public static TimeSpan Length => Delay(RingCount - 1) + RingTime;
 
@@ -59,6 +65,14 @@ public static class FanShock
         var grown = 1 - Math.Pow(1 - t, 3);
         return new ShockRing(StartRadius + ((EndRadius - StartRadius) * grown), RingOpacity * (1 - t));
     }
+
+    /// <summary>
+    /// Gives how far the surface behind a pile is pushed out while it opens or folds: not at all when folded, and
+    /// <see cref="PushScale"/> when fanned out.
+    /// </summary>
+    /// <param name="open">How open the pile is, from 0 (folded) to 1 (fanned out), already eased.</param>
+    /// <returns>The scale round the pile's centre.</returns>
+    public static double Push(double open) => 1 + ((PushScale - 1) * HeldBackMotion.Unit(open));
 
     /// <summary>
     /// Gives the viewport on its way to putting the pile in the middle of the screen: the surface is panned, never

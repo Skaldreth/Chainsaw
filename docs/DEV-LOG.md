@@ -3709,3 +3709,30 @@ Kollegans fil med ärendelösenordet, ärendets egenskaper med fliken *Kuvert*, 
   - **Kvar:** kraschar Chainsaw mellan att grenen öppnats och grenraden skrivits står grenen utan raden, och
     `/verify` blir röd för den. Ursprunget är då orört.
 
+
+## Grafens rester: breda noder, högen, bytt block och utgångsrutan (2026-11-08)
+
+- **Breda noder:** `TidyLayout.Arrange` tar nodernas bredd (`GraphScene.WidthOf`) som `HopLayout`: en kolumn med en
+  bred nod stegar så mycket längre, så att beloppen behåller sin lucka. `CommentGeometry.PlaceOfNew` tar nodens ram
+  som den ritas i stället för en punkt.
+- **Högen i grafen trycks ut:** ytan bakom en öppen hög skalas runt högens mitt med `FanShock.Push` (1,1, samma
+  konstant som startvyns `FanOutLayer`), lika långt som högen är öppen, så att den följer öppningens och
+  hopfällningens lätta. Den öppna högen ritas inte i den skalade ytan, bara ovanpå det dimmade.
+- **Linjerna efter en tx som inte finns:** `GoneTrail` följer pengarna framåt från linjerna med *Finns inte längre* och
+  behåller de aktörer som ingenting utanför spåret når (pengar som går i ring inom spåret räknas inte; en startpunkt
+  streckas aldrig). Linjen själv blir grå (TextDim) och streckad, linjerna efter streckade, båda 70 %; aktörerna efter
+  får streckad ram och 60 %, som i skissen. Bara ritningen ändras; Tracing räknar fortfarande med det sparade svaret
+  (står kvar i TODO).
+- **Bytt block på Ethereum:** jämförelsen är en regel för båda kedjorna (`BlockChangeRule`, utbruten ur
+  `EsploraBitcoinSource` utan ändrat beteende): samma skydd mot endpoints som ligger efter (`EndpointHeight`) och
+  samma krav på två svar i rad från olika endpoints eller med ett nytt block emellan. `BlockChange` bär nu
+  `TransactionId` (sträng) och `Chain`; Bitcoin har en egen konstruktor med `Txid`. Ethereums svar på `gettxinfo`
+  saknar blockets hash, så hashen läses ur blocksvaret som hämtades närmast efter (annars före) tx-svaret; utan hash
+  jämförs höjden. Ett *finns inte* räknas bara när det förseglade svaret verkligen säger det (`404`, eller
+  Etherscan-stilens `status 0` och *not found*). Inga nya skrivningar i ärendet. `BlockMarks.ForLines` matchar på
+  kedja och id.
+- **Utgångsrutan:** mittringens text är *Ansluter igen …* och under den, litet, *Nästa försök kl. HH:mm:ss* (eller
+  *Försöker nu*) ur samma regel som titelraden (`OfflineWords.NextAttempt`).
+- **Avsteg och egna beslut:** ingen skiss visar återanslutningen i UT2b; ringen och linjerna står kvar röda och
+  streckade, eftersom inga uppslag går (det säkraste), och bara texten ändras. Kommentarer (WPF-element) och
+  verktygstips följer inte med när ytan trycks ut, eftersom de ligger under det dimmade.

@@ -150,17 +150,18 @@ public static class CommentGeometry
             ?.Key;
 
     /// <summary>Gives where a new comment stands: up and to the right of its node, or where it was asked for.</summary>
-    /// <param name="nodePlace">The node's place, when the comment is about a node.</param>
+    /// <param name="nodeFrame">
+    /// The node's frame as it is drawn, wider when its name needs it (sketch GR5), when the comment is about a node.
+    /// </param>
     /// <param name="at">Where the comment was asked for on the surface (a double click, the pointer).</param>
     /// <returns>The comment's top left corner.</returns>
-    public static GraphPoint PlaceOfNew(GraphPoint? nodePlace, GraphPoint at)
+    public static GraphPoint PlaceOfNew(GraphRect? nodeFrame, GraphPoint at)
     {
-        if (nodePlace is not { } place)
+        if (nodeFrame is not { } frame)
         {
             return at;
         }
 
-        var frame = GraphSizes.NodeFrame(place);
         return new GraphPoint(frame.Right + BesideNode, frame.Y - AboveNode);
     }
 

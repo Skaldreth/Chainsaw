@@ -59,7 +59,7 @@ public sealed class FanOutLayer : Canvas
         Frozen(new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.3 });
 
     /// <summary>How far the surface is pushed out from the pile: a little, a shock and not a zoom.</summary>
-    private const double PushScale = 1.1;
+    private const double PushScale = FanShock.PushScale;
 
     /// <summary>How small a card is as it leaves the pile.</summary>
     private const double CardStartScale = 0.6;

@@ -90,14 +90,6 @@ uppifrån och ner [pågår]), och det som inte fungerar rättas före allt annat
 
 ### 2. Rester som byggs nu [pågår]
 
-**Grafen**
-- **Breda noder:** *Sortera grafen* (`TidyLayout`) och en ny kommentar (`CommentGeometry.PlaceOfNew`) räknar med
-  132 px breda noder.
-- **Samlingsnoden i grafen** trycker inte ut ytan bakom som `FanOutLayer` gör i startvyn.
-- **Linjerna efter en tx som inte finns** streckas inte, med aktörerna efter.
-- **Bytt block på Ethereum:** bara Bitcoins svar jämförs (gäller det som hämtades medan blocket var grunt).
-- **Återanslutningen i utgångsrutan** (UT2b) visar *Offline* i stället för *Ansluter igen …*.
-
 **Vyerna och inställningarna**
 - **Begäran:** börsens blå markering i grafen när en begäran är exporterad.
 - **Säga till när sparningen inte går:** en varning i toastern med *Försök igen* när Spara ofta misslyckats några
@@ -114,6 +106,8 @@ aldrig skickar riktiga uppslag (listan i `docs/BACKLOG.md`, *Testärendet*).
 
 ### 3. Kvar efter omgången
 
+- **Spårningen efter en tx som inte finns** [etapp]: linjerna och aktörerna efter den ritas streckade, men Tracing
+  läser fortfarande det sparade svaret, så de spårade beloppen och *Spårat* räknar med den.
 - **Ersatt av vilken tx** [etapp]: en tx som källan inte längre känner (`404`) visas som *Finns inte längre*; vilken
   tx som spenderar samma pengar i stället kräver uppslag på de spenderade utgångarna.
 - **Ångra en godkänd plånbok** [skiss]: Ctrl+Z och *Ångra* i KF2b-panelen visar ingen bekräftelse av vad som slås

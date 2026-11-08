@@ -44,6 +44,9 @@ public sealed partial class GraphViewModel
     /// <summary>The block changes the case has, as last read.</summary>
     private IReadOnlyList<BlockChange> _changes = [];
 
+    /// <summary>The marks of the lines whose transaction left its block, by line.</summary>
+    private IReadOnlyDictionary<string, BlockMark> _blockMarks = new Dictionary<string, BlockMark>();
+
     /// <summary>The node an expansion runs for, which gets the hourglass while its source makes it wait.</summary>
     private string? _expandingNode;
 
@@ -57,8 +60,21 @@ public sealed partial class GraphViewModel
     public IReadOnlyDictionary<string, HoldingsCard> Cards => _cards;
 
     /// <summary>Gets the marks of the lines whose transaction left its block (sketch GR9a), by line.</summary>
-    public IReadOnlyDictionary<string, BlockMark> BlockMarksByLine { get; private set; } =
-        new Dictionary<string, BlockMark>();
+    public IReadOnlyDictionary<string, BlockMark> BlockMarksByLine
+    {
+        get => _blockMarks;
+        private set
+        {
+            _blockMarks = value;
+            GoneTrail = GoneTrail.Of(Scene, value);
+        }
+    }
+
+    /// <summary>
+    /// Gets the lines and actors a gone transaction leaves uncertain (sketch GR9a), drawn dashed; worked out with the
+    /// marks, so that the graph never draws a trail the marks do not show.
+    /// </summary>
+    public GoneTrail GoneTrail { get; private set; } = GoneTrail.Empty;
 
     /// <summary>Gets the line whose block mark has its box open, or <see langword="null"/>.</summary>
     public string? OpenBlockMark { get; private set; }

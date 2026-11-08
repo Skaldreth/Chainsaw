@@ -66,6 +66,12 @@ public sealed partial class GraphCanvas : FrameworkElement
     /// <summary>How faint a line is that carries none of the traced money.</summary>
     private const double UntracedLineOpacity = 0.7;
 
+    /// <summary>How visible a line is that carries, or comes after, a gone transaction (sketch GR9a: 70 %).</summary>
+    private const double GoneTrailLineOpacity = 0.7;
+
+    /// <summary>How visible an actor is after a gone transaction (sketch GR9a: 60 %).</summary>
+    private const double GoneTrailNodeOpacity = 0.6;
+
     /// <summary>The lines' dashes made so far, by pattern and width, so that each is made and frozen once.</summary>
     private static readonly Dictionary<(EdgeDash Dash, double Width), DashStyle> LineDashes = [];
 
@@ -211,6 +217,7 @@ public sealed partial class GraphCanvas : FrameworkElement
 
         drawingContext.PushTransform(new MatrixTransform(
             _viewport.Zoom, 0, 0, _viewport.Zoom, _viewport.OffsetX, _viewport.OffsetY));
+        drawingContext.PushTransform(FanPush());
         drawingContext.PushOpacity(HeldBackMotion.LineOpacity(_blast, BlastK));
         if (_model.IsHopColumns)
         {
@@ -263,6 +270,7 @@ public sealed partial class GraphCanvas : FrameworkElement
         DrawCandidates(drawingContext, visible);
         DrawAreaChips(drawingContext, visible);
         DrawGuide(drawingContext);
+        drawingContext.Pop();
         drawingContext.Pop();
         DrawFan(drawingContext, visible);
         DrawFound(drawingContext);
@@ -769,14 +777,18 @@ public sealed partial class GraphCanvas : FrameworkElement
     /// <param name="near">The lines near what is chosen.</param>
     private void DrawEdge(DrawingContext dc, EdgeView edge, EdgeCurve curve, IReadOnlySet<string> near)
     {
-        var pen = new Pen(GraphPalette.Brush(this, edge.Ink), edge.Width)
+        var trail = _model!.GoneTrail;
+        var isGone = trail.GoneLines.Contains(edge.Key);
+        var isUncertain = isGone || trail.Lines.Contains(edge.Key);
+        var ink = isGone ? GraphPalette.Find(this, "Brush.TextDim") : GraphPalette.Brush(this, edge.Ink);
+        var pen = new Pen(ink, edge.Width)
         {
             StartLineCap = PenLineCap.Round,
             EndLineCap = PenLineCap.Round,
             DashCap = PenLineCap.Round,
-            DashStyle = LineDash(edge.Dash, edge.Width),
+            DashStyle = LineDash(isUncertain ? EdgeDash.Uncertain : edge.Dash, edge.Width),
         };
-        var opacity = LineOpacity(edge, near);
+        var opacity = LineOpacity(edge, near) * (isUncertain ? GoneTrailLineOpacity : 1);
         var geometry = new StreamGeometry();
         using (var context = geometry.Open())
         {
@@ -823,6 +835,11 @@ public sealed partial class GraphCanvas : FrameworkElement
         if (_model.Timeline.IsLaterNode(node.Key))
         {
             return LaterNodeOpacity;
+        }
+
+        if (_model.GoneTrail.Nodes.Contains(node.Key))
+        {
+            return Math.Min(GoneTrailNodeOpacity, node.IsDim ? NotExpandedOpacity : 1);
         }
 
         return node.IsDim ? NotExpandedOpacity : 1;
@@ -1055,6 +1072,12 @@ public sealed partial class GraphCanvas : FrameworkElement
     /// <param name="near">The nodes near what is chosen.</param>
     private void DrawFolded(DrawingContext dc, NodeView node, GraphPoint place, IReadOnlySet<string> near)
     {
+        if (IsFannedPile(node.Key))
+        {
+            // The fanned pile is drawn on top of the dimmed graph, where the surface is not pushed out.
+            return;
+        }
+
         dc.PushOpacity(Math.Min(
             _model!.IsFocused && !near.Contains(node.Key) ? FadedNodeOpacity : 1, LaterFoldedOpacity(node.Key)));
         if (node.Look.Sort == NodeSort.Pile)
@@ -1155,7 +1178,15 @@ public sealed partial class GraphCanvas : FrameworkElement
         }
 
         var hovered = _model!.HoveredNode == node.Key;
-        return new Pen(GraphPalette.Find(this, hovered ? "Brush.BorderHover" : "Brush.Border"), 1);
+        var pen = new Pen(GraphPalette.Find(this, hovered ? "Brush.BorderHover" : "Brush.Border"), 1);
+        if (_model.GoneTrail.Nodes.Contains(node.Key))
+        {
+            // After a transaction the source no longer knows, the actor is uncertain (sketch GR9a): dashed means so.
+            pen.Brush = GraphPalette.Find(this, "Brush.TextDim");
+            pen.DashStyle = FrameDash;
+        }
+
+        return pen;
     }
 
     /// <summary>Draws a sort's icon in its round or square frame (sketch GR3a).</summary>

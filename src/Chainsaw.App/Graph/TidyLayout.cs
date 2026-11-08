@@ -32,12 +32,19 @@ public static class TidyLayout
     /// <summary>Gives every node's place on the sorted surface.</summary>
     /// <param name="nodes">The nodes in the graph's order.</param>
     /// <param name="links">The lines between them, by the nodes' keys; a line to a node not given is ignored.</param>
+    /// <param name="widthOf">
+    /// How wide each node is drawn (sketch GR5), so that a column with a wide node moves the next one along and the gap
+    /// for the amounts stays; <see langword="null"/> for the graph's width.
+    /// </param>
     /// <returns>Each node's top-left corner.</returns>
     public static IReadOnlyDictionary<string, GraphPoint> Arrange(
-        IReadOnlyList<GraphNode> nodes, IEnumerable<(string From, string To)> links)
+        IReadOnlyList<GraphNode> nodes,
+        IEnumerable<(string From, string To)> links,
+        Func<string, double>? widthOf = null)
     {
         ArgumentNullException.ThrowIfNull(nodes);
         ArgumentNullException.ThrowIfNull(links);
+        widthOf ??= _ => GraphSizes.NodeWidth;
         var columns = Columns(nodes);
         var neighbours = Neighbours(nodes, links);
         var heights = new Dictionary<string, double>(StringComparer.Ordinal);
@@ -56,7 +63,7 @@ public static class TidyLayout
             }
         }
 
-        return Places(columns, heights);
+        return Places(columns, heights, widthOf);
     }
 
     /// <summary>
@@ -164,13 +171,17 @@ public static class TidyLayout
 
     /// <summary>
     /// Turns the columns and heights into places on the surface: the columns left to right, each as wide as its
-    /// actors side by side, and the whole moved so that its top stands under the columns' names.
+    /// actors side by side, and the whole moved so that its top stands under the columns' names. A column with a wide
+    /// node (sketch GR5) steps by that node's width, as in the hop columns, so that the amounts keep their gap.
     /// </summary>
     /// <param name="columns">The columns in order.</param>
     /// <param name="heights">Every actor's height from the middle.</param>
+    /// <param name="widthOf">How wide each node is drawn.</param>
     /// <returns>Each node's top-left corner.</returns>
     private static Dictionary<string, GraphPoint> Places(
-        IReadOnlyList<List<string>> columns, IReadOnlyDictionary<string, double> heights)
+        IReadOnlyList<List<string>> columns,
+        IReadOnlyDictionary<string, double> heights,
+        Func<string, double> widthOf)
     {
         var places = new Dictionary<string, GraphPoint>(StringComparer.Ordinal);
         if (heights.Count == 0)
@@ -183,15 +194,29 @@ public static class TidyLayout
         foreach (var column in columns)
         {
             var (_, spread) = Shape(column.Count);
+            var step = StepOf(column, widthOf);
             for (var index = 0; index < column.Count; index++)
             {
-                var x = left + (index % spread * ColumnSpacing);
+                var x = left + (index % spread * step);
                 places[column[index]] = new GraphPoint(x, GraphSizes.Top + heights[column[index]] - top);
             }
 
-            left += spread * ColumnSpacing;
+            left += spread * step;
         }
 
         return places;
+    }
+
+    /// <summary>
+    /// Gives the step from one column to the next beside a column: <see cref="ColumnSpacing"/> for nodes of the
+    /// graph's width, and as much more as the column's widest node is wider.
+    /// </summary>
+    /// <param name="column">The column's actors.</param>
+    /// <param name="widthOf">How wide each node is drawn.</param>
+    /// <returns>The step.</returns>
+    private static double StepOf(IReadOnlyList<string> column, Func<string, double> widthOf)
+    {
+        var widest = column.Count == 0 ? GraphSizes.NodeWidth : column.Max(widthOf);
+        return ColumnSpacing + Math.Max(0, widest - GraphSizes.NodeWidth);
     }
 }

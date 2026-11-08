@@ -95,12 +95,15 @@ public static class BlockMarks
             return marks;
         }
 
-        var byTxid = changes.ToDictionary(change => change.Txid.Value, StringComparer.Ordinal);
+        // A transaction is named by its chain and its id, so that Bitcoin's and Ethereum's never meet.
+        var byTransaction = changes
+            .GroupBy(change => (change.Chain, Id: change.TransactionId.ToLowerInvariant()))
+            .ToDictionary(group => group.Key, group => group.MaxBy(change => Gravity(change.Kind))!);
         foreach (var edge in scene.Edges)
         {
             var gravest = edge.Edge.Transfers
-                .Where(transfer => transfer.Transaction.Chain == Chain.Bitcoin)
-                .Select(transfer => byTxid.GetValueOrDefault(transfer.Transaction.Id))
+                .Select(transfer => transfer.Transaction)
+                .Select(transaction => byTransaction.GetValueOrDefault((transaction.Chain, transaction.Id)))
                 .OfType<BlockChange>()
                 .MaxBy(change => Gravity(change.Kind));
             if (gravest is not null)
