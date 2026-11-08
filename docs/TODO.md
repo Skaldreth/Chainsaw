@@ -112,7 +112,25 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`; här står anv�
     inte en stor textruta, och varje startpunkt **förhandshämtar** lite information (sort, saldo, antal tx, första
     och senaste aktivitet) genom utgången. Skissas i två varianter.
 39. **Granskning av alla byggda vyer mot skisserna** (användarens synpunkt 2026-11-08: många delar är kraftigt
-    förenklade). En lista per skiss tas fram och byggs om i tur och ordning.
+    förenklade). Gjord 2026-11-08. Skalet och dialogerna följer skisserna nära; förenklingarna sitter i grafens
+    arbetsytor. Att bygga om, i ordning:
+    1. **Kontroller och förslag** (KF1a/KF1b): ny skiss KF2 ritas. Kandidaterna saknar egna ✓ och ✕; skälfält,
+       gruppen *Avgjort* och en statusrad som skissen inte har; analysen som bricka med version; *Nästa förslag · N*
+       nere till höger; områdets kort med Enter, X och ?; egen yta vid de valda aktörerna (`2 valda · Ny yta … Z`).
+    2. **Inspektören** (IN2b, GR5, TK1a, AN1b): raden *Okänd · Bitcoin · startpunkt* under namnet; adressen i sin
+       mörka ruta med kopiera; saldo per token med SEK och utgivare, *Begäran om frysning …*; i Historik runda
+       markörer och *Ta tillbaka*/*Ångra* som piller under raden.
+    3. **Grafen** (GR4, GR5, TK1a): tidslinjen under grafen (TL1a) saknas; noden växer inte med namn och lång adress;
+       tokenmärket som liten rund bricka; swappen som piller på linjen; rubrikerna för kedjornas delar av ytan.
+    4. **Bildspråkets ruta GR7a** (godkänd, inte byggd).
+    5. **Guiden** (GD1b): skissens små diagram inne i avsnitten saknas.
+    6. Små: BV1a (kedjan som bricka, bakgrundens läge i ram, knapparna längst ner), TO1a (färgat streck i nederkanten
+       för fel och varningar).
+41. **Källor är KL2b** (användarens beslut 2026-11-08), utan den färgade kanten vid det valda, strecken vid
+    svarstiderna och strecket under endpointen som används (*mindre AI-slop*). Chainabuse får en rad under
+    *Etiketter* i samma lista. Byggs.
+42. **Chainabuse frågas med en knapp nu, automatiskt senare** (användarens beslut 2026-11-08): en ikon i nodens
+    ikonlist (IN2b) som frågar de underleverantörer som är på om adressen; automatiska uppslag när nyckeln tillåter.
 40. **Två App-tester faller ibland** (`CasePickerTests.Stang_closes_the_case_and_the_picker_stays_out`,
     `SettingsTests.The_lock_screen_says_that_lookups_go_through_windows`, och tidigare en låstidstest): gröna när de
     körs om. Troligen delat tillstånd mellan tester som körs parallellt; utreds.
