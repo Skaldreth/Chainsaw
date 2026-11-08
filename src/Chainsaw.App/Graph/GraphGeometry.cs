@@ -115,4 +115,10 @@ public static class GraphSizes
     /// <param name="place">The node's top-left corner.</param>
     /// <returns>The frame.</returns>
     public static GraphRect NodeFrame(GraphPoint place) => new(place.X, place.Y, NodeWidth, NodeHeight);
+
+    /// <summary>Gives the frame of a node of its own width at a place (sketch GR5: it grows with its name).</summary>
+    /// <param name="place">The node's top-left corner.</param>
+    /// <param name="width">The node's width.</param>
+    /// <returns>The frame.</returns>
+    public static GraphRect NodeFrame(GraphPoint place, double width) => new(place.X, place.Y, width, NodeHeight);
 }

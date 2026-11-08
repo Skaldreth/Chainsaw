@@ -98,28 +98,9 @@ fungerar rättas före allt annat nedan. Särskilt:
 ### 2. Resterna i det som är byggt
 
 **Grafen**
-- **Linjer genom noder** [direkt]: när ett hopp med fler än åtta aktörer sprids över två kolumner går en linje till
-  den andra kolumnen rakt genom en nod i den första (i testärendet linjen till CoinJoin). Linjerna kunde böjas runt
-  noderna, eller aktörer med linjer vidare läggas i den närmaste kolumnen.
-- **Granskningen mot GR4, GR5 och TK1a** [direkt]:
-  - Noden växer inte med namnet och en lång adress.
-  - Tokenmärket ska vara en liten rund bricka.
-  - Swappen ska vara ett piller på linjen.
-  - Kedjornas delar av ytan saknar rubriker.
-- **Dolda OP_RETURN går inte att visa igen** [direkt] när toasten tonat ut eller ärendet öppnats på nytt. Lägg en
-  markering i grafens hörnrad när några är dolda.
-- **GR6c, tredje läget** [direkt]: när startpunkten lagts till ska den riktiga noden få en guidenod *Expandera*
-  bredvid sig, med *Hitta uttaget* svagt efter. Det ritas i grafens duk.
-  - Avsteg från skissen: Enter är inte grått offline. En startpunkt går att lägga till utan nät (princip 9), och
-    inget hämtas förrän den expanderas, så raden säger det i stället.
-- **Förmågor utan synlig väg** [direkt]:
-  - Dubbelklick på en nod expanderar inte.
-  - Passa in (F) och zoom finns bara i verktygstips.
-  - Kontrollera att högerklick på tom yta ger något.
-- **Formuläret för en egen yta** [direkt] står under grafens hörn, inte vid de valda aktörerna som i KF1b.
-- **Numren på kandidaterna** [direkt] står mitt på linjen, inte vid kandidatens nod som i KF2b.
-- **Esc med ett formulär öppet och fokus någon annanstans** [direkt]: står fokus i Guidens panel gör Esc ingenting,
-  eftersom formuläret tar Esc före panelen. Esc ska då stänga formuläret.
+- **Breda noder i resten av grafen** [direkt]: noden växer med namnet (GR5), men *Sortera grafen* (`TidyLayout`)
+  räknar fortfarande med 132 px breda noder, och en ny kommentar vid en bred nod (`CommentGeometry.PlaceOfNew`)
+  placeras efter samma bredd.
 
 **Soptunnan och startvyn (SO1a, GR8a)**
 - **Det som ännu inte går att slänga** [etapp]:

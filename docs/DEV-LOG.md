@@ -3114,3 +3114,46 @@ vidare är färsk. Förut skrevs `.cut` bara vid sparning och stängning.
   förseglingen med register) och `CaseWorkflowTests`.
 - Återstår: Ethereums saldo visas bara i Nytt ärende, inte på kortets baksida eller i inspektören.
 
+## Grafens rester (2026-11-08, GR4, GR5, GR6c, TK1a, KF1b och KF2b)
+
+Alla punkter under *Grafen* i `docs/TODO.md`, *2. Resterna i det som är byggt*, byggda direkt mot skisserna.
+
+- **Nodens bredd (GR5):** `Graph/NodeWidths` räknar bredden ur namnets tecken (7,4 px per tecken som skissen), från
+  132 px upp till 214 px (skissens *Misstänktes plånbok*). `NodeView.Width`, `GraphScene.FrameOf` och
+  `GraphViewModel.FrameAt` bär bredden till träffprovet, linjerna, beloppen, markeringarna, områdena, rutvalet,
+  tidsbanden, bevakningens portar, soptunnans stumpar och kommentarstrådarna. Hoppkolumnerna flyttar nästa kolumn med
+  den bredaste noden (`HopLayout.ColumnGap`), så att luckan för beloppen står kvar.
+- **Eget beslut:** bara ett namn breddar noden. En adress (under namnet eller som titel) förkortas i mitten som förut,
+  eftersom en graf av adresser utan namn annars blev 214 px bred överallt; skissen GR5 förkortar också adresserna.
+- **Linjer genom noder:** `Graph/LineRouting` böjer en linje i hoppkolumnerna som skulle gå genom en annan nod, med så
+  liten böj som räcker (en kvarts rad i taget, upp till två rader åt vardera hållet), in i luckan mellan raderna.
+  Ändarna står kvar vid portarna. Valt framför att flytta aktörer mellan kolumnerna, eftersom tidsordningen nedåt i
+  kolumnen då står kvar.
+- **Tokenmärket (TK1a):** en rund bricka på 14 px (`Brush.SurfaceHover`, kant `Brush.BorderStrong`, tecknet i
+  `Brush.Text`) först i beloppet; beloppet behåller linjens färg.
+- **Swappen (TK1a):** ett piller mitt på linjen med två brickor och en pil (`Icon.ArrowRight`), som i skissen.
+  `AmountLayout.SwapBox` ger dess plats, och beloppen läggs aldrig på det. Gallringen döljer aldrig pillret.
+  `Brush.Graph.SwapPill` används nu bara av Guidens figur.
+- **Kedjornas rubriker (TK1a):** `Graph/ChainSections` ger varje kedjas del av ytan när grafen har aktörer på mer än en
+  kedja, med kedjans namn i versaler i `Brush.TextFaint` 34 px ovanför delens översta aktör. Ytan delas inte upp av
+  sig själv: rubriken står över där kedjans aktörer står.
+- **Dolda OP_RETURN:** hörnraden har en markering (överstruket öga med prick) så länge grafen har sådana utgångar, med
+  antalet i verktygstipset; ett klick visar dem (öppet öga, tänt) och döljer dem igen. Ingen skiss för markeringen;
+  formen följer hörnradens andra ikoner med prick.
+- **GR6c, tredje läget:** `Graph/StartGuide` och `GraphCanvas.Reach.cs` ritar *Expandera* bredvid en ensam startpunkt
+  som inte är expanderad och saknar linjer, med accentens sonar (ringarna står still utan animeringar), en prickad
+  linje, raden under och *Hitta uttaget* svagt efter. Ett klick på *Expandera* väljer och expanderar startpunkten.
+  *Passa in* tar med guiden. Offline säger raden det ärligt i stället för att något blir grått (avsteget i TODO).
+- **Förmågor utan synlig väg:** dubbelklick på en nod expanderar (`GraphViewModel.ExpandAt`). Högerklick på tom yta
+  öppnar en meny i samma form som nodens: *Kommentar … N* (där man klickade), *Passa in F*, *Zooma in +* och *Zooma ut
+  −* (`ViewMove`). Det ger zoomen och *Passa in* en synlig väg utan ny krom i hörnet.
+- **Egen yta (KF1b):** formuläret står bredvid aktörerna det gäller (`ChecksViewModel.FormActors`), till höger eller
+  annars till vänster, och följer med vid panorering och zoom. Utan placerade aktörer står det under hörnet som förut.
+- **Kandidaternas nummer (KF2b):** numret står i en skiva på 20 px på kandidatens nod uppe till vänster, ifylld i
+  accenten för den valda och med `Brush.TextMuted` som kant annars. **Avsteg:** skissen sätter den godkändas gröna bock
+  i övre högra hörnet; här står den där efter nodens andra markeringar, så att den inte täcker dem.
+- **Esc i Guidens panel:** `MainWindow.CancelGraphForm` stänger ett öppet formulär i grafen (Etikett, Bryt upp, Annan
+  kedja, historikens formulär, Bevaka och egen yta) före panelen, var tangentbordet än står. Nästa Esc stänger panelen.
+- Tester: `GraphReachTests` (14) i App.Tests; `TestCaseLayoutTests` mäter nu nodernas verkliga bredd.
+- **Återstår:** *Sortera grafen* (`TidyLayout`) räknar med 132 px breda noder, och en ny kommentar vid en bred nod
+  (`CommentGeometry.PlaceOfNew`) placeras efter samma bredd. Båda står i `docs/TODO.md`.

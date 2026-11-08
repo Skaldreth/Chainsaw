@@ -82,7 +82,9 @@ public sealed class AmountLayoutTests
         Assert.False(AmountLayout.Place(scene, crowded, curves).ContainsKey(GraphSamples.VU));
     }
 
-    /// <summary>A longer amount takes more room, and a value and a swap make it taller.</summary>
+    /// <summary>
+    /// A longer amount takes more room and a value makes it taller; a swap's pill stands on the line, not in the box.
+    /// </summary>
     [Fact]
     public void The_box_follows_what_the_amount_says()
     {
@@ -94,8 +96,7 @@ public sealed class AmountLayoutTests
         var valued = AmountLayout.BoxAt(edge with { Value = new EdgeValue(546_000, "SEK", []), Swap = "₮ → Ξ" }, anchor);
 
         Assert.True(longer.Width > plain.Width);
-        Assert.Equal(
-            plain.Height + AmountLayout.ValueHeight + AmountLayout.SwapHeight, valued.Height, 6);
+        Assert.Equal(plain.Height + AmountLayout.ValueHeight, valued.Height, 6);
         Assert.Equal(anchor.Y - (AmountLayout.TextHeight / 2) - AmountLayout.PaddingY, plain.Y, 6);
     }
 

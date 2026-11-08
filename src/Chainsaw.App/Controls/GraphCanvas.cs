@@ -16,9 +16,10 @@ namespace Chainsaw.App.Controls;
 /// viewport; what is chosen, moved and shown is the view model's.
 /// </summary>
 /// <remarks>
-/// The pointer: a click chooses a node or a line (or nothing), a node is dragged to move it (with the other picked
-/// nodes when it is picked), the empty surface is dragged to draw a box that picks several, the right and the middle
-/// button pan, and the wheel zooms around the pointer. The keys: Esc chooses nothing, E expands, F fits the graph
+/// The pointer: a click chooses a node or a line (or nothing), a double click on a node expands it, a node is dragged
+/// to move it (with the other picked nodes when it is picked), the empty surface is dragged to draw a box that picks
+/// several, the right and the middle button pan (a right click without moving opens the menu of the node or of the
+/// empty surface), and the wheel zooms around the pointer. The keys: Esc chooses nothing, E expands, F fits the graph
 /// to the screen, + and − zoom.
 /// </remarks>
 public sealed partial class GraphCanvas : FrameworkElement
@@ -119,6 +120,7 @@ public sealed partial class GraphCanvas : FrameworkElement
         model.Redraw += (_, _) => InvalidateVisual();
         model.PropertyChanged += OnModelChanged;
         AttachComments(model);
+        AttachReach(model);
         model.ShowNodesWanted += (_, nodes) => FitTo(nodes);
         model.FitWanted += (_, _) =>
         {
@@ -139,7 +141,13 @@ public sealed partial class GraphCanvas : FrameworkElement
             return;
         }
 
-        var frames = model.Places.Values.Select(GraphSizes.NodeFrame).ToList();
+        var frames = model.Places.Select(pair => model.FrameAt(pair.Key, pair.Value)).ToList();
+        if (model.StartPointGuide is { } guide)
+        {
+            // The guide on from a lone start point is part of what is shown (sketch GR6c).
+            frames.Add(guide.Bounds);
+        }
+
         var bounds = frames.Skip(1).Aggregate(frames[0], (all, frame) => all.Union(frame));
         _viewport = Viewport.Fit(bounds, ActualWidth, ActualHeight);
         InvalidateVisual();
@@ -168,7 +176,7 @@ public sealed partial class GraphCanvas : FrameworkElement
             return null;
         }
 
-        var frame = GraphSizes.NodeFrame(place);
+        var frame = _model.FrameAt(nodeKey, place);
         var corner = _viewport.ToScreen(new GraphPoint(frame.X, frame.Y));
         return new Rect(corner.X, corner.Y, frame.Width * _viewport.Zoom, frame.Height * _viewport.Zoom);
     }
@@ -206,6 +214,7 @@ public sealed partial class GraphCanvas : FrameworkElement
         }
 
         DrawTimeBands(drawingContext, visible);
+        DrawChainHeadings(drawingContext, scene, visible);
         DrawAreas(drawingContext, visible);
         DrawCommentThreads(drawingContext, visible);
         var (nearNodes, nearEdges) = _model.Near;
@@ -218,6 +227,11 @@ public sealed partial class GraphCanvas : FrameworkElement
         }
 
         var taken = new RoomGrid();
+        foreach (var edge in edges)
+        {
+            DrawSwap(drawingContext, edge, _model.Curves[edge.Key], nearEdges, taken);
+        }
+
         foreach (var edge in AmountOrder(edges, nearEdges))
         {
             drawingContext.PushOpacity(LaterAmountOpacity(edge.Key));
@@ -241,6 +255,7 @@ public sealed partial class GraphCanvas : FrameworkElement
         drawingContext.PushOpacity(HeldBackMotion.LineOpacity(_blast, BlastK));
         DrawCandidates(drawingContext, visible);
         DrawAreaChips(drawingContext, visible);
+        DrawGuide(drawingContext);
         drawingContext.Pop();
         DrawFan(drawingContext, visible);
         drawingContext.Pop();
@@ -265,7 +280,7 @@ public sealed partial class GraphCanvas : FrameworkElement
         var surface = _viewport.ToSurface(at);
         _model?.Comments.Select(null);
         if (_model is not null && (PressHeldBack(at) || PressFan(at, surface) || PressThread(surface)
-            || PressForComment(e, surface) || PressArea(surface)))
+            || PressGuide(surface) || PressForComment(e, surface) || PressArea(surface) || PressToExpand(e, surface)))
         {
             e.Handled = true;
             return;
@@ -584,8 +599,8 @@ public sealed partial class GraphCanvas : FrameworkElement
     }
 
     /// <summary>
-    /// Ends a pan with the right button, or, when the press did not move, opens the node's menu (sketch BV2a) or
-    /// closes it over empty surface.
+    /// Ends a pan with the right button, or, when the press did not move, opens the node's menu (sketch BV2a), or over
+    /// the empty surface its own menu: a comment there, <em>Passa in</em> and the zoom.
     /// </summary>
     /// <param name="e">The release.</param>
     protected override void OnMouseRightButtonUp(MouseButtonEventArgs e)
@@ -608,7 +623,15 @@ public sealed partial class GraphCanvas : FrameworkElement
 
         var at = e.GetPosition(this);
         MenuAt = at;
-        _model?.OpenMenu(_model.HitTest(_viewport.ToSurface(ToGraph(at)), Tolerance).Node);
+        if (_model?.HitTest(_viewport.ToSurface(ToGraph(at)), Tolerance).Node is { } node)
+        {
+            _model.OpenMenu(node);
+        }
+        else
+        {
+            OpenSurfaceMenu(at);
+        }
+
         e.Handled = true;
     }
 
@@ -622,8 +645,9 @@ public sealed partial class GraphCanvas : FrameworkElement
         var model = _model!;
         model.HoverAt(surface, Tolerance);
         var hit = model.HitTest(surface, Tolerance);
-        Cursor = hit.Node is not null || hit.Edge is not null ? Cursors.Hand : null;
-        var text = model.Scene?.Node(hit.Node)?.ToolTip;
+        var guideTip = GuideTipAt(surface);
+        Cursor = hit.Node is not null || hit.Edge is not null || guideTip is not null ? Cursors.Hand : null;
+        var text = guideTip ?? model.Scene?.Node(hit.Node)?.ToolTip;
         if (text == _hoverTip.Content as string)
         {
             return;
@@ -817,12 +841,6 @@ public sealed partial class GraphCanvas : FrameworkElement
         var middle = placed ? spot!.Anchor : curve.Middle;
         if (!model.Labels.Shows(edge.IsTraced, hovered, model.IsFocused, near.Contains(edge.Key)))
         {
-            // The swap is not an amount, so the gallring never hides it.
-            if (edge.Swap is { } alone)
-            {
-                DrawSwap(dc, alone, new Point(middle.X, middle.Y - 7));
-            }
-
             return;
         }
 
@@ -830,8 +848,7 @@ public sealed partial class GraphCanvas : FrameworkElement
             ? GraphPalette.Find(this, "Brush.TextDim")
             : GraphPalette.Brush(this, edge.Ink);
         var text = CachedText(edge.Label, 11, ink, FontWeights.Normal);
-        var glyph = edge.Glyph.Length > 0 ? CachedText(edge.Glyph, 11, ink, FontWeights.SemiBold) : null;
-        var glyphWidth = glyph is null ? 0 : glyph.Width + 3;
+        var glyphWidth = edge.Glyph.Length > 0 ? AmountLayout.GlyphWidth : 0;
         var value = edge.Value is { } worth
             ? CachedText(worth.Text, 9.5, GraphPalette.Find(this, "Brush.TextDim"), FontWeights.Normal)
             : null;
@@ -845,9 +862,10 @@ public sealed partial class GraphCanvas : FrameworkElement
 
         dc.DrawRoundedRectangle(GraphPalette.Find(this, "Brush.Background"), null, box, 4, 4);
         var left = middle.X - ((text.Width + glyphWidth) / 2);
-        if (glyph is not null)
+        if (glyphWidth > 0)
         {
-            dc.DrawText(glyph, new Point(left, box.Y + 1));
+            var centre = new Point(left + (AmountLayout.BadgeSize / 2), box.Y + 1 + (text.Height / 2));
+            DrawTokenBadge(dc, edge.Glyph, centre);
         }
 
         dc.DrawText(text, new Point(left + glyphWidth, box.Y + 1));
@@ -855,11 +873,26 @@ public sealed partial class GraphCanvas : FrameworkElement
         {
             dc.DrawText(value, new Point(middle.X - (value.Width / 2), box.Y + 1 + text.Height));
         }
+    }
 
-        if (edge.Swap is { } swap)
-        {
-            DrawSwap(dc, swap, new Point(middle.X, box.Bottom + 4));
-        }
+    /// <summary>
+    /// Draws a token's mark as a small round badge (sketch TK1a): the glyph in cream on a raised disc with a strong
+    /// edge, so that the amount after it keeps the line's colour.
+    /// </summary>
+    /// <param name="dc">Where to draw.</param>
+    /// <param name="glyph">The token's mark, for example <c>₮</c> or <c>Ξ</c>.</param>
+    /// <param name="centre">The badge's centre.</param>
+    private void DrawTokenBadge(DrawingContext dc, string glyph, Point centre)
+    {
+        const double Radius = AmountLayout.BadgeSize / 2;
+        dc.DrawEllipse(
+            GraphPalette.Find(this, "Brush.SurfaceHover"),
+            new Pen(GraphPalette.Find(this, "Brush.BorderStrong"), 1),
+            centre,
+            Radius - 0.5,
+            Radius - 0.5);
+        var mark = CachedText(glyph, 9, GraphPalette.Find(this, "Brush.Text"), FontWeights.SemiBold);
+        dc.DrawText(mark, new Point(centre.X - (mark.Width / 2), centre.Y - (mark.Height / 2)));
     }
 
     /// <summary>
@@ -875,23 +908,44 @@ public sealed partial class GraphCanvas : FrameworkElement
         .ThenByDescending(edge => edge.IsTraced);
 
     /// <summary>
-    /// Draws a swap's pill under a line's amount (sketch TK1a): <c>₮ → Ξ</c> in the other chain's purple on a dark
-    /// pill, since the money changes token but not owner.
+    /// Draws a swap's pill on its line (sketch TK1a): the sold token's badge, an arrow and the bought token's badge, on
+    /// a pill the line runs into and out of, since the money changes token but not owner. The gallring never hides it,
+    /// since it is not an amount, and the amounts keep clear of it (<see cref="AmountLayout.SwapBox"/>).
     /// </summary>
     /// <param name="dc">Where to draw.</param>
-    /// <param name="swap">The pill's text.</param>
-    /// <param name="top">The middle of the pill's top edge.</param>
-    private void DrawSwap(DrawingContext dc, string swap, Point top)
+    /// <param name="edge">The line.</param>
+    /// <param name="curve">Its curve.</param>
+    /// <param name="near">The lines near what is chosen, as faint as the line.</param>
+    /// <param name="taken">Where amounts and pills stand on screen; the pill takes its room first.</param>
+    private void DrawSwap(DrawingContext dc, EdgeView edge, EdgeCurve curve, IReadOnlySet<string> near, RoomGrid taken)
     {
-        var text = Text(swap, 10, GraphPalette.Find(this, "Brush.Kind.OtherChain"), FontWeights.SemiBold);
-        var pill = new Rect(top.X - (text.Width / 2) - 7, top.Y, text.Width + 14, text.Height + 2);
+        if (AmountLayout.SwapBox(edge, curve) is not { } box)
+        {
+            return;
+        }
+
+        taken.Add(box);
+        var pill = new Rect(box.X, box.Y, box.Width, box.Height);
+        dc.PushOpacity(LineOpacity(edge, near));
         dc.DrawRoundedRectangle(
-            GraphPalette.Find(this, "Brush.Graph.SwapPill"),
-            new Pen(GraphPalette.Find(this, "Brush.Graph.ChainFrame"), 1),
+            GraphPalette.Find(this, "Brush.Surface"),
+            new Pen(GraphPalette.Find(this, "Brush.BorderStrong"), 1),
             pill,
             pill.Height / 2,
             pill.Height / 2);
-        dc.DrawText(text, new Point(pill.X + 7, pill.Y + 1));
+        var arrow = GraphPalette.Find(this, "Brush.TextMuted");
+        var left = box.X + AmountLayout.SwapPadding;
+        var middle = box.Y + (box.Height / 2);
+        foreach (var pair in edge.SwapPairs)
+        {
+            const double Badge = AmountLayout.BadgeSize;
+            DrawTokenBadge(dc, pair.Sold, new Point(left + (Badge / 2), middle));
+            DrawGlyph(dc, "Icon.ArrowRight", arrow, new Point(left + Badge + 5, middle - 6), 12);
+            DrawTokenBadge(dc, pair.Bought, new Point(left + Badge + 22 + (Badge / 2), middle));
+            left += AmountLayout.SwapPairWidth + AmountLayout.SwapPadding;
+        }
+
+        dc.Pop();
     }
 
     /// <summary>Draws a node: its frame, icon, name, count, marks and the other chain's name.</summary>
@@ -910,7 +964,7 @@ public sealed partial class GraphCanvas : FrameworkElement
 
         var chosen = model.SelectedNode == node.Key;
         var opacity = NodeOpacity(node, near);
-        var frame = new Rect(place.X, place.Y, GraphSizes.NodeWidth, GraphSizes.NodeHeight);
+        var frame = new Rect(place.X, place.Y, node.Width, GraphSizes.NodeHeight);
         var ink = GraphPalette.Brush(this, node.Look.Ink);
         dc.PushOpacity(opacity);
         if (node.Look.Sort == NodeSort.Cluster || node.Node.ClusterSize > 1)
@@ -936,7 +990,7 @@ public sealed partial class GraphCanvas : FrameworkElement
         var count = Text(node.Count, 11, GraphPalette.Find(this, "Brush.TextDim"), FontWeights.Normal);
         var nameLeft = place.X + NodePadding + IconBox + NodeGap;
         var countRoom = node.Count.Length > 0 ? count.Width + NodeGap : 0;
-        var nameRight = place.X + GraphSizes.NodeWidth - NodePadding - countRoom;
+        var nameRight = place.X + node.Width - NodePadding - countRoom;
         DrawTitle(dc, node, place, nameLeft, Math.Max(1, nameRight - nameLeft));
         if (node.Count.Length > 0)
         {
@@ -952,7 +1006,7 @@ public sealed partial class GraphCanvas : FrameworkElement
 
         if (node.ChainName is { } chain)
         {
-            DrawChain(dc, chain, place);
+            DrawChain(dc, chain, place, node.Width);
         }
 
         dc.Pop();
@@ -1122,7 +1176,7 @@ public sealed partial class GraphCanvas : FrameworkElement
             var badge = node.Badges[index];
             var (disc, icon) = GraphPalette.Mark(this, badge);
             var centre = new Point(
-                place.X + GraphSizes.NodeWidth + MarkOverhang - (MarkSize / 2) - (index * (MarkSize + 2)),
+                place.X + node.Width + MarkOverhang - (MarkSize / 2) - (index * (MarkSize + 2)),
                 place.Y - MarkOverhang + (MarkSize / 2));
             dc.DrawEllipse(disc, ring, centre, MarkSize / 2, MarkSize / 2);
             var corner = new Point(centre.X - (MarkIconSize / 2), centre.Y - (MarkIconSize / 2));
@@ -1134,11 +1188,12 @@ public sealed partial class GraphCanvas : FrameworkElement
     /// <param name="dc">Where to draw.</param>
     /// <param name="chain">The chain's short name.</param>
     /// <param name="place">The node's top-left corner.</param>
-    private void DrawChain(DrawingContext dc, string chain, GraphPoint place)
+    /// <param name="width">The node's width.</param>
+    private void DrawChain(DrawingContext dc, string chain, GraphPoint place, double width)
     {
         var text = Text(chain, 10, GraphPalette.Find(this, "Brush.Kind.OtherChain"), FontWeights.SemiBold);
         var box = new Rect(
-            place.X + GraphSizes.NodeWidth + 10 - text.Width - 10,
+            place.X + width - text.Width,
             place.Y + GraphSizes.NodeHeight + 9 - text.Height - 2,
             text.Width + 10,
             text.Height + 2);

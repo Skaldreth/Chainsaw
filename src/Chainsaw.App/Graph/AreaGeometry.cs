@@ -66,18 +66,25 @@ public static class AreaGeometry
     /// <summary>Places the areas around their actors' places; an area with no placed actor is left out.</summary>
     /// <param name="areas">The areas.</param>
     /// <param name="places">The actors' places (top-left corners).</param>
+    /// <param name="frameOf">
+    /// Each actor's frame at its place, as wide as it is drawn (sketch GR5); <see langword="null"/> for the graph's
+    /// width.
+    /// </param>
     /// <returns>The places, in the areas' order.</returns>
     public static IReadOnlyList<AreaPlace> Place(
-        IReadOnlyList<AreaView> areas, IReadOnlyDictionary<string, GraphPoint> places)
+        IReadOnlyList<AreaView> areas,
+        IReadOnlyDictionary<string, GraphPoint> places,
+        Func<string, GraphPoint, GraphRect>? frameOf = null)
     {
         ArgumentNullException.ThrowIfNull(areas);
         ArgumentNullException.ThrowIfNull(places);
+        frameOf ??= (_, place) => GraphSizes.NodeFrame(place);
         var result = new List<AreaPlace>();
         foreach (var area in areas)
         {
             var frames = area.Nodes
                 .Where(places.ContainsKey)
-                .Select(node => GraphSizes.NodeFrame(places[node]))
+                .Select(node => frameOf(node, places[node]))
                 .ToList();
             if (frames.Count == 0)
             {

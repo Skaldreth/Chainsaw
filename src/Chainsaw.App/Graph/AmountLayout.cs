@@ -20,8 +20,14 @@ public static class AmountLayout
     /// <summary>The widest a character of an amount is at 11 px, a digit in Segoe UI with a little to spare.</summary>
     public const double CharWidth = 6.4;
 
-    /// <summary>The room a token's mark before the amount takes, with the gap after it (sketch TK1a).</summary>
-    public const double GlyphWidth = 11;
+    /// <summary>The token's round badge before the amount (sketch TK1a): 14 px across.</summary>
+    public const double BadgeSize = 14;
+
+    /// <summary>The gap between the token's badge and the amount.</summary>
+    public const double BadgeGap = 4;
+
+    /// <summary>The room a token's badge before the amount takes, with the gap after it (sketch TK1a).</summary>
+    public const double GlyphWidth = BadgeSize + BadgeGap;
 
     /// <summary>The height of the amount's row at 11 px.</summary>
     public const double TextHeight = 15;
@@ -29,8 +35,14 @@ public static class AmountLayout
     /// <summary>The height of the value in the currency, small under the amount.</summary>
     public const double ValueHeight = 13;
 
-    /// <summary>The room a swap's pill under the amount takes, with its gap (sketch TK1a).</summary>
-    public const double SwapHeight = 20;
+    /// <summary>The height of a swap's pill on its line (sketch TK1a: 26 px).</summary>
+    public const double SwapHeight = 26;
+
+    /// <summary>The room a pair of token badges with the arrow between them takes in a swap's pill.</summary>
+    public const double SwapPairWidth = BadgeSize + 5 + 12 + 5 + BadgeSize + 1;
+
+    /// <summary>The space inside a swap's pill at its ends, and between two pairs in it.</summary>
+    public const double SwapPadding = 8;
 
     /// <summary>The space beside the text inside the amount's dark box.</summary>
     public const double PaddingX = 5;
@@ -69,7 +81,7 @@ public static class AmountLayout
     /// <summary>Gives the room an amount takes when its first row is centred on a point.</summary>
     /// <param name="edge">The line.</param>
     /// <param name="anchor">The point.</param>
-    /// <returns>The box, its value and swap pill included.</returns>
+    /// <returns>The box, its value included; a swap's pill stands on the line (<see cref="SwapBox"/>).</returns>
     public static GraphRect BoxAt(EdgeView edge, GraphPoint anchor)
     {
         ArgumentNullException.ThrowIfNull(edge);
@@ -77,14 +89,36 @@ public static class AmountLayout
         var text = (edge.Label.Length * CharWidth) + glyph;
         var value = edge.Value is { } worth ? worth.Text.Length * CharWidth * ValueScale : 0;
         var width = Math.Max(text, value) + (2 * PaddingX);
-        var height = TextHeight + (edge.Value is null ? 0 : ValueHeight) + (edge.Swap is null ? 0 : SwapHeight);
+        var height = TextHeight + (edge.Value is null ? 0 : ValueHeight);
         return new GraphRect(
             anchor.X - (width / 2), anchor.Y - (TextHeight / 2) - PaddingY, width, height + (2 * PaddingY));
     }
 
     /// <summary>
+    /// Gives where a swap's pill stands (sketch TK1a): on its line, halfway along it, so that the money is seen to
+    /// change token on the way and the line runs into and out of the pill.
+    /// </summary>
+    /// <param name="edge">The line.</param>
+    /// <param name="curve">Its curve.</param>
+    /// <returns>The pill's box, or <see langword="null"/> when the line carries no swap.</returns>
+    public static GraphRect? SwapBox(EdgeView edge, EdgeCurve curve)
+    {
+        ArgumentNullException.ThrowIfNull(edge);
+        ArgumentNullException.ThrowIfNull(curve);
+        var pairs = edge.SwapPairs.Count;
+        if (pairs == 0)
+        {
+            return null;
+        }
+
+        var width = (2 * SwapPadding) + (pairs * SwapPairWidth) + ((pairs - 1) * SwapPadding);
+        var middle = curve.Middle;
+        return new GraphRect(middle.X - (width / 2), middle.Y - (SwapHeight / 2), width, SwapHeight);
+    }
+
+    /// <summary>
     /// Places every line's amount: the traced lines first, since the victims' money must be read, then the rest in
-    /// the graph's order.
+    /// the graph's order. The swaps' pills stand on their lines first, so that no amount lies on one.
     /// </summary>
     /// <param name="scene">The graph.</param>
     /// <param name="places">Each node's top-left corner.</param>
@@ -99,9 +133,17 @@ public static class AmountLayout
         ArgumentNullException.ThrowIfNull(places);
         ArgumentNullException.ThrowIfNull(curves);
         var taken = new RoomGrid();
-        foreach (var place in places.Values)
+        foreach (var (key, place) in places)
         {
-            taken.Add(GraphSizes.NodeFrame(place).Inflate(NodeMargin));
+            taken.Add(scene.FrameOf(key, place).Inflate(NodeMargin));
+        }
+
+        foreach (var edge in scene.Edges)
+        {
+            if (curves.TryGetValue(edge.Key, out var curve) && SwapBox(edge, curve) is { } pill)
+            {
+                taken.Add(pill);
+            }
         }
 
         var spots = new Dictionary<string, AmountSpot>(StringComparer.Ordinal);

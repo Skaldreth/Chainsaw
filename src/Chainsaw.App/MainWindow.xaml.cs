@@ -258,8 +258,8 @@ public partial class MainWindow : Window
 
     /// <summary>
     /// The keys of the open Guide panel, wherever the keyboard is: Esc closes it, and F1 takes its place to the view
-    /// Guide (as <em>Öppna i Guide</em>). The command bar, Nytt ärende, the settings, an open submenu, the exits' panel
-    /// and an open form in the graph's inspector keep their own Esc.
+    /// Guide (as <em>Öppna i Guide</em>). The command bar, Nytt ärende, the settings, an open submenu and the exits'
+    /// panel keep their own Esc, and a form open in the graph is closed first (<see cref="CancelGraphForm"/>).
     /// </summary>
     /// <param name="sender">The window.</param>
     /// <param name="e">The key.</param>
@@ -285,14 +285,54 @@ public partial class MainWindow : Window
 
         if (e.Key != Key.Escape || _shell.OpenSubmenu is not null || _shell.ExitPanel.IsOpen
             || _shell.CasePicker is { IsOpen: true }
-            || _shell.IsCommandBarOpen || _graph.Forms.IsOpen || _graph.History.IsOpen
-            || _graph.Comments.IsEditing)
+            || _shell.IsCommandBarOpen || _graph.Comments.IsEditing)
         {
+            return;
+        }
+
+        if (CancelGraphForm())
+        {
+            e.Handled = true;
             return;
         }
 
         _guidePanel.Close();
         e.Handled = true;
+    }
+
+    /// <summary>
+    /// Esc with a form open in the graph's inspector closes that form first, wherever the keyboard is: also when it is
+    /// in the Guide's panel beside it, where the form's own Esc never hears it. The panel stays, and the next Esc
+    /// closes it.
+    /// </summary>
+    /// <returns>Whether a form was closed.</returns>
+    private bool CancelGraphForm()
+    {
+        if (_graph.Forms.IsOpen)
+        {
+            _graph.Forms.Cancel();
+            return true;
+        }
+
+        if (_graph.History.IsOpen)
+        {
+            _graph.History.Cancel();
+            return true;
+        }
+
+        if (_graph is { IsWatchFormOpen: true, WatchForm: { } watch })
+        {
+            watch.Cancel();
+            return true;
+        }
+
+        if (_graph.Checks.IsFormOpen)
+        {
+            _graph.Checks.CancelForm();
+            return true;
+        }
+
+        return false;
     }
 
     /// <summary>

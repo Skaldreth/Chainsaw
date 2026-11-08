@@ -42,9 +42,9 @@ public sealed class TestCaseLayoutTests : IDisposable
     [MemberData(nameof(Layouts))]
     public async Task No_two_nodes_overlap(GraphLayout layout, bool hubExpanded)
     {
-        var (_, places, _) = await ArrangeAsync(layout, hubExpanded);
+        var (scene, places, _) = await ArrangeAsync(layout, hubExpanded);
 
-        var frames = places.Select(pair => (pair.Key, Frame: GraphSizes.NodeFrame(pair.Value))).ToList();
+        var frames = places.Select(pair => (pair.Key, Frame: scene.FrameOf(pair.Key, pair.Value))).ToList();
         for (var i = 0; i < frames.Count; i++)
         {
             for (var j = i + 1; j < frames.Count; j++)
@@ -79,7 +79,7 @@ public sealed class TestCaseLayoutTests : IDisposable
             foreach (var (node, place) in places)
             {
                 Assert.False(
-                    boxes[i].Value.Box.Intersects(GraphSizes.NodeFrame(place)),
+                    boxes[i].Value.Box.Intersects(scene.FrameOf(node, place)),
                     $"The amount of {boxes[i].Key} lies on {node}.");
             }
         }

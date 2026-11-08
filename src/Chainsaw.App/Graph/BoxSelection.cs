@@ -122,7 +122,7 @@ public sealed class BoxSelection
         for (var index = 0; index < nodes.Count; index++)
         {
             var key = nodes[index].Key;
-            if (places.TryGetValue(key, out var place) && Touches(box, GraphSizes.NodeFrame(place)))
+            if (places.TryGetValue(key, out var place) && Touches(box, GraphSizes.NodeFrame(place, nodes[index].Width)))
             {
                 _hits.Add(key);
             }

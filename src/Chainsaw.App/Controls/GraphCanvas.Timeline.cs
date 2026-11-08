@@ -278,7 +278,7 @@ public sealed partial class GraphCanvas
         var axis = model.Timeline.Axis;
         var actors = model.Places
             .Where(pair => times.NodeTimes.ContainsKey(pair.Key))
-            .Select(pair => new TimedFrame(GraphSizes.NodeFrame(pair.Value), axis.Hours(times.NodeTimes[pair.Key])))
+            .Select(pair => new TimedFrame(model.FrameAt(pair.Key, pair.Value), axis.Hours(times.NodeTimes[pair.Key])))
             .ToList();
         _bands = TimeBands.Extent(actors) is { } extent
             ? new TimeBandCache(model.Places, times, actors, extent.Top, extent.Bottom, axis)

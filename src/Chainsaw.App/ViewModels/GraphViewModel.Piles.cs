@@ -120,6 +120,8 @@ public sealed partial class GraphViewModel
         }
 
         _showUnspendable = show;
+        OnPropertyChanged(nameof(ShowsUnspendable));
+        OnPropertyChanged(nameof(UnspendableToolTip));
         SaveView();
         if (show)
         {

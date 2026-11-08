@@ -30,7 +30,7 @@ public static class GraphHitTest
         for (var index = scene.Nodes.Count - 1; index >= 0; index--)
         {
             var key = scene.Nodes[index].Key;
-            if (places.TryGetValue(key, out var place) && GraphSizes.NodeFrame(place).Contains(point))
+            if (places.TryGetValue(key, out var place) && scene.FrameOf(key, place).Contains(point))
             {
                 return (key, null);
             }
@@ -66,7 +66,7 @@ public static class GraphHitTest
         ArgumentNullException.ThrowIfNull(scene);
         ArgumentNullException.ThrowIfNull(places);
         return scene.Nodes.Where(node => places.TryGetValue(node.Key, out var place)
-            && GraphSizes.NodeFrame(place).Inflate(GraphSizes.MarkReach).Intersects(visible));
+            && scene.FrameOf(node.Key, place).Inflate(GraphSizes.MarkReach).Intersects(visible));
     }
 
     /// <summary>Gives the lines that may cross the visible part of the surface.</summary>
@@ -85,7 +85,8 @@ public static class GraphHitTest
 
     /// <summary>
     /// Gives every line's curve between its nodes' places; lines between the same two nodes, in either direction, are
-    /// bent apart (<see cref="EdgeCurve.ParallelSpacing"/>) so that they never lie on each other.
+    /// bent apart (<see cref="EdgeCurve.ParallelSpacing"/>) so that they never lie on each other, and in the hop
+    /// columns a line that would run through a node on its way is bent around it (<see cref="LineRouting"/>).
     /// </summary>
     /// <param name="scene">The scene.</param>
     /// <param name="places">Each node's top-left corner.</param>
@@ -102,15 +103,18 @@ public static class GraphHitTest
                 && places.ContainsKey(edge.Edge.From)
                 && places.ContainsKey(edge.Edge.To))
             .GroupBy(edge => PairOf(edge.Edge.From, edge.Edge.To));
+        var room = hopColumns ? LineRouting.Room(places.Select(pair => scene.FrameOf(pair.Key, pair.Value))) : null;
         foreach (var pair in pairs)
         {
             var lines = pair.OrderBy(edge => edge.Key, StringComparer.Ordinal).ToList();
             for (var index = 0; index < lines.Count; index++)
             {
                 var edge = lines[index].Edge;
-                var curve = EdgeCurve.Between(places[edge.From], places[edge.To], hopColumns);
+                var (from, to) = (scene.FrameOf(edge.From, places[edge.From]), scene.FrameOf(edge.To, places[edge.To]));
+                var curve = EdgeCurve.Between(from, to, hopColumns);
                 var offset = (index - ((lines.Count - 1) / 2.0)) * EdgeCurve.ParallelSpacing;
-                curves[lines[index].Key] = offset == 0 ? curve : curve.Bent(offset);
+                curve = offset == 0 ? curve : curve.Bent(offset);
+                curves[lines[index].Key] = room is null ? curve : LineRouting.AroundNodes(curve, from, to, room);
             }
         }
 

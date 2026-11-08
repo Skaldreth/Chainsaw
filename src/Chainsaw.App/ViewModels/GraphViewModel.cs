@@ -230,7 +230,9 @@ public sealed partial class GraphViewModel : ObservableObject
 
     /// <summary>Gets the graph ready to draw, or <see langword="null"/> when there is none.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(MethodText), nameof(TraceText))]
+    [NotifyPropertyChangedFor(
+        nameof(MethodText), nameof(TraceText), nameof(HasUnspendable), nameof(UnspendableToolTip),
+        nameof(ShowsUnspendable))]
     public partial GraphScene? Scene { get; private set; }
 
     /// <summary>
