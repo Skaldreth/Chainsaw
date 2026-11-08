@@ -260,6 +260,30 @@ public sealed class WatcherLoopTests : IDisposable
     }
 
     [Fact]
+    public async Task A_hit_below_the_look_back_that_an_earlier_check_read_is_never_told_again()
+    {
+        await _world.UseTestEndpointAsync();
+        await _world.WatchAsync();
+        var plan = _world.WritePlan();
+
+        // The open Chainsaw read through 800 020 (its hits there are sealed and below the look-back, so not in the
+        // plan); the address's one page still holds them.
+        var read = plan.Cases.Single().Watches.Single() with
+        {
+            Checked = new WatchChecked(_world.Clock.UtcNow, 800_020, WatchFeedStatus.Read, null) { Tip = 800_020 },
+        };
+        _world.App<IBackgroundPlan>().Update(current => current.With(current.Cases.Single() with { Watches = [read] }));
+        _world.Height(800_030);
+        _world.Clock.UtcNow += TimeSpan.FromMinutes(5);
+
+        await Loop.RunOnceAsync();
+
+        Assert.Empty(_world.Alerts.Raised);
+        Assert.False(Queue.HasHits());
+        Assert.Equal(2, Queue.Read(_world.Case.Info.Id, Assert.Single(Queue.List(_world.Case.Info.Id)))!.Matches.Count);
+    }
+
+    [Fact]
     public async Task A_start_set_by_the_background_is_kept_at_once()
     {
         await _world.UseTestEndpointAsync();

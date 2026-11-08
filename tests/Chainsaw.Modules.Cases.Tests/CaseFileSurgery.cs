@@ -46,6 +46,19 @@ internal static class CaseFileSurgery
         }
     }
 
+    /// <summary>
+    /// Reads a file that SQLite still holds open for writing, such as a rollback journal in the middle of a
+    /// transaction. <see cref="File.ReadAllBytes(string)"/> shares only reading, which Windows refuses while SQLite
+    /// has the file open for writing.
+    /// </summary>
+    public static byte[] ReadOpenFile(string path)
+    {
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+        using var copy = new MemoryStream();
+        stream.CopyTo(copy);
+        return copy.ToArray();
+    }
+
     public static void Execute(SqliteConnection connection, string sql)
     {
         using var command = connection.CreateCommand();

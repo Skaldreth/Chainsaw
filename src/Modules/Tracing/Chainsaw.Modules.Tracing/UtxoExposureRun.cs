@@ -48,6 +48,12 @@ internal sealed class UtxoExposureRun
     /// <summary>How much of the money is in each coin when got.</summary>
     private readonly Dictionary<Outpoint, BigInteger> _units = [];
 
+    /// <summary>
+    /// Got: how much of the money read back reached one of the subject's own coins the money starts in, and so came
+    /// from the subject itself; kept apart from the coin's own money, which goes on back.
+    /// </summary>
+    private readonly Dictionary<Outpoint, BigInteger> _returned = [];
+
     /// <summary>The transactions the money in each coin went through.</summary>
     private readonly Dictionary<Outpoint, HashSet<ChainTransactionRef>> _through = [];
 
@@ -393,8 +399,14 @@ internal sealed class UtxoExposureRun
         {
             var input = transaction.Inputs[index];
             var coin = new Outpoint(input.PreviousTxid!, input.PreviousIndex!.Value);
-            if (parts[index] == _units.GetValueOrDefault(coin))
+            if (parts[index] == Back(coin))
             {
+                continue;
+            }
+
+            if (_seeds.Contains(coin))
+            {
+                _returned[coin] = parts[index];
                 continue;
             }
 
@@ -572,7 +584,21 @@ internal sealed class UtxoExposureRun
             var minted = Graph.Transactions.TryGetValue(coin.Txid, out var known) && known.Transaction.IsCoinbase;
             Stop(coin, Owner(coin), units, minted ? ExposureRest.BeforeHistory : ExposureRest.NotExpanded);
         }
+
+        foreach (var units in _returned.Values)
+        {
+            _tally.Rest(ExposureRest.Returned, units);
+        }
     }
+
+    /// <summary>
+    /// Got: gives the money read back into a coin from the transaction it was spent in: for one of the subject's own
+    /// coins the money starts in, what came from the subject itself; for any other coin, its money.
+    /// </summary>
+    /// <param name="coin">The coin.</param>
+    /// <returns>The units.</returns>
+    private BigInteger Back(Outpoint coin) =>
+        _seeds.Contains(coin) ? _returned.GetValueOrDefault(coin) : _units.GetValueOrDefault(coin);
 
     /// <summary>
     /// Got: counts a coin that went back through its making transaction on the lines that paid it: from the inputs'
@@ -585,7 +611,7 @@ internal sealed class UtxoExposureRun
         foreach (var input in transaction.Inputs)
         {
             var previous = new Outpoint(input.PreviousTxid!, input.PreviousIndex!.Value);
-            var part = _units.GetValueOrDefault(previous);
+            var part = Back(previous);
             if (part.IsZero)
             {
                 continue;
@@ -614,7 +640,7 @@ internal sealed class UtxoExposureRun
     /// <returns>The units.</returns>
     private BigInteger FromActor(BitcoinTransaction transaction, string actor) => transaction.Inputs
         .Where(input => input.Address is { } address && Graph.NodeOf(address)?.Key == actor)
-        .Select(input => _units.GetValueOrDefault(new Outpoint(input.PreviousTxid!, input.PreviousIndex!.Value)))
+        .Select(input => Back(new Outpoint(input.PreviousTxid!, input.PreviousIndex!.Value)))
         .Aggregate(BigInteger.Zero, (sum, units) => sum + units);
 
     /// <summary>

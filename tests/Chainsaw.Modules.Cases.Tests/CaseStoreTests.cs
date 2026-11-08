@@ -339,7 +339,7 @@ public sealed class CaseStoreTests : IDisposable
             delete.Transaction = transaction;
             delete.CommandText = "DELETE FROM test_notes";
             delete.ExecuteNonQuery();
-            stale = File.ReadAllBytes(_fixture.CaseFile("A1") + ".surgery-journal");
+            stale = CaseFileSurgery.ReadOpenFile(_fixture.CaseFile("A1") + ".surgery-journal");
         });
         using (var later = store.Open("A1"))
         {

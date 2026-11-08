@@ -278,6 +278,27 @@ public sealed class EthereumGraphTests : IDisposable
     }
 
     [Fact]
+    public async Task An_expansion_whose_transactions_the_case_lost_is_only_partly_read()
+    {
+        Chain();
+        _harness.Service.AddStartPoint(_harness.Case, TraceStartPoint.ForEthereumAddress(Scammer));
+        await _harness.Service.ExpandAsync(_harness.Case, ExpansionRequest.ForEthereumAddress(Scammer));
+        await _harness.Service.ExpandAsync(_harness.Case, ExpansionRequest.ForEthereumTransaction(Hash("pay-usdt")));
+        _harness.Ethereum.ForgetPages(Scammer, EthereumHistory.Tokens);
+        var graph = await _harness.Load();
+
+        var result = await _harness.Service.TraceAccountsAsync(
+            graph, new AccountTraceRequest(TracingMethodKind.Fifo, [AccountSeed.Of(Usdt1000ToScammer(graph))]));
+
+        Assert.Contains(Scammer.ToChainAddress(), graph.Account.PartlyRead);
+        Assert.DoesNotContain(Scammer.ToChainAddress(), graph.Account.ReadAccounts);
+        var end = Assert.Single(result.Ends);
+        Assert.Equal(TrailEndReason.NotExpanded, end.Reason);
+        Assert.Equal(Usdt(1_000), end.Amount.Amount);
+        Assert.Contains("delvis läst", end.Explanation, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task A_link_to_another_chain_ends_the_movements_money_there()
     {
         Chain();
