@@ -85,6 +85,19 @@ public sealed class EndpointPhaseAndLocalTests : IDisposable
     }
 
     [Fact]
+    public async Task Not_found_only_from_endpoints_that_cannot_be_believed_is_a_failure_not_an_answer()
+    {
+        // The only endpoint failed its probe (its path changed, say): its 404 says nothing about the chain.
+        await _harness.Sources.ProbeAsync(Chain.Bitcoin);
+        Assert.Equal(ProbeOutcome.Failed, _harness.Sources.Get(Chain.Bitcoin).Endpoints[0].Probe!.Outcome);
+
+        var lookup = await _harness.Source.GetTransactionAsync(_harness.Case, Fixtures.Unconfirmed);
+
+        Assert.Equal(LookupStatus.Failed, lookup.Status);
+        Assert.Equal(SourceLookups.UntrustedNotFoundText, lookup.Problem);
+    }
+
+    [Fact]
     public async Task The_monitoring_sends_nothing_when_no_endpoint_is_known_to_be_in_step()
     {
         _harness.AnswerAll();

@@ -21,6 +21,11 @@ internal sealed class SourceLookups
     /// <summary>The HTTP status for something the source does not know.</summary>
     private const int NotFoundStatus = 404;
 
+    /// <summary>What a lookup says when only endpoints that cannot be believed said that they do not know it.</summary>
+    internal const string UntrustedNotFoundText =
+        "Källan känner inte till det som söktes, men ingen endpoint som visat att den svarar rätt sa det. "
+        + "Uppslaget räknas som misslyckat tills en endpoint som provats svarar.";
+
     /// <summary>The HTTP status of a source that is asked too fast.</summary>
     private const int TooManyRequestsStatus = 429;
 
@@ -305,8 +310,15 @@ internal sealed class SourceLookups
             onlyNotFound = false;
         }
 
-        // Not found is said only when an endpoint that can be believed said it, or every endpoint asked said it.
-        var isNotFound = notFound is not null && (trustedNotFound || onlyNotFound);
+        // Not found is said only when an endpoint that can be believed said it. When every endpoint asked said it but
+        // none of them can be believed (a single endpoint whose path has changed, say), the lookup failed instead and
+        // says why (etapp 25, M), so that nothing reads as gone from the chain on an untried word.
+        var isNotFound = notFound is not null && trustedNotFound;
+        if (!isNotFound && notFound is not null && onlyNotFound)
+        {
+            problem = UntrustedNotFoundText;
+        }
+
         if (isNotFound && notFoundSequence is { } taken)
         {
             // Only an answer the lookup believed is noted, so that a lagging endpoint's 404 never reads as a
