@@ -40,6 +40,9 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
     /// <summary>Answers the lookups through the endpoints and the case.</summary>
     private readonly SourceLookups _lookups;
 
+    /// <summary>The chains' endpoints, for which endpoint gave an answer.</summary>
+    private readonly ChainSources _sources;
+
     /// <summary>Creates the source with the default endpoints in memory only, as a test or a tool does.</summary>
     /// <param name="http">The only way out.</param>
     /// <param name="operators">The operator profile.</param>
@@ -70,6 +73,7 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
         ChainSources sources, IOperatorProfileStore operators, IClock clock, BitcoinSourceOptions options,
         TimeZoneInfo timeZone)
     {
+        _sources = sources;
         _clock = clock;
         _options = options;
         _parser = new EsploraParser(options.Network);
@@ -255,9 +259,13 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
         var other = await _lookups.FetchAsync(
                 @case, query, null, cancellationToken, inStep: true, except: answeredBy ?? Guid.Empty)
             .ConfigureAwait(false);
-        if (other.Value == block.Hash.Value)
+        // Another endpoint, by id and by host: two addresses of one service are not two answers. It is still not an
+        // independent source (it may read the same node), so it is said as another endpoint, by name.
+        var confirmedBy = other.Origins.LastOrDefault(origin => origin.Url.Host != AnsweringHost(block, answeredBy));
+        if (other.Value == block.Hash.Value && confirmedBy is not null)
         {
-            return (InBlockCheck.ConfirmedElsewhere, other.Origins, null);
+            return (InBlockCheck.ConfirmedElsewhere, other.Origins,
+                $"Blockets hash vid höjden bekräftades av en annan endpoint, {confirmedBy.Endpoint}.");
         }
 
         var note = other.Value is null
@@ -270,6 +278,17 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
     /// <param name="transaction">The transaction.</param>
     /// <returns>The size: weight is four times it, less what the witness adds once.</returns>
     private static int StrippedSize(BitcoinTransaction transaction) => (transaction.Weight - transaction.Size) / 3;
+
+    /// <summary>Gives the host of the endpoint that gave a block, so that another address of it is not taken as another.</summary>
+    /// <param name="block">The block.</param>
+    /// <param name="answeredBy">The endpoint that gave it, if known.</param>
+    /// <returns>The host, or an empty text when it is not known.</returns>
+    private string AnsweringHost(BitcoinBlock block, Guid? answeredBy)
+    {
+        _ = block;
+        return _sources.Get(Chain.Bitcoin).Endpoints
+            .FirstOrDefault(each => each.Endpoint.Id == answeredBy)?.Endpoint.Address.Host ?? string.Empty;
+    }
 
     /// <summary>Gives a lookup as it is, with a note on why it is not checked against its block.</summary>
     /// <param name="lookup">The lookup.</param>

@@ -394,8 +394,8 @@ internal sealed class WatcherLoop
     /// Queues a check. A quiet check (no matches) is merged into the watch's previous quiet entry from this run, so
     /// that the queue does not grow by one file and one journal line per check while a case stays closed (etapp 27,
     /// M3): the merged entry keeps every response of both (nothing fetched is dropped, principle 1) and the later
-    /// check's progress and time, under the first entry's id, up to <see cref="MergedResponsesKept"/> responses,
-    /// after which a new entry is begun.
+    /// check's progress and time, under a new id, up to <see cref="MergedResponsesKept"/> responses, after which a
+    /// new entry is begun.
     /// </summary>
     /// <param name="watch">The watch as the plan has it.</param>
     /// <param name="entry">The check's entry.</param>
@@ -407,15 +407,16 @@ internal sealed class WatcherLoop
             && last.Start == entry.Start && last.Responses + entry.Responses.Count <= MergedResponsesKept
             && ReadQuiet(entry.CaseId, last.Id) is { } before)
         {
-            // Written again under the same id, so that bringing it in is idempotent: a crash before the older file is
-            // gone leaves two files of one entry, and the newest, which holds both checks, is the one brought in. The
-            // time is the latest check's, as its progress is.
+            // A new id, so that Chainsaw, which may have brought the older entry in meanwhile, never takes the merged one
+            // as already brought in. The merged entry is written whole before the older goes: a crash in between leaves
+            // both, and the older's responses are sealed twice rather than lost. The time is the latest check's.
             var merged = entry with
             {
-                Id = before.Id,
+                Id = Guid.NewGuid(),
                 Responses = [.. before.Responses, .. entry.Responses],
             };
             _parts.Queue.Add(merged);
+            _parts.Queue.Remove(entry.CaseId, before.Id);
             _quiet[key] = new QuietEntry(merged.Id, watch.Filter, merged.Start, merged.Responses.Count);
             return;
         }

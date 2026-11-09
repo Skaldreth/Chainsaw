@@ -293,20 +293,31 @@ internal sealed class BlockNews : IBlockNews, IDisposable
     private void Count(Listener listener, string message)
     {
         var now = _clock.UtcNow;
+
+        // The reference is the highest of what was heard and what the endpoints' probes said: the first height a
+        // socket gives is held to it too, so that a source cannot set a false height to start from (review, M10).
+        var reference = Math.Max(listener.Highest, ProbedHeight());
         if (HeightOf(message) is not { } found || found.Height <= listener.Highest
             || found.Height > ChainLimits.HighestPlausible(_chainName, now)
-            || (found.IsNew && listener.Highest > 0 && found.Height > listener.Highest + LargestJump))
+            || (reference > 0 && found.Height > reference + LargestJump))
         {
             return;
         }
 
+        // Without any reference the first height is only a start: it nudges nothing.
+        var nudges = found.IsNew && reference > 0;
         listener.Highest = found.Height;
-        if (found.IsNew && now - listener.LastNudge >= MinimumNudge)
+        if (nudges && now - listener.LastNudge >= MinimumNudge)
         {
             listener.LastNudge = now;
             Interlocked.Increment(ref listener.HeardCount);
         }
     }
+
+    /// <summary>Gives the highest height Bitcoin's endpoints answered when they were last tried.</summary>
+    /// <returns>The height, or 0 when none is known.</returns>
+    private long ProbedHeight() =>
+        _sources.Get(Chain.Bitcoin).Endpoints.Select(each => each.Probe?.Height ?? 0).DefaultIfEmpty(0).Max();
 
     /// <summary>Cancels the socket's reading when the chain is no longer kept.</summary>
     /// <param name="listener">The chain's listener.</param>

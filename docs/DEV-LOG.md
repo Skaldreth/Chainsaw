@@ -4211,3 +4211,6 @@ topp.
   - **M5:** en hopslagen post skrivs om under samma id med den senaste kontrollens tid; finns två filer efter en krasch
     läses den nyaste och båda tas bort vid införandet.
   - **M6:** `exits.bin` tas bort när valvet skapas på nytt (`FirstRunViewModel`).
+  - **Omgranskningen** (0 C, 0 I, 4 M): M7 bekräftelsen kräver en annan värd och säger vilken endpoint; M9 en
+    hopslagen post får ett nytt id (det äldre kan ha förts in); M10 den första höjden från en socket hålls mot
+    provens högsta och knuffar inget utan referens. M8 och resten av M7 står i BACKLOG.

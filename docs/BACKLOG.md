@@ -154,6 +154,12 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
   fas (`InBlockCheck.ConfirmedElsewhere`), men inbyggda kontrollpunkter (lägsta `bits` per period om 2016 block, med
   källa och datum i koden) skulle låta ett huvud bära arbetet för sin höjd också med en enda källa. Kräver verifierade
   värden ur kedjan, inte ur minnet.
+- **64 bytes ur de kontrollerade bytesen** (granskningen av omgång 3, M8): kontrollen av en tx på 64 bytes räknar
+  storleken utan vittnesdata ur källans `weight` och `size`; de är kontrollerade mot bytesen men inte själva räknade ur
+  dem. Räkna storleken ur de förseglade bytesen.
+- **Bekräftelsen är en annan endpoint, inte en oberoende källa** (M7): en annan endpoint med en annan värd kan läsa
+  samma nod; den heter *en annan endpoint* med namn, aldrig *oberoende*. Att jämföra värdarnas uppslagna adresser
+  vore nästa steg.
 - **Signet** har ett eget, lättare powLimit (`0x1e0377ae`) men inget eget värde i `BitcoinNetwork`; dess huvuden
   vägras i dag. Ett eget nätvärde behövs om signet ska användas.
 - **Svar som hämtades när blocket var grunt** (granskningen etapp 15, M4): de räknas aldrig som säkra vid läsning bara

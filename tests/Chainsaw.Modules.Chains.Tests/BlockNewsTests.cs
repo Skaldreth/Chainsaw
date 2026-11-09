@@ -100,10 +100,26 @@ public sealed class BlockNewsTests : IDisposable
     }
 
     [Fact]
+    public async Task Without_any_reference_the_first_height_only_starts_and_nudges_nothing()
+    {
+        await UseOnlyAsync(Mempool);
+        var socket = _sockets.Open(Mempool);
+        socket.Say("""{"block":{"height":921401}}""");
+
+        _news.Keep(Chain.Bitcoin);
+        await Until(() => socket.Received == 1);
+        Assert.Equal(0, _news.Heard(Chain.Bitcoin));
+
+        socket.Say("""{"block":{"height":921402}}""");
+        await Until(() => _news.Heard(Chain.Bitcoin) == 1);
+    }
+
+    [Fact]
     public async Task An_endpoint_without_a_websocket_is_passed_over_for_the_next()
     {
         await UseOnlyAsync(Fixtures.Base, Mempool);
         var socket = _sockets.Open(Mempool);
+        socket.Say("""{"blocks":[{"height":921400}]}""");
         socket.Say("""{"block":{"height":921401}}""");
 
         _news.Keep(Chain.Bitcoin);
