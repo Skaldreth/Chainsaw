@@ -399,8 +399,14 @@ en tjänst (`pass-through v2`), tidsmönster i svensk tid för mottagare och avs
     par av andras delar lika ofta som de riktiga, och mixern känns inte igen (facit: `RoundFiveReviewTests`). Tre
     delar eller fler, och delar långt efter insättningen, prövas inte. Bättre: väga in att delarnas adresser är nya
     och att delarna kommer ur olika tx men samma pott, och mäta mot en baslinje per insättning.
-  - Baslinjen för `mixer-behaviour` skalar beloppen (80–125 %); en börs vars uttag råkar ligga i samma storlek som
-    insättningarna med en fast procent emellan skulle också passera den. Inget sådant fall är känt.
+  - Baslinjen för `mixer-behaviour` är snittet av fyra skalade belopp (80–125 %), och skillnaden ska vara minst
+    2,5 gånger roten ur baslinjen. En börs vars kunder tar ut nästan allt de satt in strax efter (en börs som används
+    som genomfart) kan ändå passera; granskningens prob finns, men inget facit än.
+  - `mixer-behaviour` räknar andelen förklarade utbetalningar över alla som ligger inom en vecka efter någon
+    insättning (granskningen 2, M1). Har grafen bara en del av mixerns insättningar men alla utbetalningar känns den
+    inte igen (facit och Guiden säger det). Bättre: ett snävare fönster ur fördröjningarna i de egna träffarna, eller
+    bara de utbetalningar som har en tänkbar insättning i grafen.
+  - En mixer som betalar ut inom en timme med en fast avgift läses som betaltjänst och känns inte igen.
   - `mixer-chain` på en tät slumpgraf med en mixer med etikett (40 adresser, 1 500 tx) ger ett nittiotal kedjor genom
     troliga utgångar, eftersom `mixer-outputs` väger varje utbetalning i fönstret; så var det också i v1. Grenar,
     delar tillsammans och troliga mixrar ger inga fynd där.

@@ -5730,3 +5730,18 @@ Den oberoende granskningen av omgång 5 fann 1 C och 5 I; alla är rättade, och
 - **M:** versionen i `mixer-chain`s text tas ur `MixerBehaviourCheck.Identity`; tidszonsgissningen avrundas en gång
   och *Varför?* säger att den räknar med svensk sommartid; en tjänst eller mixer med etikett får ingen serie som
   mottagare. M3 och M4 nådde inte den här sessionen.
+
+## Förvirring, omgång 5: efter andra granskningen (2026-11-09)
+
+- **I1:** baslinjen i `mixer-behaviour` är snittet av de fyra skalade beloppen, och regeln är en signifikansmarginal:
+  träffarna minus baslinjen ska vara minst fem och minst 2,5 · √baslinjen. En upptagen mixer (300 användare, eller 100
+  med utbetalning i en eller två delar) hittas i alla tre slumpade fall, och en upptagen börs (300/300 och 100/100)
+  aldrig. 4 · √ gav för många missar (100 användare i delar, den glesa mixern i två delar); 2,5 lämnar börserna med
+  god marginal (skillnaden högst sex vid en baslinje runt 180).
+- **I2:** en betaltjänst som skickar vidare inom en timme med nästan samma avgift (90 % av träffarna, spridning högst
+  en kvarts procentenhet mellan tionde och nittionde percentilen) är ingen mixer, också med nya handlaradresser.
+  `Behaviour.CentralMixer` fördröjer nu en till sex timmar och tar 1–4 %. *Varför?* och raden under titeln säger
+  avgiften i median i stället för spannet.
+- **M1:** andelen förklarade utbetalningar räknas bara över utbetalningar inom en vecka efter någon insättning; en
+  mixer där grafen har en tredjedel av insättningarna känns ändå inte igen, vilket facit, Guiden och BACKLOG säger.
+- Facit: `RoundFiveReviewTests` (upptagen mixer, upptagen börs, betaltjänst med nya adresser, delvis sedd mixer).

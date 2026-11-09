@@ -35,6 +35,55 @@ public sealed class RoundFiveReviewTests
         Assert.True(hits == 0, $"{hits} av 10 börser lästes som en trolig mixer.");
     }
 
+    [Theory]
+    [InlineData(300, 1)]
+    [InlineData(100, 2)]
+    public void A_busy_central_mixer_is_a_likely_mixer(int users, int mostParts)
+    {
+        var found = 0;
+        for (var seed = 0; seed < 3; seed++)
+        {
+            var (txs, owners) = Behaviour.BusyMixer(seed, users, mostParts);
+            found += new MixerBehaviourCheck().Run(Behaviour.Input(txs, owners)).Count;
+        }
+
+        Assert.True(found == 3, $"{found} av 3 upptagna mixrar hittades.");
+    }
+
+    [Theory]
+    [InlineData(300, 300)]
+    [InlineData(100, 100)]
+    public void A_busy_exchange_with_as_many_withdrawals_as_deposits_is_no_likely_mixer(int customers, int withdrawals)
+    {
+        for (var seed = 0; seed < 3; seed++)
+        {
+            var (txs, owners) = Behaviour.RandomExchange(seed, customers, withdrawals);
+
+            Assert.Empty(new MixerBehaviourCheck().Run(Behaviour.Input(txs, owners)));
+        }
+    }
+
+    [Theory]
+    [InlineData(0.01, 12)]
+    [InlineData(0.005, 40)]
+    [InlineData(0.02, 40)]
+    public void A_processor_forwarding_to_fresh_merchant_addresses_is_no_likely_mixer(double fee, int payments)
+    {
+        var (txs, owners) = Behaviour.FreshProcessor(fee, payments);
+
+        Assert.Empty(new MixerBehaviourCheck().Run(Behaviour.Input(txs, owners)));
+    }
+
+    [Fact]
+    public void A_mixer_with_only_a_third_of_its_deposits_in_the_graph_is_not_seen()
+    {
+        // A known limit (Guide and BACKLOG): the payouts of deposits the graph does not hold lie in the same week, so
+        // the deposits explain too few of the payouts. Expand the mixer's deposits for it to be seen.
+        var (txs, owners) = Behaviour.PartlySeenMixer();
+
+        Assert.Empty(new MixerBehaviourCheck().Run(Behaviour.Input(txs, owners)));
+    }
+
     [Fact]
     public void A_payment_processor_that_forwards_to_its_merchants_is_no_likely_mixer()
     {

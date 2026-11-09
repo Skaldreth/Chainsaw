@@ -15,8 +15,8 @@ internal static class Behaviour
     public const long Height = 900_000;
 
     /// <summary>
-    /// A central mixer: each user pays a deposit address of its own, and a little later the pool pays a new address
-    /// the deposit minus three percent, from other coins. The deposit addresses and the pool are one owner.
+    /// A central mixer: each user pays a deposit address of its own, and one to six hours later the pool pays a new
+    /// address the deposit minus one to four percent, from other coins. The deposit addresses and the pool are one owner.
     /// </summary>
     /// <param name="label">The mixer's label, for its addresses.</param>
     /// <param name="users">How many users.</param>
@@ -38,10 +38,10 @@ internal static class Behaviour
                 .In(Wpkh($"{label}-user-{i}"), amount + 30_000)
                 .Out(deposit, amount)
                 .Build());
-            txs.Add(Tx($"{label}-out-{i}", start + (i * 6) + 3)
+            txs.Add(Tx($"{label}-out-{i}", start + (i * 6) + 6 + random.Next(0, 30))
                 .In(pool, 90_000_000, $"{label}-pool-coin-{i}")
-                .Out(Wpkh($"{label}-paid-{i}"), amount * 97 / 100)
-                .Out(pool, 90_000_000 - (amount * 97 / 100) - 10_000)
+                .Out(Wpkh($"{label}-paid-{i}"), amount - (amount * (10 + random.Next(0, 30)) / 1_000))
+                .Out(pool, 10_000_000)
                 .Build());
         }
 
@@ -289,6 +289,103 @@ internal static class Behaviour
             var withdrawal = LogUniform(random, 1_000_000, 100_000_000);
             txs.Add(Tx($"hub-out-{i}", Height + random.Next(0, 144)).In(hub, 900_000_000, $"hub-coin-{i}")
                 .Out(Wpkh($"hub-w-{i}"), withdrawal).Out(hub, 800_000_000).Build());
+        }
+
+        return (txs, owners);
+    }
+
+    /// <summary>
+    /// A busy, realistic central mixer (the second review's probe): users deposit through a week at random times, and
+    /// each is paid back one to twenty-four hours later, minus a random 1–4 % fee, in one or up to the given number of
+    /// parts, to fresh addresses.
+    /// </summary>
+    /// <param name="seed">The seed.</param>
+    /// <param name="users">How many users.</param>
+    /// <param name="mostParts">The most parts a deposit is paid out in.</param>
+    /// <returns>The transactions and each address's owner.</returns>
+    public static (List<BitcoinTransaction> Txs, Dictionary<BitcoinAddress, BitcoinAddress> Owners) BusyMixer(
+        int seed, int users, int mostParts)
+    {
+        var random = new Random(seed);
+        var pool = Pkh("bm-pool");
+        var owners = new Dictionary<BitcoinAddress, BitcoinAddress> { [pool] = pool };
+        var txs = new List<BitcoinTransaction>();
+        for (var i = 0; i < users; i++)
+        {
+            var amount = LogUniform(random, 1_000_000, 100_000_000);
+            var deposit = Wpkh($"bm-dep-{i}");
+            owners[deposit] = pool;
+            var height = Height + random.Next(0, 1008);
+            txs.Add(Tx($"bm-in-{i}", height).In(Wpkh($"bm-user-{i}"), amount + 5_000).Out(deposit, amount).Build());
+            var net = (long)(amount * (1 - (0.01 + (random.NextDouble() * 0.03))));
+            var parts = 1 + random.Next(mostParts);
+            var left = net;
+            for (var p = 0; p < parts; p++)
+            {
+                var part = p == parts - 1 ? left : (long)(left * (0.3 + (random.NextDouble() * 0.4)));
+                left -= part;
+                txs.Add(Tx($"bm-out-{i}-{p}", height + 6 + random.Next(0, 144))
+                    .In(pool, 9_000_000_000, $"bm-c-{i}-{p}")
+                    .Out(Wpkh($"bm-paid-{i}-{p}"), part).Out(pool, 8_000_000_000).Build());
+            }
+        }
+
+        return (txs, owners);
+    }
+
+    /// <summary>
+    /// A payment processor that forwards each payment, within a few blocks, minus a fixed fee to a merchant's HD
+    /// wallet, a fresh address each time (the second review's probe).
+    /// </summary>
+    /// <param name="fee">The fixed fee, as a share.</param>
+    /// <param name="payments">How many payments.</param>
+    /// <returns>The transactions and each address's owner.</returns>
+    public static (List<BitcoinTransaction> Txs, Dictionary<BitcoinAddress, BitcoinAddress> Owners) FreshProcessor(
+        double fee, int payments)
+    {
+        var random = new Random(7);
+        var pool = Pkh("fp-pool");
+        var owners = new Dictionary<BitcoinAddress, BitcoinAddress> { [pool] = pool };
+        var txs = new List<BitcoinTransaction>();
+        for (var i = 0; i < payments; i++)
+        {
+            var amount = LogUniform(random, 200_000, 20_000_000);
+            var invoice = Wpkh($"fp-inv-{i}");
+            owners[invoice] = pool;
+            var height = Height + (i * 6);
+            txs.Add(Tx($"fp-in-{i}", height).In(Wpkh($"fp-buyer-{i}"), amount + 5_000).Out(invoice, amount).Build());
+            txs.Add(Tx($"fp-out-{i}", height + 1 + random.Next(0, 3)).In(pool, 900_000_000, $"fp-c-{i}")
+                .Out(Wpkh($"fp-merchant-{i % 10}-addr-{i}"), (long)(amount * (1 - fee))).Out(pool, 800_000_000)
+                .Build());
+        }
+
+        return (txs, owners);
+    }
+
+    /// <summary>
+    /// A mixer whose graph holds only a third of its deposits but all its payouts (the second review's probe).
+    /// </summary>
+    /// <returns>The transactions and each address's owner.</returns>
+    public static (List<BitcoinTransaction> Txs, Dictionary<BitcoinAddress, BitcoinAddress> Owners) PartlySeenMixer()
+    {
+        var random = new Random(3);
+        var pool = Pkh("pm-pool");
+        var owners = new Dictionary<BitcoinAddress, BitcoinAddress> { [pool] = pool };
+        var txs = new List<BitcoinTransaction>();
+        for (var i = 0; i < 60; i++)
+        {
+            var amount = LogUniform(random, 1_000_000, 100_000_000);
+            var height = Height + random.Next(0, 1008);
+            if (i % 3 == 0)
+            {
+                var deposit = Wpkh($"pm-dep-{i}");
+                owners[deposit] = pool;
+                txs.Add(Tx($"pm-in-{i}", height).In(Wpkh($"pm-user-{i}"), amount + 5_000).Out(deposit, amount)
+                    .Build());
+            }
+
+            txs.Add(Tx($"pm-out-{i}", height + 6 + random.Next(0, 60)).In(pool, 9_000_000_000, $"pm-c-{i}")
+                .Out(Wpkh($"pm-paid-{i}"), amount * 97 / 100).Out(pool, 8_000_000_000).Build());
         }
 
         return (txs, owners);

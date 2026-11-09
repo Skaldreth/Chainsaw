@@ -20,11 +20,16 @@ namespace Chainsaw.Modules.Checks;
 /// </para>
 /// <list type="bullet">
 /// <item>each payout output explains at most one deposit (assigned greedily, the best score first);</item>
-/// <item>most of the owner's payout outputs must be explained by deposits (<see cref="MinimumExplained"/>);</item>
+/// <item>most of the owner's payout outputs that lie in a deposit's window must be explained by deposits
+/// (<see cref="MinimumExplained"/>); payouts far from any deposit in the graph are of deposits it does not hold;</item>
 /// <item>most of the explaining outputs go to addresses that receive only once in the graph
 /// (<see cref="MinimumOneTime"/>), as a mixer pays fresh addresses and a processor pays its merchants again;</item>
 /// <item>the same matching with the deposits' amounts scaled (<see cref="BaselineFactors"/>), where nothing but chance
-/// can match, must explain far fewer (<see cref="BaselineMargin"/>).</item>
+/// can match, must explain clearly fewer on average: the difference must be at least <see cref="MinimumMatched"/> and
+/// <see cref="BaselineSigmas"/> times the square root of the baseline, a margin that grows with chance's own spread,
+/// so that a busy mixer passes and a busy exchange does not;</item>
+/// <item>a payment processor forwards almost at once and keeps the same fee: when nearly every match comes out within
+/// <see cref="ProcessorDelay"/> with nearly the same fee (<see cref="ProcessorFeeSpread"/>), it is not a mixer.</item>
 /// </list>
 /// </remarks>
 internal static class LikelyMixers
@@ -44,9 +49,23 @@ internal static class LikelyMixers
     /// <summary>The least share of the explaining outputs that go to an address that receives only once.</summary>
     public const double MinimumOneTime = 0.6;
 
-    /// <summary>How many times more deposits the real amounts must explain than the best scaled baseline.</summary>
-    public const int BaselineMargin = 2;
+    /// <summary>
+    /// How many standard deviations of chance (taken as the square root of the baseline's count) the real count must
+    /// lie above the baseline.
+    /// </summary>
+    public const double BaselineSigmas = 2.5;
 
+    /// <summary>The share of matches that, coming out fast with the same fee, makes the owner a processor.</summary>
+    public const double ProcessorShare = 0.9;
+
+    /// <summary>
+    /// The most the fees of a processor's matches differ, between the tenth and ninetieth percentile, as a share of
+    /// the deposit: a quarter of a percentage point.
+    /// </summary>
+    public const double ProcessorFeeSpread = 0.0025;
+
+    /// <summary>How soon after the deposit a processor forwards: an hour, six blocks.</summary>
+    public static readonly TimeSpan ProcessorDelay = TimeSpan.FromHours(1);
 
     /// <summary>How many outputs soonest after a deposit are tried as parts.</summary>
     public const int MostPartPool = 8;
@@ -194,17 +213,62 @@ internal static class LikelyMixers
             .SelectMany(match => match.Outputs)
             .ToList();
         var oneTime = explaining.Count(payout => received.GetValueOrDefault(payout.Address) == 1);
-        if (explaining.Count < payouts.Count * MinimumExplained || oneTime < explaining.Count * MinimumOneTime)
+        var inWindows = InWindows(deposits, payouts);
+        if (explaining.Count < inWindows * MinimumExplained || oneTime < explaining.Count * MinimumOneTime
+            || IsProcessor(matched))
         {
             return null;
         }
 
-        var baseline = BaselineFactors.Max(factor => Assign(deposits, depositors, index, factor)
+        var baseline = BaselineFactors.Average(factor => Assign(deposits, depositors, index, factor)
             .Count(deposit => deposit.Match is not null));
-        return count >= baseline * BaselineMargin && count - baseline >= MinimumMatched
+        return count - baseline >= Math.Max(MinimumMatched, BaselineSigmas * Math.Sqrt(baseline))
             ? new LikelyMixer(owner, matched, senders, recipients, baseline)
             : null;
     }
+
+    /// <summary>
+    /// Counts the payout outputs that lie in some deposit's window (within <see cref="MixerOutputsCheck.Window"/>
+    /// after it): only they can be explained by the deposits the graph holds.
+    /// </summary>
+    /// <param name="deposits">The deposits, in block order.</param>
+    /// <param name="payouts">The payout outputs, in block order.</param>
+    /// <returns>The count.</returns>
+    private static int InWindows(IReadOnlyList<MixerDeposit> deposits, IReadOnlyList<LikelyPayout> payouts)
+    {
+        var times = deposits.Select(deposit => deposit.Block.Time).Order().ToArray();
+        return payouts.Count(payout =>
+        {
+            var at = payout.Transaction.Block!.Time;
+            var before = Array.BinarySearch(times, at);
+            var latest = (before < 0 ? ~before : before + 1) - 1;
+            return latest >= 0 && at - times[latest] <= MixerOutputsCheck.Window;
+        });
+    }
+
+    /// <summary>
+    /// Says whether the matches look like a payment processor's: nearly all (<see cref="ProcessorShare"/>) come out
+    /// within <see cref="ProcessorDelay"/>, and their fees lie within <see cref="ProcessorFeeSpread"/> of each other.
+    /// A mixer delays and varies its fee to break the link; a processor forwards at once at its fixed rate.
+    /// </summary>
+    /// <param name="matched">The deposits with their matches.</param>
+    /// <returns><see langword="true"/> when they do.</returns>
+    private static bool IsProcessor(IReadOnlyList<LikelyDeposit> matched)
+    {
+        var found = matched.Where(deposit => deposit.Match is not null).ToList();
+        var fast = found.Count(deposit =>
+            deposit.Match!.Outputs[^1].Transaction.Block!.Time - deposit.Deposit.Block.Time <= ProcessorDelay);
+        var fees = found.Select(deposit => deposit.Fee).Order().ToList();
+        var spread = Percentile(fees, 0.9) - Percentile(fees, 0.1);
+        return fast >= found.Count * ProcessorShare && spread <= ProcessorFeeSpread;
+    }
+
+    /// <summary>Gives a percentile of sorted values, the nearest rank.</summary>
+    /// <param name="sorted">The values, smallest first; not empty.</param>
+    /// <param name="share">The percentile, from 0 to 1.</param>
+    /// <returns>The value.</returns>
+    public static double Percentile(IReadOnlyList<double> sorted, double share) =>
+        sorted[(int)Math.Clamp(Math.Round(share * (sorted.Count - 1)), 0, sorted.Count - 1)];
 
     /// <summary>
     /// Assigns each deposit the payouts that may be its money, with each payout output used at most once: every
@@ -409,9 +473,9 @@ internal static class LikelyMixers
 /// <param name="Deposits">Every deposit into it, in block order, each with the payouts assigned to it.</param>
 /// <param name="Senders">How many independent senders paid into it.</param>
 /// <param name="Recipients">How many different recipients it paid.</param>
-/// <param name="Baseline">How many deposits the best scaled baseline explained, by chance.</param>
+/// <param name="Baseline">How many deposits the scaled baselines explained on average, by chance.</param>
 internal sealed record LikelyMixer(
-    BitcoinAddress Owner, IReadOnlyList<LikelyDeposit> Deposits, int Senders, int Recipients, int Baseline)
+    BitcoinAddress Owner, IReadOnlyList<LikelyDeposit> Deposits, int Senders, int Recipients, double Baseline)
 {
     /// <summary>Gets the deposits that come out again as the deposit minus a usual fee.</summary>
     public IEnumerable<LikelyDeposit> Matched => Deposits.Where(deposit => deposit.Match is not null);
@@ -449,7 +513,13 @@ internal sealed class PayoutIndex
 /// <summary>A deposit into a likely mixer and the payouts assigned to it as its money.</summary>
 /// <param name="Deposit">The deposit.</param>
 /// <param name="Match">The payouts, or <see langword="null"/> when none came out.</param>
-internal sealed record LikelyDeposit(MixerDeposit Deposit, LikelyMatch? Match);
+internal sealed record LikelyDeposit(MixerDeposit Deposit, LikelyMatch? Match)
+{
+    /// <summary>Gets the share of the deposit that did not come out in the match; 0 without one.</summary>
+    public double Fee => Match is { } match
+        ? (double)(Deposit.Output.Amount.Value - match.Amount.Value) / Deposit.Output.Amount.Value
+        : 0;
+}
 
 /// <summary>One or more payouts of a likely mixer that together may be a deposit's money.</summary>
 /// <param name="Outputs">The payout outputs, soonest first.</param>

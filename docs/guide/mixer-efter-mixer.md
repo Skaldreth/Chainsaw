@@ -72,13 +72,22 @@ den beter sig:
 - varje utbetalning räknas för **högst en** insättning, och insättningarna ska förklara **minst hälften** av ägarens
   utbetalningar, de flesta till adresser som bara tar emot en gång;
 - med beloppen **förskjutna** (80, 88, 112 och 125 procent av insättningarna), där bara slumpen kan träffa, ska
-  analysen förklara **högst hälften så många**, och minst fem färre.
+  analysen i snitt förklara klart färre: skillnaden ska vara minst fem och minst **2,5 gånger roten ur** slumpens
+  antal, en marginal som växer med slumpens egen spridning. En upptagen mixer med hundratals insättningar klarar det,
+  en upptagen börs inte;
+- en **betaltjänst** skickar vidare nästan genast och tar samma avgift varje gång. Kommer nästan alla träffar ut inom
+  en timme med nästan samma avgift (inom en kvarts procentenhet) är det ingen mixer, också när handlarna får en ny
+  adress varje gång.
+
+*Varför?* säger avgiften i **median**.
 
 En börs tar också emot från många och betalar många, och med tillräckligt många uttag hamnar några alltid nära en
 insättning minus några procent. Därför räcker det inte att belopp träffar: de flesta utbetalningarna måste förklaras,
 och slumpen får inte förklara nästan lika många. En betaltjänst som skickar vidare till samma handlare igen och igen
 räknas inte heller. En mixer som betalar ut i delar med **tät trafik** går inte att skilja från slumpen och känns inte
-igen; med glesare trafik gör den det. Kontrollen lägger ett rött område runt mixern och säger i
+igen; med glesare trafik gör den det. En mixer där grafen bara har en del av insättningarna men alla utbetalningar
+känns inte igen heller, eftersom insättningarna då förklarar för få av utbetalningarna: expandera mixerns insättningar
+först. Kontrollen lägger ett rött område runt mixern och säger i
 *Varför?* hur många insättningar som kom ut igen och med vilken avgift. Håller du med, **sätt etiketten Mixer** med L:
 då får varje insättning mixerns egna förslag, och kedjan följer dina beslut i stället för den troligaste
 utbetalningen. Det är en bedömning: en växlare som betalar tillbaka nästan samma belopp kan se likadan ut.

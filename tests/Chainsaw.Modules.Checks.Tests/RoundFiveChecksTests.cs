@@ -32,7 +32,7 @@ public sealed class RoundFiveChecksTests
         Assert.Equal(AreaSort.Obfuscation, finding.Area);
         Assert.Equal("Trolig mixer utan etikett", finding.Title);
         Assert.Contains("10 av 10 insättningar", finding.Summary, StringComparison.Ordinal);
-        Assert.Contains("3 %–3 %", finding.Summary, StringComparison.Ordinal);
+        Assert.Contains("i median", finding.Summary, StringComparison.Ordinal);
         Assert.Contains("mixer-behaviour v1", finding.Why, StringComparison.Ordinal);
         Assert.Contains("inte ett faktum", finding.Why, StringComparison.Ordinal);
         Assert.Contains(Txid("cm-out-4"), finding.Basis.Select(basis => basis.Txid));
