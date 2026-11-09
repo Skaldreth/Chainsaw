@@ -200,9 +200,15 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
     Blockbook vore stabilare.
   - **ZEC-kursen:** Bitstamps `zeceur` har historik bara från 2026-03-31 och handlas tunt, som BNB.
   - **Chainabuse på Zcash** frågas inte (som Litecoin och BSC).
-  - **Bytt block och ersatt tx i grafen på Litecoin** (GR9a): Tracing läser Litecoins bytta och försvunna tx, men
-    grafens märken (`BlockMarks`) och valet att följa en ersättare (`GraphViewModel.Replacements`) visar bara
-    Bitcoins. *Kontroll* mot tx:ens bytes i inspektören visas också bara för Bitcoin.
+  - **Bytt block och ersatt tx i grafen på Litecoin** (GR9a): en försvunnen Litecoin-tx får nu sitt märke
+    (`BlockMarks.GoneOf` läser tx:en på ändringens kedja), men uppslaget av ersättare och valet att följa en
+    (`GraphViewModel.Replacements`, `GoneByRule`) gäller bara Bitcoin. *Kontroll* mot tx:ens bytes i inspektören
+    visas också bara för Bitcoin. **Zcash** har ingen `GetBlockChangesAsync` alls, så GR9a är tyst där.
+  - **Unified addresses på Zcash (`u1…`)** ses alltid som ett slut i en skyddad pool
+    (`ChainStartPoint.RecogniseZcashShielded`), också när adressen har en genomskinlig mottagare som börser betalar
+    till. Att avkoda ZIP 316 och följa den genomskinliga mottagaren (`t1…`) vore steget dit.
+  - **OFAC:s skyddade ZEC-adresser** (`zs…`) hoppas tyst över av `OfacSdnParser` (rad 105), så en sanktionerad
+    `zs`-startpunkt visar ingen sanktion. De borde sparas och matchas mot startpunkten, och det som hoppas över sägas.
   - **`shielded-pool v1`, kvar:** bara det som finns i grafen prövas; mönster över flera insättningar som pekar på
     samma användare (forskningens andra metod), och ett godkänt förslag som blir en egen streckad linje i grafen.
 - **Privacy coins:** metoderna är beslutade (CLAUDE.md, *Spåret tar slut*); skyddade pooler (Zcash, MWEB) är byggda

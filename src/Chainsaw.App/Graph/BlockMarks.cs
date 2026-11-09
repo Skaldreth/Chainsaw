@@ -303,16 +303,17 @@ public static class BlockMarks
             : UnconfirmedText;
 
     /// <summary>
-    /// Finds the graph's reading of a gone Bitcoin transaction, with the user's choice in force to follow its
-    /// replacer.
+    /// Finds the graph's reading of a gone transaction on a UTXO chain (Bitcoin or Litecoin, whose source says what
+    /// left its block), with the user's choice in force to follow its replacer.
     /// </summary>
     /// <param name="graph">The graph.</param>
     /// <param name="change">The change.</param>
     /// <returns>The reading, or <see langword="null"/>.</returns>
     private static GoneReading? GoneOf(TraceGraph graph, BlockChange change)
     {
-        if (change is not { Chain: Chain.Bitcoin, Kind: BlockChangeKind.Gone }
-            || !Txid.TryParse(change.TransactionId, out var txid) || !graph.Gone.TryGetValue(txid, out var gone))
+        if (change.Kind != BlockChangeKind.Gone || change.Chain.Model() != LedgerModel.Utxo
+            || !Txid.TryParse(change.Chain, change.TransactionId, out var txid)
+            || !graph.Gone.TryGetValue(txid, out var gone))
         {
             return null;
         }
