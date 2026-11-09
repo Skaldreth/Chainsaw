@@ -25,6 +25,14 @@ internal static class AccountTraceCalculator
         + "skickat ligger kvar här enligt kedjan.";
 
     /// <summary>
+    /// What traced money that went on in a transaction the graph does not draw says: the address's whole history is
+    /// read, but the transaction was held back at the limit.
+    /// </summary>
+    private const string UnshownText =
+        "Gick vidare i en tx som hölls tillbaka vid gränsen; adressens hela historik är läst och räknad, men tx:en "
+        + "finns inte i grafen. Plocka ut den ur +tx för att spåra vidare.";
+
+    /// <summary>
     /// Why a trace is refused when its seeds lie in each other's flow, also across a swap: money would be counted
     /// twice.
     /// </summary>
@@ -405,6 +413,12 @@ internal static class AccountTraceCalculator
         /// <summary>The traced money each account that carries it sent to fees and keeps, by the last round.</summary>
         private readonly Dictionary<ChainAddress, AccountTaint> _taints = [];
 
+        /// <summary>
+        /// The movements a whole history holds that the graph does not draw (<see cref="AccountGraph.Unshown"/>): they
+        /// stand in the ledgers, but traced money that goes on in one stops at its sender.
+        /// </summary>
+        private readonly HashSet<EthereumTransfer> _unshown;
+
         /// <summary>Each carrying account's ledger as the method last saw it.</summary>
         private readonly Dictionary<ChainAddress, List<(EthereumTransfer? Transfer, AccountEntry Entry)>> _ledgers = [];
 
@@ -424,10 +438,16 @@ internal static class AccountTraceCalculator
             (_graph, _method, _asset, _seeds, _swaps) = (graph, method, asset, seeds, swaps);
             // A movement of a transaction the answers settle is gone moved nothing on the chain, so it stands in no
             // ledger; a seed there ends at once (GoneEnds).
+            _unshown =
+            [
+                .. graph.Account.Unshown.Where(transfer => transfer.Amount.Asset == asset
+                    && transfer.From != transfer.To && !graph.Account.IsLeftOut(transfer.Transaction)),
+            ];
             _transfers =
             [
                 .. graph.Account.Transfers.Where(transfer => transfer.Amount.Asset == asset
                     && transfer.From != transfer.To && !graph.Account.IsLeftOut(transfer.Transaction)),
+                .. _unshown,
             ];
             foreach (var seed in seeds)
             {
@@ -635,10 +655,13 @@ internal static class AccountTraceCalculator
         {
             var entries = new List<(EthereumTransfer? Transfer, AccountEntry Entry)>();
             foreach (var transfer in _transfers.Where(transfer => Touches(transfer, account)
-                && !(transfer.To.Value == account.Value && StopsBefore(transfer))))
+                && !(transfer.To.Value == account.Value && StopsBefore(transfer) && !_unshown.Contains(transfer))))
             {
                 var incoming = transfer.To.Value == account.Value;
-                var traced = incoming ? _traced.GetValueOrDefault(transfer) : BigInteger.Zero;
+                // A movement without a line comes in untraced: its traced money stopped at the sender.
+                var traced = incoming && !_unshown.Contains(transfer)
+                    ? _traced.GetValueOrDefault(transfer)
+                    : BigInteger.Zero;
                 entries.Add((transfer, new AccountEntry(
                     AssetTransfer.OfEthereum(transfer, null),
                     incoming ? TransferDirection.In : TransferDirection.Out,
@@ -647,8 +670,8 @@ internal static class AccountTraceCalculator
 
             if (_asset.Kind == AssetKind.Native)
             {
-                foreach (var fee in _graph.Account.Fees.Where(fee => fee.Payer.Value == account.Value
-                    && !_graph.Account.IsLeftOut(fee.Transaction)))
+                foreach (var fee in _graph.Account.Fees.Concat(_graph.Account.UnshownFees)
+                    .Where(fee => fee.Payer.Value == account.Value && !_graph.Account.IsLeftOut(fee.Transaction)))
                 {
                     entries.Add((null, new AccountEntry(
                         new AssetTransfer(new ChainTransactionRef(fee.Transaction.Chain, fee.Transaction.Value), fee.Amount,
@@ -679,7 +702,7 @@ internal static class AccountTraceCalculator
         /// <param name="transfer">The movement.</param>
         /// <returns><see langword="true"/> when it does.</returns>
         private bool StopsBefore(EthereumTransfer transfer) =>
-            _linked.ContainsKey(transfer) || _intoSwaps.Contains(transfer)
+            _linked.ContainsKey(transfer) || _intoSwaps.Contains(transfer) || _unshown.Contains(transfer)
             || _graph.Account.IsUncertain(transfer.Transaction);
 
         /// <summary>Records an account's answer and says whether an outgoing share changed.</summary>
@@ -734,6 +757,7 @@ internal static class AccountTraceCalculator
 
             AddSwapEnds(ends, conversions);
             AddGoneEnds(ends, conversions);
+            AddUnshownEnds(ends, conversions);
             var arrived = _transfers.Where(transfer => _traced.GetValueOrDefault(transfer) > 0
                     && !StopsBefore(transfer))
                 .GroupBy(transfer => transfer.To.ToChainAddress());
@@ -758,8 +782,9 @@ internal static class AccountTraceCalculator
                 else
                 {
                     var text = _graph.Account.PartlyRead.Contains(group.Key)
-                        ? "Adressens historik är bara delvis läst (gränsen nåddes eller ett uppslag var ofullständigt), "
-                            + "så pengarna förs inte vidare genom den; det kan saknas rörelser däremellan."
+                        ? "Väntar tills adressens hela historik är läst: den är bara delvis läst (gränsen nåddes eller "
+                            + "ett uppslag var ofullständigt), så pengarna förs inte vidare genom den. Expandera den "
+                            + "igen så läser Chainsaw resten."
                         : "Adressens historik är inte expanderad; expandera den för att spåra vidare.";
                     ends.Add(End(TrailEndReason.NotExpanded, amount, node?.Key, text, [], outdated));
                 }
@@ -878,6 +903,32 @@ internal static class AccountTraceCalculator
                         RestsOn(group, conversions)),
                     _graph.NodeOf(group.First().To.ToChainAddress())?.Key,
                     account.Gone[group.Key].Explain(),
+                    [],
+                    group.Any(transfer => transfer.Block is null)));
+            }
+        }
+
+        /// <summary>
+        /// Adds the ends of the traced money that went on in a movement the graph does not draw: it stops at the
+        /// sender, at the transactions the expansion held back, until the user takes them out (sketch EX2).
+        /// </summary>
+        /// <param name="ends">The ends so far.</param>
+        /// <param name="conversions">What the rule did at each swap.</param>
+        private void AddUnshownEnds(List<TraceEnd> ends, IReadOnlyDictionary<TokenSwap, SwapConversion> conversions)
+        {
+            var sent = _unshown.Where(transfer => _traced.GetValueOrDefault(transfer) > 0)
+                .GroupBy(transfer => transfer.From.ToChainAddress());
+            foreach (var group in sent.OrderBy(group => group.Key.Value, StringComparer.Ordinal))
+            {
+                var amount = Amount(
+                    group.Aggregate(BigInteger.Zero, (sum, transfer) => sum + _traced[transfer]),
+                    group.Select(transfer => transfer.Transaction),
+                    RestsOn(group, conversions));
+                ends.Add(End(
+                    TrailEndReason.NotExpanded,
+                    amount,
+                    _graph.NodeOf(group.Key)?.Key,
+                    UnshownText,
                     [],
                     group.Any(transfer => transfer.Block is null)));
             }
@@ -1012,7 +1063,8 @@ internal static class AccountTraceCalculator
                 return AccountGraph.ChainOrder(transfer);
             }
 
-            var fee = _graph.Account.Fees.First(fee => fee.Transaction.Value == entry.Transfer.Transaction.Id);
+            var fee = _graph.Account.Fees.Concat(_graph.Account.UnshownFees)
+                .First(fee => fee.Transaction.Value == entry.Transfer.Transaction.Id);
             return (fee.Block?.Height ?? long.MaxValue, fee.Block?.TransactionIndex ?? long.MaxValue,
                 fee.Transaction.Value, long.MaxValue, int.MaxValue);
         }

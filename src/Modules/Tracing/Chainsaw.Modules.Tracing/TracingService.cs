@@ -246,6 +246,29 @@ internal sealed class TracingService : ITracingService
     }
 
     /// <inheritdoc/>
+    public Task<string?> ReadWholeHistoryAsync(
+        ICase @case, ChainAddress account, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(account);
+        if (account.Chain.Model() != LedgerModel.Account)
+        {
+            throw new ArgumentException("Only an account chain's history is read whole.", nameof(account));
+        }
+
+        var reader = ReaderFor(account.Chain);
+        var address = EthereumAddress.Parse(account.Chain, account.Value);
+        return Task.Run(
+            async () =>
+            {
+                var (_, problem) = await reader.ReadWholeAsync(@case, address, cancellationToken)
+                    .ConfigureAwait(false);
+                return problem;
+            },
+            cancellationToken);
+    }
+
+    /// <inheritdoc/>
     public Task<HeldBackList> ListHeldBackAsync(
         ICase @case,
         BitcoinAddress address,
@@ -1440,8 +1463,8 @@ internal sealed class TracingService : ITracingService
         var contracts = Ending(TrailEndReason.Mixer, TrailEndReason.OtherChain);
         contracts.UnionWith(KnownContracts.All.Select(contract => contract.Address.ToChainAddress()));
         return new AccountActivity(
-            [.. account.Transfers.Where(transfer => Stays(transfer.Transaction))],
-            [.. account.Fees.Where(fee => Stays(fee.Transaction))],
+            [.. account.Transfers.Concat(account.Unshown).Where(transfer => Stays(transfer.Transaction))],
+            [.. account.Fees.Concat(account.UnshownFees).Where(fee => Stays(fee.Transaction))],
             account.ReadAccounts.Except(account.PartlyRead).ToHashSet(),
             Ending(TrailEndReason.Exchange),
             contracts);

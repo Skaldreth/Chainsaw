@@ -27,13 +27,11 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
     ett block, och inspektörens rad ur källans svar.
   - **Kurs per överföring:** varje rörelse värderas vid sitt blocks tid med Pricings förvalda upplösning; en expansion
     ber om högst 30 kurser, resten hämtas vid nästa.
-  - **En aktiv adress för inte pengarna vidare** (E4: inte byggd, eftersom en regel om täckning ändrar spårets räkning
-    och kräver att saldot före den första spårade ankomsten är känt, för FIFO; ett eget beslut och en egen etapp): en expansion som hölls tillbaka vid 50 tx gör adressen delvis läst,
-    och spårningen stannar där (granskningen av etapp 23b, M2). En regel om täckning (adressen bär när det lästa når
-    bakom den första spårade ankomsten och saldot före är känt) eller en högre gräns för startadressen behövs. Att läsa
-    grafen går också igenom alla ärendets sidor för varje expanderad adress (M3); gå bara ner till expansionens
-    lägsta block. Fröväljaren lämnar också ett frö när en annan frös pengar når avsändaren genom en adress som inte bär
-    pengarna vidare, och säger det inte (M1).
+  - **Delvis lästa adresser efter E5** (hela historiken läses när spårade pengar stannar vid en expanderad adress):
+    kvar är att läsa grafen genom alla ärendets sidor för varje expanderad adress (M3, gå bara ner till expansionens
+    lägsta block), att fröväljaren säger när en annan frös pengar når avsändaren genom en adress som inte bär (M1),
+    och en räknare för uppslagen medan hela historiken läses. En adress med fler sidor än läsaren går igenom (50 per
+    historik) förblir delvis läst.
   - **Omexpansionens golv** (granskningen av etapp 23b, omgång 3): golvet tas ur det ärendets sidor når nu, så tidigare
     tx som inte längre nås (ett ärende från före rättelsen, eller en läsning som stannade vid 50 sidor) läses inte om;
     spara höjderna med expansionen. Att expandera en adress igen efter lång tid kan kosta upp till 150 uppslag; visa

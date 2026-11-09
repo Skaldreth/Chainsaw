@@ -83,6 +83,25 @@ internal sealed class EthereumReader(IAccountSource source)
         return new EthereumStep(taken, Join(problem, missing.Problem), true, heldBack) { Notes = walk.Notes };
     }
 
+    /// <summary>
+    /// Reads an address's whole history into the case, every page of its three histories down to the first, without
+    /// bringing more of it into the graph: the expansion's limit still decides what is drawn, but the trace counts the
+    /// whole ledger (the user's decision 2026-11-09: a partly read address waits until all of it is read).
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="address">The address.</param>
+    /// <param name="cancellationToken">Stops the work.</param>
+    /// <returns>Whether the whole history is now in the case, and what went wrong.</returns>
+    public async Task<(bool Whole, string? Problem)> ReadWholeAsync(
+        ICase @case, EthereumAddress address, CancellationToken cancellationToken)
+    {
+        var walk = await WalkAsync(@case, address, LookupMode.AsNeeded, null, null, cancellationToken)
+            .ConfigureAwait(false);
+        return walk.Whole
+            ? (true, null)
+            : (false, Join(walk.Problem, "Hela historiken kunde inte läsas; spåret stannar vid adressen."));
+    }
+
     /// <summary>Brings in a transaction with every movement in it, and its block's hash.</summary>
     /// <param name="case">The open case.</param>
     /// <param name="hash">The transaction.</param>
@@ -137,6 +156,8 @@ internal sealed class EthereumReader(IAccountSource source)
         var read = new HashSet<ChainAddress>();
         var partly = new HashSet<ChainAddress>();
         var outdated = new HashSet<ChainAddress>();
+        var unshown = new List<EthereumTransfer>();
+        var unshownFees = new List<EthereumFee>();
         foreach (var expansion in state.EthereumHistories
             .Where(expansion => expansion.EthereumAddress!.Chain == source.Chain))
         {
@@ -164,7 +185,16 @@ internal sealed class EthereumReader(IAccountSource source)
             // Only an expansion that brought in all it found, and whose transactions the case's pages still hold,
             // carries money on; one held back at the limit, left incomplete or missing from the pages has a gap in its
             // ledger, so the money stops there instead of being counted through it.
-            (expansion.IsComplete && lost == 0 ? read : partly).Add(address.ToChainAddress());
+            // A history the case holds whole carries money on even when the graph shows only part of it: the rest
+            // stands in the ledger without a line (the user's decision 2026-11-09).
+            var readWhole = !expansion.IsComplete && walk.Whole;
+            (lost == 0 && (expansion.IsComplete || readWhole) ? read : partly).Add(address.ToChainAddress());
+            if (readWhole && lost == 0)
+            {
+                unshown.AddRange(walk.Transfers.Where(transfer => !wanted.Contains(transfer.Transaction)));
+                unshownFees.AddRange(walk.Fees.Where(fee => !wanted.Contains(fee.Transaction)));
+            }
+
             if (lost > 0)
             {
                 problems.Add(string.Format(
@@ -184,8 +214,39 @@ internal sealed class EthereumReader(IAccountSource source)
             BlockHashes = blocks.Hashes.ToDictionary(pair => (source.Chain, pair.Key), pair => pair.Value),
             Problems = problems,
             PartlyRead = partly,
+            Unshown = UnshownOf(data, unshown),
+            UnshownFees = UnshownFeesOf(data, unshownFees),
             Gone = await GoneAsync(@case, data, cancellationToken).ConfigureAwait(false),
         };
+    }
+
+    /// <summary>
+    /// Gives the movements a whole history holds beyond what the graph shows, each once and none the graph draws, in
+    /// chain order.
+    /// </summary>
+    /// <param name="data">The data the graph is drawn from.</param>
+    /// <param name="unshown">The movements of the whole histories that their expansions did not bring in.</param>
+    /// <returns>The movements.</returns>
+    private static List<EthereumTransfer> UnshownOf(AccountData data, List<EthereumTransfer> unshown)
+    {
+        var shown = data.Transfers.Select(transfer => transfer.Transaction).ToHashSet();
+        var once = new Dictionary<TransferKey, EthereumTransfer>();
+        foreach (var transfer in unshown.Where(transfer => !shown.Contains(transfer.Transaction)))
+        {
+            once.TryAdd(TransferKey.Of(transfer), transfer);
+        }
+
+        return [.. once.Values.OrderBy(AccountGraph.ChainOrder)];
+    }
+
+    /// <summary>Gives the fees a whole history holds beyond what the graph shows, one per transaction.</summary>
+    /// <param name="data">The data the graph is drawn from.</param>
+    /// <param name="fees">The fees of the whole histories that their expansions did not bring in.</param>
+    /// <returns>The fees.</returns>
+    private static List<EthereumFee> UnshownFeesOf(AccountData data, List<EthereumFee> fees)
+    {
+        var shown = data.Fees.Select(fee => fee.Transaction).ToHashSet();
+        return [.. fees.Where(fee => !shown.Contains(fee.Transaction)).DistinctBy(fee => fee.Transaction)];
     }
 
     /// <summary>
@@ -284,7 +345,13 @@ internal sealed class EthereumReader(IAccountSource source)
                 walk.Add(page, lookup.Notes);
                 hashes.UnionWith(page.Transfers.Select(transfer => transfer.Transaction));
                 hashes.UnionWith(page.Fees.Select(fee => fee.Transaction));
-                if (page.NextAtOrBelow is not { } next || next == atOrBelow || hashes.Count == before)
+                if (page.NextAtOrBelow is not { } next)
+                {
+                    walk.End();
+                    break;
+                }
+
+                if (next == atOrBelow || hashes.Count == before)
                 {
                     break;
                 }
@@ -298,6 +365,11 @@ internal sealed class EthereumReader(IAccountSource source)
                 }
 
                 atOrBelow = next;
+                if (pages == MostPages - 1)
+                {
+                    // The pages ran out before the history did: what is older was not read.
+                    walk.MoreThanRead = true;
+                }
             }
         }
 
@@ -359,6 +431,18 @@ internal sealed class EthereumReader(IAccountSource source)
         /// <summary>The transactions seen.</summary>
         private readonly HashSet<EthereumTxHash> _seen = [];
 
+        /// <summary>How many of the histories were read down to their last page.</summary>
+        private int _ended;
+
+        /// <summary>Whether a page left something out or a lookup failed, so that the history has a gap.</summary>
+        private bool _gap;
+
+        /// <summary>
+        /// Gets whether all three histories were read down to their last page without a gap, so that the address's
+        /// ledger is whole as the case reads it.
+        /// </summary>
+        public bool Whole => Answered && !_gap && !MoreThanRead && _ended == Histories.Length;
+
         /// <summary>Gets or sets whether the source or the case answered at all.</summary>
         public bool Answered { get; set; }
 
@@ -402,12 +486,14 @@ internal sealed class EthereumReader(IAccountSource source)
 
             if (page.IsCutShort)
             {
+                _gap = true;
                 Problem = Lookups.Join(Problem,
                     "En sida av historiken låg i ett enda block; det som är äldre kunde inte läsas.");
             }
 
             if (page.IsIncomplete)
             {
+                _gap = true;
                 Problem = Lookups.Join(Problem, "Källan har inte läst hela historiken än; expandera igen senare.");
                 Problem = notes.Aggregate(Problem, Lookups.Join);
 
@@ -415,12 +501,14 @@ internal sealed class EthereumReader(IAccountSource source)
 
             if (page.Unread > 0)
             {
+                _gap = true;
                 Problem = Lookups.Join(Problem,
                     "Källan saknade decimaler för en token; de posterna räknades inte än.");
             }
 
             if (page.Unexplained.Count > 0)
             {
+                _gap = true;
                 Problem = Lookups.Join(Problem,
                     "Tx " + EthereumTxHash.BriefList(page.Unexplained) + " flyttade mer än källan kunde läsa (på "
                     + "Solana ett program som flyttade värde utan en instruktion noden tolkar); det som kunde läsas "
@@ -435,11 +523,15 @@ internal sealed class EthereumReader(IAccountSource source)
             }
         }
 
+        /// <summary>Records that a history was read down to its last page.</summary>
+        public void End() => _ended++;
+
         /// <summary>Records a lookup that failed.</summary>
         /// <param name="problem">Why.</param>
         /// <param name="first">Whether it was a history's first page.</param>
         public void Fail(string problem, bool first)
         {
+            _gap = true;
             Problem = Lookups.Join(Problem, problem);
             MoreThanRead |= !first;
         }

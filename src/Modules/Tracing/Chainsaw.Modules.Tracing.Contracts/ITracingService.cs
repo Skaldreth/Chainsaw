@@ -1,5 +1,6 @@
 using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Chains.Contracts;
+using Chainsaw.SharedKernel;
 
 namespace Chainsaw.Modules.Tracing.Contracts;
 
@@ -43,6 +44,20 @@ public interface ITracingService
     void SetAccountClusterOpen(ICase @case, string key, bool open)
     {
     }
+
+    /// <summary>
+    /// Reads an account's whole history into the case, every page down to the first, so that an address the graph
+    /// shows only in part (held back at the limit) carries the traced money on (the user's decision 2026-11-09: a
+    /// partly read address waits until all of it is read). The graph still draws what the expansion brought in; the
+    /// rest stands in the trace's ledgers (<see cref="AccountGraph.Unshown"/>). Every page is sealed as it is read.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="account">The account, on an account chain whose history the graph has expanded.</param>
+    /// <param name="cancellationToken">Stops the work.</param>
+    /// <returns>Why the whole history could not be read, or <see langword="null"/> when it is in the case.</returns>
+    Task<string?> ReadWholeHistoryAsync(
+        ICase @case, ChainAddress account, CancellationToken cancellationToken = default) =>
+        Task.FromResult<string?>("Hela historiken kan inte läsas här.");
 
     /// <summary>
     /// Adds a start point, with a line in the journal. The graph shows it at once; what goes on from it appears when

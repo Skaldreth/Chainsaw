@@ -2422,6 +2422,15 @@ Grafen för Ethereum är inte byggd än; det som går att prova är källan, sta
 - Välj ett konto i ett utfällt kluster och *Bryt upp* (U): formuläret säger att kontot bryts ut, och efter *Bryt ut*
   står det utanför klustret.
 
+## Delvis lästa adresser på Ethereum (E5, 2026-11-09)
+
+- [ ] Spåra från en startpunkt till en adress med fler än 50 tx och expandera den: Chainsaw läser hela historiken
+      (det tar en stund, uppslagen syns som väntan), grafen visar fortfarande de 50 nyaste och `+N tx`, och spåret
+      går vidare genom adressen. Pengar som gick vidare i en tx som inte är ritad står som ett slut vid adressen med
+      *hölls tillbaka* i *Varför?*.
+- [ ] Offline eller utan Etherscan-nyckel: slutet vid adressen säger *Väntar tills adressens hela historik är läst*.
+- [ ] Inspektörens saldo för en sådan adress räknas med hela historiken, inte bara linjerna.
+
 ## Kontroller på Ethereum (E3)
 
 - En överföring av noll från en adress som liknar en verklig motpart ger *Adressförgiftning troligt* i KF2b, med ett

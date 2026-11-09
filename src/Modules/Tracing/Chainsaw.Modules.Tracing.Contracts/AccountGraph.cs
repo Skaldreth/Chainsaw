@@ -44,6 +44,16 @@ public sealed record AccountGraph(
     public IReadOnlySet<ChainAddress> PartlyRead { get; init; } = new HashSet<ChainAddress>();
 
     /// <summary>
+    /// Gets the movements of accounts whose whole history the case holds but the graph shows only in part (held back
+    /// at the limit, the user's decision 2026-11-09): they stand in the trace's ledgers and in the balances without a
+    /// line, and the traced money that goes on in one stops at its sender, at the held-back transactions.
+    /// </summary>
+    public IReadOnlyList<EthereumTransfer> Unshown { get; init; } = [];
+
+    /// <summary>Gets the fees of the transactions in <see cref="Unshown"/>'s histories that the graph does not show.</summary>
+    public IReadOnlyList<EthereumFee> UnshownFees { get; init; } = [];
+
+    /// <summary>
     /// Gets the transactions that would read as a swap but for a counterparty the trail must reach (a known bridge or
     /// mixer, or a label as exchange, mixer or bridge), so that <em>Varför?</em> can say why there is no swap.
     /// </summary>

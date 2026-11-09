@@ -320,9 +320,67 @@ public sealed class GraphSource(
                 graph = await WithSharedLabelsAsync(@case, graph, cancellationToken).ConfigureAwait(false);
                 var scene = await ComposeAsync(@case, graph, reading, cancellationToken)
                     .ConfigureAwait(false);
+                if (await ReadWholeWhereTracedAsync(@case, requests, scene, problems, cancellationToken)
+                    .ConfigureAwait(false))
+                {
+                    graph = await tracing.LoadAsync(@case, cancellationToken).ConfigureAwait(false);
+                    graph = await WithSharedLabelsAsync(@case, graph, cancellationToken).ConfigureAwait(false);
+                    scene = await ComposeAsync(@case, graph, reading, cancellationToken).ConfigureAwait(false);
+                }
+
                 return new GraphExpansion(scene, Combine(outcomes), added, problems);
             },
             cancellationToken);
+    }
+
+    /// <summary>
+    /// Reads the whole history of each account the expansion asked for where traced money stops because the account is
+    /// only partly read (the user's decision 2026-11-09: it waits until all of it is read), so that the trace carries
+    /// the money on through it. Only the expanded accounts are read, so that no other lookup is made unasked.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="requests">The expansion's lookups.</param>
+    /// <param name="scene">The graph after the expansion, with its trace.</param>
+    /// <param name="problems">What went wrong, which a read that fails adds to.</param>
+    /// <param name="cancellationToken">Stops the work.</param>
+    /// <returns>Whether a whole history was read, so that the graph is read again.</returns>
+    private async Task<bool> ReadWholeWhereTracedAsync(
+        ICase @case,
+        IReadOnlyList<ExpansionRequest> requests,
+        GraphScene scene,
+        List<string> problems,
+        CancellationToken cancellationToken)
+    {
+        var graph = scene.Snapshot.Graph;
+        var asked = requests.Select(request => request.EthereumAddress?.ToChainAddress()).OfType<ChainAddress>()
+            .Where(graph.Account.PartlyRead.Contains)
+            .ToHashSet();
+        if (asked.Count == 0 || scene.Snapshot.AccountTrace is not { } trace)
+        {
+            return false;
+        }
+
+        var stopped = trace.Ends
+            .Where(end => end.Reason == TrailEndReason.NotExpanded && end.NodeKey is not null)
+            .Select(end => graph.Nodes.FirstOrDefault(node => node.Key == end.NodeKey))
+            .OfType<GraphNode>()
+            .SelectMany(node => node.Accounts)
+            .Where(asked.Contains)
+            .Distinct()
+            .ToList();
+        var read = false;
+        foreach (var account in stopped)
+        {
+            var problem = await tracing.ReadWholeHistoryAsync(@case, account, cancellationToken)
+                .ConfigureAwait(false);
+            read |= problem is null;
+            if (problem is not null && !problems.Contains(problem))
+            {
+                problems.Add(problem);
+            }
+        }
+
+        return read;
     }
 
     /// <inheritdoc/>

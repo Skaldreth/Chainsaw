@@ -871,9 +871,19 @@ public sealed record GraphScene(
         IReadOnlyList<EthereumFee> fees)
     {
         var graph = snapshot.Graph;
-        fees = [.. fees.Where(fee => !graph.Account.IsLeftOut(fee.Transaction))];
+        // A whole history the graph shows only in part has the rest without a line; it counts all the same.
+        var own = node.Addresses.ToHashSet();
+        var unshownIn = graph.Account.Unshown.Where(transfer => own.Contains(transfer.To.ToChainAddress())).ToList();
+        var unshownOut = graph.Account.Unshown.Where(transfer => own.Contains(transfer.From.ToChainAddress())).ToList();
+        fees =
+        [
+            .. fees.Concat(graph.Account.UnshownFees.Where(fee => own.Contains(fee.Payer.ToChainAddress())))
+                .Where(fee => !graph.Account.IsLeftOut(fee.Transaction)),
+        ];
         var assets = incoming.Concat(outgoing)
-            .Select(edge => edge.Edge.Amount.Asset).Distinct()
+            .Select(edge => edge.Edge.Amount.Asset)
+            .Concat(unshownIn.Concat(unshownOut).Select(transfer => transfer.Amount.Asset))
+            .Distinct()
             .OrderBy(asset => asset.Kind == AssetKind.Native ? 0 : 1)
             .ThenBy(asset => asset.Symbol, StringComparer.Ordinal)
             .ToList();
@@ -882,8 +892,8 @@ public sealed record GraphScene(
         var rows = new List<TokenBalanceRow>();
         foreach (var asset in assets)
         {
-            var came = Total(asset, incoming) - LeftOut(asset, incoming, graph);
-            var went = Total(asset, outgoing) - LeftOut(asset, outgoing, graph);
+            var came = Total(asset, incoming) - LeftOut(asset, incoming, graph) + Unshown(asset, unshownIn, graph);
+            var went = Total(asset, outgoing) - LeftOut(asset, outgoing, graph) + Unshown(asset, unshownOut, graph);
             if (asset.Kind == AssetKind.Native)
             {
                 went = fees.Aggregate(went, (sum, fee) => sum + fee.Amount);
@@ -930,6 +940,19 @@ public sealed record GraphScene(
     private static AssetAmount Total(Asset asset, IEnumerable<EdgeView> lines) => lines
         .Where(edge => edge.Edge.Amount.Asset == asset)
         .Aggregate(AssetAmount.Zero(asset), (sum, edge) => sum + edge.Edge.Amount);
+
+    /// <summary>
+    /// Sums the movements of one asset that a whole history holds without a line, leaving out those of transactions
+    /// the answers settle are gone.
+    /// </summary>
+    /// <param name="asset">The asset.</param>
+    /// <param name="transfers">The movements without a line.</param>
+    /// <param name="graph">The graph, which knows the gone transactions.</param>
+    /// <returns>The sum.</returns>
+    private static AssetAmount Unshown(Asset asset, IEnumerable<EthereumTransfer> transfers, TraceGraph graph) =>
+        transfers
+            .Where(transfer => transfer.Amount.Asset == asset && !graph.Account.IsLeftOut(transfer.Transaction))
+            .Aggregate(AssetAmount.Zero(asset), (sum, transfer) => sum + transfer.Amount);
 
     /// <summary>
     /// Sums the transfers of one asset on lines that belong to transactions the answers settle are gone (sketch GR9a):

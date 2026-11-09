@@ -104,6 +104,8 @@ internal sealed class GraphBuilder
             {
                 MayBeOutdated = account.MayBeOutdated,
                 PartlyRead = account.PartlyRead,
+                Unshown = account.Unshown,
+                UnshownFees = account.UnshownFees,
                 RefusedSwaps = refused,
                 Gone = account.Gone,
             },

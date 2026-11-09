@@ -257,10 +257,21 @@ public sealed class EthereumGraphTests : IDisposable
         Assert.True(_harness.Verify().IsIntact);
     }
 
+    /// <summary>Gives the scammer older income of USDT, so that its token history runs over more than one page.</summary>
+    private void OlderIncome()
+    {
+        var other = Address("other");
+        _harness.Ethereum.Add(
+            Tx("old-1", 50, other, 0.001m, Token(other, Scammer, Usdt(10))),
+            Tx("old-2", 51, other, 0.001m, Token(other, Scammer, Usdt(10))),
+            Tx("old-3", 52, other, 0.001m, Token(other, Scammer, Usdt(10))));
+    }
+
     [Fact]
     public async Task A_partly_read_account_does_not_carry_the_money_and_says_why()
     {
         Chain();
+        OlderIncome();
         _harness.Service.AddStartPoint(_harness.Case, TraceStartPoint.ForEthereumAddress(Scammer));
         await _harness.Service.ExpandAsync(_harness.Case, ExpansionRequest.ForEthereumAddress(Scammer, 2));
         var graph = (await _harness.Service.ExpandAsync(
@@ -275,6 +286,38 @@ public sealed class EthereumGraphTests : IDisposable
         var end = Assert.Single(result.Ends);
         Assert.Equal(TrailEndReason.NotExpanded, end.Reason);
         Assert.Contains("delvis läst", end.Explanation, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_whole_history_carries_the_money_on_and_what_the_graph_does_not_draw_stops_at_the_sender()
+    {
+        Chain();
+        OlderIncome();
+        _harness.Service.AddStartPoint(_harness.Case, TraceStartPoint.ForEthereumAddress(Scammer));
+        await _harness.Service.ExpandAsync(_harness.Case, ExpansionRequest.ForEthereumAddress(Scammer, 1));
+        var partly = (await _harness.Service.ExpandAsync(
+            _harness.Case, ExpansionRequest.ForEthereumTransaction(Hash("pay-usdt")))).Graph;
+        Assert.Contains(Scammer.ToChainAddress(), partly.Account.PartlyRead);
+
+        var problem = await _harness.Service.ReadWholeHistoryAsync(_harness.Case, Scammer.ToChainAddress());
+        var graph = await _harness.Load();
+        var result = await _harness.Service.TraceAccountsAsync(
+            graph, new AccountTraceRequest(TracingMethodKind.Fifo, [AccountSeed.Of(Usdt1000ToScammer(graph))]));
+
+        Assert.Null(problem);
+        Assert.DoesNotContain(Scammer.ToChainAddress(), graph.Account.PartlyRead);
+        Assert.Contains(Scammer.ToChainAddress(), graph.Account.ReadAccounts);
+        Assert.Contains(graph.Account.Unshown, transfer => transfer.Transaction == Hash("to-mule"));
+        Assert.DoesNotContain(graph.Edges.SelectMany(edge => edge.Transfers),
+            transfer => transfer.Transaction.Id == Hash("to-mule").Value);
+        // FIFO: the 30 USDT of older income leave first, so 570 of the traced 1 000 went on to the mule in a
+        // transaction the graph does not draw, and stop at the scammer.
+        var held = Assert.Single(result.Ends, end => end.Explanation.Contains("hölls tillbaka", StringComparison.Ordinal));
+        Assert.Equal(TrailEndReason.NotExpanded, held.Reason);
+        Assert.Equal(Usdt(570), held.Amount.Amount);
+        Assert.Equal(graph.NodeOf(Scammer.ToChainAddress())!.Key, held.NodeKey);
+        Assert.DoesNotContain(result.Ends, end => end.Explanation.Contains("delvis läst", StringComparison.Ordinal));
+        Assert.True(_harness.Verify().IsIntact);
     }
 
     [Fact]

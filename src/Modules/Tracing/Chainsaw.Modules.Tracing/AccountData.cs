@@ -37,6 +37,15 @@ internal sealed record AccountData(
     /// </summary>
     public IReadOnlySet<ChainAddress> PartlyRead { get; init; } = new HashSet<ChainAddress>();
 
+    /// <summary>
+    /// Gets the movements of accounts whose whole history the case holds but the graph shows only in part (held back at
+    /// the limit): they stand in the trace's ledgers without a line.
+    /// </summary>
+    public IReadOnlyList<EthereumTransfer> Unshown { get; init; } = [];
+
+    /// <summary>Gets the fees of those movements' transactions that the graph does not show.</summary>
+    public IReadOnlyList<EthereumFee> UnshownFees { get; init; } = [];
+
     /// <summary>Gets what could not be read, in Swedish.</summary>
     public IReadOnlyList<string> Problems { get; init; } = [];
 
@@ -151,6 +160,8 @@ internal sealed record AccountData(
         {
             BlockHashes = BlockHashes.Concat(other.BlockHashes).ToDictionary(),
             PartlyRead = PartlyRead.Union(other.PartlyRead).ToHashSet(),
+            Unshown = [.. Unshown.Concat(other.Unshown).OrderBy(AccountGraph.ChainOrder)],
+            UnshownFees = [.. UnshownFees.Concat(other.UnshownFees)],
             Problems = [.. Problems, .. other.Problems],
             Gone = Gone.Concat(other.Gone).ToDictionary(),
         };

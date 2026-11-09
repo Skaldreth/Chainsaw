@@ -6270,3 +6270,20 @@ insättning i en borta tx i Begäran, Flöde).
   kontrakt och DEX:ar (kräver adresser belagda med en offentlig källa), och det som ska prövas mot en riktig Blockscout
   eller Etherscan (`transactionIndex`, interna tx under ett återställt anrop, decimaler).
 
+## E5 (2026-11-09): en delvis läst adress väntar tills allt är läst
+
+- **Användarens beslut:** en adress som bara delvis är läst för inte pengarna vidare förrän hela historiken är läst.
+- `EthereumReader.ReadWholeAsync` går igenom adressens tre historiker ner till sista sidan (högst 50 sidor var) och
+  förseglar varje sida i ärendet. `HistoryWalk.Whole` säger att alla tre nådde sista sidan utan lucka.
+- När ärendets sidor håller hela historiken räknas adressen som läst även om expansionen hölls tillbaka vid gränsen:
+  grafen ritar det expansionen tog med, och resten står i `AccountGraph.Unshown`/`UnshownFees` utan linje.
+- Spårningen räknar med hela kontot: rörelserna utan linje står i kontots ledger; spårade pengar som går vidare i en
+  sådan stannar vid avsändaren som *NotExpanded* med texten *hölls tillbaka*, och kommer in ospårade hos mottagaren.
+  Saldot i inspektören och kontoklustringens aktivitet räknar också med dem.
+- `ITracingService.ReadWholeHistoryAsync`; appen anropar den efter en expansion för de expanderade adresser där
+  spårade pengar stannar för att adressen är delvis läst, och läser sedan grafen igen. Ingen annan adress läses
+  oombedd.
+- Slutet vid en delvis läst adress säger *Väntar tills adressens hela historik är läst … Expandera den igen*.
+- Egna beslut: ingen ny skiss (det som syns är befintliga slut, `+N tx` och texter); ingen journalrad (sidorna
+  förseglas som alla uppslag).
+
