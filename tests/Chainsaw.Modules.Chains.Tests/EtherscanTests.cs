@@ -165,6 +165,44 @@ public sealed class EtherscanTests : IDisposable
     public void A_path_Etherscan_has_no_query_for_is_not_claimed(string path) =>
         Assert.False(new EtherscanApi(new EthereumSourceOptions()).Answers(path));
 
+    [Theory]
+    [InlineData("etherscan-txlist.json", EthereumHistory.Transactions)]
+    [InlineData("etherscan-txlistinternal.json", EthereumHistory.Internal)]
+    [InlineData("etherscan-tokentx.json", EthereumHistory.Tokens)]
+    public void Etherscan_s_real_history_pages_are_read(string file, EthereumHistory history)
+    {
+        var page = BlockscoutParser.ParseHistory(
+            Real(file), EthereumAddress.Parse("0xde0b295669a9fd93d5f28d9ec85e40f4cb697bae"), history, null, 50);
+
+        Assert.NotEmpty(page.Transfers.Count > 0 ? page.Transfers : page.Fees);
+        Assert.False(page.IsIncomplete);
+    }
+
+    [Fact]
+    public void Etherscan_s_real_height_and_block_are_read()
+    {
+        Assert.True(BlockscoutParser.ParseHeight(Real("etherscan-height.json")).Height > 26_000_000);
+        Assert.StartsWith("0x", BlockscoutParser.ParseBlock(Real("etherscan-block.json"), 0x1927f00).Hash,
+            StringComparison.Ordinal);
+        Assert.Equal(
+            "0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3",
+            BlockscoutParser.ParseBlock(Real("etherscan-genesis.json"), 0).Hash);
+    }
+
+    [Fact]
+    public void A_refused_key_is_said_in_the_source_s_own_words()
+    {
+        var body = Encoding.ASCII.GetBytes("""{"status":"0","message":"NOTOK","result":"Missing/Invalid API Key"}""");
+
+        var refused = Assert.Throws<SourceKeyRefusedException>(() => BlockscoutParser.ParseHeight(body));
+
+        Assert.Equal("Missing/Invalid API Key", refused.Said);
+        Assert.Contains("Missing/Invalid API Key", SourceLookups.KeyRefusedText(refused.Said), StringComparison.Ordinal);
+    }
+
+    private static byte[] Real(string file) =>
+        File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Ethereum", file));
+
     [Fact]
     public async Task A_built_in_endpoint_added_later_comes_to_a_saved_chain_once()
     {

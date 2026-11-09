@@ -30,6 +30,13 @@ internal sealed class SourceLookups
     private const string FailedText =
         "Källans svar gick inte att tolka eller gick inte ihop. Det är sparat i ärendet men används inte.";
 
+    /// <summary>Says that the source refused the API key, in its own words, and where the key is changed.</summary>
+    /// <param name="said">What the source answered.</param>
+    /// <returns>The text for the user.</returns>
+    internal static string KeyRefusedText(string said) =>
+        $"Källan godtar inte API-nyckeln (den svarade: {said}). Kontrollera nyckeln under Inställningar › Källor › "
+        + "Nycklar.";
+
     /// <summary>The HTTP status of a source that is asked too fast.</summary>
     private const int TooManyRequestsStatus = 429;
 
@@ -588,6 +595,10 @@ internal sealed class SourceLookups
         {
             return (null, BusyText, Outcome.Wait);
         }
+        catch (SourceKeyRefusedException refused)
+        {
+            return (null, KeyRefusedText(refused.Said), Outcome.Failed);
+        }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
             // Whatever the source sent, the response is sealed afterwards; a body that cannot be read is never
@@ -842,6 +853,17 @@ internal sealed class SourceBusyException : FormatException
         : base("The source says it is asked too fast.")
     {
     }
+}
+
+/// <summary>
+/// Thrown by a parser when the source's body says that the API key is missing or refused (Etherscan answers that with
+/// 200 and <c>status 0</c>), so that the user is told so instead of that the answer could not be read.
+/// </summary>
+/// <param name="said">What the source answered.</param>
+internal sealed class SourceKeyRefusedException(string said) : FormatException("The source refused the API key.")
+{
+    /// <summary>Gets what the source answered.</summary>
+    public string Said { get; } = said;
 }
 
 /// <summary>

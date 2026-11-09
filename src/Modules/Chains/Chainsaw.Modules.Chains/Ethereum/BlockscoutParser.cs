@@ -590,6 +590,7 @@ internal static class BlockscoutParser
             if (document.RootElement.ValueKind == JsonValueKind.Object)
             {
                 ThrowIfBusy(document.RootElement);
+                ThrowIfKeyRefused(document.RootElement);
             }
 
             return read(document.RootElement);
@@ -664,6 +665,22 @@ internal static class BlockscoutParser
                 || said.Contains("too many requests", StringComparison.OrdinalIgnoreCase)))
         {
             throw new SourceBusyException();
+        }
+    }
+
+    /// <summary>
+    /// Throws when an Etherscan-style answer says that the API key is refused: status 0 and a result that names the key
+    /// (Etherscan answers <c>Missing/Invalid API Key</c> with 200), so that the user is told the source's own words.
+    /// </summary>
+    /// <param name="root">The answer.</param>
+    /// <exception cref="SourceKeyRefusedException">It says so.</exception>
+    private static void ThrowIfKeyRefused(JsonElement root)
+    {
+        if (OptionalString(root, "status") == "0"
+            && root.TryGetProperty("result", out var result) && result.ValueKind == JsonValueKind.String
+            && result.GetString() is { } said && said.Contains("API Key", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new SourceKeyRefusedException(said);
         }
     }
 
