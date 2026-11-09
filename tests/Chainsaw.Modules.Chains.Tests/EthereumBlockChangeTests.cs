@@ -123,6 +123,77 @@ public sealed class EthereumBlockChangeTests : IDisposable
     }
 
     [Fact]
+    public async Task A_gone_transaction_names_its_hosts_and_rests_on_one_source_when_the_case_heard_from_one()
+    {
+        await TipAsync(920);
+        await Source.GetTransactionAsync(_harness.Case, EthereumHarness.H1);
+        _harness.Answer(EthereumHarness.TxUrl(EthereumHarness.H1), "tx-unknown.json");
+        await Source.GetTransactionAsync(_harness.Case, EthereumHarness.H1);
+        await TipAsync(921);
+        await Source.GetTransactionAsync(_harness.Case, EthereumHarness.H1);
+
+        var change = Assert.Single(await Source.GetBlockChangesAsync(_harness.Case));
+
+        Assert.Equal(["blockscout.test"], change.GoneHosts);
+        Assert.True(change.IsSingleSource);
+        Assert.True(change.IsCorroborated);
+        Assert.False(change.NeverInBlock);
+    }
+
+    [Fact]
+    public async Task One_host_that_says_gone_while_the_case_heard_from_another_is_not_corroborated()
+    {
+        await TipAsync(920);
+        await Source.GetTransactionAsync(_harness.Case, EthereumHarness.H1);
+        await OnlySecondAsync();
+        _harness.Http.Answer(Second + "?module=transaction&action=gettxinfo&txhash=" + EthereumHarness.H1.Value,
+            "../Ethereum/tx-unknown.json");
+        await TipAsync(921, Second);
+        await Source.GetTransactionAsync(_harness.Case, EthereumHarness.H1);
+        await TipAsync(922, Second);
+        await Source.GetTransactionAsync(_harness.Case, EthereumHarness.H1);
+
+        var change = Assert.Single(await Source.GetBlockChangesAsync(_harness.Case));
+
+        Assert.Equal(BlockChangeKind.Gone, change.Kind);
+        Assert.Equal(["second.example"], change.GoneHosts);
+        Assert.False(change.IsSingleSource);
+        Assert.False(change.IsCorroborated);
+    }
+
+    [Fact]
+    public async Task A_pending_transaction_the_source_no_longer_knows_is_gone_from_the_mempool_with_a_journal_line()
+    {
+        var pending = EthereumTxHash.Parse("0x" + Fixtures.Repeat("b4", 32));
+        await TipAsync(920);
+        _harness.Answer(EthereumHarness.TxUrl(pending), "tx-pending.json");
+        await Source.GetTransactionAsync(_harness.Case, pending);
+        _harness.Answer(EthereumHarness.TxUrl(pending), "tx-unknown.json");
+        await Source.GetTransactionAsync(_harness.Case, pending);
+        await TipAsync(921);
+        await Source.GetTransactionAsync(_harness.Case, pending);
+        Assert.Empty(await Source.GetBlockChangesAsync(_harness.Case));
+
+        _harness.Clock.UtcNow += TimeSpan.FromMinutes(61);
+        await TipAsync(922);
+        await Source.GetTransactionAsync(_harness.Case, pending);
+        var change = Assert.Single(await Source.GetBlockChangesAsync(_harness.Case));
+        var gone = MempoolLines();
+
+        _harness.Answer(EthereumHarness.TxUrl(pending), "tx-pending.json");
+        await Source.GetTransactionAsync(_harness.Case, pending);
+
+        Assert.Equal(BlockChangeKind.Gone, change.Kind);
+        Assert.True(change.NeverInBlock);
+        Assert.Null(change.Before.Height);
+        Assert.Equal("chains.mempool-gone", Assert.Single(gone).Kind);
+        Assert.Contains("Ethereum-tx", gone[0].Summary, StringComparison.Ordinal);
+        Assert.Empty(await Source.GetBlockChangesAsync(_harness.Case));
+        Assert.Equal(["chains.mempool-gone", "chains.mempool-back"], MempoolLines().Select(line => line.Kind));
+        Assert.True(_harness.Verify().IsIntact);
+    }
+
+    [Fact]
     public async Task Reading_the_changes_sends_nothing()
     {
         await FetchTwiceAsync();
@@ -132,6 +203,19 @@ public sealed class EthereumBlockChangeTests : IDisposable
         await Source.GetBlockChangesAsync(_harness.Case);
 
         Assert.Equal(sent, _harness.Http.Sent.Count);
+    }
+
+    /// <summary>The journal's lines about the mempool rule, oldest first.</summary>
+    private List<Cases.Contracts.JournalEntry> MempoolLines() =>
+        [.. _harness.Case.ReadJournal().Where(line => line.Kind.StartsWith("chains.mempool", StringComparison.Ordinal))];
+
+    /// <summary>Adds a second endpoint and leaves only it switched on.</summary>
+    private async Task OnlySecondAsync()
+    {
+        var first = _harness.Sources.Get(Chain.Ethereum).Endpoints[0].Endpoint;
+        var (_, saved) = _harness.Sources.Add(Chain.Ethereum, new Uri(Second), BlockscoutApi.Code, null);
+        await saved;
+        await _harness.Sources.SetEnabledAsync(Chain.Ethereum, first.Id, false);
     }
 
     /// <summary>Fetches the transaction twice while its block is shallow, so that it is asked again.</summary>

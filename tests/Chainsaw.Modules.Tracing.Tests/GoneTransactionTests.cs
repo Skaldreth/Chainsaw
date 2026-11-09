@@ -90,6 +90,25 @@ public sealed class GoneTransactionTests : IDisposable
     }
 
     [Fact]
+    public async Task A_transaction_gone_from_the_mempool_ends_the_trail_and_says_it_never_was_in_a_block()
+    {
+        await ExpandAsync();
+        var seen = new BlockSighting(null, null, DateTimeOffset.UnixEpoch, 10) { Endpoint = "esplora.test" };
+        var now = new BlockSighting(null, null, DateTimeOffset.UnixEpoch.AddHours(2), 60) { Endpoint = "esplora.test" };
+        _harness.Source.Changes.Add(new BlockChange(_gone.Txid, BlockChangeKind.Gone, seen, now)
+        {
+            IsCorroborated = true, GoneHosts = ["esplora.test"], IsSingleSource = true, NeverInBlock = true,
+        });
+
+        var end = Assert.Single(Trace(await _harness.Load()).Ends, end => end.Reason == TrailEndReason.TransactionGone);
+
+        Assert.Equal(_gone.Txid, end.Transaction);
+        Assert.Contains("låg aldrig i ett block", end.Explanation, StringComparison.Ordinal);
+        Assert.Contains(GoneTransaction.MempoolRule, end.Explanation, StringComparison.Ordinal);
+        Assert.Equal("gone-tx v2", GoneTransaction.Source);
+    }
+
+    [Fact]
     public async Task A_transaction_dropped_without_a_replacer_says_the_money_is_back()
     {
         await ExpandAsync();

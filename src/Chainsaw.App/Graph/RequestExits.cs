@@ -364,7 +364,7 @@ public static class RequestExits
                     transfer.Time,
                     transfer.Height,
                     transfer.Block?.Hash.Value ?? transfer.AccountBlock?.Hash,
-                    IsTraced(transfer, edge, tracedCoins, traced)));
+                    IsTraced(transfer, edge, tracedCoins, traced, snapshot.Graph)));
             }
         }
 
@@ -375,15 +375,23 @@ public static class RequestExits
     /// <summary>
     /// Says whether traced money came in with a transfer. On Bitcoin it is a coin the trace holds, or the only coin
     /// of a traced line; on an account chain every transfer of a traced line, since the account trace counts per line.
+    /// Never a transfer of a transaction the answers settle the source no longer knows (sketch GR9a,
+    /// <see cref="TraceGraph.IsLeftOut"/>): it is not in the chain, so the trace counts nothing through it.
     /// </summary>
     /// <param name="transfer">The transfer.</param>
     /// <param name="edge">Its line.</param>
     /// <param name="tracedCoins">The coins the trace holds.</param>
     /// <param name="traced">The lines that carry traced money.</param>
+    /// <param name="graph">The graph, which knows the transactions that are gone.</param>
     /// <returns>Whether it is traced.</returns>
     internal static bool IsTraced(
-        AssetTransfer transfer, GraphEdge edge, HashSet<Outpoint> tracedCoins, HashSet<string> traced)
+        AssetTransfer transfer, GraphEdge edge, HashSet<Outpoint> tracedCoins, HashSet<string> traced, TraceGraph graph)
     {
+        if (graph.IsLeftOut(transfer.Transaction))
+        {
+            return false;
+        }
+
         var lineTraced = traced.Contains(edge.Key);
         return transfer.Coin is { } coin
             ? tracedCoins.Contains(coin) || (lineTraced && edge.Transfers.Count == 1)

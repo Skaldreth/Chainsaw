@@ -160,7 +160,7 @@ internal sealed class RawResponseStore(TimeZoneInfo timeZone, string chainName)
     /// Gives the transactions whose block may have changed since the case first saw them in one: a later answer that
     /// shows another block (another hash, or another height when the hash was not kept) or none, two or more answers to
     /// the transaction itself (a shallow one is asked for again), or a later answer the lookup took as the source not
-    /// knowing it. Only the indexes are read, so that the answers themselves are read only for these few.
+    /// knowing it, after an answer that had it in a block or in the mempool. Only the indexes are read, so that the answers themselves are read only for these few.
     /// </summary>
     /// <param name="reader">The case's reader.</param>
     /// <returns>The transactions, in txid order.</returns>
@@ -181,7 +181,7 @@ internal sealed class RawResponseStore(TimeZoneInfo timeZone, string chainName)
                 JOIN {ChainsSchema.RawResponsesTable} r ON r.sequence = n.sequence AND r.chain = n.chain
                     AND r.kind = n.kind AND r.subject = n.subject AND r.status_code = $gone
                 JOIN chains_bitcoin_seen s ON s.chain = n.chain AND s.txid = n.subject AND s.sequence < n.sequence
-                WHERE n.chain = $chain AND n.kind = $kind AND s.block_height IS NOT NULL
+                WHERE n.chain = $chain AND n.kind = $kind
             ORDER BY 1
             """);
         Add(command, "$chain", ChainName);

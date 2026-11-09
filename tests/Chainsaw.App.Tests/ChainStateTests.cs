@@ -384,6 +384,34 @@ public sealed class ChainStateTests
     }
 
     [Fact]
+    public void A_transaction_gone_from_the_mempool_says_so_and_its_first_row_is_the_mempool()
+    {
+        var gone = new BlockChange(Tx[1], BlockChangeKind.Gone, new BlockSighting(null, null, Now, 1),
+            new BlockSighting(null, null, Now, 2)) { NeverInBlock = true };
+
+        var mark = BlockMarks.Of(gone, Now, Utc);
+
+        Assert.True(mark.IsGone);
+        Assert.Equal("mempool", mark.Rows[0].Height);
+        Assert.Equal("okänd för källan", mark.Rows[1].Hash);
+        Assert.Equal(BlockMarks.MempoolGoneFoot, mark.Foot);
+    }
+
+    [Fact]
+    public void A_gone_account_transaction_says_it_is_left_out_when_settled_and_not_confirmed_otherwise()
+    {
+        const string Hash64 = "0x1111111111111111111111111111111111111111111111111111111111111111";
+        BlockChange Change(bool settled) => new(Hash64, BlockChangeKind.Gone, Sighting(900, "0x" + Hash('c'), 1),
+            new BlockSighting(null, null, Now, 2))
+        {
+            Chain = Chain.Ethereum, IsCorroborated = settled, GoneHosts = ["eth.blockscout.com"],
+        };
+
+        Assert.Equal(BlockMarks.AccountGoneFoot, BlockMarks.Of(Change(settled: true), Now, Utc).Foot);
+        Assert.Equal(BlockMarks.UncertainFoot, BlockMarks.Of(Change(settled: false), Now, Utc).Foot);
+    }
+
+    [Fact]
     public void The_lines_and_actors_after_a_gone_transaction_are_uncertain_but_not_those_reached_otherwise()
     {
         // K pays E (tx 2), which pays some back to K (tx 3); K is also paid by V, so only E rests on the gone tx.

@@ -20,8 +20,9 @@ internal readonly record struct BlockAnswer(BlockSighting Sighting, string Endpo
 /// in no block, or not known, says the same only when it is confirmed (finding I1 of the second review): two such
 /// answers in a row, after the last that had it in a block, from different endpoints or with at least one new block
 /// between them, each from an endpoint that had come as far as the block. A public endpoint has several nodes behind
-/// one address, and one of them can lag behind the second after a new block. Both answers stay in the case
-/// (principle 1); the result is an assessment of what the sources answered (principle 2).
+/// one address, and one of them can lag behind the second after a new block. A transaction that no answer ever had in a
+/// block is compared by <see cref="CompareMempool"/> instead. Both answers stay in the case (principle 1); the result
+/// is an assessment of what the sources answered (principle 2).
 /// </summary>
 internal static class BlockChangeRule
 {
@@ -37,12 +38,13 @@ internal static class BlockChangeRule
         IEnumerable<BlockAnswer> answers, RawResponseStore store, ICaseReader reader)
     {
         var ordered = answers.OrderBy(answer => answer.Sighting.Sequence).ToList();
-        if (ordered.FirstOrDefault(answer => answer.InBlock) is not { InBlock: true } first)
+        var firstInBlock = ordered.FindIndex(answer => answer.InBlock);
+        if (firstInBlock < 0)
         {
             return null;
         }
 
-        var before = first.Sighting;
+        var before = ordered[firstInBlock].Sighting;
         var after = ordered.Where(answer => answer.Sighting.Sequence > before.Sequence).ToList();
         if (after.Count == 0)
         {
@@ -66,6 +68,64 @@ internal static class BlockChangeRule
 
         var kind = newest.IsGone ? BlockChangeKind.Gone : BlockChangeKind.Unconfirmed;
         return (kind, before, newest.Sighting);
+    }
+
+    /// <summary>
+    /// How long after the last answer that had a transaction unconfirmed the source must still not know it before it
+    /// counts as gone from the mempool (<see cref="CompareMempool"/>): an hour is six of Bitcoin's blocks and some 300
+    /// of Ethereum's, so that a transaction that was valid and paid its way would normally have been in one, while a
+    /// public endpoint whose nodes have not all seen a new transaction yet is given time.
+    /// </summary>
+    public static readonly TimeSpan MempoolGrace = TimeSpan.FromHours(1);
+
+    /// <summary>
+    /// Compares the sealed answers about a transaction that no answer ever had in a block: it counts as gone from the
+    /// mempool when, after the last answer that had it unconfirmed,
+    /// <list type="bullet">
+    /// <item>two answers in a row said the source does not know it, confirming each other as in
+    /// <see cref="Compare"/> (another endpoint, or a new block between them), each from an endpoint that had come at
+    /// least as far as the case knew when it last saw the transaction;</item>
+    /// <item>the newest of them came at least <see cref="MempoolGrace"/> after that answer;</item>
+    /// <item>and the case knew of at least one block more when it came, so that the chain went on without it.</item>
+    /// </list>
+    /// A transaction that a block ever held is left to <see cref="Compare"/>. The rule is an assessment of what the
+    /// sources answered (principle 2); every answer stays in the case (principle 1).
+    /// </summary>
+    /// <param name="answers">Every sealed answer about it, in any order.</param>
+    /// <param name="store">The chain's sealed answers, for the heights the endpoints and the case had reached.</param>
+    /// <param name="reader">The case's reader.</param>
+    /// <returns>
+    /// The last answer that had it unconfirmed and the newest that says it is not known, or <see langword="null"/>
+    /// when the rule does not hold.
+    /// </returns>
+    public static (BlockSighting Before, BlockSighting Now)? CompareMempool(
+        IEnumerable<BlockAnswer> answers, RawResponseStore store, ICaseReader reader)
+    {
+        var ordered = answers.OrderBy(answer => answer.Sighting.Sequence).ToList();
+        var seenAt = ordered.FindLastIndex(answer => !answer.IsGone);
+        if (seenAt < 0 || ordered.Any(answer => answer.InBlock))
+        {
+            return null;
+        }
+
+        var seen = ordered[seenAt].Sighting;
+        if (store.KnownHeight(reader, seen.Sequence) is not { } known)
+        {
+            return null;
+        }
+
+        var negatives = ordered.Skip(seenAt + 1)
+            .Where(answer => store.EndpointHeight(reader, answer.EndpointId, answer.Sighting.Sequence) >= known)
+            .ToList();
+        if (negatives.Count < 2 || !Confirms(store, reader, negatives[^2], negatives[^1]))
+        {
+            return null;
+        }
+
+        var newest = negatives[^1].Sighting;
+        return newest.Seen - seen.Seen >= MempoolGrace && store.KnownHeight(reader, newest.Sequence) > known
+            ? (seen, newest)
+            : null;
     }
 
     /// <summary>

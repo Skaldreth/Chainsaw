@@ -49,6 +49,31 @@ public sealed record AccountGraph(
     /// </summary>
     public IReadOnlyList<SwapRefusal> RefusedSwaps { get; init; } = [];
 
+    /// <summary>
+    /// Gets the transactions of the part that the source no longer knows (sketch GR9a), by hash: their movements stay
+    /// in <see cref="Transfers"/> and on the graph's lines, since the answers that had them are sealed, but a settled
+    /// one moves nothing in the trace or the exposure (<see cref="IsLeftOut"/>), and the money traced into an unsettled
+    /// one stops there (<see cref="IsUncertain"/>).
+    /// </summary>
+    public IReadOnlyDictionary<EthereumTxHash, GoneAccountTransaction> Gone { get; init; } =
+        new Dictionary<EthereumTxHash, GoneAccountTransaction>();
+
+    /// <summary>
+    /// Says whether a transaction is left out of every ledger: the answers settle that the source no longer knows it
+    /// (<see cref="GoneAccountTransaction.IsSettled"/>).
+    /// </summary>
+    /// <param name="hash">The transaction.</param>
+    /// <returns><see langword="true"/> when it is left out.</returns>
+    public bool IsLeftOut(EthereumTxHash hash) => Gone.TryGetValue(hash, out var gone) && gone.IsSettled;
+
+    /// <summary>
+    /// Says whether the source says it no longer knows a transaction but the answers do not settle it, so that the
+    /// money traced into it stops there without ending.
+    /// </summary>
+    /// <param name="hash">The transaction.</param>
+    /// <returns><see langword="true"/> when it is uncertain.</returns>
+    public bool IsUncertain(EthereumTxHash hash) => Gone.TryGetValue(hash, out var gone) && !gone.IsSettled;
+
     /// <summary>Gets whether the part holds anything.</summary>
     public bool IsEmpty => Transfers.Count == 0 && Fees.Count == 0 && Transactions.Count == 0 && ReadAccounts.Count == 0;
 

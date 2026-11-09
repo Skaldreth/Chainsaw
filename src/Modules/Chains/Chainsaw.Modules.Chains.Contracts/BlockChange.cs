@@ -38,7 +38,10 @@ public sealed record BlockSighting(long? Height, string? Hash, DateTimeOffset Se
 /// </summary>
 /// <param name="TransactionId">The transaction's id as its chain writes it: a txid, or <c>0x</c> and a hash.</param>
 /// <param name="Kind">What became of it.</param>
-/// <param name="Before">The first answer that had it in a block.</param>
+/// <param name="Before">
+/// The first answer that had it in a block; for a transaction that never was in one and is gone from the mempool
+/// (<see cref="NeverInBlock"/>), the last answer that had it unconfirmed.
+/// </param>
 /// <param name="Now">The newest answer, which differs from it.</param>
 public sealed record BlockChange(string TransactionId, BlockChangeKind Kind, BlockSighting Before, BlockSighting Now)
 {
@@ -68,6 +71,14 @@ public sealed record BlockChange(string TransactionId, BlockChangeKind Kind, Blo
     /// transaction since the case last saw it in a block, in lower case; empty for the other kinds.
     /// </summary>
     public IReadOnlyList<string> GoneHosts { get; init; } = [];
+
+    /// <summary>
+    /// Gets, for <see cref="BlockChangeKind.Gone"/>, whether no answer ever had the transaction in a block: it waited
+    /// in the mempool and the source no longer knows it (replaced, or dropped), by the rule <c>mempool-gone v1</c>,
+    /// which is sealed with a line in the journal when it first holds and taken back when a source knows the
+    /// transaction again.
+    /// </summary>
+    public bool NeverInBlock { get; init; }
 
     /// <summary>
     /// Gets whether every sealed answer on the chain in the case came from one host, so that a lone word is all there

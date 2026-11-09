@@ -1,4 +1,5 @@
 using System.Numerics;
+using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Tracing.Contracts;
 using Chainsaw.SharedKernel;
 
@@ -93,6 +94,19 @@ internal sealed class AccountExposureRun
     /// </summary>
     private readonly Dictionary<(string Actor, Asset Asset), BigInteger> _onOtherChain = [];
 
+    /// <summary>
+    /// The transfers of a transaction the source says it no longer knows while the answers do not settle it
+    /// (<see cref="AccountGraph.IsUncertain"/>): the money on one stops there, as in the graph's trace, and is counted
+    /// as <see cref="ExposureRest.Conflicting"/>.
+    /// </summary>
+    private readonly HashSet<ExposureEntry> _uncertain = [];
+
+    /// <summary>
+    /// The value that stopped at an uncertain transfer, per actor and asset, when the actor was last read, and the
+    /// subject's own under its key with the subject's asset.
+    /// </summary>
+    private readonly Dictionary<(string Actor, Asset Asset), BigInteger> _stopped = [];
+
     /// <summary>The swap each transfer that went into one belongs to.</summary>
     private readonly Dictionary<ExposureEntry, SwapSides> _soldIn = [];
 
@@ -122,12 +136,20 @@ internal sealed class AccountExposureRun
         foreach (var edge in request.Graph.Edges.Where(IsFollowed))
         {
             var index = 0;
-            foreach (var transfer in edge.Transfers.Where(t => t.Amount.Asset == edge.Amount.Asset))
+
+            // A transfer of a transaction the answers settle is gone moved nothing on the chain, so it stands in no
+            // wallet's ledger, as in the graph's trace (sketch GR9a); its line stays drawn.
+            foreach (var transfer in edge.Transfers.Where(t => t.Amount.Asset == edge.Amount.Asset
+                && !request.Graph.IsLeftOut(t.Transaction)))
             {
                 var entry = new ExposureEntry(edge, transfer, index++);
                 ListOf(_out, edge.From).Add(entry);
                 ListOf(_in, edge.To).Add(entry);
                 _tally.When(transfer.Transaction, transfer.Time);
+                if (IsUncertain(request.Graph, transfer))
+                {
+                    _uncertain.Add(entry);
+                }
             }
         }
 
@@ -156,8 +178,15 @@ internal sealed class AccountExposureRun
         var total = BigInteger.Zero;
         foreach (var entry in Carrying(subject).Where(entry => entry.Asset == _request.Asset))
         {
-            Put(entry, entry.Units, entry.Units, [entry.Transfer.Transaction]);
             total += entry.Units;
+            if (_uncertain.Contains(entry))
+            {
+                _stopped[(subject, entry.Asset)] = _stopped.GetValueOrDefault((subject, entry.Asset)) + entry.Units;
+                Put(entry, BigInteger.Zero, BigInteger.Zero, [entry.Transfer.Transaction]);
+                continue;
+            }
+
+            Put(entry, entry.Units, entry.Units, [entry.Transfer.Transaction]);
             if (!Convert(entry))
             {
                 Reach(Far(entry), subject);
@@ -183,6 +212,17 @@ internal sealed class AccountExposureRun
     /// <returns><see langword="true"/> when it is followed.</returns>
     private bool IsFollowed(GraphEdge edge) =>
         edge.Kind == GraphEdgeKind.Transfer && edge.Amount.Asset.Chain == _request.Asset.Chain && edge.From != edge.To;
+
+    /// <summary>
+    /// Says whether a transfer's transaction is one the source says it no longer knows while the answers do not settle
+    /// it (<see cref="AccountGraph.IsUncertain"/>).
+    /// </summary>
+    /// <param name="graph">The graph.</param>
+    /// <param name="transfer">The transfer.</param>
+    /// <returns><see langword="true"/> when it is.</returns>
+    private static bool IsUncertain(TraceGraph graph, AssetTransfer transfer) =>
+        EthereumTxHash.TryParse(transfer.Transaction.Chain, transfer.Transaction.Id, out var hash)
+        && graph.Account.IsUncertain(hash);
 
     /// <summary>
     /// Finds the swaps on the graph's lines (<see cref="AccountGraph.Swaps"/>): the transfers the account that swapped
@@ -406,7 +446,9 @@ internal sealed class AccountExposureRun
         _arrivedAtRead[actor] = arrived;
         var onOtherChain = _onOtherChain.Where(pair => pair.Key.Actor == actor)
             .Aggregate(BigInteger.Zero, (sum, pair) => sum + pair.Value);
-        _left[actor] = arrived - onOtherChain
+        var stopped = _stopped.Where(pair => pair.Key.Actor == actor)
+            .Aggregate(BigInteger.Zero, (sum, pair) => sum + pair.Value);
+        _left[actor] = arrived - onOtherChain - stopped
             - Passing(actor).Aggregate(BigInteger.Zero, (sum, entry) => sum + Value(entry));
     }
 
@@ -469,8 +511,17 @@ internal sealed class AccountExposureRun
     private void CarryAsset(string actor, Asset asset)
     {
         var onOtherChain = BigInteger.Zero;
+        var stopped = BigInteger.Zero;
         foreach (var (entry, money, value, through) in IsOut ? CarryOut(actor, asset) : CarryIn(actor, asset))
         {
+            if (_uncertain.Contains(entry))
+            {
+                // The money stops at a transaction that may not be in the chain, as in the graph's trace.
+                stopped += value;
+                Put(entry, BigInteger.Zero, BigInteger.Zero, through);
+                continue;
+            }
+
             if (!IsOut && IsLinked(entry))
             {
                 onOtherChain += value;
@@ -492,6 +543,7 @@ internal sealed class AccountExposureRun
         }
 
         _onOtherChain[(actor, asset)] = onOtherChain;
+        _stopped[(actor, asset)] = stopped;
     }
 
     /// <summary>
@@ -659,6 +711,11 @@ internal sealed class AccountExposureRun
         foreach (var units in _onOtherChain.Values.Where(units => units.Sign > 0))
         {
             _tally.Rest(ExposureRest.OtherChain, units);
+        }
+
+        foreach (var units in _stopped.Values.Where(units => units.Sign > 0))
+        {
+            _tally.Rest(ExposureRest.Conflicting, units);
         }
     }
 

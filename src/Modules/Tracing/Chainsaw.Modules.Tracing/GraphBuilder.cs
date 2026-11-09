@@ -105,6 +105,7 @@ internal sealed class GraphBuilder
                 MayBeOutdated = account.MayBeOutdated,
                 PartlyRead = account.PartlyRead,
                 RefusedSwaps = refused,
+                Gone = account.Gone,
             },
             SwapStops = _data.State.SwapStops,
             Gone = _data.Gone,

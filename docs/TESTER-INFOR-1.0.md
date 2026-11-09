@@ -1815,7 +1815,7 @@ Svårt att framkalla på huvudnätet; lättast på testnät med en obekräftad t
 källan svarat `404` två gånger efter att ha visat tx:en i ett block.
 - [ ] Spåra pengar in i en tx som källan inte längre känner: linjen in till den bär det spårade beloppet överstruket,
       ingenting efter den får spårat belopp (linjerna efter är grå och streckade), och *Spårat* räknas inte genom den.
-      Inspektörens slut säger *Tx:en finns inte längre* med `gone-tx v1`, blocket ärendet såg den i och svarets nummer.
+      Inspektörens slut säger *Tx:en finns inte längre* med `gone-tx v2`, blocket ärendet såg den i och svarets nummer.
 - [ ] Öppna det röda märket: rutan har en tredje rad *Ersatt av 3f2a…9b1c* när en annan tx spenderar samma mynt, och
       foten säger RBF eller dubbelspendering. Föll tx:en bort utan ersättare säger foten att pengarna ligger kvar och
       raden saknas. Rutans *?* öppnar Guiden på *En tx som inte finns längre*.
@@ -1963,7 +1963,7 @@ Svårt att framkalla på huvudnätet; lättast på testnät med en obekräftad t
 källan svarat `404` två gånger efter att ha visat tx:en i ett block.
 - [ ] Spåra pengar in i en tx som källan inte längre känner: linjen in till den bär det spårade beloppet överstruket,
       ingenting efter den får spårat belopp (linjerna efter är grå och streckade), och *Spårat* räknas inte genom den.
-      Inspektörens slut säger *Tx:en finns inte längre* med `gone-tx v1`, blocket ärendet såg den i och svarets nummer.
+      Inspektörens slut säger *Tx:en finns inte längre* med `gone-tx v2`, blocket ärendet såg den i och svarets nummer.
 - [ ] Öppna det röda märket: rutan har en tredje rad *Ersatt av 3f2a…9b1c* när en annan tx spenderar samma mynt, och
       foten säger RBF eller dubbelspendering. Föll tx:en bort utan ersättare säger foten att pengarna ligger kvar och
       raden saknas. Rutans *?* öppnar Guiden på *En tx som inte finns längre*.
@@ -1985,6 +1985,29 @@ källan svarat `404` två gånger efter att ha visat tx:en i ett block.
       *Byggde på …*.
 - [ ] Exponering från en aktör vars pengar gick in i en borta tx: det räknas som *Spåret tar slut*, och efter *Följ
       ersättaren* räknas vägen genom ersättaren.
+
+### En borta tx på Ethereum och en tx som föll ur mempool (GR9a, 2026-11-09)
+
+Lättast på testnät: skicka en obekräftad tx med för låg avgift och ersätt den (RBF på Bitcoin, samma nonce med högre
+avgift på Ethereum), eller ett ärende där källan svarat att den inte känner tx:en efter att ha visat den.
+- [ ] En obekräftad Bitcoin-tx som aldrig låg i ett block och som källan sedan inte känner: inget märke förrän minst en
+      timme efter att ärendet sist såg den, två svar i rad och ett nytt block. Då får linjen det röda märket *Finns inte
+      längre*; rutans första rad säger *mempool · obekräftad*, och foten säger att tx:en aldrig låg i ett block.
+      Journalen har raden *Bitcoin-tx … räknas som borta ur mempool* (`chains.mempool-gone`), och `/verify` klarar sig.
+- [ ] Svarar källan att den känner tx:en igen (den kom tillbaka i mempool eller i ett block): märket försvinner, spåret
+      går genom den som förut, och journalen har raden *… syns igen hos källan …* (`chains.mempool-back`). Den första
+      raden står kvar.
+- [ ] Samma sak för en Ethereum-tx som väntade (pending) och försvann: raden säger *Ethereum-tx …*.
+- [ ] Spåra USDT eller ether genom en Ethereum-adress där en utbetalning är en tx som källan inte längre känner (två
+      värdar har sagt det, eller ärendet har bara en): linjen är grå och streckad utan spårat belopp, pengarna följer i
+      stället adressens nästa utbetalning med FIFO, och det som ligger kvar säger i *Varför?* att en borta tx inte
+      räknas (`gone-tx v2`). Tx:ens avgift räknas inte heller. Rutans fot säger att rörelserna och avgiften inte räknas.
+- [ ] Har bara en värd sagt det medan ärendet har svar från fler: det spårade som går in i tx:en stannar med *Tx:en
+      kanske inte finns; uppgifterna går inte ihop*, och rutans fot säger att det inte är bekräftat.
+- [ ] Börja ett spår i en rörelse i en borta Ethereum-tx: slutet *Tx:en finns inte längre* hos avsändaren, inget spårat
+      på några linjer.
+- [ ] Exponering, Flöde, Begäran och Rapport för samma ärende: den borta tx:en räknas inte (exponeringen `exposure v5`,
+      Flöde `flow v2`); en insättning i den står inte som spårad i begäran, och en swap i den syns inte som swap.
 
 ## Kontroller och förslag
 

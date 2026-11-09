@@ -41,6 +41,13 @@ internal sealed record AccountData(
     public IReadOnlyList<string> Problems { get; init; } = [];
 
     /// <summary>
+    /// Gets the transactions the source no longer knows (sketch GR9a), read from the case's sealed answers by the rule
+    /// every chain shares; a settled one moves nothing in the trace (<see cref="GoneAccountTransaction"/>).
+    /// </summary>
+    public IReadOnlyDictionary<EthereumTxHash, GoneAccountTransaction> Gone { get; init; } =
+        new Dictionary<EthereumTxHash, GoneAccountTransaction>();
+
+    /// <summary>
     /// Joins what the whole transactions and the histories say. A transaction read whole is the surest answer and
     /// gives its own movements and fee; the histories add the movements and fees of the other transactions, each once.
     /// </summary>
@@ -145,6 +152,7 @@ internal sealed record AccountData(
             BlockHashes = BlockHashes.Concat(other.BlockHashes).ToDictionary(),
             PartlyRead = PartlyRead.Union(other.PartlyRead).ToHashSet(),
             Problems = [.. Problems, .. other.Problems],
+            Gone = Gone.Concat(other.Gone).ToDictionary(),
         };
     }
 
@@ -203,7 +211,9 @@ internal sealed record AccountData(
 
     /// <summary>
     /// Finds the swaps the transactions show, and the transactions that would be swaps but for a counterparty the
-    /// trail must reach, so that <em>Varför?</em> can say why there is none.
+    /// trail must reach, so that <em>Varför?</em> can say why there is none. A transaction the source no longer knows
+    /// shows no swap: settled, it never happened on the chain; unsettled, the money traced into it stops there, and a
+    /// swap would carry it on into another asset.
     /// </summary>
     /// <param name="endpoint">Says why an address is one the trail must reach, or <see langword="null"/>.</param>
     /// <returns>The swaps and the refused ones, in chain order.</returns>
@@ -218,7 +228,8 @@ internal sealed record AccountData(
 
         var swaps = new List<TokenSwap>();
         var refused = new List<SwapRefusal>();
-        foreach (var transaction in Transfers.GroupBy(transfer => transfer.Transaction))
+        foreach (var transaction in Transfers.GroupBy(transfer => transfer.Transaction)
+            .Where(transaction => !Gone.ContainsKey(transaction.Key)))
         {
             var moves = transaction.Where(transfer => transfer.From != transfer.To && transfer.Amount.Units.Sign > 0)
                 .ToList();

@@ -188,11 +188,13 @@ public sealed record ExposureResult(
     /// <summary>
     /// The analysis's version; raised whenever it may give other amounts. Version 2 stops money where the graph's trace
     /// stops it: at a link to another chain, a transaction where the trail ends, and a spend that does not agree;
-    /// version 3 follows the value through a swap on an account chain by <see cref="SwapValue"/>, as the trace does.
+    /// version 3 follows the value through a swap on an account chain by <see cref="SwapValue"/>, as the trace does;
+    /// version 5 leaves an account chain's transaction the source no longer knows out of every ledger, and stops the
+    /// money at one the answers do not settle, as the trace does (sketch GR9a, <see cref="GoneAccountTransaction"/>).
     /// </summary>
-    public const int AnalysisVersion = 4;
+    public const int AnalysisVersion = 5;
 
-    /// <summary>Gets the analysis's name and version, for example <c>exposure v4</c>.</summary>
+    /// <summary>Gets the analysis's name and version, for example <c>exposure v5</c>.</summary>
     public static string Analysis { get; } =
         AnalysisName + " v" + AnalysisVersion.ToString(CultureInfo.InvariantCulture);
 

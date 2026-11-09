@@ -15,6 +15,38 @@ namespace Chainsaw.App.Tests;
 /// </summary>
 public sealed class FlowViewTests
 {
+    [Fact]
+    public void A_transaction_the_source_no_longer_knows_carries_nothing_in_the_flow()
+    {
+        // S pays M 500 USDT in tx 2; once the answers settle that the source no longer knows tx 2 (sketch GR9a), the
+        // flow moves nothing along S → M, and the step names no transaction, as the trace does.
+        var scene = EthSamples.Scene();
+        var hash = EthSamples.Hash(2);
+        var change = new BlockChange(hash.Value, BlockChangeKind.Gone,
+            new BlockSighting(5, EthSamples.Block(5).Hash, DateTimeOffset.UnixEpoch, 1),
+            new BlockSighting(null, null, DateTimeOffset.UnixEpoch, 2)) { Chain = Chain.Ethereum };
+        var graph = scene.Snapshot.Graph with
+        {
+            Account = scene.Snapshot.Graph.Account with
+            {
+                Gone = new Dictionary<EthereumTxHash, GoneAccountTransaction>
+                {
+                    [hash] = new GoneAccountTransaction(hash, change),
+                },
+            },
+        };
+        var gone = GraphScene.Build(scene.Snapshot with { Graph = graph });
+        var (s, m) = (EthSamples.Key(EthSamples.S), EthSamples.Key(EthSamples.M));
+
+        var before = FlowReading.Read(scene, KnownTokens.EthereumUsdt, TracingMethodKind.Fifo);
+        var after = FlowReading.Read(gone, KnownTokens.EthereumUsdt, TracingMethodKind.Fifo);
+
+        Assert.Contains(before.Lots, lot => lot.Passes(s, m));
+        Assert.DoesNotContain(after.Lots, lot => lot.Passes(s, m));
+        Assert.Empty(after.Steps[FlowResult.StepKey(s, m)].Transactions);
+        Assert.Equal("flow v2", FlowResult.Analysis);
+    }
+
     /// <summary>The victim A, the other source B, the cluster M where they mix, and the exchange X.</summary>
     private const string AKey = "address:a", BKey = "address:b", MKey = "address:m", XKey = "address:x";
 

@@ -524,6 +524,35 @@ public sealed class RequestFreezeTests
     }
 
     [Fact]
+    public void A_deposit_in_a_transaction_the_source_no_longer_knows_is_never_told_traced()
+    {
+        // The line V → S carries traced USDT, but the source no longer knows the transaction of its one deposit, and
+        // the answers settle it (sketch GR9a): it is not in the chain, so the request must not count it.
+        var hash = EthSamples.Transfers[0].Transaction;
+        var change = new BlockChange(hash.Value, BlockChangeKind.Gone,
+            new BlockSighting(3, EthSamples.Block(3).Hash, DateTimeOffset.UnixEpoch, 1),
+            new BlockSighting(null, null, DateTimeOffset.UnixEpoch, 2)) { Chain = Chain.Ethereum };
+        var scene = EthSamples.Scene();
+        var graph = scene.Snapshot.Graph with
+        {
+            Account = scene.Snapshot.Graph.Account with
+            {
+                Gone = new Dictionary<EthereumTxHash, GoneAccountTransaction>
+                {
+                    [hash] = new GoneAccountTransaction(hash, change),
+                },
+            },
+        };
+        var gone = GraphScene.Build(scene.Snapshot with { Graph = graph });
+
+        var before = Assert.Single(RequestExits.Find(scene), exit => exit.Kind == RequestKind.Freeze);
+        var after = Assert.Single(RequestExits.Find(gone), exit => exit.Kind == RequestKind.Freeze);
+
+        Assert.Contains(before.Deposits, deposit => deposit.Transaction == hash.Value && deposit.IsTraced);
+        Assert.Contains(after.Deposits, deposit => deposit.Transaction == hash.Value && !deposit.IsTraced);
+    }
+
+    [Fact]
     public void Without_a_read_history_no_freeze_is_offered()
     {
         Assert.DoesNotContain(
