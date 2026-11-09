@@ -383,7 +383,7 @@ public sealed partial class InspectorHistoryViewModel : ObservableObject
             };
             if (!outcome.Done)
             {
-                Say(AlreadyText, opened);
+                Say(outcome.Notice ?? AlreadyText, opened);
             }
             else if (opened == _opened)
             {

@@ -146,8 +146,22 @@ internal sealed class TestClustering : IClusteringService
 
     public IReadOnlyList<HeldBackConclusion> GetHeldBack(ICase @case) => HeldBack;
 
-    public HeldBackDecision? DecideHeldBack(ICase @case, Txid txid, ConclusionChoice choice, string? reason)
+    public List<IReadOnlyCollection<Txid>> GoneTold { get; } = [];
+
+    public bool Refuses { get; set; }
+
+    public HeldBackDecision? DecideHeldBack(ICase @case, Txid txid, ConclusionChoice choice, string? reason) =>
+        DecideHeldBack(@case, txid, choice, reason, []);
+
+    public HeldBackDecision? DecideHeldBack(
+        ICase @case, Txid txid, ConclusionChoice choice, string? reason, IReadOnlyCollection<Txid> gone)
     {
+        GoneTold.Add(gone);
+        if (Refuses)
+        {
+            return null;
+        }
+
         var decision = new HeldBackDecision(
             Decisions.Count + 1, txid, [], [], choice, reason, Decisions.Count + 1, DateTimeOffset.UnixEpoch);
         Decisions.Add(decision);
@@ -165,6 +179,10 @@ internal sealed class TestClustering : IClusteringService
     public List<HeldBackDecision> Decisions { get; } = [];
 
     public ClusteringRun Analyse(ICase @case, IReadOnlyCollection<BitcoinTransaction> transactions) =>
+        throw new NotSupportedException();
+
+    public ClusteringRun Analyse(
+        ICase @case, IReadOnlyCollection<BitcoinTransaction> transactions, IReadOnlyCollection<Txid> gone) =>
         throw new NotSupportedException();
 
     public ClusterSplit Split(ICase @case, SplitRequest request) => throw new NotSupportedException();

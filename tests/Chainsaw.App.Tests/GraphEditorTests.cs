@@ -21,8 +21,60 @@ public sealed class GraphEditorTests
     /// <summary>The checks, which take a wallet's approval back with its merge.</summary>
     private readonly TestCheckService _checks = new();
 
+    /// <summary>The tracing, which says which transactions are gone.</summary>
+    private readonly TestTracing _tracing = new();
+
     /// <summary>Gives the editor over the fakes.</summary>
-    private GraphEditor Editor => new(new TestTracing(), _attribution, _clustering, _library, _checks);
+    private GraphEditor Editor => new(_tracing, _attribution, _clustering, _library, _checks);
+
+    /// <summary>
+    /// A decision about a held back conclusion is checked against the gone transactions the expansions leave out
+    /// (sketch HB1a), so that one held back on its own gone transaction can be decided.
+    /// </summary>
+    [Fact]
+    public async Task AHeldBackDecisionIsToldWhichTransactionsAreGone()
+    {
+        var gone = Txid.Parse(new string('a', 64));
+        _tracing.SettledGone.Add(gone);
+
+        var outcome = await Editor.DecideHeldBackAsync(
+            _case, gone, Chainsaw.Modules.Clustering.Contracts.ConclusionChoice.Keep, null);
+
+        Assert.True(outcome.Done);
+        Assert.Equal([gone], Assert.Single(_clustering.GoneTold));
+    }
+
+    /// <summary>
+    /// A conclusion held back on its own gone transaction, which came back before the decision, says that it no
+    /// longer waits instead of that it was already decided.
+    /// </summary>
+    [Fact]
+    public async Task ADecisionAfterTheTransactionCameBackSaysItNoLongerWaits()
+    {
+        var back = Txid.Parse(new string('b', 64));
+        _clustering.Refuses = true;
+        _clustering.HeldBack.Add(new Chainsaw.Modules.Clustering.Contracts.HeldBackConclusion(back, [], [back], null));
+
+        var outcome = await Editor.DecideHeldBackAsync(
+            _case, back, Chainsaw.Modules.Clustering.Contracts.ConclusionChoice.Release, null);
+
+        Assert.False(outcome.Done);
+        Assert.Equal(GraphEditor.NoLongerHeldText, outcome.Notice);
+    }
+
+    /// <summary>A decision refused for any other reason, such as a second release, says it was already done.</summary>
+    [Fact]
+    public async Task ARefusedDecisionWithNothingHeldSaysItWasAlreadyDone()
+    {
+        _clustering.Refuses = true;
+
+        var outcome = await Editor.DecideHeldBackAsync(
+            _case, Txid.Parse(new string('c', 64)), Chainsaw.Modules.Clustering.Contracts.ConclusionChoice.Release,
+            null);
+
+        Assert.False(outcome.Done);
+        Assert.Null(outcome.Notice);
+    }
 
     /// <summary>A label taken back is taken in by the library at once, so that its copies are withdrawn.</summary>
     [Fact]

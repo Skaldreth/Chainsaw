@@ -357,6 +357,15 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
   först när den första bett om väntan eller dess kö är längre än fem sekunder. I Snabbast sprids uppslagen inom den bästa
   gruppen (de som svarat rätt). Ändras om användaren vill ha spridning också i Prioriterad.
 ## Klustring och heuristiker
+- **En borta tx som bara visar var en adress syntes** (HB1a, 2026-11-09): i dag dras ingen ny slutsats som har en
+  borta tx i grunden, också när den bara citeras för att en adress syntes där (växeladressens *sedd förut*), som
+  skulle vara giltigt eftersom adressen ändå visats för världen. Att skilja det från en grund som bygger på tx:ens
+  innehåll kräver att heuristikerna säger varför de citerar en tx (grundens sort per tx), så det väntar.
+- **HB1a och en tillbakadragen version samtidigt** (fjärde omgranskningen 2026-11-09, M): `countingNames` i
+  `ClusteringService.Analyse` byggs ur `latest`, som utelämnar en tx:s rader från före en KV1a-återkallelse, medan
+  `CountingRows` räknar dem som omvägda förslag. Då kan ett gammalt förslag räknas bredvid nyvägda rader när en
+  annan heuristik citerar en borta tx. Bara ett förslag, aldrig en sammanslagning, och det ersätts när tx:en kommer
+  tillbaka. Bygg `countingNames` ur de räknade raderna (txid, heuristik) i stället.
 - **Efter omgranskningen av omgång 4:s ytor (2026-11-09, M):** BU1a förseglar en uppbrytning i användarens namn också
   för en adress som bara föll med när hela förslaget vägrades (förklara det i journalen och *Varför?*, eller bryt bara
   det valda); KV1a-rutan ska vara streckad (`ClusterWhyView.xaml:164` ritar hel linje); *Ångra* efter *Släpp

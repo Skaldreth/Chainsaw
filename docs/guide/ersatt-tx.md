@@ -47,3 +47,30 @@ Chainsaw kontrollerar att ersättarens egna inputs spenderar just de mynten med 
 förseglas med vem och när och står i journalen, och beloppen efter ersättaren ritas **streckade**, som allt som
 bygger på en bedömning. *Ta tillbaka* i rutan (eller *Ångra* i meddelandet) gör att spåret slutar vid den borttagna
 tx:en igen; valet står kvar förseglat.
+
+## Slutsatser som bygger på den
+
+Klustringen räknar inte med en tx som inte finns längre. När grafen expanderas nästa gång körs heuristikerna utan den,
+och en slutsats som bygger på den (tx:ens egna sammanslagningar, eller en växeladress som bedömdes ny för att adressen
+först sågs i den) **hålls tillbaka**. Klustret får då en tyst markering i hörnet, en streckad gul ring med pausmärke,
+och hovringen säger vilken tx slutsatsen byggde på och vad som ersatte den.
+
+Ingenting tas bort och ingenting slutar räknas av sig självt: slutsatsen står kvar, förseglad, tills du väljer i
+*Historik*. **Låt stå** behåller den, och nästa körning respekterar det. **Släpp slutsatsen** gör att den inte räknas
+längre (också dess fynd), men den står kvar förseglad. Nästa körning drar nya slutsatser om tx:en bara när de inte
+bygger på den borta tx:en; annars väntar den tills tx:en är tillbaka.
+Båda valen förseglas med vem och när, och kan tas tillbaka.
+
+Klustringen drar inte heller några **nya** slutsatser av att tx:en saknas. En adress som först syntes i den räknas
+fortfarande som sedd, eftersom den visades för världen där. En ny slutsats som skulle bygga på den borta tx:en dras
+inte, och tx:ens andra slutsatser dras bara om de väger lika utan den, så att ingen annan slutsats blir starkare för
+att en som höll emot lades åt sidan. Annars, och när samma heuristik redan har en slutsats om tx:en, görs ingenting
+om: det som står kvar står kvar, och när tx:en kommer tillbaka görs allt om. Journalen säger vilka slutsatser som
+inte drogs, när det ändras. Drar du tillbaka en version av en heuristik medan tx:en är borta görs inte heller det som
+byggde på den om.
+
+Bara en tx som det är **bekräftat** att den är borta lämnas utanför, efter samma regel som avgör var spåret slutar. När
+spåret bara stannar, för att en enda värd sagt det medan ärendet har svar från fler eller för att svaren inte går ihop,
+körs klustringen med tx:en som förut. Kommer tx:en tillbaka i ett block körs den med igen, och slutsatserna som hölls
+tillbaka räknas som vanligt. Att följa ersättaren ändrar inte detta: den borta tx:en är fortfarande borta, och
+ersättaren klustras som vilken tx som helst.

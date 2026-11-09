@@ -91,52 +91,128 @@ internal static class EvidenceStore
     /// <returns>The stored results by transaction and analysis.</returns>
     /// <exception cref="CaseException"><see cref="CaseError.Corrupt"/> when a record cannot be read back.</exception>
     public static Dictionary<(Txid Txid, HeuristicId Heuristic), StoredResult> LatestResults(
-        ICaseReader reader, IReadOnlySet<Txid> txids)
+        ICaseReader reader, IReadOnlySet<Txid> txids) =>
+        ReadResults(reader, txids).Latest;
+
+    /// <summary>
+    /// Reads, in one pass, what <see cref="LatestResults"/> gives and, for every transaction, the holding basis: per
+    /// analysis, the transactions that the newest result of the highest stored version rests on, also when that
+    /// version is drawn back, and of the highest version that counts now; never a result the user let go (sketch
+    /// HB1a). A run that does not know a gone transaction in it must not redo the transaction's conclusions, not even
+    /// after a withdrawal re-weighs them (KV1a), since the conclusion that would be re-weighed rests on it too.
+    /// </summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <param name="txids">The transactions.</param>
+    /// <returns>The counting results by transaction and analysis, and the holding basis by transaction.</returns>
+    /// <exception cref="CaseException"><see cref="CaseError.Corrupt"/> when a record cannot be read back.</exception>
+    public static (Dictionary<(Txid Txid, HeuristicId Heuristic), StoredResult> Latest,
+        Dictionary<Txid, HashSet<Txid>> Holding) ReadResults(ICaseReader reader, IReadOnlySet<Txid> txids)
     {
+        // The basis is kept as its JSON and read only for the rows that win, since most rows are older results.
+        var everyVersion = new Dictionary<(Txid, HeuristicId), (long Journal, string Basis)>();
         var withdrawnAt = ReadWithdrawals(reader)
             .Where(withdrawal => withdrawal.IsInForce)
             .ToDictionary(withdrawal => withdrawal.Heuristic, withdrawal => withdrawal.JournalSequence);
         var releases = HeldBackStore.Releases(reader);
         var weighedWithWithdrawn = new Dictionary<Txid, long>();
-        var latest = new Dictionary<(Txid, HeuristicId), (long Journal, StoredResult Result)>();
-        using var command = reader.CreateCommand(
-            "SELECT txid, heuristic, heuristic_version, journal_sequence, fingerprint, basis FROM clustering_evidence");
-        using var row = command.ExecuteReader();
-        while (row.Read())
+        var newestCounting = new Dictionary<Txid, long>();
+        var latest = new Dictionary<(Txid, HeuristicId), (long Journal, string Fingerprint, string Basis)>();
+        using (var command = reader.CreateCommand(
+            "SELECT txid, heuristic, heuristic_version, journal_sequence, fingerprint, basis FROM clustering_evidence"))
+        using (var row = command.ExecuteReader())
         {
-            var txid = ParseTxid(row.GetString(0));
-            if (!txids.Contains(txid))
+            while (row.Read())
             {
-                continue;
-            }
+                var txid = ParseTxid(row.GetString(0));
+                if (!txids.Contains(txid))
+                {
+                    continue;
+                }
 
-            var key = (txid, Heuristic(row.GetString(1), row.GetInt64(2)));
-            if (withdrawnAt.TryGetValue(key.Item2, out var at))
-            {
-                // A version drawn back neither counts nor holds a run back.
-                weighedWithWithdrawn[txid] = Math.Max(weighedWithWithdrawn.GetValueOrDefault(txid), at);
-                continue;
-            }
+                var key = (txid, Heuristic(row.GetString(1), row.GetInt64(2)));
+                var journal = row.GetInt64(3);
+                if (IsReleased(releases, txid, journal))
+                {
+                    // A conclusion the user let go neither counts nor holds a run back (sketch HB1a).
+                    continue;
+                }
 
-            var journal = row.GetInt64(3);
-            if (IsReleased(releases, txid, journal))
-            {
-                // A conclusion the user let go neither counts nor holds a run back (sketch HB1a).
-                continue;
-            }
+                if (!everyVersion.TryGetValue(key, out var newest) || journal > newest.Journal)
+                {
+                    everyVersion[key] = (journal, row.GetString(5));
+                }
 
-            if (!latest.TryGetValue(key, out var known) || journal > known.Journal)
-            {
-                var basis = Deserialize<List<string>>(row.GetString(5)).Select(ParseTxid).ToList();
-                latest[key] = (journal, new StoredResult(row.GetString(4), basis));
+                if (withdrawnAt.TryGetValue(key.Item2, out var at))
+                {
+                    // A version drawn back does not count; what it rests on may still hold back (below).
+                    weighedWithWithdrawn[txid] = Math.Max(weighedWithWithdrawn.GetValueOrDefault(txid), at);
+                    continue;
+                }
+
+                newestCounting[txid] = Math.Max(newestCounting.GetValueOrDefault(txid), journal);
+                if (!latest.TryGetValue(key, out var known) || journal > known.Journal)
+                {
+                    latest[key] = (journal, row.GetString(4), row.GetString(5));
+                }
             }
         }
 
-        return latest
+        var holding = HoldingBasis(everyVersion, withdrawnAt, newestCounting);
+        var current = latest
             .Where(entry =>
                 !(weighedWithWithdrawn.TryGetValue(entry.Key.Item1, out var at) && entry.Value.Journal < at))
-            .ToDictionary(entry => entry.Key, entry => entry.Value.Result);
+            .ToDictionary(
+                entry => entry.Key,
+                entry => new StoredResult(entry.Value.Fingerprint, ParseBasis(entry.Value.Basis)));
+        return (current, holding);
     }
+
+    /// <summary>
+    /// Works out the holding basis per transaction: per analysis name, the basis of the highest version that counts
+    /// now, and of the highest stored version when that is drawn back, but only while the transaction's results are
+    /// still the ones weighed against it (no counting result is newer than the withdrawal). Once the transaction has
+    /// been weighed again, the drawn back version no longer holds anything back.
+    /// </summary>
+    /// <param name="everyVersion">The newest result of every version, with its basis as JSON.</param>
+    /// <param name="withdrawnAt">The journal sequence of each withdrawal in force, by version.</param>
+    /// <param name="newestCounting">The newest counting result's journal sequence, by transaction.</param>
+    /// <returns>The holding basis by transaction.</returns>
+    private static Dictionary<Txid, HashSet<Txid>> HoldingBasis(
+        Dictionary<(Txid, HeuristicId), (long Journal, string Basis)> everyVersion,
+        Dictionary<HeuristicId, long> withdrawnAt,
+        Dictionary<Txid, long> newestCounting)
+    {
+        var holding = new Dictionary<Txid, HashSet<Txid>>();
+        foreach (var group in everyVersion.GroupBy(entry => (entry.Key.Item1, entry.Key.Item2.Name)))
+        {
+            var txid = group.Key.Item1;
+            if (!holding.TryGetValue(txid, out var set))
+            {
+                set = [];
+                holding[txid] = set;
+            }
+
+            var highest = group.MaxBy(entry => entry.Key.Item2.Version);
+            if (!withdrawnAt.TryGetValue(highest.Key.Item2, out var at)
+                || newestCounting.GetValueOrDefault(txid) < at)
+            {
+                set.UnionWith(ParseBasis(highest.Value.Basis));
+            }
+
+            var counting = group.Where(entry => !withdrawnAt.ContainsKey(entry.Key.Item2)).ToList();
+            if (counting.Count > 0)
+            {
+                set.UnionWith(ParseBasis(counting.MaxBy(entry => entry.Key.Item2.Version).Value.Basis));
+            }
+        }
+
+        return holding;
+    }
+
+    /// <summary>Reads a stored basis.</summary>
+    /// <param name="json">The basis as stored.</param>
+    /// <returns>The transactions.</returns>
+    private static List<Txid> ParseBasis(string json) => [.. Deserialize<List<string>>(json).Select(ParseTxid)];
 
     /// <summary>Seals one weighed result as records under a run's journal entry.</summary>
     /// <param name="transaction">The case's write transaction.</param>

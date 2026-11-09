@@ -97,6 +97,9 @@ internal sealed class CaseHarness : IDisposable
     /// <summary>Gets where an approved suggestion's links to other chains are sealed.</summary>
     public ICrossChainLinks Links => _provider.GetRequiredService<ICrossChainLinks>();
 
+    public global::Chainsaw.Modules.Clustering.Contracts.IClusteringService Clustering =>
+        _provider.GetRequiredService<global::Chainsaw.Modules.Clustering.Contracts.IClusteringService>();
+
     public Task<TraceGraph> Load() => Service.LoadAsync(Case);
 
     public async Task<ExpansionResult> Expand(BitcoinTransaction transaction) =>

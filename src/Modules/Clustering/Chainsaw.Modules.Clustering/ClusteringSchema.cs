@@ -235,6 +235,17 @@ internal sealed class ClusteringSchema : ICaseSchemaContributor
         ) STRICT;
         """;
 
+    /// <summary>
+    /// The sixth version: the transactions whose conclusions the latest run did not draw because they would rest on
+    /// a transaction the source no longer knows (sketch HB1a). Working state like <c>clustering_held_back</c>, so not
+    /// sealed; kept so that a run says it in the journal only when the set changes.
+    /// </summary>
+    private const string Version6 = """
+        CREATE TABLE clustering_not_drawn (
+            txid TEXT PRIMARY KEY
+        ) STRICT;
+        """;
+
     /// <inheritdoc/>
     public string Module => ModuleName;
 
@@ -246,6 +257,7 @@ internal sealed class ClusteringSchema : ICaseSchemaContributor
         new(3, "Användarens sammanslagningar och deras ångrande (förseglade)", Version3),
         new(4, "Versioner av analyser som dragits tillbaka och tillbakatagandena (förseglade)", Version4),
         new(5, "Slutsatser som hålls tillbaka och besluten om dem (besluten förseglade)", Version5),
+        new(6, "Slutsatser som inte dras medan en tx är borta (arbetsläge)", Version6),
     ];
 
     /// <inheritdoc/>

@@ -5800,6 +5800,119 @@ klustringen, också borta tx (TODO). Därför gör testärendet körningen själ
   frågar ersättaren av en försvunnen tx hos tx:ens egen kedjas källa; de frågade tx:erna hålls isär per kedja
   (`Txid.Stored`). Vem som spenderade en output på Zcash läses efter fönstren också på adressens nyaste sida, så att
   en spend i mempoolen inte läses som ospenderad.
+
+## En slutsats hålls tillbaka av sig själv, HB1a (2026-11-09)
+
+Fynd ur testärendet (TODO, omgång 4): appens körningar skickade hela grafen till klustringen, också borta tx, så HB1a
+hände aldrig av sig själv.
+
+**Byggt:**
+- **Tracing** (`TracingService.AnalyseClusters`): båda expansionernas körningar lämnar grafens borta tx utanför
+  klustringen, på varje UTXO-kedja med bytta block (Bitcoin och Litecoin; Zcash har inga). Bara en tx vars svar
+  *avgör* att den är borta (`GoneTransaction.IsSettled`, samma regel som avslutar spåret) lämnas utanför.
+- **Clustering:** `IClusteringService.Analyse(case, transactions, gone)` (den gamla tar inga borta). En borta tx
+  analyseras inte och är okänd för de andra, så det som bygger på den hålls tillbaka med den befintliga regeln
+  (`KnowsBasis`). Den borta tx:ens **egna** slutsatser (till exempel common inputs) hålls också tillbaka, med tx:en
+  själv som det som saknas (`GoneOwn`); `DecideHeldBack` godtar därför tx:en själv bland det som saknas, utöver den
+  förseglade grunden.
+- **App:** hovringen och Historik säger *Byggde på tx:en själv (…)* för en borta tx:s egna slutsatser
+  (`HeldBackMatch.Basis`).
+- **Testärendet** (version 6): `ReplacedStep` ger bara det första svaret att utgiften inte finns, och expansionerna
+  bygger växelslutsatsen på den; `GoneStep` efter expansionerna ger det andra svaret efter det nyaste blocket och
+  frågar om ersättaren, och expansionen av ersättaren (`ReplacingSpend`) håller tillbaka slutsatsen av sig själv.
+  `HeldBackStep` är borta.
+- Guiden *En tx som inte finns längre* har avsnittet *Slutsatser som bygger på den*.
+- **Tester:** Clustering 5 (det som vilar på en borta tx, tx:ens egna med *Låt stå*, tillbaka igen, släppt och
+  tillbaka, utan slutsatser), Tracing 6 i `GoneClusteringTests` (Bitcoin och Litecoin, en värds ord, tillbaka, *Låt
+  stå*, *Släpp*), App 1 (texten). Testärendets test om HB1a går nu utan extra körning.
+
+**Egna beslut:**
+- **Osäkert borta:** en tx som bara en värd sagt är borta medan ärendet har fler (`IsCorroborated` falsk utan
+  bekräftelse genom mynten), eller vars svar inte går ihop (`Conflicting`), stannar i klustringen: en endpoints ord ska
+  inte kunna hålla tillbaka slutsatser. En tx som vilar på en **enda källa** (`IsSingleSource`, ärendet har bara hört
+  från en värd) lämnas utanför, som spåret slutar där: att hålla tillbaka tar ingenting bort, slutsatsen räknas tills
+  användaren väljer, så det enda som händer är att frågan ställs.
+- **Den borta tx:ens egna slutsatser** hålls också tillbaka (de bygger på tx:en själv), annars skulle en
+  sammanslagning ur en tx som inte finns räknas tyst.
+- **Avgränsat till klustringens indata:** spårningen, exponeringen och kontrollerna läser redan `Gone` själva och är
+  oförändrade. Att följa ersättaren kör ingen klustring; nästa expansion gör det, och den borta tx:en är fortfarande
+  borta.
+
+**Vad som skrivs i ärendet:** ingenting nytt förseglas av att en tx lämnas utanför, och ingen ny slutsats dras av
+att den saknas (efter granskningen, I1 nedan). En körning som bara håller tillbaka skriver arbetsraden
+`clustering_held_back` (oförseglad, ersätts av nästa körning) och ingen rad i journalen; en körning som också sparar
+något nytt skriver som förut, med de borta tx:erna i `heldBack` och `leftOut` i journalens data. Ett nytt resultat för
+en tx som inte vilar på en borta tx sparas som vanligt. *Låt stå* och *Släpp slutsatsen* förseglas som förut
+(`clustering.held_back_decisions`), nu också med tx:en själv i `missing`. Inget tas bort; *Låt stå* respekteras av
+varje senare körning, eftersom det som hålls tillbaka aldrig ersätts.
+
+**Granskningens rättelser (1 I, 4 M):**
+- **I1:** att lämna en borta tx utanför fick en adress som först syntes i den att se *ny* ut, så att en ny automatisk
+  växelslutsats kunde förseglas (med en enda värds ord). `KnownTransactions` håller nu de borta tx:erna i
+  adressregistret (`SeenBefore`) men inte i `Find`, `FindSpender` eller `All`; en grund i en borta tx godtas av
+  `IsWellFormed`, och ett nytt resultat som skulle vila på en borta tx dras inte alls. Testet med facit visar att
+  samma betalning utan tx:en alls får ett växelförslag, och med den borta tx:en inget.
+- **M1:** ett tillbakadragande (KV1a) medan tx:en är borta gjorde om det som vilade på den. `EvidenceStore.ReadResults`
+  ger nu också den *hållande grunden* (per heuristik den högsta versionen som om inget dragits tillbaka, och den som
+  räknas nu), och en borta tx i den håller tillbaka slutsatsen; `DecideHeldBack` kontrollerar mot samma grund.
+- **M2:** `DecideHeldBack` godtar tx:en själv som det som saknas bara när den är bland de borta tx som anroparen
+  säger (`DecideHeldBack(…, gone)`); appen frågar Tracing (`GetSettledGoneAsync`, samma regel som expansionerna).
+- **M3:** grunden läses en gång per körning för både kända och borta tx och grupperas per tx en gång
+  (`CountingBasis`); en borta tx:s egna slutsatser läses per tx.
+- **M4:** journalens data har `leftOut` med de borta tx som lämnades utanför, bara när det finns några (en körning
+  utan borta tx skriver som förut, så Bitcoins golden-filer är oförändrade); `ClusteringRun.LeftOut`.
+- **Tester:** Clustering 5 till (adressen syns inte som ny, ett nytt resultat på en borta tx dras inte,
+  tillbakadragandet, beslutet utan att tx:en sagts borta, journalen med `heldBack` och `leftOut`), Tracing 6 till (en
+  annan tx:s växel vilar på den borta, *går inte ihop*, bekräftad genom mynten, en enda källa, ett bytt block
+  `Moved`, beslutet genom samma mängd), App 1 (redigeraren skickar mängden).
+
+**Omgranskningens rättelser (2 I, 3 M):**
+- **I-A:** att inte lagra ett resultat avgjordes per resultat, fast en tx:s resultat vägs ihop (en vägning mot en
+  växel som inte lagrades, eller ett CoinJoin-veto medan den gamla växeln räknades). Nu per tx: har något av en tx:s
+  nya resultat en borta tx i grunden lagras inget av dem den körningen (`notDrawn`).
+- **I-B:** en tillbakadragen versions grund höll tillbaka för alltid. Den räknas nu bara så länge tx:ens resultat
+  fortfarande är vägda mot den, alltså så länge inget räknande resultat är nyare än tillbakadragandet.
+- **M-1/M-2:** `ClusteringRun.NotDrawn` och `notDrawn` i journalens data (bara när det finns några). Hur det syns i
+  grafen skissas först (TODO [skiss]); Guiden säger det. Den djupare rättelsen (en borta tx som bara visar var en
+  adress syntes är en giltig grund) kräver att heuristikerna säger varför de citerar en tx och står i BACKLOG.
+- **M-3:** grundens JSON läses bara för de rader som vinner. *Låt stå* eller *Släpp* när tx:en hunnit komma tillbaka
+  säger *Slutsatsen väntar inte längre …* (`UndoOutcome.Notice`) och historiken läses om, i stället för *redan
+  tillbakataget*.
+- **Tester:** Clustering 3 (en tx med blandade resultat lagrar inget och säger det i journalen, gamla blandade
+  resultat görs inte om till hälften, tillbakadragen → tillbaka → borta igen), App 1 (beskedet).
+
+**Andra omgranskningens rättelser (1 I, 2 M):**
+- **I:** en borta tx i grunden spärrade alla en tx:s resultat, också när resultatet som citerade den inte drog någon
+  slutsats (växeladressens *Nothing* bär alla iakttagelser som grund), så att en tx med två inputs aldrig fick sin
+  sammanslagning. Nu (`WithoutGone`): ett resultat utan förslag, fynd eller veto som citerar en borta tx räknas inte
+  alls; ett som drar en slutsats dras inte, och tx:ens andra resultat vägs utan det, som om den analysen inte hade
+  någon åsikt (så att ingen förseglad justering nämner den), utom när den analysen redan har en räknande slutsats om
+  tx:en: då väntar hela tx:en. Vägningen görs nu i skrivtransaktionen, där det sparade läses.
+- **M1:** vad som inte drogs sägs i journalen när mängden ändras, också i en körning som inte sparar något annat.
+  Mängden hålls som arbetsläge i den nya tabellen `clustering_not_drawn` (schema version 6, inte förseglad). Bitcoins
+  golden-fil ändras bara i schemaversionen och den tomma tabellen (hasharna är maskerade); ingen förseglad form ändras.
+- **M2:** beskedet *Slutsatsen väntar inte längre* ges bara när slutsatsen fortfarande hålls tillbaka på tx:en själv
+  och tx:en inte är borta; annars (till exempel ett andra släpp) *redan tillbakataget*.
+- **Tester:** Clustering 3 (sammanslagningen förseglas och växeln inte, journalen bara när mängden ändras, ett resultat
+  utan slutsats spärrar inget), App 1 (ett andra släpp).
+
+**Tredje omgranskningens rättelser (1 I, 3 M):**
+- **I:** att lägga ett resultat åt sidan kunde göra ett annat starkare (en växel som citerar den borta tx:en och
+  pekar på output 0 sänkte en peel-sammanslagning på output 1 till förslag; utan den förseglades sammanslagningen).
+  Nu vägs tx:ens resultat två gånger, alla och utan de citerande, och de andra lagras bara om deras vägda
+  fingeravtryck är lika båda gångerna; annars väntar hela tx:en (`notDrawn`).
+- **M1:** vägningen görs åter utanför ärendets lås (`WeighedTransaction.Of`); i låset görs bara valet, och om en
+  analys har ett räknande resultat slås upp i en mängd (tx, namn) som byggs en gång.
+- **M2:** när mängden ändras skrivs `notDrawn` alltid, också som `[]`, så att raden förklarar sig själv.
+- **M3:** ett resultat utan slutsats som citerar den borta tx:en, där samma analys har en räknande slutsats (till
+  exempel en gammal växelsammanslagning), låter nu hela tx:en vänta. Valt efter princip 2: en slutsats tas varken
+  tillbaka eller lämnas ensam kvar på ordet av en tx som kedjan inte längre har; när tx:en är tillbaka görs allt om.
+- **Tester:** Clustering 2 (två analyser som är oense om växeln, varav en citerar den borta tx:en: ingen
+  sammanslagning förseglas; en analys som vänder till ingen slutsats låter tx:en vänta), och journalens tomma
+  `notDrawn` när tx:en är tillbaka.
+
+**Kvar:** provet på Windows (TESTER-INFOR, *HB1a av sig själv*).
+
 ## Förvirring, omgång 5: efter granskningen (2026-11-09)
 
 Den oberoende granskningen av omgång 5 fann 1 C och 5 I; alla är rättade, och granskarens prober är facit i

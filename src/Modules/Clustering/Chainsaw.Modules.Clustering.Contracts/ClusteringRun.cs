@@ -18,7 +18,8 @@ namespace Chainsaw.Modules.Clustering.Contracts;
 /// </param>
 /// <param name="HeldBack">
 /// The transactions whose stored conclusions rest on transactions this run did not know; their new results were not
-/// stored, so that a narrower run never takes back what a wider one concluded. Analyse them with the whole case.
+/// stored, so that a narrower run never takes back what a wider one concluded. Analyse them with the whole case. A
+/// transaction the run was told is gone is among them when it has conclusions of its own (sketch HB1a).
 /// </param>
 public sealed record ClusteringRun(
     JournalEntry? Journal,
@@ -29,7 +30,22 @@ public sealed record ClusteringRun(
     int Stopped,
     IReadOnlyList<Txid> CoinJoins,
     IReadOnlyList<Txid> Failed,
-    IReadOnlyList<Txid> HeldBack);
+    IReadOnlyList<Txid> HeldBack)
+{
+    /// <summary>
+    /// Gets the transactions the run was told the source no longer knows, and so left out of what it analysed (sketch
+    /// HB1a); empty for a run told of none.
+    /// </summary>
+    public IReadOnlyList<Txid> LeftOut { get; init; } = [];
+
+    /// <summary>
+    /// Gets the transactions with a new conclusion that would rest on a transaction the source no longer knows, and so
+    /// was not drawn this run (sketch HB1a): the others were weighed without it, or, when its analysis already had a
+    /// stored conclusion there, none was stored. What was stored before stands, and a run with the transaction back
+    /// concludes anew. The journal says it when the set changes, also in a run that stores nothing else.
+    /// </summary>
+    public IReadOnlyList<Txid> NotDrawn { get; init; } = [];
+}
 
 /// <summary>Everything the analyses concluded about one transaction, as stored in the case.</summary>
 /// <param name="Txid">The transaction.</param>
