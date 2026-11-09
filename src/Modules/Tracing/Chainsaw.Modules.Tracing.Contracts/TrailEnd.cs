@@ -81,6 +81,14 @@ public enum TrailEndReason
     /// (<see cref="SwapPriceCheck.KeptShare"/>): it stays in the pool as fees and slippage.
     /// </summary>
     KeptBySwapPool,
+
+    /// <summary>
+    /// The money was spent into a transaction that the source no longer knows (sketch GR9a, <em>Finns inte
+    /// längre</em>): it is not in the chain any more, so nothing after it can be followed. What spends the coins now
+    /// is said with the end (<see cref="GoneTransaction"/>); following the replacer is the user's choice
+    /// (<see cref="ReplacementFollow"/>).
+    /// </summary>
+    TransactionGone,
 }
 
 /// <summary>Reads what a <see cref="TrailEndReason"/> means for the trace.</summary>
@@ -117,6 +125,7 @@ public static class TrailEndReasons
         TrailEndReason.Swapped => "Följer med genom en swap",
         TrailEndReason.SwapStopped => "Slutar i swappen (ditt val)",
         TrailEndReason.KeptBySwapPool => "Stannar i poolen",
+        TrailEndReason.TransactionGone => "Tx:en finns inte längre",
         _ => reason.ToString(),
     };
 }

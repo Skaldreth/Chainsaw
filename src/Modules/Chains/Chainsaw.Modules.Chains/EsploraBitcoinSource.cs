@@ -354,6 +354,102 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
     }
 
     /// <inheritdoc/>
+    public async Task<BitcoinLookup<TransactionReplacement>> GetReplacementAsync(
+        ICase @case, Txid txid, LookupMode mode = LookupMode.CaseOnly, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(txid);
+        var gone = await Task.Run(
+            () => @case.Read(reader => StoredTransaction(reader, txid)?.Value), cancellationToken)
+            .ConfigureAwait(false);
+        if (gone is null)
+        {
+            return new BitcoinLookup<TransactionReplacement>(LookupStatus.NotInCase, null, [],
+                "Ärendet har inte tx:en, så det går inte att säga vad som spenderar dess mynt. Inget skickades.");
+        }
+
+        var coins = new List<ReplacedCoin>();
+        var origins = new List<ResponseOrigin>();
+        var problems = new List<string>();
+        var fetched = false;
+        foreach (var input in gone.Inputs.Where(input => input is { IsCoinbase: false, PreviousTxid: not null }))
+        {
+            var query = OutputSpendQuery(input.PreviousTxid!, input.PreviousIndex!.Value);
+            var (stored, _) = await _lookups.ReadCaseAsync(@case, query, cancellationToken).ConfigureAwait(false);
+            var answer = stored is { } known ? new BitcoinLookup<BitcoinOutputSpend>(
+                LookupStatus.FromCase, known.Value, [known.Response.Origin], null) : null;
+            if (mode != LookupMode.CaseOnly && !SpentByOther(answer?.Value, txid))
+            {
+                answer = await _lookups.FetchAsync(
+                        @case, query, stored, cancellationToken, inStep: mode == LookupMode.InStep)
+                    .ConfigureAwait(false);
+                fetched |= answer.Status == LookupStatus.Fetched;
+                if (answer.Problem is { } problem)
+                {
+                    problems.Add(problem);
+                }
+            }
+
+            origins.AddRange(answer?.Origins ?? []);
+            coins.Add(CoinOf(input, txid, answer));
+        }
+
+        var status = fetched ? LookupStatus.Fetched : LookupStatus.FromCase;
+        var said = problems.Distinct().ToList();
+        return new BitcoinLookup<TransactionReplacement>(
+            status, new TransactionReplacement(txid, coins), SourceLookups.Ordered(origins.DistinctBy(o => o.Sequence)),
+            said.Count == 0 ? null : string.Join(" ", said));
+    }
+
+    /// <summary>The lookup of who spends one output, asked only to find what replaced a gone transaction.</summary>
+    /// <param name="txid">The output's transaction.</param>
+    /// <param name="index">The output's index.</param>
+    /// <returns>The query.</returns>
+    private static LookupQuery<BitcoinOutputSpend> OutputSpendQuery(Txid txid, int index)
+    {
+        var position = index.ToString(CultureInfo.InvariantCulture);
+        return new LookupQuery<BitcoinOutputSpend>(
+            ResponseKinds.OutputSpend,
+            $"{txid.Value}:{position}",
+            $"tx/{txid.Value}/outspend/{position}",
+            body => EsploraParser.ParseOutputSpend(body, index),
+            _ => ResponseIndex.None,
+            _ => null);
+    }
+
+    /// <summary>Says whether an answer names another transaction than the gone one as the coin's spender.</summary>
+    /// <param name="spend">The answer about the coin, or <see langword="null"/>.</param>
+    /// <param name="gone">The gone transaction.</param>
+    /// <returns><see langword="true"/> when another spends it, which no later answer is needed to know.</returns>
+    private static bool SpentByOther(BitcoinOutputSpend? spend, Txid gone) =>
+        spend?.SpentBy is { } by && by.Txid != gone;
+
+    /// <summary>Reads what one coin of a gone transaction is now, from the answer about it.</summary>
+    /// <param name="input">The gone transaction's input that spent the coin.</param>
+    /// <param name="gone">The gone transaction.</param>
+    /// <param name="answer">The answer, or <see langword="null"/> when there is none.</param>
+    /// <returns>The coin.</returns>
+    private static ReplacedCoin CoinOf(BitcoinInput input, Txid gone, BitcoinLookup<BitcoinOutputSpend>? answer)
+    {
+        // A fresh answer is sealed last; one that falls back on the case's answer gives that one first.
+        long? sequence = answer switch
+        {
+            { Value: null } or null or { Origins.Count: 0 } => null,
+            { Status: LookupStatus.Fetched } => answer.Origins[^1].Sequence,
+            _ => answer.Origins[0].Sequence,
+        };
+        var state = answer?.Value switch
+        {
+            null => ReplacedCoinState.NotAsked,
+            { SpentBy: null } => ReplacedCoinState.Unspent,
+            { SpentBy: { } by } when by.Txid == gone => ReplacedCoinState.SpentByItself,
+            _ => ReplacedCoinState.SpentByOther,
+        };
+        var spender = state == ReplacedCoinState.SpentByOther ? answer!.Value!.SpentBy : null;
+        return new ReplacedCoin(input.Index, input.PreviousTxid!, input.PreviousIndex!.Value, state, spender, sequence);
+    }
+
+    /// <inheritdoc/>
     public async Task<BitcoinLookup<BitcoinBlock>> GetBlockAsync(
         ICase @case, BlockHash hash, CancellationToken cancellationToken = default)
     {

@@ -86,6 +86,11 @@ public sealed class TestDataBitcoinRouter(IBitcoinSource real, Lazy<IBitcoinSour
         ICase @case, CancellationToken cancellationToken = default) =>
         For(@case).GetBlockChangesAsync(@case, cancellationToken);
 
+    /// <inheritdoc/>
+    public Task<BitcoinLookup<TransactionReplacement>> GetReplacementAsync(
+        ICase @case, Txid txid, LookupMode mode = LookupMode.CaseOnly, CancellationToken cancellationToken = default) =>
+        For(@case).GetReplacementAsync(@case, txid, mode, cancellationToken);
+
     /// <summary>Chooses the source for a case.</summary>
     /// <param name="case">The case.</param>
     /// <returns>The made-up source for a test case, the real one otherwise.</returns>

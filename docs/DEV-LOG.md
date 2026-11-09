@@ -4881,3 +4881,47 @@ eventstyrda slingan och cacharna. Mitt eget rutnät och diffningen av platser (`
     sanktionerad* står i BACKLOG, **M-3** en lista som saknas säger *saknas på datorn* (`Missing`), **M-4** *etc* och
     *base* är borttagna ur de svaga orden.
 >>>>>>> worktree-agent-a9532d92522604c5d
+
+## En tx som inte finns längre: spåret slutar, och Ersatt av (GR9a, 2026-11-09)
+
+Två etapper ur TODO för Bitcoin: *Spårningen efter en tx som inte finns* och *Ersatt av vilken tx*.
+
+- **Chains:** `IBitcoinSource.GetReplacementAsync` frågar, för varje mynt en tx spenderade, vem som spenderar det nu
+  (`/tx/:txid/outspend/:vout`, ny sort `bitcoin.outspend`, förseglad som varje svar). Bara myntet skickas, genom
+  utgången. `CaseOnly` läser de förseglade svaren och skickar inget; annars frågas ett mynt igen bara när ärendet inte
+  redan vet att en annan tx spenderar det. Svaren hålls isär från `bitcoin.outspends`, som grafen följer, så att
+  frågan aldrig får spåret att följa ersättaren av sig själv. `TransactionReplacement` säger per mynt
+  `SpentByOther`, `Unspent`, `SpentByItself` eller `NotAsked`, och sammantaget `Replaced`, `PartlyReplaced`,
+  `Dropped`, `Conflicting` eller `Unknown`.
+- **Tracing:** en Bitcoin-tx som `GetBlockChangesAsync` säger är `Gone` blir `TraceGraph.Gone`
+  (`GoneTransaction`, med ersättaren ur ärendet), och ett nytt slut `TrailEndReason.TransactionGone`
+  (*Tx:en finns inte längre*, analysen `gone-tx v1`, med block, svarets nummer och ersättaren i *Varför?*). Ett mynt
+  som spenderas in i en borta tx slutar där; ett mynt i en borta tx (en startpunkt där) slutar direkt. Inget tas bort
+  ur ärendet: tx:en och allt efter den står kvar i grafen (GoneTrail ritar dem streckade som förut), men räknas inte.
+- **Följ ersättaren** (åtgärden, inte ett KF2b-förslag): `ITracingService.FollowReplacementAsync` kräver att tx:en
+  är borta och att ärendet visar ersättaren på dess mynt, hämtar ersättaren genom utgången (och vart dess utgångar
+  gick) och förseglar valet i den nya kedjan `tracing.replacement_follows` (schema version 7) med en rad i journalen.
+  Spåret går då genom ersättaren för just de mynten (`SpendRules.Replaced`, samma regel i exponeringen), och beloppen
+  bär `TracedAmount.Replaced`, så att linjerna ritas streckade och *Varför?* säger att det är användarens bedömning.
+  `TakeBackReplacement` förseglar ett tillbakatagande; ersättaren lämnar då grafen om inget annat tog in den.
+- **App:** GR9a-rutan får raden *Ersatt av 3f2a…9b1c* med länken *Följ ersättaren* eller *Ta tillbaka*, och foten
+  säger RBF eller dubbelspendering, att tx:en föll bort utan ersättare, eller att ersättaren följs. Toasten har
+  *Ångra*. Grafen frågar en gång per ärende och session om en borta tx vars ersättare inte är känd (bara med utgång);
+  HB1a-hovringen får *Ersatt av …* för de tx slutsatsen byggde på. Rutans *?* öppnar Guidens nya avsnitt
+  `ersatt-tx` för en borta tx.
+
+**Egna beslut och avsteg:**
+- Att följa ersättaren är en åtgärd i GR9a-rutan, inte ett förslag i KF2b: ett förslag i KF2b ändrar inte spåret
+  (mixerns godkända kandidater ritas som vägar ut), medan uppgiften är att spåret ska kunna gå vidare genom ersättaren.
+  Länken står i en ruta som redan var skissad; det är en textlänk som *?*, ingen ny yta.
+- Uppslagen gäller varje mynt för sig (`outspend/:vout`), inte hela den föregående tx:ens `outspends`, så att grafens
+  svar om spenderade utgångar inte ändras av frågan.
+- Bara en tx som regeln (`BlockChangeRule`) säger är `Gone` räknas som borta; en obekräftad tx som aldrig låg i ett
+  block omfattas inte (TODO).
+- Ethereum omfattas inte (TODO); testärendet fylls inte på (TODO).
+
+**Tester:** Chains 8 (`ReplacementTests`: RBF, dubbelspendering med ett mynt fritt igen, bortfallen utan ersättare,
+läsning ur ärendet, ingen ny fråga om en känd ersättare, grafens svar orörda, motsägelse, tx som ärendet saknar),
+Tracing 9 (`GoneTransactionTests`: slutet, inget räknas efter, startpunkt i en borta tx, bortfallen, ingen
+automatisk följning, följ och ta tillbaka med journal och `/verify`, vägrat utan borta tx eller okänd ersättare,
+offline), App 6 i `ChainStateTests` (rutans rad och fot, länken, en fråga per ärende, HB1a).

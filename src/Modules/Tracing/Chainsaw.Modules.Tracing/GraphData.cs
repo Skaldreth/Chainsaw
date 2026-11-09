@@ -17,6 +17,12 @@ internal sealed record GraphData(
 {
     /// <summary>Gets the Ethereum facts; empty when the graph has none.</summary>
     public AccountData Account { get; init; } = AccountData.Empty;
+
+    /// <summary>
+    /// Gets the graph's transactions that the source no longer knows, with what spends their coins now (sketch GR9a);
+    /// empty when none is gone.
+    /// </summary>
+    public IReadOnlyDictionary<Txid, GoneTransaction> Gone { get; init; } = new Dictionary<Txid, GoneTransaction>();
 }
 
 /// <summary>The answer about which inputs spend a transaction's outputs.</summary>

@@ -115,10 +115,12 @@ Inget sedan etapp 1 är provat på Windows. Användaren provar efter `docs/TESTE
 
 ### 2. Kvar efter omgång 4
 
-- **Spårningen efter en tx som inte finns** [etapp]: linjerna och aktörerna efter den ritas streckade, men Tracing
-  läser fortfarande det sparade svaret, så de spårade beloppen och *Spårat* räknar med den.
-- **Ersatt av vilken tx** [etapp]: en tx som källan inte längre känner (`404`) visas som *Finns inte längre*; vilken
-  tx som spenderar samma pengar i stället kräver uppslag på de spenderade utgångarna.
+- **En tx som inte finns längre, resterna** (Bitcoin byggt 2026-11-09):
+  - **Ethereum** [etapp]: GR9a ritar en borta Ethereum-tx, men kontomodellens spårning räknar fortfarande med den.
+  - **En obekräftad tx som aldrig låg i ett block** och försvinner ur mempool räknas inte som borta, eftersom
+    regeln (`BlockChangeRule`) jämför med det första svaret i ett block [etapp].
+  - **Testärendet** (`/testdata`) har ingen tx som försvinner med en ersättare: testkedjan behöver svara `404` på
+    tx:en och `/tx/:txid/outspend/:vout` på mynten [direkt].
 - **Ångra en godkänd plånbok** (PL1b, vald): Ctrl+Z och *Ångra* i KF2b-panelen bekräftas i grafen.
 - **En DEX:s router i grafen** [skiss]: listan över kända kontrakt (omgång 2) har Uniswaps, 1inchs och 0x:s routrar,
   men de får ingen etikett, eftersom ingen sort i bildspråket passar: *Swap eller brygga* avslutar spåret som
@@ -168,8 +170,6 @@ byggt ur BACKLOG; det som skriver i ärendet granskas oberoende.
   (fem hopp med en in och en ut, med ett uppehåll på några dygn), en uppdelning med delar som möts och en möjlig
   PayJoin behöver läggas in i berättelsen (`TestStoryChain`) med stegen som hämtar dem. En slutsats som hålls tillbaka
   kräver en obekräftad tx som ersätts, som testkedjan inte kan visa än.
-- **Ersatt av** i hovringen av en slutsats som hålls tillbaka (HB1a) väntar på punkten *Ersatt av vilken tx* ovan;
-  nu står bara vilken tx slutsatsen byggde på.
 - **Förhandsvisningen av ett tillbakadragande** (KV1a) räknar på det som är sparat: det v1 slår ihop i tx som v1
   aldrig kört syns först efter nästa körning. Raden längst ner säger när, men inte vem (det står i journalen).
 - **Dammets linjer** (DM1a) är inte hårfina och prickade och har kvar beloppet; noderna tonas ned och förgiftningens

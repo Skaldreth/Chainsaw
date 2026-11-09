@@ -33,6 +33,12 @@ internal static class ResponseKinds
     /// <summary>Who spends a transaction's outputs, <c>/tx/:txid/outspends</c>.</summary>
     public const string OutputSpends = "bitcoin.outspends";
 
+    /// <summary>
+    /// Who spends one output, <c>/tx/:txid/outspend/:vout</c>, asked only to find what replaced a transaction that is
+    /// gone (sketch GR9a), and kept apart from <see cref="OutputSpends"/>, which the graph follows.
+    /// </summary>
+    public const string OutputSpend = "bitcoin.outspend";
+
     /// <summary>A page of an address's transactions, <c>/address/:address/txs[/chain/:after]</c>.</summary>
     public const string AddressTransactions = "bitcoin.address-txs";
 

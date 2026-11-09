@@ -37,6 +37,7 @@ internal static class GraphStateStore
         {
             Picked = ReadPicked(reader),
             SwapStops = SwapStopStore.ReadInForce(reader),
+            Replacements = ReplacementFollowStore.ReadInForce(reader),
         };
 
     /// <summary>Remembers that actors were picked out of their piles; one picked already stays as it was.</summary>

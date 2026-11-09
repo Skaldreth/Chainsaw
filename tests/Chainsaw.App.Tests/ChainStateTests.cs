@@ -2,6 +2,7 @@ using Chainsaw.App.Graph;
 using Chainsaw.App.ViewModels;
 using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Chains.Contracts;
+using Chainsaw.Modules.Clustering.Contracts;
 using Chainsaw.Modules.Network.Contracts;
 using Chainsaw.Modules.Pricing.Contracts;
 using Chainsaw.Modules.Security.Contracts;
@@ -34,6 +35,8 @@ public sealed class ChainStateTests
     private readonly TestExitConnection _exit = new();
 
     private readonly TestGraphSource _source = new();
+
+    private readonly TestGraphEditor _editor = new();
 
     // ===== The card's back (IN4a) =====
 
@@ -155,6 +158,108 @@ public sealed class ChainStateTests
 
         Assert.Empty(graph.Cards);
     }
+
+    // ===== Ersatt av (GR9a) =====
+
+    [Fact]
+    public void A_gone_transactions_box_names_its_replacer_and_offers_to_follow_it()
+    {
+        var scene = GoneScene(Replaced(Tx[3]), follow: null);
+
+        var mark = BlockMarks.ForLines(scene, [Gone(Tx[1])], Now, Utc)[VK];
+
+        var row = mark.Replacement!;
+        Assert.Equal(BlockMarks.ReplacedByText + GraphScene.Shorten(Tx[3].Value), row.Text);
+        Assert.Equal(Tx[1], row.Gone);
+        Assert.Equal(Tx[3], row.Replacer);
+        Assert.False(row.IsFollowed);
+        Assert.Equal(BlockMarks.FollowText, row.LinkText);
+        Assert.Equal(BlockMarks.ReplacedFoot, mark.Foot);
+    }
+
+    [Fact]
+    public void A_followed_replacer_offers_to_take_the_choice_back()
+    {
+        var follow = new ReplacementFollow(4, Tx[1], Tx[3], null, 9, Now);
+        var scene = GoneScene(Replaced(Tx[3]), follow);
+
+        var mark = BlockMarks.ForLines(scene, [Gone(Tx[1])], Now, Utc)[VK];
+
+        Assert.True(mark.Replacement!.IsFollowed);
+        Assert.Equal(BlockMarks.TakeBackText, mark.Replacement.LinkText);
+        Assert.Equal(BlockMarks.FollowedFoot, mark.Foot);
+    }
+
+    [Fact]
+    public void A_transaction_dropped_without_a_replacer_says_so_and_has_no_link()
+    {
+        var dropped = new TransactionReplacement(
+            Tx[1], [new ReplacedCoin(0, Tx[0], 0, ReplacedCoinState.Unspent, null, 5)]);
+
+        var mark = BlockMarks.ForLines(GoneScene(dropped, null), [Gone(Tx[1])], Now, Utc)[VK];
+
+        Assert.Null(mark.Replacement);
+        Assert.Equal(BlockMarks.DroppedFoot, mark.Foot);
+        Assert.Equal(BlockMarks.GoneFoot, BlockMarks.ForLines(Scene(), [Gone(Tx[1])], Now, Utc)[VK].Foot);
+    }
+
+    [Fact]
+    public async Task The_link_follows_the_replacer_and_the_graph_asks_once_what_replaced_an_unknown_one()
+    {
+        _source.Scene = () => GoneScene(Replaced(Tx[3]), null);
+        _state.Marks = new ChainMarksReading([Gone(Tx[1])], null);
+        var toasts = new List<ToastRequest>();
+
+        var graph = await Open();
+        graph.ToastWanted += (_, toast) => toasts.Add(toast);
+        await graph.ChooseReplacementAsync(VK);
+
+        Assert.Equal([(Tx[1], Tx[3])], _editor.FollowedReplacements);
+        var toast = Assert.Single(toasts);
+        Assert.Equal(GraphViewModel.ReplacementFollowedText, toast.Title);
+        Assert.Equal(GraphViewModel.ReplacementUndoText, toast.ActionText);
+        Assert.Empty(_state.Asked);
+    }
+
+    [Fact]
+    public async Task A_gone_transaction_without_an_answer_is_asked_about_once_per_case()
+    {
+        _source.Scene = () => GoneScene(null, null);
+        _state.Marks = new ChainMarksReading([Gone(Tx[1])], null);
+
+        var graph = await Open();
+        await graph.RefreshAsync();
+
+        Assert.Equal([Tx[1]], _state.Asked);
+    }
+
+    [Fact]
+    public void Hovering_a_held_back_conclusion_says_what_replaced_what_it_was_built_on()
+    {
+        var held = new HeldBackConclusion(Tx[2], [], [Tx[1]], null);
+
+        var lines = GraphViewModel.HeldBackLines(held, new Dictionary<Txid, IReadOnlyList<Txid>> { [Tx[1]] = [Tx[3]] });
+
+        Assert.Contains(BlockMarks.ReplacedByText + GraphScene.Shorten(Tx[3].Value), lines);
+        Assert.DoesNotContain(GraphViewModel.HeldBackLines(held), line => line.StartsWith(
+            BlockMarks.ReplacedByText, StringComparison.Ordinal));
+    }
+
+    /// <summary>The made-up graph with <c>Tx[1]</c> gone, what replaced it and a choice to follow.</summary>
+    private static GraphScene GoneScene(TransactionReplacement? replacement, ReplacementFollow? follow)
+    {
+        var gone = new GoneTransaction(Tx[1], Gone(Tx[1]), replacement);
+        var graph = GraphSamples.Graph() with
+        {
+            Gone = new Dictionary<Txid, GoneTransaction> { [Tx[1]] = gone },
+            FollowedReplacements = follow is null ? [] : [follow],
+        };
+        return GraphSamples.Scene(graph: graph);
+    }
+
+    /// <summary>The case's answer that a transaction spends the coin <c>Tx[1]</c> spent.</summary>
+    private static TransactionReplacement Replaced(Txid replacer) => new(
+        Tx[1], [new ReplacedCoin(0, Tx[0], 0, ReplacedCoinState.SpentByOther, new BitcoinSpend(replacer, 0, null), 5)]);
 
     // ===== Block marks (GR9a) =====
 
@@ -481,7 +586,7 @@ public sealed class ChainStateTests
         var workflow = new CaseWorkflow(
             new TestCaseStore(), new TestTracing(), new TestVault(VaultState.Unlocked), _session);
         var graph = new GraphViewModel(
-            _session, workflow, source, TestWays.For(_exit, route), new InlineUi(), new TestGraphEditor(), _clock,
+            _session, workflow, source, TestWays.For(_exit, route), new InlineUi(), _editor, _clock,
             chainState: _state, chainSources: _sources)
         {
             Zone = Utc,
@@ -571,6 +676,23 @@ public sealed class ChainStateTests
 
         public Task<ChainMarksReading> ReadMarksAsync(ICase @case, CancellationToken cancellationToken) =>
             MarksGate?.Task ?? Task.FromResult(Marks);
+
+        /// <summary>Gets the gone transactions asked about through the exit, in order.</summary>
+        public List<Txid> Asked { get; } = [];
+
+        /// <summary>Gets or sets the replacers the case knows, by transaction.</summary>
+        public Dictionary<Txid, IReadOnlyList<Txid>> Replacers { get; } = [];
+
+        public Task<bool> AskReplacementAsync(ICase @case, Txid txid, CancellationToken cancellationToken)
+        {
+            Asked.Add(txid);
+            return Task.FromResult(false);
+        }
+
+        public Task<IReadOnlyDictionary<Txid, IReadOnlyList<Txid>>> ReadReplacersAsync(
+            ICase @case, IReadOnlyCollection<Txid> txids, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyDictionary<Txid, IReadOnlyList<Txid>>>(
+                txids.Where(Replacers.ContainsKey).ToDictionary(txid => txid, txid => Replacers[txid]));
     }
 
     /// <summary>Bitcoin's sources as the test sets them.</summary>

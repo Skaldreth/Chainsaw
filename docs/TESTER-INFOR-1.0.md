@@ -1633,6 +1633,27 @@ Uniswap och ether tillbaka i samma tx. Testärendet har ingen Ethereum-källa ä
       *Nästa försök kl. 14:02:31* litet under, samma tid som titelradens tips; *Försöker nu* medan ett försök pågår.
       Ringen och linjerna är fortfarande röda och streckade, eftersom inga uppslag går. Ansluten igen: utgångens namn.
 
+### Spåret vid en tx som inte finns och Ersatt av (GR9a, 2026-11-09)
+Svårt att framkalla på huvudnätet; lättast på testnät med en obekräftad tx som ersätts med RBF, eller ett ärende där
+källan svarat `404` två gånger efter att ha visat tx:en i ett block.
+- [ ] Spåra pengar in i en tx som källan inte längre känner: linjen in till den bär det spårade beloppet överstruket,
+      ingenting efter den får spårat belopp (linjerna efter är grå och streckade), och *Spårat* räknas inte genom den.
+      Inspektörens slut säger *Tx:en finns inte längre* med `gone-tx v1`, blocket ärendet såg den i och svarets nummer.
+- [ ] Öppna det röda märket: rutan har en tredje rad *Ersatt av 3f2a…9b1c* när en annan tx spenderar samma mynt, och
+      foten säger RBF eller dubbelspendering. Föll tx:en bort utan ersättare säger foten att pengarna ligger kvar och
+      raden saknas. Rutans *?* öppnar Guiden på *En tx som inte finns längre*.
+- [ ] Med utgången ansluten frågas det en gång per ärende och session vad som spenderar mynten (svaren förseglas i
+      ärendet som `bitcoin.outspend` och klarar `/verify`); offline skickas inget, och rutan säger att det inte är
+      hämtat ännu.
+- [ ] Klicka *Följ ersättaren*: toasten *Spåret följer ersättaren* med *Ångra*, ersättaren kommer in i grafen och
+      spåret går vidare genom den med streckade accentlinjer; *Varför?* på beloppet säger att det är din bedömning.
+      Journalen har en rad om valet. *Ta tillbaka* i rutan, eller *Ångra*, gör att spåret slutar vid den borta tx:en
+      igen och ersättaren lämnar grafen.
+- [ ] Hovra en slutsats som hålls tillbaka (HB1a) som byggde på en ersatt tx: raden *Ersatt av …* står under
+      *Byggde på …*.
+- [ ] Exponering från en aktör vars pengar gick in i en borta tx: det räknas som *Spåret tar slut*, och efter *Följ
+      ersättaren* räknas vägen genom ersättaren.
+
 ## Kontroller och förslag
 
 ### Kontroller, förslag och områden (KF2b och KF1b)

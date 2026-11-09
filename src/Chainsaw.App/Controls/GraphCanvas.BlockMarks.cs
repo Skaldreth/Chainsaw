@@ -34,6 +34,12 @@ public sealed partial class GraphCanvas
     private Rect? _markGuide;
 
     /// <summary>
+    /// Where the open box's link in the row <em>Ersatt av …</em> stood on screen, with its line, so that a click on it
+    /// follows the replacer or takes the choice back.
+    /// </summary>
+    private (Rect Area, string EdgeKey)? _markReplacementLink;
+
+    /// <summary>
     /// Draws a line's block mark in the corner of its amount, and strikes the amount through when the transaction is
     /// gone; called where the amount is drawn, in surface units.
     /// </summary>
@@ -82,6 +88,7 @@ public sealed partial class GraphCanvas
     private void DrawBlockMarkBox(DrawingContext dc)
     {
         _markGuide = null;
+        _markReplacementLink = null;
         var model = _model!;
         var key = _hoveredMark ?? model.OpenBlockMark;
         if (key is null || !model.BlockMarksByLine.TryGetValue(key, out var mark)
@@ -92,7 +99,8 @@ public sealed partial class GraphCanvas
 
         var at = _viewport.ToScreen(new GraphPoint(centre.X, centre.Y));
         var foot = Wrapped(mark.Foot, MarkBoxWidth - (2 * MarkBoxPadding));
-        var height = 40 + (mark.Rows.Count * MarkRowHeight) + foot.Height + 18;
+        var rows = mark.Rows.Count + (mark.Replacement is null ? 0 : 1);
+        var height = 40 + (rows * MarkRowHeight) + foot.Height + 18;
         var left = Math.Min(at.X + 16, ActualWidth - MarkBoxWidth - 8);
         var top = Math.Clamp(at.Y - 12, 8, Math.Max(8, ActualHeight - height - 8));
         var frame = new Rect(left, top, MarkBoxWidth, height);
@@ -103,6 +111,12 @@ public sealed partial class GraphCanvas
         foreach (var row in mark.Rows)
         {
             DrawMarkRow(dc, row, frame, rowTop);
+            rowTop += MarkRowHeight;
+        }
+
+        if (mark.Replacement is { } replacement)
+        {
+            DrawReplacementRow(dc, replacement, key, frame, rowTop);
             rowTop += MarkRowHeight;
         }
 
@@ -169,6 +183,32 @@ public sealed partial class GraphCanvas
         dc.DrawText(when, new Point(frame.Right - MarkBoxPadding - when.Width, middle - (when.Height / 2)));
     }
 
+    /// <summary>
+    /// Draws the row that names what replaced a gone transaction (<em>Ersatt av …</em>), with the link that follows
+    /// it, or takes the choice back, at the right; the link is in the accent only while it can be clicked.
+    /// </summary>
+    /// <param name="dc">Where to draw.</param>
+    /// <param name="replacement">The row.</param>
+    /// <param name="edgeKey">The line the box belongs to.</param>
+    /// <param name="frame">The box.</param>
+    /// <param name="top">The row's top.</param>
+    private void DrawReplacementRow(
+        DrawingContext dc, BlockMarkReplacement replacement, string edgeKey, Rect frame, double top)
+    {
+        dc.DrawLine(PenOf(Ink("Brush.Card.Rule"), 1), new Point(frame.X, top), new Point(frame.Right, top));
+        var middle = top + (MarkRowHeight / 2);
+        var left = frame.X + MarkBoxPadding;
+        DrawScreenGlyph(dc, "Icon.ArrowRight", Ink("Brush.Text"), new Point(left, middle - 6.5), 13);
+        var clickable = _model!.IsChoosingReplacement ? "Brush.TextDim" : "Brush.Accent";
+        var link = Text(replacement.LinkText, 11.5, Ink(clickable), FontWeights.SemiBold);
+        var linkLeft = frame.Right - MarkBoxPadding - link.Width;
+        dc.DrawText(link, new Point(linkLeft, middle - (link.Height / 2)));
+        var room = Math.Max(1, linkLeft - 10 - (left + 23));
+        var text = CachedFitted(replacement.Text, 12, Ink("Brush.Text"), FontWeights.Normal, room);
+        dc.DrawText(text, new Point(left + 23, middle - (text.Height / 2)));
+        _markReplacementLink = (new Rect(linkLeft - 6, top, link.Width + 12, MarkRowHeight), edgeKey);
+    }
+
     /// <summary>Takes a press on a block mark (opens or closes its box) or on the open box's <em>?</em>.</summary>
     /// <param name="screen">The press on screen.</param>
     /// <param name="surface">The press on the surface.</param>
@@ -178,6 +218,12 @@ public sealed partial class GraphCanvas
         if (_markGuide is { } guide && guide.Contains(new Point(screen.X, screen.Y)))
         {
             _model!.OpenBlockMarkGuide();
+            return true;
+        }
+
+        if (_markReplacementLink is { } link && link.Area.Contains(new Point(screen.X, screen.Y)))
+        {
+            _ = _model!.ChooseReplacementAsync(link.EdgeKey);
             return true;
         }
 

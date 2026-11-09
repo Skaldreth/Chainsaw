@@ -107,6 +107,17 @@ internal sealed class EsploraParser(BitcoinNetwork network)
         ];
     }
 
+    /// <summary>Reads who spends one output, as from <c>/tx/:txid/outspend/:vout</c>.</summary>
+    /// <param name="body">The response's bytes.</param>
+    /// <param name="index">The output's index that was asked about.</param>
+    /// <returns>The output and the input that spends it, if any.</returns>
+    /// <exception cref="EsploraFormatException">The response cannot be read.</exception>
+    public static BitcoinOutputSpend ParseOutputSpend(ReadOnlySpan<byte> body, int index)
+    {
+        using var document = Open(body);
+        return new BitcoinOutputSpend(index, ReadSpend(document.RootElement));
+    }
+
     /// <summary>Reads what the source says about an address as a whole, as from <c>/address/:address</c>.</summary>
     /// <param name="body">The response's bytes.</param>
     /// <param name="expected">The address asked for; the response must be about it.</param>

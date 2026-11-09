@@ -31,6 +31,15 @@ public sealed record TracedAmount(AssetAmount Amount, TracingMethodId Method, IR
     public bool RestsOnSwap => Swaps.Any(swap => swap.Follows);
 
     /// <summary>
+    /// Gets the transactions the source no longer knows whose replacer the amount was followed through, by the user's
+    /// choice (<see cref="ReplacementFollow"/>, a judgement), sorted by txid; empty when it came through none.
+    /// </summary>
+    public IReadOnlyList<Txid> Replaced { get; init; } = [];
+
+    /// <summary>Gets whether the amount rests on following a replacer, so that it is drawn as uncertain.</summary>
+    public bool RestsOnReplacement => Replaced.Count > 0;
+
+    /// <summary>
     /// Explains the amount in plain Swedish, so that the user can ask <em>why?</em> (principle 3).
     /// </summary>
     /// <returns>For example <c>Spårat belopp 0.30000000 BTC enligt FIFO v1, räknat genom 2 tx: …</c>.</returns>
@@ -53,6 +62,13 @@ public sealed record TracedAmount(AssetAmount Amount, TracingMethodId Method, IR
             text.Append(CultureInfo.InvariantCulture,
                 $" Genom swappen i tx {swap.Swap.Transaction.Value} följer värdet med enligt {SwapValue.Analysis}:"
                 + $" {swap.ShareText} av det som gick in var spårat, och samma andel av det som kom ut följer med.");
+        }
+
+        foreach (var gone in Replaced)
+        {
+            text.Append(" Tx ").Append(gone.Value)
+                .Append(" finns inte längre; du valde att spåret följer tx:en som spenderar samma mynt i stället, ")
+                .Append("vilket är din bedömning.");
         }
 
         text.Append(" Det är en bedömning enligt metoden, inte ett faktum på kedjan.");

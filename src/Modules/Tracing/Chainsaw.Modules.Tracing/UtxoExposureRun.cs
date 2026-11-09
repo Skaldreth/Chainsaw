@@ -188,11 +188,17 @@ internal sealed class UtxoExposureRun
     /// <summary>Gives the input in the graph that spends a coin, or <see langword="null"/>.</summary>
     /// <param name="coin">The coin.</param>
     /// <returns>The transaction's id and the input's index.</returns>
-    private BitcoinSpend? Spender(Outpoint coin) =>
-        Graph.Spends.TryGetValue(coin, out var spend) && spend.SpentBy is { } by
-        && Graph.Transactions.ContainsKey(by.Txid)
-            ? by
-            : null;
+    private BitcoinSpend? Spender(Outpoint coin)
+    {
+        if (!Graph.Spends.TryGetValue(coin, out var spend) || spend.SpentBy is not { } by)
+        {
+            return null;
+        }
+
+        // A gone spender's replacer, when the user chose to follow it, as the graph's trace does.
+        var through = SpendRules.Replaced(Graph, coin, by) ?? by;
+        return Graph.Transactions.ContainsKey(through.Txid) ? through : null;
+    }
 
     /// <summary>
     /// Paid out: sends a coin the user linked to another chain there, where it stops, whoever its actor is (a service

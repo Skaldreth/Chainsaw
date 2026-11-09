@@ -107,6 +107,22 @@ public interface IGraphEditor
     Task<UndoOutcome> UnlinkAsync(ICase @case, CrossChainLink link, string? reason);
 
     /// <summary>
+    /// Chooses that the trace follows the transaction that replaced a gone one (sketch GR9a, <em>Följ
+    /// ersättaren</em>): the replacer is fetched through the exit and the choice sealed with a line in the journal.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="gone">The gone transaction.</param>
+    /// <param name="replacer">The replacer.</param>
+    /// <returns>The choice.</returns>
+    Task<ReplacementFollow> FollowReplacementAsync(ICase @case, Txid gone, Txid replacer);
+
+    /// <summary>Takes back a choice to follow a replacer, sealed with a line in the journal.</summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="follow">The choice.</param>
+    /// <returns>Whether it was taken back.</returns>
+    Task<UndoOutcome> TakeBackReplacementAsync(ICase @case, ReplacementFollow follow);
+
+    /// <summary>
     /// Chooses that the traced value does not follow through a swap (sketch SW1a, <em>Följer inte</em>), sealed with
     /// a line in the journal; choosing it again for the same swap stores nothing new.
     /// </summary>
@@ -418,6 +434,21 @@ public sealed class GraphEditor(
         ArgumentNullException.ThrowIfNull(@case);
         ArgumentNullException.ThrowIfNull(link);
         return Task.Run(() => new UndoOutcome(tracing.UnlinkCrossChain(@case, link, reason)));
+    }
+
+    /// <inheritdoc/>
+    public Task<ReplacementFollow> FollowReplacementAsync(ICase @case, Txid gone, Txid replacer)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        return Task.Run(() => tracing.FollowReplacementAsync(@case, gone, replacer, null));
+    }
+
+    /// <inheritdoc/>
+    public Task<UndoOutcome> TakeBackReplacementAsync(ICase @case, ReplacementFollow follow)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(follow);
+        return Task.Run(() => new UndoOutcome(tracing.TakeBackReplacement(@case, follow, null)));
     }
 
     /// <inheritdoc/>

@@ -164,6 +164,44 @@ public interface ITracingService
     /// <returns>The choices and their taking back.</returns>
     IReadOnlyList<SwapStopHistoryEntry> GetSwapStopHistory(ICase @case);
 
+    /// <summary>
+    /// Chooses that the trace follows the transaction that spends the coins of a transaction the source no longer
+    /// knows (sketch GR9a, <em>Ersatt av</em>): the user's judgement that the replacer carries the same money on,
+    /// sealed with who and when, with a line in the journal. The replacer is fetched through the exit (sealed like
+    /// every answer) and comes into the graph; the trace then goes on through it, drawn dashed (principle 2).
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="gone">The transaction that is gone, as <see cref="TraceGraph.Gone"/> names it.</param>
+    /// <param name="replacer">One of the transactions the case knows spends its coins now.</param>
+    /// <param name="reason">Why, at most 1 000 characters; optional (the user's decision 2026-11-07).</param>
+    /// <param name="cancellationToken">Stops the lookup of the replacer.</param>
+    /// <returns>The choice, or the one already in force for the same replacer.</returns>
+    /// <exception cref="ArgumentException">
+    /// The reason is too long, the transaction is not gone, or the case does not know the replacer spends its coins.
+    /// </exception>
+    /// <exception cref="InvalidOperationException">The replacer could not be had from the source or the case.
+    /// </exception>
+    /// <exception cref="CaseException">
+    /// <see cref="CaseError.NoOperatorProfile"/> or <see cref="CaseError.Closed"/>.
+    /// </exception>
+    Task<ReplacementFollow> FollowReplacementAsync(
+        ICase @case, Txid gone, Txid replacer, string? reason, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Takes back a choice to follow a replacer, so that the trail ends at the gone transaction again. Nothing is
+    /// removed: the choice stays sealed, and a new sealed record of the taking back says it no longer counts (sketch
+    /// AN1b). The replacer leaves the graph unless an expansion brought it in too; its sealed answers stay in the case.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="follow">The choice.</param>
+    /// <param name="reason">Why, at most 1 000 characters; optional.</param>
+    /// <returns><see langword="true"/> when the choice was in force and is now taken back.</returns>
+    /// <exception cref="ArgumentException">The reason is too long.</exception>
+    /// <exception cref="CaseException">
+    /// <see cref="CaseError.NoOperatorProfile"/> or <see cref="CaseError.Closed"/>.
+    /// </exception>
+    bool TakeBackReplacement(ICase @case, ReplacementFollow follow, string? reason);
+
     /// <summary>Remembers where the user placed a node in a layout (ordinary data, no journal).</summary>
     /// <param name="case">The open case.</param>
     /// <param name="nodeKey">The node's key from <see cref="GraphNode.Key"/>.</param>
@@ -458,6 +496,15 @@ public static class TracingJournalKinds
 
     /// <summary>The user took back a choice not to follow a swap, so that the value follows it again.</summary>
     public const string SwapFollowed = "tracing.swap-followed";
+
+    /// <summary>
+    /// The user chose that the trace follows the transaction that replaced one the source no longer knows (sketch
+    /// GR9a, <em>Ersatt av</em>).
+    /// </summary>
+    public const string ReplacementFollowed = "tracing.replacement-followed";
+
+    /// <summary>The user took back a choice to follow a replacer, so that the trail ends at the gone one again.</summary>
+    public const string ReplacementTakenBack = "tracing.replacement-taken-back";
 
     /// <summary>The user changed the tracing method the graph's amounts are counted by.</summary>
     public const string MethodChanged = "tracing.method-changed";
