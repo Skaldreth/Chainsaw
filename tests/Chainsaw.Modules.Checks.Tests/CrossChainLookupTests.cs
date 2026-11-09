@@ -90,6 +90,48 @@ public sealed class CrossChainLookupTests : IDisposable
     }
 
     [Fact]
+    public async Task A_litecoin_memo_is_read_from_litecoins_source()
+    {
+        var recipient = LitecoinAddress("ltc-recipient");
+        var payout = Tx("ltc-payout").In(LitecoinAddress("ltc-pool"), 2_000_000).Out(recipient, 1_900_000).Build();
+        var litecoin = new FakeLitecoin { Page = [payout] };
+
+        var found = await new CrossChainLookup(new NoBitcoin(), _ethereum, litecoin: litecoin, clock: _clock)
+            .FindAsync(_harness.Case, GraphOfMemos($"=:LTC.LTC:{recipient.Value}"), LookupMode.AsNeeded);
+
+        var arrival = Assert.Single(found.Arrivals);
+        Assert.Equal(Chain.Litecoin, arrival.Transaction.Chain);
+        Assert.Equal(Asset.Litecoin, arrival.Amount.Asset);
+        Assert.Equal(recipient.ToChainAddress(), arrival.To);
+        Assert.Contains(litecoin.Asked, mode => mode == LookupMode.AsNeeded);
+    }
+
+    [Fact]
+    public async Task A_recipient_that_cannot_be_read_stops_no_other()
+    {
+        _ethereum.Pages[EthereumHistory.Transactions] = [Payout(EthereumTransferKind.Native, 'c')];
+        var litecoin = new FakeLitecoin { Failure = new FormatException("Ett svar som inte gick att läsa.") };
+        var graph = GraphOfMemos(
+            $"=:LTC.LTC:{LitecoinAddress("ltc-recipient").Value}", $"=:ETH.ETH:{Recipient.Value}");
+
+        var found = await new CrossChainLookup(new NoBitcoin(), _ethereum, litecoin: litecoin, clock: _clock)
+            .FindAsync(_harness.Case, graph, LookupMode.AsNeeded);
+
+        Assert.Equal(CrossChainTargetState.Unreachable,
+            found.Targets.Single(target => target.Address.Chain == Chain.Litecoin).State);
+        Assert.Equal(Recipient.ToChainAddress(), Assert.Single(found.Arrivals).To);
+    }
+
+    [Fact]
+    public async Task A_recipient_without_a_source_for_its_chain_is_said()
+    {
+        var found = await Lookup().FindAsync(
+            _harness.Case, GraphOfMemos($"=:LTC.LTC:{LitecoinAddress("ltc-recipient").Value}"), LookupMode.AsNeeded);
+
+        Assert.Contains("ingen källa", Assert.Single(found.Targets).Problem, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task A_recipient_that_cannot_be_reached_is_said()
     {
         _ethereum.Status = LookupStatus.Offline;
@@ -133,13 +175,21 @@ public sealed class CrossChainLookupTests : IDisposable
         EthereumAddress.Parse("0x" + new string('d', 40)), Recipient, AssetAmount.Parse(Asset.Ether, "0.2"), 0,
         new EthereumBlockReference(21_000_000, "0x" + new string('e', 64), Block(900_000).Time.AddMinutes(20)));
 
+    /// <summary>A Litecoin address derived from a label.</summary>
+    private static BitcoinAddress LitecoinAddress(string label) => BitcoinAddress.FromWitness(
+        0, SHA256.HashData(Encoding.UTF8.GetBytes(label)).AsSpan(0, 20), BitcoinNetwork.Litecoin);
+
     /// <summary>One payment of 0.01 BTC into a swap per recipient, each with a memo naming it on Ethereum.</summary>
-    private static TraceGraph Graph(params EthereumAddress[] recipients)
+    private static TraceGraph Graph(params EthereumAddress[] recipients) =>
+        GraphOfMemos([.. recipients.Select(recipient => $"=:ETH.ETH:{recipient.Value}")]);
+
+    /// <summary>One payment of 0.01 BTC into a swap per memo.</summary>
+    private static TraceGraph GraphOfMemos(params string[] memos)
     {
         var swapIn = Wpkh("lookup-swap-in");
-        var transactions = recipients.Select((recipient, index) =>
+        var transactions = memos.Select((text, index) =>
         {
-            var memo = Encoding.ASCII.GetBytes($"=:ETH.ETH:{recipient.Value}");
+            var memo = Encoding.ASCII.GetBytes(text);
             var deposit = Tx("lookup-deposit-" + index).In(Wpkh("lookup-payer"), 1_010_000).Out(swapIn, 1_000_000)
                 .Build();
             return deposit with
@@ -213,6 +263,60 @@ public sealed class CrossChainLookupTests : IDisposable
 
         public Task<BitcoinLookup<EthereumTip>> GetTipHeightAsync(
             ICase @case, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    }
+
+    /// <summary>A Litecoin source that answers one page, or fails, and records how it was asked.</summary>
+    private sealed class FakeLitecoin : ILitecoinSource
+    {
+        public List<LookupMode> Asked { get; } = [];
+
+        public IReadOnlyList<BitcoinTransaction> Page { get; init; } = [];
+
+        public Exception? Failure { get; init; }
+
+        public BitcoinNetwork Network => BitcoinNetwork.Litecoin;
+
+        public Task<BitcoinLookup<BitcoinAddressPage>> GetAddressTransactionsAsync(
+            ICase @case, BitcoinAddress address, Txid? after = null, CancellationToken cancellationToken = default) =>
+            GetAddressTransactionsAsync(@case, address, after, LookupMode.AsNeeded, cancellationToken);
+
+        public Task<BitcoinLookup<BitcoinAddressPage>> GetAddressTransactionsAsync(
+            ICase @case, BitcoinAddress address, Txid? after, LookupMode mode,
+            CancellationToken cancellationToken = default)
+        {
+            Asked.Add(mode);
+            if (Failure is not null)
+            {
+                throw Failure;
+            }
+
+            var page = mode == LookupMode.AsNeeded ? new BitcoinAddressPage(address, null, Page, null) : null;
+            var status = page is null ? LookupStatus.NotInCase : LookupStatus.Fetched;
+            return Task.FromResult(new BitcoinLookup<BitcoinAddressPage>(status, page, [], null));
+        }
+
+        public Task<BitcoinLookup<BitcoinTransaction>> GetTransactionAsync(
+            ICase @case, Txid txid, LookupMode mode = LookupMode.AsNeeded,
+            CancellationToken cancellationToken = default) => throw new InvalidOperationException();
+
+        public Task<BitcoinLookup<BitcoinTransaction>> VerifyTransactionAsync(
+            ICase @case, Txid txid, CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException();
+
+        public Task<BitcoinLookup<BitcoinAddressSummary>> GetAddressSummaryAsync(
+            ICase @case, BitcoinAddress address, CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException();
+
+        public Task<BitcoinLookup<IReadOnlyList<BitcoinOutputSpend>>> GetOutputSpendsAsync(
+            ICase @case, Txid txid, LookupMode mode = LookupMode.AsNeeded,
+            CancellationToken cancellationToken = default) => throw new InvalidOperationException();
+
+        public Task<BitcoinLookup<BitcoinBlock>> GetBlockAsync(
+            ICase @case, BlockHash hash, CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException();
+
+        public Task<BitcoinLookup<BitcoinTip>> GetTipHeightAsync(
+            ICase @case, CancellationToken cancellationToken = default) => throw new InvalidOperationException();
     }
 
     /// <summary>A Bitcoin source the search must never ask here: the memo names a recipient on Ethereum.</summary>

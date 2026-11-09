@@ -118,7 +118,12 @@ internal sealed class CrossChainLookup(
                     return ([], NoSource(address));
                 }
 
-                var recipient = BitcoinAddress.Parse(address.Value);
+                if (!BitcoinAddress.TryParse(address.Chain, address.Value, out var recipient))
+                {
+                    return ([], new CrossChainTarget(
+                        address, CrossChainTargetState.Unreachable, $"Ingen giltig adress på {address.Chain}."));
+                }
+
                 var page = await LookUpAsync(
                     address,
                     budget,
@@ -136,6 +141,12 @@ internal sealed class CrossChainLookup(
         {
             // A source that cannot read only the case in this mode has nothing here yet.
             return ([], new CrossChainTarget(address, CrossChainTargetState.NotFetched, null));
+        }
+        catch (Exception exception) when (exception is not (OperationCanceledException or OutOfMemoryException))
+        {
+            // One recipient that cannot be read must not keep the others, and every other deposit, from being weighed.
+            return ([], new CrossChainTarget(
+                address, CrossChainTargetState.Unreachable, "Mottagaren kunde inte läsas ur källans svar."));
         }
     }
 

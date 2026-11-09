@@ -5178,6 +5178,18 @@ i KF2b-panelen, och ett godkännande som knyter fortsättningen i samma transakt
 - **Litecoin och BSC:** memots `LTC.` och `BSC.` (och `l`, `s`) vägs, BSC och Litecoin slås upp med sina källor, och
   Litecoins mynt är betalningar i LTC. En betalning *in* på Litecoin föreslås inte än (BACKLOG).
 
+**Andra granskningens rättelser (0 C, 2 I, 4 M):**
+- **I-A:** en Litecoin-mottagare läses med `BitcoinAddress.TryParse(chain, …)`, och ett fel hos en mottagare stoppar
+  bara den (`Unreachable` med ett skäl). Tester med en Litecoin-källa, ett fel och en saknad källa.
+- **I-B:** bara offrens adresser utesluts (`CheckInput.ProtectedAccounts`); en startpunkt vägs som andra och skälet
+  säger det (*Startpunkten är neutral*).
+- **M-a:** en brygga eller swap känns igen också ur etiketter och listan över kända kontrakt
+  (`CheckInput.BridgeAccounts`), inte bara ur grafens noder.
+- **M-b:** poängen är ordningen: memots mottagare som en brygga betalade får 0,8–1, alla andra högst 0,8.
+- **M-c:** *samma nyckel* gäller inte en adress som är ett känt kontrakt (listan, en brygga, eller en som betalat ut
+  ether inne i en tx); källorna ger ingen bytekod (BACKLOG).
+- **M-d:** journalen och `CrossChainLink.FromText` nämner kedjan för en rörelse (`Bsc token:0x…#3`).
+
 **Återstår:** BACKLOG, *Cross-chain, efter `cross-chain v1`*, och ytorna i TODO, punkt 9.
 
 ## Omgång 8b: Litecoin och BSC (backloggen, 2026-11-09)

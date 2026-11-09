@@ -93,12 +93,18 @@ internal sealed class CrossChainCheck : ICheckAnalysis
 
     /// <summary>
     /// The score a candidate starts from when the memo names its recipient and a bridge or swap on the other chain
-    /// paid it: the sender's instruction and the payer both point there.
+    /// paid it: the sender's instruction and the payer both point there. With the value and the time it ranges from
+    /// above <see cref="OthersCeiling"/> to 1, so that the order and the scores always say the same.
     /// </summary>
-    private const double MemoBase = 0.7;
+    private const double MemoBase = 0.8;
 
-    /// <summary>What the value and the time each add to a candidate the memo names.</summary>
-    private const double MemoPartWeight = 0.15;
+    /// <summary>What the value and the time each add to a candidate the memo names and a bridge paid.</summary>
+    private const double MemoPartWeight = 0.1;
+
+    /// <summary>
+    /// The highest score of any other candidate: below the lowest score of the memo's recipient paid by a bridge.
+    /// </summary>
+    public const double OthersCeiling = 0.8;
 
     /// <summary>What the time counts at the end of the window.</summary>
     private const double LatestTimeScore = 0.2;
@@ -218,7 +224,8 @@ internal sealed class CrossChainCheck : ICheckAnalysis
 
         var valueIn = input.CrossChain.ValueOf(departure.Payment);
         var recipient = NamedRecipient(departure);
-        var weighed = new List<(CheckCandidate Candidate, bool First, DateTimeOffset Time)>();
+        var contracts = ContractsOf(graph, input);
+        var weighed = new List<(CheckCandidate Candidate, DateTimeOffset Time)>();
         foreach (var arrival in pool)
         {
             if (arrival.Transaction.Chain == departure.Payment.Transaction.Chain || arrival.Time is not { } time)
@@ -232,7 +239,7 @@ internal sealed class CrossChainCheck : ICheckAnalysis
                 continue;
             }
 
-            var sign = SignOf(graph, departure, arrival, recipient);
+            var sign = SignOf(graph, input, departure, arrival, recipient, contracts);
             var feeScore = FeeOf(valueIn, input.CrossChain.ValueOf(arrival)) is { } fee ? FeeScore(fee) : (double?)null;
             if (feeScore == 0 || (feeScore is null && sign is not (Sign.Named or Sign.NamedFromBridge)))
             {
@@ -246,14 +253,14 @@ internal sealed class CrossChainCheck : ICheckAnalysis
                 continue;
             }
 
-            var reason = Reason(input, departure, arrival, sign, time - start);
-            weighed.Add((Candidate(arrival, Math.Round(score, 2), reason), sign == Sign.NamedFromBridge, time));
+            var reason = Reason(input, graph, departure, arrival, sign, time - start);
+            weighed.Add((Candidate(arrival, Math.Round(score, 2), reason), time));
         }
 
+        // The score is the order: the memo's recipient paid by a bridge scores above every other candidate.
         return
         [
-            .. weighed.OrderByDescending(item => item.First)
-                .ThenByDescending(item => item.Candidate.Score)
+            .. weighed.OrderByDescending(item => item.Candidate.Score)
                 .ThenBy(item => item.Time)
                 .ThenBy(item => item.Candidate.Key, StringComparer.Ordinal)
                 .Select(item => item.Candidate),
@@ -302,33 +309,73 @@ internal sealed class CrossChainCheck : ICheckAnalysis
 
     /// <summary>
     /// Says whether a payment may be a continuation at all: not one that itself goes into a bridge or a swap (that is a
-    /// departure), and not a payment to or from a start point or a victim's address.
+    /// departure), and not a payment to or from a victim's address. A start point is weighed like any other address,
+    /// since it may as well be the suspect's (CLAUDE.md, <em>Startpunkten är neutral</em>); the reason says so.
     /// </summary>
     /// <param name="graph">The graph.</param>
-    /// <param name="input">The input, with the protected addresses.</param>
+    /// <param name="input">The input, with the victims' addresses and the known bridges.</param>
     /// <param name="payment">The payment.</param>
     /// <returns><see langword="true"/> when it may.</returns>
     private static bool MayContinue(TraceGraph graph, CheckInput input, ChainMovement payment) =>
-        graph.NodeOf(payment.To)?.Ends.Any(end => end.Reason == TrailEndReason.OtherChain) != true
+        !IsBridge(graph, input, payment.To)
         && !input.ProtectedAccounts.Contains(payment.To)
         && (payment.From is null || !input.ProtectedAccounts.Contains(payment.From));
 
+    /// <summary>
+    /// Says whether an address is a bridge or a swap service: an actor the trail ends at with
+    /// <see cref="TrailEndReason.OtherChain"/>, or one a label or the list of known contracts says is one
+    /// (<see cref="CheckInput.BridgeAccounts"/>), also when it is not in the graph.
+    /// </summary>
+    /// <param name="graph">The graph.</param>
+    /// <param name="input">The input.</param>
+    /// <param name="address">The address.</param>
+    /// <returns><see langword="true"/> when it is.</returns>
+    private static bool IsBridge(TraceGraph graph, CheckInput input, ChainAddress address) =>
+        input.BridgeAccounts.Contains(address)
+        || graph.NodeOf(address)?.Ends.Any(end => end.Reason == TrailEndReason.OtherChain) == true;
+
+    /// <summary>
+    /// Gives the addresses known to be contracts, which hold no private key: the known contracts, the bridges, and
+    /// every address that sent ether from inside a transaction (only a contract can). The sources give no bytecode, so
+    /// an address not known to be a contract is taken as an account with a key.
+    /// </summary>
+    /// <param name="graph">The graph.</param>
+    /// <param name="input">The input.</param>
+    /// <returns>The contracts' addresses.</returns>
+    private static HashSet<ChainAddress> ContractsOf(TraceGraph graph, CheckInput input) =>
+    [
+        .. input.BridgeAccounts,
+        .. KnownContracts.All.Select(contract => contract.Address.ToChainAddress()),
+        .. graph.Account.Transfers
+            .Where(transfer => transfer.Kind == EthereumTransferKind.Internal)
+            .Select(transfer => transfer.From.ToChainAddress()),
+    ];
+
     /// <summary>Gives what a payment's addresses say about it.</summary>
     /// <param name="graph">The graph.</param>
+    /// <param name="input">The input, with the known bridges.</param>
     /// <param name="departure">The departure.</param>
     /// <param name="arrival">The payment out.</param>
     /// <param name="recipient">The recipient the memo names, or <see langword="null"/>.</param>
+    /// <param name="contracts">The addresses known to be contracts, which never share a key.</param>
     /// <returns>The sign.</returns>
     private static Sign SignOf(
-        TraceGraph graph, CrossChainDeparture departure, ChainMovement arrival, ChainAddress? recipient)
+        TraceGraph graph,
+        CheckInput input,
+        CrossChainDeparture departure,
+        ChainMovement arrival,
+        ChainAddress? recipient,
+        IReadOnlySet<ChainAddress> contracts)
     {
-        var fromBridge = FromBridge(graph, arrival);
+        var fromBridge = arrival.From is { } payer && IsBridge(graph, input, payer);
         if (recipient is not null && recipient == arrival.To)
         {
             return fromBridge ? Sign.NamedFromBridge : Sign.Named;
         }
 
-        if (SameKey(departure.Payment.From, arrival.To))
+        // A contract has the same address on two chains without anyone holding a key to both, so it says nothing.
+        if (SameKey(departure.Payment.From, arrival.To)
+            && !contracts.Contains(departure.Payment.From!) && !contracts.Contains(arrival.To))
         {
             return Sign.SameKey;
         }
@@ -351,7 +398,8 @@ internal sealed class CrossChainCheck : ICheckAnalysis
             MemoBase + (MemoPartWeight * (feeScore ?? PlainAddressScore)) + (MemoPartWeight * timeScore),
         Sign.Named when feeScore is null => UncheckedCeiling * (PlainAddressScore + (PlainAddressScore * timeScore)),
         Sign.None => PlainCeiling * ((PlainValueWeight * feeScore!.Value) + ((1 - PlainValueWeight) * timeScore)),
-        _ => (ValueWeight * feeScore!.Value) + (TimeWeight * timeScore) + (AddressWeight * AddressScore(sign)),
+        _ => OthersCeiling
+            * ((ValueWeight * feeScore!.Value) + (TimeWeight * timeScore) + (AddressWeight * AddressScore(sign))),
     };
 
     /// <summary>Gives what a sign in the address counts in the score.</summary>
@@ -364,14 +412,6 @@ internal sealed class CrossChainCheck : ICheckAnalysis
         Sign.FromBridge => FromBridgeScore,
         _ => PlainAddressScore,
     };
-
-    /// <summary>Says whether a payment was paid by an actor the trail ends at as a bridge or a swap.</summary>
-    /// <param name="graph">The graph.</param>
-    /// <param name="arrival">The payment.</param>
-    /// <returns><see langword="true"/> when it was.</returns>
-    private static bool FromBridge(TraceGraph graph, ChainMovement arrival) =>
-        arrival.From is { } payer
-        && graph.NodeOf(payer)?.Ends.Any(end => end.Reason == TrailEndReason.OtherChain) == true;
 
     /// <summary>Gives a candidate of a payment: on Bitcoin with its coin, otherwise only as the payment.</summary>
     /// <param name="arrival">The payment.</param>
@@ -392,13 +432,19 @@ internal sealed class CrossChainCheck : ICheckAnalysis
 
     /// <summary>Writes why a payment is a candidate: its amount, time, value and what its address says.</summary>
     /// <param name="input">The input, with the values.</param>
+    /// <param name="graph">The graph, for whether the recipient is a start point.</param>
     /// <param name="departure">The departure.</param>
     /// <param name="arrival">The payment out.</param>
     /// <param name="sign">What its addresses say.</param>
     /// <param name="after">The time after the payment in.</param>
     /// <returns>The reason, in Swedish.</returns>
     private static string Reason(
-        CheckInput input, CrossChainDeparture departure, ChainMovement arrival, Sign sign, TimeSpan after)
+        CheckInput input,
+        TraceGraph graph,
+        CrossChainDeparture departure,
+        ChainMovement arrival,
+        Sign sign,
+        TimeSpan after)
     {
         var parts = new List<string>
         {
@@ -418,6 +464,11 @@ internal sealed class CrossChainCheck : ICheckAnalysis
         if (said is not null)
         {
             parts.Add(said);
+        }
+
+        if (graph.NodeOf(arrival.To)?.IsStartPoint == true)
+        {
+            parts.Add("mottagaren är en startpunkt i ärendet, vägd som andra adresser");
         }
 
         return string.Join("; ", parts) + ".";
@@ -522,7 +573,8 @@ internal sealed class CrossChainCheck : ICheckAnalysis
             + (input.CrossChain.Currency is { } currency ? $" i {currency}" : string.Empty)
             + ", eftersom tillgångarna skiljer sig. Memots mottagare, samma nyckel på Ethereum, BSC och TRON, och en "
             + "utbetalning från en brygga eller swap väger mer; en betalning utan något sådant hålls under dem. "
-            + "Betalningar som själva går in i en brygga, och startpunkternas och offrets, vägs inte.");
+            + "Samma nyckel gäller bara adresser som inte är kända kontrakt. Betalningar som själva går in i en "
+            + "brygga, och offrets, vägs inte; en startpunkt vägs som andra adresser och sägs i skälet.");
         var recipient = NamedRecipient(departure);
         lines.AddRange(input.CrossChain.Targets
             .Where(target => target.Address == recipient && target.State != CrossChainTargetState.Read)

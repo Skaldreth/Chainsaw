@@ -63,10 +63,16 @@ public sealed record CheckInput(
     public IReadOnlySet<BitcoinAddress> Protected { get; init; } = new HashSet<BitcoinAddress>();
 
     /// <summary>
-    /// Gets the addresses on every chain that a payment to or from is never a continuation of another payment: the
-    /// start points' and those a label says are a victim's.
+    /// Gets the addresses on every chain that a payment to or from is never a continuation of another payment: those a
+    /// label says are a victim's. A start point is not among them (CLAUDE.md, <em>Startpunkten är neutral</em>).
     /// </summary>
     public IReadOnlySet<ChainAddress> ProtectedAccounts { get; init; } = new HashSet<ChainAddress>();
+
+    /// <summary>
+    /// Gets the addresses on every chain that a label (<em>Swap eller brygga</em>) or Chainsaw's list of known
+    /// contracts says are a bridge or a swap service, also those not in the graph; a judgement with its source.
+    /// </summary>
+    public IReadOnlySet<ChainAddress> BridgeAccounts { get; init; } = new HashSet<ChainAddress>();
 
     /// <summary>
     /// Gets the graph the input was built from, for an analysis that reads more than the Bitcoin transactions (the

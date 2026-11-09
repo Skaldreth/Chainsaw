@@ -55,8 +55,15 @@ visar de troliga som **kandidater** under *Förslag* (Ctrl+J), en i taget, som m
 - **Adressen.** Ethereum, BSC och TRON skriver samma 20 byte på olika sätt, så samma nyckel kan ha en adress på alla
   tre. En utbetalning till betalarens egen nyckel på den andra kedjan väger mer, och så gör en utbetalning från en
   brygga eller swap. En betalning utan något sådant står alltid under dem, hur väl värdet och tiden än passar.
-- **Det som inte vägs:** betalningar som själva går in i en brygga eller swap, och betalningar till eller från en
-  startpunkt eller ett offer.
+- **Det som inte vägs:** betalningar som själva går in i en brygga eller swap, och betalningar till eller från ett
+  offer. En startpunkt vägs som andra adresser, eftersom den lika gärna kan vara den misstänktes plånbok, och skälet
+  säger att mottagaren är en startpunkt.
+- **Kontrakt har ingen nyckel.** Samma adress på två kedjor räknas bara som samma nyckel när ingen av dem är ett känt
+  kontrakt (en brygga, ett kontrakt på Chainsaws lista, eller en adress som betalat ut ether inne i en tx).
+- **Bryggor utanför grafen.** Att betalaren är en brygga eller swap läses också ur etiketter (*Swap eller brygga*) och
+  ur Chainsaws lista över kända kontrakt, inte bara ur grafens noder.
+- **Poängen är ordningen.** Memots mottagare som en brygga betalade får alltid över 0,8, alla andra högst 0,8, och en
+  betalning utan tecken i adressen högst 0,6.
 
 Varje kandidat har sitt skäl: beloppet, värdet mot det som gick in, tiden och vad som talar för adressen. *Varför?*
 säger vilka kurser och vilken uppgift förslaget bygger på, med blockhöjd och hash.

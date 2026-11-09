@@ -202,6 +202,11 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
   - **En utbetalning i flera delar:** bara en kandidat kan godkännas (en betalning knyts till en tx åt gången), och
     delar som tillsammans är värdet föreslås inte.
   - **En THORName** i memot (ett namn i stället för en adress) slås inte upp; det sägs i *Varför?*.
+  - **THORChains router och valv** står inte på listan över kända kontrakt: de läggs till när adresserna har lästs ur
+    THORChains egen källa med datum (listan tar aldrig in en adress som inte är kontrollerad). Till dess räknas en
+    utbetalning som från en brygga bara genom en etikett *Swap eller brygga* eller grafens noder.
+  - **Kontrakt eller nyckel:** källorna ger ingen bytekod, så en adress räknas som ett kontrakt bara när listan,
+    en etikett eller en intern utbetalning säger det; ett kontrakt som inget av det känner kan ge *samma nyckel*.
   - **Ett godkänt förslag vars betalning in sedan knyts om för hand** står kvar som godkänt i panelen tills nästa körning.
 - **Direkt mot kedjan:** egen nod och eget index (Bitcoin Core med `txindex`, Fulcrum eller electrs eller ett eget index;
   Reth eller Erigon för Ethereum; java-tron för TRON). Kräver en server. Esplora går att köra själv, så Bitcoin blir bara en

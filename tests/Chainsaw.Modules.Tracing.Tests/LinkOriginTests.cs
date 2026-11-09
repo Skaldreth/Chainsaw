@@ -61,6 +61,19 @@ public sealed class LinkOriginTests : IDisposable
     }
 
     [Fact]
+    public void The_journal_names_the_chain_of_a_movement_on_BSC()
+    {
+        var movement = new AccountSeed(
+            EthereumTxHash.Parse(Chain.Bsc, "0x" + new string('c', 64)), EthereumTransferKind.Token, 3);
+
+        var link = _harness.Case.Write(transaction =>
+            Links.Link(transaction, new CrossChainLinkDraft(null, movement, TronTx, null, Origin)));
+
+        Assert.Contains("Bsc token:0x", _harness.Case.ReadJournal().Last().Summary, StringComparison.Ordinal);
+        Assert.StartsWith("Bsc token:", link.FromText, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task A_link_by_hand_has_no_origin()
     {
         await _flows.ExpandInto(_harness);

@@ -811,7 +811,8 @@ internal sealed class CheckService : ICheckService
             Services = services,
             Owners = OwnersOf(@case, transactions),
             Protected = ProtectedOf(@case, graph),
-            ProtectedAccounts = ProtectedAccountsOf(@case, graph),
+            ProtectedAccounts = VictimsOf(@case),
+            BridgeAccounts = BridgesOf(@case),
         };
     }
 
@@ -839,18 +840,37 @@ internal sealed class CheckService : ICheckService
     }
 
     /// <summary>
-    /// Gives the addresses on every chain whose payments are never a continuation: the start points' and the victims'.
+    /// Gives the addresses on every chain whose payments are never a continuation: the victims' that labels name. A
+    /// start point is not among them, since it may as well be the suspect's.
     /// </summary>
     /// <param name="case">The open case.</param>
-    /// <param name="graph">The graph.</param>
     /// <returns>The addresses.</returns>
-    private HashSet<ChainAddress> ProtectedAccountsOf(ICase @case, TraceGraph graph)
-    {
-        var victims = _attribution?.GetLabels(@case)
-            .Where(label => label.Kind == LabelKind.Victim)
-            .Select(label => label.Subject.Target) ?? [];
-        return [.. graph.Nodes.Where(node => node.IsStartPoint).SelectMany(node => node.Addresses).Concat(victims)];
-    }
+    private HashSet<ChainAddress> VictimsOf(ICase @case) => LabelledAs(@case, LabelKind.Victim);
+
+    /// <summary>
+    /// Gives the addresses on every chain that are bridges or swap services: those labelled <em>Swap eller
+    /// brygga</em> and the bridges on Chainsaw's list of known contracts, in the graph or not.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <returns>The addresses.</returns>
+    private HashSet<ChainAddress> BridgesOf(ICase @case) =>
+    [
+        .. LabelledAs(@case, LabelKind.SwapBridge),
+        .. KnownContracts.All
+            .Where(contract => contract.Category == KnownContractCategory.Bridge)
+            .Select(contract => contract.Address.ToChainAddress()),
+    ];
+
+    /// <summary>Gives the addresses that the case's labels of a kind are on.</summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="kind">The kind.</param>
+    /// <returns>The addresses; empty when Attribution is not registered.</returns>
+    private HashSet<ChainAddress> LabelledAs(ICase @case, LabelKind kind) =>
+    [
+        .. _attribution?.GetLabels(@case)
+            .Where(label => label.Kind == kind)
+            .Select(label => label.Subject.Target) ?? [],
+    ];
 
     /// <summary>
     /// Gives the owner of every address in the transactions as the clustering counts it: the smallest address of

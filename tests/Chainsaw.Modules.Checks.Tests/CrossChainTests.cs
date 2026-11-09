@@ -146,7 +146,7 @@ public sealed class CrossChainTests : IDisposable
     }
 
     [Fact]
-    public void Payments_into_a_bridge_and_to_a_start_point_are_not_continuations()
+    public void A_payment_into_a_bridge_is_no_continuation_but_one_to_a_start_point_is_and_says_so()
     {
         var intoBridge = Ether("into-bridge", "other-bridge", "0.198", Start.AddMinutes(10));
         var toStart = Ether("to-start", "start", "0.198", Start.AddMinutes(15));
@@ -163,7 +163,75 @@ public sealed class CrossChainTests : IDisposable
         var graph = Graph(Deposit(), intoBridge, toStart);
         graph = graph with { Nodes = [.. graph.Nodes.Select(Marked)] };
 
-        Assert.Empty(CrossChain(Run(graph)));
+        // A start point is neutral: it may be the suspect's own wallet, so it is weighed, and the reason says it.
+        var candidate = Assert.Single(Single(graph).Finding.Candidates);
+        Assert.Equal(toStart.Key, candidate.Key);
+        Assert.Contains("startpunkt", candidate.Reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_payment_to_a_victim_is_no_continuation()
+    {
+        var toVictim = Ether("to-victim", "victim", "0.198", Start.AddMinutes(15));
+        var graph = Graph(Deposit(), toVictim);
+        var input = CheckInput.Empty with
+        {
+            Graph = graph,
+            CrossChain = await _lookup.FindAsync(_harness.Case, graph, LookupMode.CaseOnly),
+        };
+
+        Assert.Single(new CrossChainCheck().Run(input));
+        var victims = new HashSet<ChainAddress> { toVictim.To };
+        Assert.Empty(new CrossChainCheck().Run(input with { ProtectedAccounts = victims }));
+    }
+
+    [Fact]
+    public void A_known_bridge_paying_the_memos_recipient_puts_it_first_with_the_highest_score()
+    {
+        // The Arbitrum bridge is on Chainsaw's list of known contracts; it is no node with an end in this graph.
+        var bridge = KnownContracts.All.First(contract => contract.Category == KnownContractCategory.Bridge);
+        var named = Account(Chain.Ethereum, "memo-recipient");
+        var better = Ether("better", "other", "0.198", Start.AddMinutes(5));
+        var toNamed = Movement(
+            Chain.Ethereum, "named", bridge.Address.ToChainAddress(), named, Asset.Ether, "0.18", Start.AddHours(6));
+
+        var suggestion = Single(Graph(Deposit($"=:ETH.ETH:{named.Value}"), better, toNamed));
+
+        var scores = suggestion.Finding.Candidates.Select(c => c.Score).ToList();
+        Assert.Equal(toNamed.Key, suggestion.Finding.Candidates[0].Key);
+        Assert.True(scores[0] > CrossChainCheck.OthersCeiling);
+        Assert.Equal(scores.OrderByDescending(score => score), scores);
+    }
+
+    [Fact]
+    public void A_contract_with_the_same_address_on_two_chains_is_no_same_key()
+    {
+        // The payer sent ether from inside a transaction, which only a contract can; it holds no private key.
+        var payer = Account(Chain.Ethereum, "contract");
+        var bridge = Account(Chain.Ethereum, "bridge");
+        var into = Movement(Chain.Ethereum, "into-bridge", payer, bridge, Asset.Ether, "0.2", Start);
+        var sameBytes = Movement(
+            Chain.Tron, "to-same-bytes", Account(Chain.Tron, "pool"), Account(Chain.Tron, "contract"), Usdt, "5900",
+            Start.AddMinutes(30));
+        var graph = Empty() with
+        {
+            Nodes = [AccountNode(payer), AccountNode(bridge, OtherChainEnd), AccountNode(sameBytes.From!),
+                AccountNode(sameBytes.To)],
+            Account = AccountOf(into, sameBytes) with
+            {
+                Transfers =
+                [
+                    .. AccountOf(into, sameBytes).Transfers,
+                    Transfer(Movement(
+                        Chain.Ethereum, "internal", payer, Account(Chain.Ethereum, "elsewhere"), Asset.Ether, "0.01",
+                        Start.AddDays(-1))) with { Kind = EthereumTransferKind.Internal },
+                ],
+            },
+        };
+
+        var candidate = Assert.Single(Single(graph).Finding.Candidates);
+        Assert.DoesNotContain("samma nyckel", candidate.Reason, StringComparison.Ordinal);
+        Assert.True(candidate.Score <= CrossChainCheck.PlainCeiling);
     }
 
     [Fact]

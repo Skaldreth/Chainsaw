@@ -111,9 +111,7 @@ internal sealed class CrossChainLinks : ICrossChainLinks
                 "The movement already continues on another chain; take that link back first.", nameof(from));
         }
 
-        var text = string.Create(
-            CultureInfo.InvariantCulture,
-            $"{from.Kind.ToString().ToLowerInvariant()}:{from.Transaction.Value}#{from.Position}");
+        var text = MovementText(from);
         var journal = transaction.AppendJournal(new JournalDraft(
             TracingJournalKinds.CrossChainLinked,
             string.Format(CultureInfo.InvariantCulture, "Fortsätter på annan kedja: {0} → {1}", text, to)
@@ -141,6 +139,16 @@ internal sealed class CrossChainLinks : ICrossChainLinks
             JsonSerializer.Serialize(new { link = stored.Sequence, reason })));
         GraphStateStore.SealUnlink(transaction, stored, reason, journal);
     }
+
+    /// <summary>
+    /// Writes an account movement for the journal with its chain, since Ethereum's and BSC's hashes look alike, for
+    /// example <c>Bsc token:0x…#3</c>.
+    /// </summary>
+    /// <param name="from">The movement.</param>
+    /// <returns>The text.</returns>
+    public static string MovementText(AccountSeed from) => string.Create(
+        CultureInfo.InvariantCulture,
+        $"{from.Transaction.Chain} {from.Kind.ToString().ToLowerInvariant()}:{from.Transaction.Value}#{from.Position}");
 
     /// <summary>Checks a reason's length.</summary>
     /// <param name="reason">The reason.</param>

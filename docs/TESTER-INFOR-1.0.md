@@ -1861,7 +1861,13 @@ skapas på nytt:** länkarnas förseglade kolumner har fått `origin`, så ett �
   avsändarens instruktion och att THORChain kan betala tillbaka.
 - Byt vy fram och tillbaka flera gånger: samma mottagare frågas inte igen inom en kvart (journalen och källornas
   förseglade svar växer inte).
-- En betalning utan memo och utan samma nyckel eller brygga har högst 0,60 i poäng.
+- En betalning utan memo och utan samma nyckel eller brygga har högst 0,60 i poäng, och kandidaterna står i
+  poängens ordning.
+- En betalning till en startpunkt (till exempel startpunkten utredningen började i, om memot pekar dit) är en kandidat
+  och skälet säger *mottagaren är en startpunkt i ärendet*; en betalning till en adress med etiketten *Offer* är det
+  inte.
+- Ett `=:LTC.LTC:ltc1…`-memo: mottagaren slås upp på Litecoin, och kan den inte läsas står det för den mottagaren
+  medan de andra insättningarna vägs som vanligt.
 - Med utgången frånkopplad: panelen säger *Fortsättningen på Ethereum kunde inte slås upp: …*, och förslagen bygger på
   det som redan finns i ärendet.
 - Godkänn en kandidat (Enter), gärna utan skäl: grafen får den lila streckade länken till tx:en på den andra kedjan,
