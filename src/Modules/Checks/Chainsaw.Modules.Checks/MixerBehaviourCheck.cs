@@ -17,8 +17,11 @@ internal sealed class MixerBehaviourCheck : ICheckAnalysis
     /// <summary>The analysis's stable name.</summary>
     public const string Name = "mixer-behaviour";
 
+    /// <summary>The analysis's name and version, as <c>mixer-chain</c> names it.</summary>
+    public static readonly HeuristicId Identity = new(Name, 1);
+
     /// <inheritdoc/>
-    public HeuristicId Id { get; } = new(Name, 1);
+    public HeuristicId Id => Identity;
 
     /// <inheritdoc/>
     public string DisplayName => "Trolig mixer";
@@ -40,21 +43,27 @@ internal sealed class MixerBehaviourCheck : ICheckAnalysis
     {
         var matched = mixer.Matched.ToList();
         var (count, of) = (CheckText.Count(matched.Count), CheckText.Count(mixer.Deposits.Count));
-        var fees = matched.Select(deposit => Fee(deposit.Deposit, deposit.Matches[0])).ToList();
+        var fees = matched.Select(deposit => Fee(deposit.Deposit, deposit.Match!)).ToList();
         var range = $"{CheckText.Percent(fees.Min())}–{CheckText.Percent(fees.Max())}";
+        var inParts = matched.Count(deposit => deposit.Match!.IsParts);
+        var parts = inParts > 0 ? $", {CheckText.Count(inParts)} av dem i delar" : string.Empty;
         var why = $"Analysen {this.Named()} ser en ägare utan etikett, som klustringen räknar den, som tar emot "
             + $"insättningar från {CheckText.Count(mixer.Senders)} olika avsändare och betalar ut till "
             + $"{CheckText.Count(mixer.Recipients)} olika mottagare. {count} av de {of} insättningarna kommer ut igen "
-            + $"inom {CheckText.Span(MixerOutputsCheck.Window)}, till någon som inte satte in, som insättningen minus "
-            + $"{range} och betalda med andra mynt än insättningens egna. Så arbetar en central mixer: den tar en "
-            + "avgift och betalar tillbaka ur en gemensam pott, så att ingen tx knyter ihop in och ut. Håller du med, "
-            + "sätt etiketten Mixer med L, så väger mixerns förslag dess utgångar. Det är en bedömning, inte ett "
-            + "faktum: en växlare eller en tjänst som betalar tillbaka nästan samma belopp kan se likadan ut, och "
-            + "klustret kan ha fler ägare.";
+            + $"inom {CheckText.Span(MixerOutputsCheck.Window)}{parts}, till någon som inte satte in, som insättningen "
+            + $"minus {range}, betalda med andra mynt än insättningens egna och oftast till adresser som bara tar "
+            + "emot en gång; varje utbetalning räknas för högst en insättning, och de flesta utbetalningarna förklaras "
+            + "så. Med beloppen förskjutna, där bara slumpen kan träffa, förklaras "
+            + $"{CheckText.Count(mixer.Baseline)}. Så arbetar en central mixer: den tar en avgift och betalar tillbaka "
+            + "ur en gemensam pott, så att ingen tx knyter ihop in och ut. Håller du med, sätt etiketten Mixer med L, "
+            + "så väger mixerns förslag dess utgångar. Det är en bedömning, inte ett faktum: en växlare eller en "
+            + "tjänst som betalar tillbaka nästan samma belopp kan se likadan ut, och klustret kan ha fler ägare.";
         var addresses = mixer.Deposits.Select(deposit => deposit.Deposit.Output.Address!)
-            .Concat(matched.SelectMany(deposit => deposit.Matches[0].Transaction.InputAddresses()))
+            .Concat(matched.SelectMany(deposit => deposit.Match!.Outputs)
+                .SelectMany(payout => payout.Transaction.InputAddresses()))
             .Distinct();
-        var basis = matched.SelectMany(deposit => new[] { deposit.Deposit.Transaction, deposit.Matches[0].Transaction })
+        var basis = matched.SelectMany(deposit => deposit.Match!.Outputs.Select(payout => payout.Transaction)
+                .Prepend(deposit.Deposit.Transaction))
             .DistinctBy(transaction => transaction.Txid)
             .Select(CheckBasis.Of);
         return new CheckFinding(
@@ -70,10 +79,10 @@ internal sealed class MixerBehaviourCheck : ICheckAnalysis
             []);
     }
 
-    /// <summary>Gives the share of a deposit that did not come out in a payout.</summary>
+    /// <summary>Gives the share of a deposit that did not come out in its payouts.</summary>
     /// <param name="deposit">The deposit.</param>
-    /// <param name="payout">The payout.</param>
+    /// <param name="match">The payouts.</param>
     /// <returns>The fee, from 0 to 1.</returns>
-    private static double Fee(MixerDeposit deposit, LikelyPayout payout) =>
-        (double)(deposit.Output.Amount.Value - payout.Output.Amount.Value) / deposit.Output.Amount.Value;
+    private static double Fee(MixerDeposit deposit, LikelyMatch match) =>
+        (double)(deposit.Output.Amount.Value - match.Amount.Value) / deposit.Output.Amount.Value;
 }

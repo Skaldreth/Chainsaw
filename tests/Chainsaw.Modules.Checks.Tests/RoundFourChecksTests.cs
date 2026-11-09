@@ -265,7 +265,7 @@ public sealed class RoundFourChecksTests : IDisposable
 
         Assert.Equal(AreaSort.Time, check.Finding.Area);
         Assert.Equal("Aktiv kl. 09–23 svensk tid", check.Finding.Title);
-        Assert.Contains("UTC+1", check.Finding.Summary, StringComparison.Ordinal);
+        Assert.Contains("UTC+0", check.Finding.Summary, StringComparison.Ordinal);
         Assert.Equal([Wpkh("worker")], check.Finding.Addresses);
         Assert.Equal("hours:" + Wpkh("worker").Value, check.Finding.Key);
         AssertJudgement(check, "active-hours v2");

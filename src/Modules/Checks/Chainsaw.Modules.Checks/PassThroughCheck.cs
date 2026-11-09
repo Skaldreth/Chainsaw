@@ -74,15 +74,24 @@ internal sealed class PassThroughCheck : ICheckAnalysis
     }
 
     /// <summary>
-    /// Reads the hops: transactions that only pass money on, and those that also pay a small fee to a labelled
-    /// service or to a fee address that at least <see cref="MinimumFeesToSameAddress"/> such hops pay.
+    /// Reads the hops: transactions that only pass money on, and those that also pay a small fee to a labelled service
+    /// that is not an exchange, or to a fee address that at least <see cref="MinimumFeesToSameAddress"/> such hops pay.
+    /// A payment to an exchange is a cash-out, never a fee, and a hop the clustering reads as a peel chain is the peel
+    /// chain's (<c>peel-chain-area</c>), so that the same chain is never told twice.
     /// </summary>
     /// <param name="input">The input.</param>
     /// <returns>The hops, in the input's order.</returns>
     private static IEnumerable<Hop> Hops(CheckInput input)
     {
-        var services = input.Services.SelectMany(service => service.Addresses).Select(input.OwnerOf).ToHashSet();
-        var read = input.Transactions.Select(Read).OfType<Hop>().ToList();
+        var services = input.Services.Where(service => !service.IsExchange)
+            .SelectMany(service => service.Addresses).Select(input.OwnerOf).ToHashSet();
+        var exchanges = input.Services.Where(service => service.IsExchange)
+            .SelectMany(service => service.Addresses).Select(input.OwnerOf).ToHashSet();
+        var peeled = LatestFindings.Of<PeelChainFinding>(input).Select(found => found.Transaction.Txid).ToHashSet();
+        var read = input.Transactions.Select(Read).OfType<Hop>()
+            .Where(hop => hop.Fee is not { } fee
+                || (!exchanges.Contains(input.OwnerOf(fee.Address!)) && !peeled.Contains(hop.Transaction.Txid)))
+            .ToList();
         var feesTo = read.Where(hop => hop.Fee is not null)
             .GroupBy(hop => input.OwnerOf(hop.Fee!.Address!))
             .ToDictionary(group => group.Key, group => group.Count());

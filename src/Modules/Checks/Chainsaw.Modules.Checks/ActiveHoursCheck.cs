@@ -32,6 +32,12 @@ internal sealed class ActiveHoursCheck : ICheckAnalysis
     /// <summary>The false discovery rate the series are kept at: one in a hundred.</summary>
     public const double MostChance = 0.01;
 
+    /// <summary>
+    /// How many different days (in the analysis's time zone) a series must have transactions on: a burst on one
+    /// afternoon says nothing about when the owner sleeps.
+    /// </summary>
+    public const int MinimumDays = 7;
+
     /// <summary>How many hours in a row without a transaction a pattern needs.</summary>
     public const int MinimumQuietHours = 6;
 
@@ -79,9 +85,9 @@ internal sealed class ActiveHoursCheck : ICheckAnalysis
             .ToList();
         var series = SeriesOf(confirmed, input, spends: true)
             .Concat(SeriesOf(confirmed, input, spends: false))
-            .Where(each => each.Transactions.Count >= MinimumTransactions)
+            .Where(each => each.Transactions.Count >= MinimumTransactions && Days(each) >= MinimumDays)
             .Select(each => each with { Quiet = Longest(Busy(each.Transactions)) })
-            .Select(each => each with { Chance = Chance(each.Transactions.Count, each.Quiet.Length) })
+            .Select(each => each with { Chance = Chance(HoursOfDays(each), each.Quiet.Length) })
             .ToList();
         var kept = Kept(series);
         return
@@ -213,11 +219,18 @@ internal sealed class ActiveHoursCheck : ICheckAnalysis
     /// <summary>Gives each owner's spends, or each owner's receipts, as a series.</summary>
     /// <param name="confirmed">The confirmed transactions.</param>
     /// <param name="input">The input, for the owners.</param>
-    /// <param name="spends">Whether the series are spends; else receipts from others.</param>
+    /// <param name="spends">
+    /// Whether the series are spends; else receipts from others, never a labelled service's or mixer's, whose
+    /// receipts are its customers' hours.
+    /// </param>
     /// <returns>The series, without their runs yet.</returns>
     private static IEnumerable<HourSeries> SeriesOf(
         IReadOnlyList<BitcoinTransaction> confirmed, CheckInput input, bool spends)
     {
+        var labelled = input.Mixers.SelectMany(mixer => mixer.Addresses)
+            .Concat(input.Services.SelectMany(service => service.Addresses))
+            .Select(input.OwnerOf)
+            .ToHashSet();
         var entries = new List<(BitcoinAddress Owner, BitcoinAddress Address, BitcoinTransaction Transaction)>();
         foreach (var transaction in confirmed)
         {
@@ -225,7 +238,8 @@ internal sealed class ActiveHoursCheck : ICheckAnalysis
             IReadOnlyList<BitcoinAddress> addresses = spends
                 ? transaction.InputAddresses()
                 : [.. transaction.PayingOutputs().Select(output => output.Address!)
-                    .Where(address => !payers.Contains(input.OwnerOf(address)))];
+                    .Where(address => !payers.Contains(input.OwnerOf(address))
+                        && !labelled.Contains(input.OwnerOf(address)))];
             entries.AddRange(addresses.Select(address => (input.OwnerOf(address), address, transaction)));
         }
 
@@ -240,6 +254,27 @@ internal sealed class ActiveHoursCheck : ICheckAnalysis
             yield return new HourSeries(key, spends, [.. list.Select(entry => entry.Transaction)], addresses);
         }
     }
+
+    /// <summary>Counts the different days, in the analysis's time zone, a series has transactions on.</summary>
+    /// <param name="series">The series.</param>
+    /// <returns>The count.</returns>
+    private int Days(HourSeries series) =>
+        series.Transactions.Select(transaction => Local(transaction).Date).Distinct().Count();
+
+    /// <summary>
+    /// Counts the different hours of different days a series has transactions in: several transactions in the same
+    /// hour of the same day are one habit, not several, so the chance is counted from these.
+    /// </summary>
+    /// <param name="series">The series.</param>
+    /// <returns>The count.</returns>
+    private int HoursOfDays(HourSeries series) =>
+        series.Transactions.Select(transaction => (Local(transaction).Date, Local(transaction).Hour)).Distinct().Count();
+
+    /// <summary>Gives a transaction's block's time in the analysis's time zone.</summary>
+    /// <param name="transaction">The confirmed transaction.</param>
+    /// <returns>The local time.</returns>
+    private DateTimeOffset Local(BitcoinTransaction transaction) =>
+        TimeZoneInfo.ConvertTime(transaction.Block!.Time, _zone);
 
     /// <summary>Marks the hours of the day, in the analysis's time zone, that had a transaction.</summary>
     /// <param name="transactions">The transactions.</param>
@@ -307,7 +342,8 @@ internal sealed class ActiveHoursCheck : ICheckAnalysis
             var zone = ZoneHint(quiet);
             why = $"Analysen {this.Named()} ser att ägaren, som klustringen räknar den, spenderade i {count} tx bara "
                 + $"mellan kl. {hours} {_zoneName}, och aldrig under {quietHours} timmar i rad. Är det när ägaren "
-                + $"sover pekar det på en tidszon runt {zone}. {chance} Det är en svag bedömning, inte ett faktum: "
+                + $"sover pekar det på en tidszon runt {zone}, räknat som om ägaren byter till sommartid när Sverige "
+                + $"gör det. {chance} Det är en svag bedömning, inte ett faktum: "
                 + "tiden är blockets, som kommer minuter till timmar efter att tx:en skickades, en tjänst eller ett "
                 + "skript kan skicka åt ägaren, och klustret kan ha fler ägare.";
             title = $"Aktiv kl. {hours} {_zoneName}";
@@ -346,7 +382,8 @@ internal sealed class ActiveHoursCheck : ICheckAnalysis
     private string ZoneHint((int Start, int Length) quiet)
     {
         var centre = quiet.Start + (quiet.Length / 2.0);
-        var offset = (int)Math.Round(SleepCentre - centre) + (int)Math.Round(_zone.BaseUtcOffset.TotalHours);
+        var offset = (int)Math.Round(
+            SleepCentre - centre + _zone.BaseUtcOffset.TotalHours, MidpointRounding.AwayFromZero);
         offset = ((offset + 11) % HoursPerDay + HoursPerDay) % HoursPerDay - 11;
         return "UTC" + (offset >= 0 ? "+" : "−") + Math.Abs(offset).ToString(CultureInfo.InvariantCulture);
     }

@@ -5707,3 +5707,26 @@ Rester [direkt] ur TODO (punkt 9 och omgång 4), bara i Debug-testärendet (`src
 klustringen, också borta tx (TODO). Därför gör testärendet körningen själv, och nästa expansion tar tillbaka den.
 
 **Kvar:** *Samma insamling* och *Rundgång* i testärendet (BACKLOG, *Testärendet*).
+
+## Förvirring, omgång 5: efter granskningen (2026-11-09)
+
+Den oberoende granskningen av omgång 5 fann 1 C och 5 I; alla är rättade, och granskarens prober är facit i
+`RoundFiveReviewTests` (med `Behaviour.RandomExchange`, `Processor`, `TwoPartMixer` och `Hub`).
+- **C1** (`mixer-behaviour`): varje utbetalning räknas för högst en insättning (girigt efter poäng); insättningarna ska
+  förklara minst hälften av ägarens utbetalningar, de flesta till adresser som bara tar emot en gång; och samma
+  matchning med beloppen skalade (80, 88, 112, 125 %) ska förklara högst hälften så många och minst fem färre. En
+  verklig börs (slumpade belopp, 45–600 uttag, också i batch) och en betaltjänst som skickar vidare till samma
+  handlare läses inte längre som en mixer. `Behaviour.CentralMixer` har slumpade belopp.
+- **I5:** en insättning kan komma ut i två delar (ett par bland de åtta första utbetalningarna). Bara par: med tre
+  delar gav slumpen lika många träffar. En mixer med tät trafik känns fortfarande inte igen (BACKLOG).
+- **I2** (`mixer-chain`): har användaren godkänt utgångar följs bara de; annars följs en utgång som går vidare bara om
+  dess poäng är högst 0,1 under den troligastes, och texten säger då dess plats och poäng.
+- **I1** (`pass-through`): en betalning till en börs är aldrig en avgift, och ett hopp som klustringen läser som peel
+  chain hör till peel chain.
+- **I3:** `mixer-chain` slår upp spenderingar i ett index, `split-merge` glider med två pekare och ett sorterat fönster,
+  och `mixer-behaviour` söker utbetalningarna efter belopp. Ett nav med 1 500 insättningar och 3 000 uttag läses under
+  en sekund per analys (testat).
+- **I4** (`active-hours`): minst sju olika dagar, och flera tx samma timme samma dag räknas som en i chansen.
+- **M:** versionen i `mixer-chain`s text tas ur `MixerBehaviourCheck.Identity`; tidszonsgissningen avrundas en gång
+  och *Varför?* säger att den räknar med svensk sommartid; en tjänst eller mixer med etikett får ingen serie som
+  mottagare. M3 och M4 nådde inte den här sessionen.

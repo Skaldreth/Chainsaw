@@ -31,14 +31,16 @@ en slump**, särskilt när grafen har många utbetalningar med jämna belopp.
 Det är vanligt att lägga lager på lager: en utgång ur en mixer skickas in i en mixer till, samma igen eller en annan,
 eller in i en CoinJoin. `mixer-chain v2` är en kontroll som ser när det händer:
 
-- den följer **alla** utgångar du har **godkänt** i mixerns förslag som går vidare, och annars den **troligaste** (en
-  hel utgång eller en del), men aldrig en du har **avfärdat**;
+- har du **godkänt** utgångar i mixerns förslag följer den bara dem, alla som går vidare; annars den **troligaste**
+  utgången (en hel utgång eller en del) som går vidare, men bara om den är högst **0,1 lägre i poäng** än den
+  troligaste av alla. Är den inte den troligaste säger texten det, med plats och poäng (*inte den troligaste: nummer 2
+  av 3*). En klart sämre utgång följs aldrig bara för att den går in i en mixer, och en du har **avfärdat** aldrig;
 - är den troligaste en **del** följs alla delar i samma kombination som går vidare. Delar som spenderas **tillsammans**
   i en tx är en väg, med summan av dem som stegets belopp;
 - går två utgångar in i **olika mixrar** delar sig kedjan, och texten säger *kedjan delar sig i 2 vägar* och vilket
   steg varje gren kommer från (*Steg 3 (efter steg 1)*). Titeln säger hur många grenar;
-- går den in i en **trolig mixer utan etikett** (se nedan) blir det ett steg där också, genom den utbetalning som bäst
-  liknar insättningen minus en vanlig avgift;
+- går den in i en **trolig mixer utan etikett** (se nedan) blir det ett steg där också, genom den utbetalning som
+  analysen knöt till insättningen;
 - när utgången spenderas in i en känd mixer blir det ett nytt steg, och den nya insättningen får **mixerns egna
   förslag** av sig själv, så att kedjan kan följas steg för steg;
 - går den in i en CoinJoin som klustringen **känner igen** tar kedjan slut där; en *möjlig* CoinJoin är inget slut;
@@ -63,13 +65,20 @@ den beter sig:
 
 - minst **åtta olika avsändare** betalar in till ägaren, som [klustringen](common-input-ownership.md) räknar den, och
   ägaren betalar **minst åtta olika mottagare**;
-- minst **fem** av insättningarna, och minst två av tre, **kommer ut igen** inom en vecka, till någon som inte satte
-  in, som insättningen minus **0,5–5 procent**;
+- minst **fem** av insättningarna, och minst hälften, **kommer ut igen** inom en vecka, hela eller i **två delar**, till
+  någon som inte satte in, som insättningen minus **0,5–5 procent**;
 - utbetalningen görs med **andra mynt** än insättningens egna. Det är kärnan i en mixer: den betalar ur en gemensam
-  pott, så att ingen tx knyter ihop in och ut.
+  pott, så att ingen tx knyter ihop in och ut;
+- varje utbetalning räknas för **högst en** insättning, och insättningarna ska förklara **minst hälften** av ägarens
+  utbetalningar, de flesta till adresser som bara tar emot en gång;
+- med beloppen **förskjutna** (80, 88, 112 och 125 procent av insättningarna), där bara slumpen kan träffa, ska
+  analysen förklara **högst hälften så många**, och minst fem färre.
 
-En börs tar också emot från många och betalar många, men dess uttag är inte, insättning för insättning, samma belopp
-minus en procentavgift till en annan person en stund senare. Kontrollen lägger ett rött område runt mixern och säger i
+En börs tar också emot från många och betalar många, och med tillräckligt många uttag hamnar några alltid nära en
+insättning minus några procent. Därför räcker det inte att belopp träffar: de flesta utbetalningarna måste förklaras,
+och slumpen får inte förklara nästan lika många. En betaltjänst som skickar vidare till samma handlare igen och igen
+räknas inte heller. En mixer som betalar ut i delar med **tät trafik** går inte att skilja från slumpen och känns inte
+igen; med glesare trafik gör den det. Kontrollen lägger ett rött område runt mixern och säger i
 *Varför?* hur många insättningar som kom ut igen och med vilken avgift. Håller du med, **sätt etiketten Mixer** med L:
 då får varje insättning mixerns egna förslag, och kedjan följer dina beslut i stället för den troligaste
 utbetalningen. Det är en bedömning: en växlare som betalar tillbaka nästan samma belopp kan se likadan ut.

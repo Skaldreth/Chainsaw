@@ -181,36 +181,65 @@ internal sealed class SplitMergeCheck : ICheckAnalysis
                 .ThenBy(payment => payment.Transaction.Txid.Value, StringComparer.Ordinal)
                 .ThenBy(payment => payment.Output.Index)
                 .ToList();
-            var used = new HashSet<SpreadPayment>();
-            for (var first = 0; first < payments.Count; first++)
+            foreach (var split in SpreadOf(payments))
             {
-                if (used.Contains(payments[first]))
+                yield return split;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Slides a window of <see cref="SpreadWindow"/> over one payer's payments with two pointers, keeping the window's
+    /// large amounts sorted, so that a window that cannot hold a split is passed over without sorting it again.
+    /// </summary>
+    /// <param name="payments">The payer's payments, in time order.</param>
+    /// <returns>The payer's spread splits.</returns>
+    private static IEnumerable<SplitRead> SpreadOf(IReadOnlyList<SpreadPayment> payments)
+    {
+        var used = new bool[payments.Count];
+        var window = new SpreadWindowState(payments);
+        var end = 0;
+        for (var first = 0; first < payments.Count; first++)
+        {
+            var start = payments[first].Transaction.Block!.Time;
+            while (end < payments.Count && payments[end].Transaction.Block!.Time - start <= SpreadWindow)
+            {
+                if (!used[end])
                 {
-                    continue;
+                    window.Add(end);
                 }
 
-                var start = payments[first].Transaction.Block!.Time;
-                var window = payments.Skip(first)
-                    .TakeWhile(payment => payment.Transaction.Block!.Time - start <= SpreadWindow)
-                    .Where(payment => !used.Contains(payment))
-                    .ToList();
+                end++;
+            }
+
+            if (!used[first] && window.MayHoldSplit())
+            {
+                var indexes = Enumerable.Range(first, end - first).Where(index => !used[index]).ToList();
                 var band = Band(
-                        window.Where(payment => payment.Output.Amount.Value >= SmallestSpreadPart).ToList(),
-                        payment => payment.Output.Amount)
-                    .DistinctBy(payment => payment.Recipient)
-                    .OrderBy(payment => window.IndexOf(payment))
+                        indexes.Where(index => payments[index].Output.Amount.Value >= SmallestSpreadPart).ToList(),
+                        index => payments[index].Output.Amount)
+                    .DistinctBy(index => payments[index].Recipient)
+                    .Order()
                     .ToList();
-                var transactions = band.Select(payment => payment.Transaction).Distinct().ToList();
-                if (band.Count < MinimumParts || transactions.Count < 2 || band.Count * 2 < window.Count)
+                var transactions = band.Select(index => payments[index].Transaction).DistinctBy(t => t.Txid).ToList();
+                if (band.Count >= MinimumParts && transactions.Count >= 2 && band.Count * 2 >= indexes.Count)
                 {
-                    continue;
-                }
+                    foreach (var index in band)
+                    {
+                        used[index] = true;
+                        window.Remove(index);
+                    }
 
-                used.UnionWith(band);
-                yield return new SplitRead(
-                    "spread:" + transactions[0].Txid.Value,
-                    transactions,
-                    [.. band.Select(payment => (payment.Transaction, payment.Output))]);
+                    yield return new SplitRead(
+                        "spread:" + transactions[0].Txid.Value,
+                        transactions,
+                        [.. band.Select(index => (payments[index].Transaction, payments[index].Output))]);
+                }
+            }
+
+            if (!used[first])
+            {
+                window.Remove(first);
             }
         }
     }
@@ -340,6 +369,64 @@ internal sealed class SplitMergeCheck : ICheckAnalysis
                 .. path.DistinctBy(hop => hop.Txid).Select(CheckBasis.Of),
             ],
             []);
+    }
+
+    /// <summary>
+    /// The payments in a sliding window: how many, and the amounts of those at least <see cref="SmallestSpreadPart"/>
+    /// in order, so that whether a split can be there is told without sorting the window.
+    /// </summary>
+    /// <param name="payments">The payer's payments, in time order.</param>
+    private sealed class SpreadWindowState(IReadOnlyList<SpreadPayment> payments)
+    {
+        /// <summary>The window's large amounts, in order.</summary>
+        private readonly List<long> _sorted = [];
+
+        /// <summary>How many payments the window holds.</summary>
+        private int _count;
+
+        /// <summary>Adds a payment to the window.</summary>
+        /// <param name="index">The payment's index.</param>
+        public void Add(int index)
+        {
+            _count++;
+            var amount = payments[index].Output.Amount.Value;
+            if (amount >= SmallestSpreadPart)
+            {
+                var at = _sorted.BinarySearch(amount);
+                _sorted.Insert(at < 0 ? ~at : at, amount);
+            }
+        }
+
+        /// <summary>Takes a payment out of the window.</summary>
+        /// <param name="index">The payment's index.</param>
+        public void Remove(int index)
+        {
+            _count--;
+            var amount = payments[index].Output.Amount.Value;
+            if (amount >= SmallestSpreadPart)
+            {
+                _sorted.RemoveAt(_sorted.BinarySearch(amount));
+            }
+        }
+
+        /// <summary>
+        /// Says whether the window can hold a split: at least <see cref="MinimumParts"/> large amounts, and half the
+        /// window's payments, within <see cref="PartTolerance"/> of each other.
+        /// </summary>
+        /// <returns><see langword="true"/> when it can.</returns>
+        public bool MayHoldSplit()
+        {
+            var needed = Math.Max(MinimumParts, (_count + 1) / 2);
+            for (var start = 0; start + needed - 1 < _sorted.Count; start++)
+            {
+                if (_sorted[start + needed - 1] <= _sorted[start] * (1 + PartTolerance))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
     }
 
     /// <summary>A split as read: in one transaction or spread over several.</summary>

@@ -35,6 +35,12 @@ internal sealed class MixerChainCheck : ICheckAnalysis
     /// <summary>What a part of the best combination is called in the text.</summary>
     private const string PartWord = "del";
 
+    /// <summary>
+    /// How much lower a likely output's score may be than the likeliest output's for the chain to follow it because it
+    /// goes into a mixer; a clearly worse one is not followed.
+    /// </summary>
+    public const double FollowMargin = 0.1;
+
     /// <summary>The letters that name a step's ways onward when the chain branches.</summary>
     private const string Letters = "abcdefghijklmnopqrstuvwxyz";
 
@@ -100,9 +106,9 @@ internal sealed class MixerChainCheck : ICheckAnalysis
             : "Varje ny insättning i en mixer med etikett får mixerns egna förslag, som står för sig och avgörs där. ");
         if (steps.Any(step => step.IsLikelyMixer))
         {
-            why.Append($"En trolig mixer utan etikett är {MixerBehaviourCheck.Name} v1:s bedömning, och dess utgång "
-                + "är den som bäst liknar insättningen minus en vanlig avgift; sätt etiketten Mixer med L om du håller "
-                + "med, så får den egna förslag. ");
+            why.Append($"En trolig mixer utan etikett är {MixerBehaviourCheck.Identity}:s bedömning, och dess "
+                + "utgång är den utbetalning som analysen knöt till insättningen; sätt etiketten Mixer med L om du "
+                + "håller med, så får den egna förslag. ");
         }
 
         if (isCut)
@@ -245,9 +251,19 @@ internal sealed class MixerChainCheck : ICheckAnalysis
     private static string LinkText(ChainLink link)
     {
         var state = link.IsApproved ? "godkänd" : "trolig";
+        var rank = link is { IsApproved: false, Rank: > 1 } && link.Score < link.BestScore
+            ? $" (inte den troligaste: nummer {CheckText.Count(link.Rank)} av {CheckText.Count(link.Of)}, poäng "
+                + $"{Score(link.Score)} mot {Score(link.BestScore)}, men den som går vidare in i en mixer)"
+            : string.Empty;
         return $"{state} {link.What} {CheckText.Btc(link.Amount)} BTC i tx {CheckText.Short(link.Payout.Txid)} "
-            + $"(block {link.Payout.Block!.Height}), trolig avgift {CheckText.Btc(link.Fee)} BTC";
+            + $"(block {link.Payout.Block!.Height}){rank}, trolig avgift {CheckText.Btc(link.Fee)} BTC";
     }
+
+    /// <summary>Writes a score with two decimals, the Swedish way.</summary>
+    /// <param name="score">The score.</param>
+    /// <returns>For example <c>0,92</c>.</returns>
+    private static string Score(double score) =>
+        score.ToString("0.00", System.Globalization.CultureInfo.GetCultureInfo("sv-SE"));
 
     /// <summary>Writes several outputs that go on together in one transaction.</summary>
     /// <param name="links">The outputs.</param>
@@ -376,6 +392,9 @@ internal sealed class MixerChainCheck : ICheckAnalysis
         /// <summary>The deposits into a likely mixer without a label, with their likely payouts, by key.</summary>
         private readonly Dictionary<string, LikelyDeposit> _likely = new(StringComparer.Ordinal);
 
+        /// <summary>Which transaction in the input spends each coin.</summary>
+        private readonly Dictionary<(Txid Txid, int Index), BitcoinTransaction> _spenders;
+
         /// <summary>The first deposit of each transaction that pays into a mixer, known before likely.</summary>
         private readonly Dictionary<Txid, MixerDeposit> _depositIn = [];
 
@@ -391,6 +410,7 @@ internal sealed class MixerChainCheck : ICheckAnalysis
         {
             _input = input;
             _mixer = MixerDeposits.AddressesOf(input);
+            _spenders = input.Spenders();
             var labelOf = new Dictionary<BitcoinAddress, string>();
             for (var index = 0; index < input.Mixers.Count; index++)
             {
@@ -459,16 +479,28 @@ internal sealed class MixerChainCheck : ICheckAnalysis
         /// <returns>The ways onward, the likeliest first; empty when none goes on.</returns>
         public IReadOnlyList<ChainBranch> Onward(MixerDeposit deposit)
         {
-            var followed = Ranked(LinksOf(deposit).Select(Follow).OfType<ChainLink>()).ToList();
+            var ranked = Ranked(LinksOf(deposit)).ToList();
+            var followed = ranked
+                .Select((link, index) => Follow(link) is { } onward
+                    ? onward with { Rank = index + 1, Of = ranked.Count, BestScore = ranked[0].Score }
+                    : null)
+                .OfType<ChainLink>()
+                .ToList();
             if (followed.Count == 0)
             {
                 return [];
             }
 
             IEnumerable<ChainLink> chosen;
-            if (followed.Any(link => link.IsApproved))
+            if (ranked.Any(link => link.IsApproved))
             {
+                // The user decided where the money went: only what was approved is followed.
                 chosen = followed.Where(link => link.IsApproved);
+            }
+            else if (ranked[0].Score - followed[0].Score > FollowMargin)
+            {
+                // A clearly worse output is never followed only because it goes into a mixer.
+                return [];
             }
             else
             {
@@ -506,9 +538,15 @@ internal sealed class MixerChainCheck : ICheckAnalysis
         {
             if (_likely.TryGetValue(deposit.Key, out var likely))
             {
-                return likely.Matches.Select(match => new ChainLink(
-                    match.Key, match.Output.Index, match.Address, match.Output.Amount,
-                    deposit.Output.Amount - match.Output.Amount, match.Score, false, OutputWord, match.Transaction));
+                if (likely.Match is not { } match)
+                {
+                    return [];
+                }
+
+                var what = match.IsParts ? PartWord : OutputWord;
+                return match.Outputs.Select(payout => new ChainLink(
+                    payout.Key, payout.Output.Index, payout.Address, payout.Output.Amount,
+                    deposit.Output.Amount - match.Amount, match.Score, false, what, payout.Transaction));
             }
 
             return KnownLinksOf(deposit);
@@ -589,7 +627,7 @@ internal sealed class MixerChainCheck : ICheckAnalysis
         /// <returns>The link with its spend, or <see langword="null"/> when it does not go into a mixer.</returns>
         private ChainLink? Follow(ChainLink link)
         {
-            if (MixerDeposits.SpenderOf(_input, link.Payout.Txid, link.Index) is not { } spender)
+            if (!_spenders.TryGetValue((link.Payout.Txid, link.Index), out var spender))
             {
                 return null;
             }
@@ -650,6 +688,15 @@ internal sealed record ChainLink(
 
     /// <summary>Gets the CoinJoin it went into, when it did.</summary>
     public BitcoinTransaction? CoinJoin { get; init; }
+
+    /// <summary>Gets its place among the deposit's outputs, likeliest first, once followed; 0 before.</summary>
+    public int Rank { get; init; }
+
+    /// <summary>Gets how many outputs the deposit's were ranked among, once followed.</summary>
+    public int Of { get; init; }
+
+    /// <summary>Gets the likeliest output's score, once followed.</summary>
+    public double BestScore { get; init; }
 }
 
 /// <summary>One way onward from a step: one output, or several spent together in one transaction.</summary>

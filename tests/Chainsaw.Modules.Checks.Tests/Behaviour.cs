@@ -28,9 +28,10 @@ internal static class Behaviour
         var pool = Pool(label);
         var txs = new List<BitcoinTransaction>();
         var owners = new Dictionary<BitcoinAddress, BitcoinAddress> { [pool] = pool };
+        var random = new Random(label.Length + (users * 31));
         for (var i = 0; i < users; i++)
         {
-            var amount = 2_000_000 + (i * 1_100_000);
+            var amount = LogUniform(random, 2_000_000, 50_000_000);
             var deposit = Wpkh($"{label}-deposit-{i}");
             owners[deposit] = pool;
             txs.Add(Tx($"{label}-in-{i}", start + (i * 6))
@@ -157,6 +158,141 @@ internal static class Behaviour
         {
             Owners = owners ?? new Dictionary<BitcoinAddress, BitcoinAddress>(),
         };
+
+    /// <summary>Draws an amount evenly on a log scale, so that every size is as common as in real payments.</summary>
+    /// <param name="random">The random source.</param>
+    /// <param name="low">The smallest amount.</param>
+    /// <param name="high">The largest amount.</param>
+    /// <returns>The amount in satoshi.</returns>
+    public static long LogUniform(Random random, double low, double high) =>
+        (long)Math.Exp(Math.Log(low) + (random.NextDouble() * (Math.Log(high) - Math.Log(low))));
+
+    /// <summary>
+    /// An unlabelled exchange as it really looks (the review's probe): deposits and withdrawals of unrelated, random
+    /// amounts over a week, withdrawals one or several to a transaction, many more of them than deposits.
+    /// </summary>
+    /// <param name="seed">The seed.</param>
+    /// <param name="customers">How many deposits.</param>
+    /// <param name="withdrawals">How many withdrawal transactions.</param>
+    /// <param name="perTx">How many withdrawals each pays.</param>
+    /// <returns>The transactions and each address's owner.</returns>
+    public static (List<BitcoinTransaction> Txs, Dictionary<BitcoinAddress, BitcoinAddress> Owners) RandomExchange(
+        int seed, int customers, int withdrawals, int perTx = 1)
+    {
+        var random = new Random(seed);
+        var hot = Pkh("pex-hot");
+        var owners = new Dictionary<BitcoinAddress, BitcoinAddress> { [hot] = hot };
+        var txs = new List<BitcoinTransaction>();
+        for (var i = 0; i < customers; i++)
+        {
+            var amount = LogUniform(random, 1_000_000, 100_000_000);
+            var deposit = Wpkh($"pex-dep-{i}");
+            owners[deposit] = hot;
+            txs.Add(Tx($"pex-in-{i}", Height + random.Next(0, 432))
+                .In(Wpkh($"pex-cust-{i}"), amount + 20_000).Out(deposit, amount).Build());
+        }
+
+        for (var j = 0; j < withdrawals; j++)
+        {
+            var builder = Tx($"pex-out-{j}", Height + random.Next(0, 1008)).In(hot, 500_000_000, $"pex-coin-{j}");
+            long sum = 0;
+            for (var k = 0; k < perTx; k++)
+            {
+                var withdrawal = LogUniform(random, 500_000, 200_000_000 / perTx);
+                sum += withdrawal;
+                builder.Out(Wpkh($"pex-wd-{j}-{k}"), withdrawal);
+            }
+
+            txs.Add(builder.Out(hot, 500_000_000 - sum - 10_000).Build());
+        }
+
+        return (txs, owners);
+    }
+
+    /// <summary>
+    /// A payment processor (the review's probe): buyers pay invoices, and the processor forwards each payment minus
+    /// one percent to one of eight merchants, who are paid again and again.
+    /// </summary>
+    /// <returns>The transactions and each address's owner.</returns>
+    public static (List<BitcoinTransaction> Txs, Dictionary<BitcoinAddress, BitcoinAddress> Owners) Processor()
+    {
+        var pool = Pkh("pp-pool");
+        var owners = new Dictionary<BitcoinAddress, BitcoinAddress> { [pool] = pool };
+        var txs = new List<BitcoinTransaction>();
+        for (var i = 0; i < 12; i++)
+        {
+            var amount = 500_000 + (i * 333_000);
+            var invoice = Wpkh($"pp-invoice-{i}");
+            owners[invoice] = pool;
+            txs.Add(Tx($"pp-in-{i}", Height + (i * 6)).In(Wpkh($"pp-buyer-{i}"), amount + 5_000).Out(invoice, amount)
+                .Build());
+            txs.Add(Tx($"pp-out-{i}", Height + (i * 6) + 2).In(pool, 90_000_000, $"pp-coin-{i}")
+                .Out(Wpkh($"pp-merchant-{i % 8}"), amount * 99 / 100).Out(pool, 80_000_000).Build());
+        }
+
+        return (txs, owners);
+    }
+
+    /// <summary>
+    /// A central mixer that pays each deposit out in two parts (the review's probe), six tenths soon and the rest
+    /// later, from other coins, to fresh addresses.
+    /// </summary>
+    /// <param name="users">How many users.</param>
+    /// <param name="spacing">How many blocks apart the deposits are.</param>
+    /// <returns>The transactions and each address's owner.</returns>
+    public static (List<BitcoinTransaction> Txs, Dictionary<BitcoinAddress, BitcoinAddress> Owners) TwoPartMixer(
+        int users = 12, int spacing = 6)
+    {
+        var pool = Pkh("m2-pool");
+        var owners = new Dictionary<BitcoinAddress, BitcoinAddress> { [pool] = pool };
+        var random = new Random(12);
+        var txs = new List<BitcoinTransaction>();
+        for (var i = 0; i < users; i++)
+        {
+            var amount = LogUniform(random, 2_000_000, 50_000_000);
+            var deposit = Wpkh($"m2-dep-{i}");
+            owners[deposit] = pool;
+            txs.Add(Tx($"m2-in-{i}", Height + (i * spacing)).In(Wpkh($"m2-user-{i}"), amount + 30_000)
+                .Out(deposit, amount)
+                .Build());
+            var net = amount * 97 / 100;
+            txs.Add(Tx($"m2-out-{i}", Height + (i * spacing) + 3).In(pool, 90_000_000, $"m2-c-{i}")
+                .Out(Wpkh($"m2-paid-{i}-a"), net * 6 / 10).Out(pool, 89_000_000 - (net * 6 / 10)).Build());
+            txs.Add(Tx($"m2-out2-{i}", Height + (i * spacing) + 40).In(pool, 90_000_000, $"m2-d-{i}")
+                .Out(Wpkh($"m2-paid-{i}-b"), net - (net * 6 / 10)).Out(pool, 50_000_000).Build());
+        }
+
+        return (txs, owners);
+    }
+
+    /// <summary>
+    /// A hub (the review's probe): one unlabelled owner takes 1 500 deposits and pays 3 000 withdrawals in one day.
+    /// </summary>
+    /// <returns>The transactions and each address's owner.</returns>
+    public static (List<BitcoinTransaction> Txs, Dictionary<BitcoinAddress, BitcoinAddress> Owners) Hub()
+    {
+        var hub = Pkh("hub");
+        var owners = new Dictionary<BitcoinAddress, BitcoinAddress> { [hub] = hub };
+        var random = new Random(5);
+        var txs = new List<BitcoinTransaction>();
+        for (var i = 0; i < 1_500; i++)
+        {
+            var deposit = Wpkh($"hub-dep-{i}");
+            owners[deposit] = hub;
+            var amount = LogUniform(random, 1_000_000, 100_000_000);
+            txs.Add(Tx($"hub-in-{i}", Height + random.Next(0, 144)).In(Wpkh($"hub-c-{i}"), amount + 1_000)
+                .Out(deposit, amount).Build());
+        }
+
+        for (var i = 0; i < 3_000; i++)
+        {
+            var withdrawal = LogUniform(random, 1_000_000, 100_000_000);
+            txs.Add(Tx($"hub-out-{i}", Height + random.Next(0, 144)).In(hub, 900_000_000, $"hub-coin-{i}")
+                .Out(Wpkh($"hub-w-{i}"), withdrawal).Out(hub, 800_000_000).Build());
+        }
+
+        return (txs, owners);
+    }
 
     /// <summary>
     /// An ordinary, random graph whose coins are linked: each transaction spends a coin its payer got earlier in the
