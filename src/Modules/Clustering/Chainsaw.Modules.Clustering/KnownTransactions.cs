@@ -18,11 +18,29 @@ internal sealed class KnownTransactions : IHeuristicContext
     /// <summary>Every spent output the case knows of and the transaction that spends it.</summary>
     private readonly Dictionary<(Txid Txid, int Index), BitcoinTransaction> _spenders = [];
 
+    /// <summary>The transactions the source no longer knows, which only say where an address was seen.</summary>
+    private readonly HashSet<Txid> _gone = [];
+
     /// <summary>Indexes the transactions; a txid given twice counts once (the first).</summary>
     /// <param name="transactions">The transactions.</param>
     public KnownTransactions(IEnumerable<BitcoinTransaction> transactions)
+        : this(transactions, [])
     {
-        foreach (var transaction in transactions)
+    }
+
+    /// <summary>
+    /// Indexes the transactions and, apart from them, those the source no longer knows (sketch HB1a). A gone
+    /// transaction is not analysed, found or a spender, but where an address was seen stays as the case saw it
+    /// (<see cref="SeenBefore"/>): the address was shown to the world in it, so leaving it out would make the address
+    /// look fresh and let a new conclusion be drawn that the chain as the case saw it does not support.
+    /// </summary>
+    /// <param name="transactions">The transactions to analyse; one that is also gone is only indexed as gone.</param>
+    /// <param name="gone">The transactions the source no longer knows.</param>
+    public KnownTransactions(IEnumerable<BitcoinTransaction> transactions, IEnumerable<BitcoinTransaction> gone)
+    {
+        var goneList = gone.ToList();
+        _gone.UnionWith(goneList.Select(transaction => transaction.Txid));
+        foreach (var transaction in transactions.Where(transaction => !_gone.Contains(transaction.Txid)))
         {
             if (!_byTxid.TryAdd(transaction.Txid, transaction))
             {
@@ -37,20 +55,12 @@ internal sealed class KnownTransactions : IHeuristicContext
                 }
             }
 
-            var addresses = transaction.Inputs.Select(input => input.Address)
-                .Concat(transaction.Outputs.Select(output => output.Address))
-                .OfType<BitcoinAddress>()
-                .Distinct();
-            foreach (var address in addresses)
-            {
-                if (!_byAddress.TryGetValue(address, out var list))
-                {
-                    list = [];
-                    _byAddress[address] = list;
-                }
+            IndexAddresses(transaction);
+        }
 
-                list.Add(transaction);
-            }
+        foreach (var transaction in goneList.DistinctBy(transaction => transaction.Txid))
+        {
+            IndexAddresses(transaction);
         }
     }
 
@@ -63,6 +73,11 @@ internal sealed class KnownTransactions : IHeuristicContext
     /// <inheritdoc/>
     public BitcoinTransaction? Find(Txid txid) => _byTxid.GetValueOrDefault(txid);
 
+    /// <summary>Says whether a transaction is one the source no longer knows.</summary>
+    /// <param name="txid">The transaction.</param>
+    /// <returns><see langword="true"/> when it is gone.</returns>
+    public bool IsGone(Txid txid) => _gone.Contains(txid);
+
     /// <inheritdoc/>
     public BitcoinTransaction? FindSpender(Txid txid, int outputIndex) =>
         _spenders.GetValueOrDefault((txid, outputIndex));
@@ -74,6 +89,26 @@ internal sealed class KnownTransactions : IHeuristicContext
             .OrderBy(other => other.Block!.Height)
             .ThenBy(other => other.Txid.Value, StringComparer.Ordinal)
             .FirstOrDefault();
+
+    /// <summary>Notes every address a transaction has, as input or output, so that it can be seen before.</summary>
+    /// <param name="transaction">The transaction.</param>
+    private void IndexAddresses(BitcoinTransaction transaction)
+    {
+        var addresses = transaction.Inputs.Select(input => input.Address)
+            .Concat(transaction.Outputs.Select(output => output.Address))
+            .OfType<BitcoinAddress>()
+            .Distinct();
+        foreach (var address in addresses)
+        {
+            if (!_byAddress.TryGetValue(address, out var list))
+            {
+                list = [];
+                _byAddress[address] = list;
+            }
+
+            list.Add(transaction);
+        }
+    }
 
     /// <summary>
     /// Says whether one transaction certainly came before another: confirmed in a lower block, or confirmed while the

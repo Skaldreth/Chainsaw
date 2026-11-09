@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Clustering.Contracts;
@@ -189,6 +190,339 @@ public sealed class HeldBackAndPreviewTests : IDisposable
         Assert.Equal(first.Txid, Assert.Single(_harness.Service.GetHeldBack(_harness.Case)).Txid);
     }
 
+    [Fact]
+    public void A_gone_transaction_is_left_out_so_what_rests_on_it_is_held_back_and_nothing_is_stored()
+    {
+        var (seen, payment) = Disagreement();
+        _harness.Analyse(seen, payment);
+        var stored = _harness.Count("clustering_evidence");
+        var journal = _harness.Case.ReadJournal().Count;
+        var before = _harness.ClusterOf(Wpkh("payer-x")).Members.Count;
+
+        var run = _harness.Service.Analyse(_harness.Case, [seen, payment], [Txid("seen-earlier")]);
+
+        Assert.Equal(1, run.TransactionsAnalysed);
+        Assert.Equal([Txid("disagree")], run.HeldBack);
+        var held = Assert.Single(_harness.Service.GetHeldBack(_harness.Case));
+        Assert.Equal((Txid("disagree"), Txid("seen-earlier")), (held.Txid, Assert.Single(held.Missing)));
+        Assert.Equal(stored, _harness.Count("clustering_evidence"));
+        Assert.Equal(journal, _harness.Case.ReadJournal().Count);
+        Assert.Equal(before, _harness.ClusterOf(Wpkh("payer-x")).Members.Count);
+    }
+
+    [Fact]
+    public void A_gone_transactions_own_conclusions_are_held_back_on_itself_and_can_be_let_stand()
+    {
+        var payment = Patterns.PaymentWithChange();
+        _harness.Analyse(payment);
+        var stored = _harness.Count("clustering_evidence");
+        var before = _harness.ClusterOf(Wpkh("payer-change")).Members.Count;
+
+        var run = _harness.Service.Analyse(_harness.Case, [payment], [payment.Txid]);
+
+        Assert.Equal(0, run.TransactionsAnalysed);
+        Assert.Equal([payment.Txid], run.HeldBack);
+        var held = Assert.Single(_harness.Service.GetHeldBack(_harness.Case));
+        Assert.Equal([payment.Txid], held.Missing);
+        Assert.NotEmpty(held.Evidence);
+        Assert.Equal(before, _harness.ClusterOf(Wpkh("payer-change")).Members.Count);
+
+        Assert.Null(_harness.Service.DecideHeldBack(_harness.Case, payment.Txid, ConclusionChoice.Keep, null));
+        var kept = _harness.Service.DecideHeldBack(
+            _harness.Case, payment.Txid, ConclusionChoice.Keep, null, [payment.Txid]);
+
+        Assert.Equal([payment.Txid], kept!.Missing);
+        _harness.Service.Analyse(_harness.Case, [payment], [payment.Txid]);
+        Assert.False(Assert.Single(_harness.Service.GetHeldBack(_harness.Case)).IsWaiting);
+        Assert.Equal(stored, _harness.Count("clustering_evidence"));
+        Assert.True(_harness.Verify().IsIntact);
+    }
+
+    [Fact]
+    public void A_gone_transaction_that_comes_back_is_analysed_again_and_nothing_is_held_back()
+    {
+        var (seen, payment) = Disagreement();
+        _harness.Analyse(seen, payment);
+        _harness.Service.Analyse(_harness.Case, [seen, payment], [Txid("seen-earlier")]);
+        var stored = _harness.Count("clustering_evidence");
+
+        var run = _harness.Service.Analyse(_harness.Case, [seen, payment], []);
+
+        Assert.Empty(run.HeldBack);
+        Assert.Empty(_harness.Service.GetHeldBack(_harness.Case));
+        Assert.Equal(stored, _harness.Count("clustering_evidence"));
+    }
+
+    [Fact]
+    public void A_gone_transactions_own_conclusions_let_go_count_no_more_and_return_anew_when_it_comes_back()
+    {
+        var payment = Patterns.PaymentWithChange();
+        _harness.Analyse(payment);
+        _harness.Service.Analyse(_harness.Case, [payment], [payment.Txid]);
+
+        _harness.Service.DecideHeldBack(
+            _harness.Case, payment.Txid, ConclusionChoice.Release, "Ersatt.", [payment.Txid]);
+
+        Assert.Empty(_harness.Service.GetConclusions(_harness.Case, payment.Txid).Evidence);
+        Assert.Empty(_harness.Service.Analyse(_harness.Case, [payment], [payment.Txid]).HeldBack);
+        Assert.Empty(_harness.Service.GetHeldBack(_harness.Case));
+
+        _harness.Analyse(payment);
+
+        Assert.NotEmpty(_harness.Service.GetConclusions(_harness.Case, payment.Txid).Evidence);
+        Assert.True(_harness.Verify().IsIntact);
+    }
+
+    [Fact]
+    public void A_gone_transaction_without_conclusions_is_not_held_back()
+    {
+        var (seen, payment) = Disagreement();
+        _harness.Analyse(payment);
+
+        var run = _harness.Service.Analyse(_harness.Case, [seen, payment], [Txid("seen-earlier")]);
+
+        Assert.Empty(run.HeldBack);
+        Assert.Empty(_harness.Service.GetHeldBack(_harness.Case));
+    }
+
+    [Fact]
+    public void An_address_first_seen_in_a_gone_transaction_does_not_look_fresh_so_nothing_new_is_concluded()
+    {
+        var (gone, elsewhere, payment) = SeenOnlyInAGoneTransaction();
+        using (var control = new CaseHarness())
+        {
+            // Without the gone transaction at all, the address looks fresh and the payment gets a change proposal.
+            control.Analyse(elsewhere, payment);
+            Assert.NotEmpty(control.Service.GetConclusions(control.Case, payment.Txid).Evidence);
+        }
+
+        _harness.Analyse(gone, elsewhere, payment);
+        Assert.Empty(_harness.Service.GetConclusions(_harness.Case, payment.Txid).Evidence);
+        var stored = _harness.Count("clustering_evidence");
+
+        var run = _harness.Service.Analyse(_harness.Case, [gone, elsewhere, payment], [gone.Txid]);
+
+        Assert.Equal(0, run.NewResults);
+        Assert.Empty(_harness.Service.GetConclusions(_harness.Case, payment.Txid).Evidence);
+        Assert.Equal(stored, _harness.Count("clustering_evidence"));
+        Assert.DoesNotContain(
+            Wpkh("fresh-payer"), _harness.ClusterOf(Wpkh("seen-in-gone")).Addresses);
+    }
+
+    [Fact]
+    public void A_two_input_payment_to_an_address_seen_in_a_gone_transaction_gets_its_common_inputs_but_no_change()
+    {
+        var (seen, payment) = Disagreement();
+        var other = Patterns.PaymentWithChange();
+
+        var run = _harness.Service.Analyse(_harness.Case, [seen, payment, other], [Txid("seen-earlier")]);
+
+        // Common inputs rest on nothing else and are sealed; the change rests on the gone transaction and is not, and
+        // the common inputs are weighed as if the change analysis had no opinion.
+        var conclusions = _harness.Service.GetConclusions(_harness.Case, Txid("disagree"));
+        Assert.Contains(
+            conclusions.Evidence, each => each.Heuristic.Name == HeuristicNames.CommonInputOwnership);
+        Assert.DoesNotContain(conclusions.Evidence, each => each.Heuristic.Name == HeuristicNames.ChangeAddress);
+        Assert.DoesNotContain(conclusions.Findings, found => found.Heuristic.Name == HeuristicNames.ChangeAddress);
+        Assert.All(conclusions.Evidence, each => Assert.DoesNotContain(
+            "växel", each.Adjustment ?? string.Empty, StringComparison.Ordinal));
+        Assert.Equal([Txid("disagree")], run.NotDrawn);
+        Assert.Contains(
+            $"\"notDrawn\":[\"{Txid("disagree").Value}\"]", run.Journal!.Details!, StringComparison.Ordinal);
+
+        _harness.Analyse(seen, payment);
+
+        Assert.Contains(
+            _harness.Service.GetConclusions(_harness.Case, Txid("disagree")).Evidence,
+            each => each.Heuristic.Name == HeuristicNames.ChangeAddress);
+    }
+
+    [Fact]
+    public void A_result_that_concludes_nothing_but_cites_a_gone_transaction_holds_nothing_back()
+    {
+        using var harness = new CaseHarness(services =>
+            services.AddSingleton<IClusteringHeuristic, NoOpinionCiting>());
+        var basis = Tx("probe-basis", 800_000).In(Wpkh("elsewhere"), 1_000).Out(Wpkh("bulk"), 900).Build();
+        var consolidation = Patterns.Consolidation();
+
+        var run = harness.Service.Analyse(harness.Case, [basis, consolidation], [basis.Txid]);
+
+        Assert.Empty(run.NotDrawn);
+        Assert.NotEmpty(harness.Service.GetConclusions(harness.Case, consolidation.Txid).Evidence);
+    }
+
+    [Fact]
+    public void Setting_aside_a_disagreeing_result_never_strengthens_another_so_the_transaction_waits()
+    {
+        using var harness = new CaseHarness(services =>
+        {
+            services.AddSingleton<IClusteringHeuristic>(new DisagreeingChange(citing: true));
+            services.AddSingleton<IClusteringHeuristic>(new DisagreeingChange(citing: false));
+        });
+        var basis = Tx("probe-basis", 800_000).In(Wpkh("elsewhere"), 1_000).Out(Wpkh("bulk"), 900).Build();
+        var payment = Tx("two-ways", 900_000).In(Wpkh("two-ways-in"), 5_000_000)
+            .Out(Wpkh("two-ways-0"), 1_234_567).Out(Wpkh("two-ways-1"), 3_700_000).Build();
+
+        var run = harness.Service.Analyse(harness.Case, [basis, payment], [basis.Txid]);
+
+        Assert.Contains(payment.Txid, run.NotDrawn);
+        Assert.DoesNotContain(
+            harness.Service.GetConclusions(harness.Case, payment.Txid).Evidence,
+            evidence => evidence.Strength == EvidenceStrength.Merge);
+
+        harness.Analyse(basis, payment);
+
+        var peel = Assert.Single(
+            harness.Service.GetConclusions(harness.Case, payment.Txid).Evidence,
+            evidence => evidence.Heuristic.Name == "peel-like");
+        Assert.Equal(EvidenceStrength.Suggestion, peel.Strength);
+    }
+
+    [Fact]
+    public void A_nothing_that_cites_a_gone_transaction_where_its_analysis_has_a_merge_lets_the_transaction_wait()
+    {
+        var turning = new TurningProbe();
+        using var harness = new CaseHarness(services => services.AddSingleton<IClusteringHeuristic>(turning));
+        var basis = Tx("probe-basis", 800_000).In(Wpkh("elsewhere"), 1_000).Out(Wpkh("bulk"), 900).Build();
+        var probed = Tx("turned", 900_000).In(Wpkh("turn-a"), 1_000).In(Wpkh("turn-b"), 2_000)
+            .Out(Wpkh("turn-out"), 2_900).Build();
+        harness.Analyse(basis, probed);
+        var merge = Assert.Single(
+            harness.Service.GetConclusions(harness.Case, probed.Txid).Evidence,
+            evidence => evidence.Heuristic.Name == "turning");
+        var stored = harness.Count("clustering_evidence");
+
+        turning.Turned = true;
+        var run = harness.Service.Analyse(harness.Case, [basis, probed], [basis.Txid]);
+
+        // Neither replaced on the word of a gone transaction nor left standing alone: the transaction waits.
+        Assert.Contains(probed.Txid, run.NotDrawn);
+        Assert.Equal(stored, harness.Count("clustering_evidence"));
+        Assert.Contains(
+            harness.Service.GetConclusions(harness.Case, probed.Txid).Evidence,
+            evidence => evidence.Sequence == merge.Sequence);
+    }
+
+    [Fact]
+    public void What_was_not_drawn_is_journalled_once_when_it_changes_also_when_nothing_else_is_stored()
+    {
+        var (seen, payment) = Disagreement();
+        _harness.Service.Analyse(_harness.Case, [seen, payment], [Txid("seen-earlier")]);
+        var journal = _harness.Case.ReadJournal().Count;
+
+        var again = _harness.Service.Analyse(_harness.Case, [seen, payment], [Txid("seen-earlier")]);
+
+        Assert.Null(again.Journal);
+        Assert.Equal([Txid("disagree")], again.NotDrawn);
+        Assert.Equal(journal, _harness.Case.ReadJournal().Count);
+
+        using var fresh = new CaseHarness();
+        fresh.Analyse(payment);
+        var onlyNotDrawn = fresh.Service.Analyse(fresh.Case, [seen, payment], [Txid("seen-earlier")]);
+
+        Assert.Equal(0, onlyNotDrawn.NewResults);
+        Assert.Contains("notDrawn", onlyNotDrawn.Journal!.Details!, StringComparison.Ordinal);
+
+        // Back: the set empties, and the line that says so has the empty set, so that it explains itself.
+        var back = fresh.Service.Analyse(fresh.Case, [seen, payment], []);
+
+        Assert.Contains("\"notDrawn\":[]", back.Journal!.Details!, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void A_mixed_set_of_old_results_is_not_partly_redone_while_a_transaction_is_gone()
+    {
+        var (seen, payment) = Disagreement();
+        _harness.Analyse(payment);
+        var before = _harness.Service.GetConclusions(_harness.Case, Txid("disagree"));
+        var stored = _harness.Count("clustering_evidence");
+
+        var run = _harness.Service.Analyse(_harness.Case, [seen, payment], [Txid("seen-earlier")]);
+
+        Assert.Equal([Txid("disagree")], run.NotDrawn);
+        Assert.Equal(stored, _harness.Count("clustering_evidence"));
+        Assert.Equal(
+            before.Evidence.Select(evidence => evidence.Sequence),
+            _harness.Service.GetConclusions(_harness.Case, Txid("disagree")).Evidence.Select(each => each.Sequence));
+    }
+
+    [Fact]
+    public void A_withdrawn_versions_basis_stops_holding_back_once_the_transaction_is_weighed_again()
+    {
+        using var harness = new CaseHarness(services =>
+        {
+            services.AddSingleton<IClusteringHeuristic>(new BasisProbe(1));
+            services.AddSingleton<IClusteringHeuristic>(new BasisProbe(2));
+        });
+        var basis = Tx("probe-basis", 800_000).In(Wpkh("elsewhere"), 1_000).Out(Wpkh("bulk"), 900).Build();
+        var probed = Tx("probed", 900_000).In(Wpkh("probe-a"), 1_000).In(Wpkh("probe-b"), 2_000)
+            .Out(Wpkh("probe-out"), 2_900).Build();
+        harness.Analyse(basis, probed);
+        harness.Service.Withdraw(harness.Case, new HeuristicId(BasisProbe.Name, 2), null);
+
+        // Gone while still weighed against version 2: held back, as what would be re-weighed rests on it.
+        Assert.Contains(probed.Txid, harness.Service.Analyse(harness.Case, [basis, probed], [basis.Txid]).HeldBack);
+
+        // Back: re-weighed with version 1, which rests on nothing.
+        Assert.Empty(harness.Service.Analyse(harness.Case, [basis, probed], []).HeldBack);
+
+        // Gone again: version 2's basis no longer holds anything back.
+        var run = harness.Service.Analyse(harness.Case, [basis, probed], [basis.Txid]);
+
+        Assert.DoesNotContain(probed.Txid, run.HeldBack);
+        Assert.DoesNotContain(harness.Service.GetHeldBack(harness.Case), held => held.Txid == probed.Txid);
+    }
+
+    [Fact]
+    public void A_withdrawal_while_a_transaction_is_gone_does_not_redo_what_rested_on_it()
+    {
+        var (seen, payment) = Disagreement();
+        _harness.Analyse(seen, payment);
+        _harness.Service.Withdraw(_harness.Case, new HeuristicId(HeuristicNames.ChangeAddress, 2), null);
+        var stored = _harness.Count("clustering_evidence");
+
+        var run = _harness.Service.Analyse(_harness.Case, [seen, payment], [Txid("seen-earlier")]);
+
+        Assert.Contains(Txid("disagree"), run.HeldBack);
+        Assert.Equal(stored, _harness.Count("clustering_evidence"));
+        var held = Assert.Single(_harness.Service.GetHeldBack(_harness.Case));
+        Assert.Contains(Txid("seen-earlier"), held.Missing);
+        Assert.NotNull(_harness.Service.DecideHeldBack(_harness.Case, Txid("disagree"), ConclusionChoice.Keep, null));
+    }
+
+    [Fact]
+    public void Only_a_transaction_said_to_be_gone_can_be_sealed_as_missing_from_its_own_conclusions()
+    {
+        var payment = Patterns.PaymentWithChange();
+        _harness.Analyse(payment);
+        _harness.Service.Analyse(_harness.Case, [payment], [payment.Txid]);
+
+        Assert.Null(_harness.Service.DecideHeldBack(
+            _harness.Case, payment.Txid, ConclusionChoice.Release, null, [Txid("something-else")]));
+        Assert.Empty(_harness.Service.GetHeldBackDecisions(_harness.Case));
+    }
+
+    [Fact]
+    public void A_run_that_stores_while_holding_back_journals_what_it_held_back_and_left_out()
+    {
+        var (seen, payment) = Disagreement();
+        _harness.Analyse(seen, payment);
+        var other = Patterns.PaymentWithChange();
+
+        _harness.Analyse(seen, payment, other);
+        var further = Patterns.PaymentWithWeakSigns();
+
+        var run = _harness.Service.Analyse(_harness.Case, [seen, payment, other, further], [Txid("seen-earlier")]);
+
+        Assert.NotNull(run.Journal);
+        Assert.Equal([Txid("seen-earlier")], run.LeftOut);
+        var details = run.Journal.Details!;
+        Assert.Contains($"\"heldBack\":[\"{Txid("disagree").Value}\"]", details, StringComparison.Ordinal);
+        Assert.Contains($"\"leftOut\":[\"{Txid("seen-earlier").Value}\"]", details, StringComparison.Ordinal);
+        Assert.DoesNotContain("leftOut", _harness.Case.ReadJournal()
+            .First(entry => entry.Kind == ClusteringJournalKinds.Analysed).Details!, StringComparison.Ordinal);
+    }
+
     /// <summary>
     /// Gives a payment whose change is told by a transaction seen earlier, so that a run without that transaction
     /// holds the payment's conclusions back.
@@ -204,5 +538,25 @@ public sealed class HeldBackAndPreviewTests : IDisposable
             .Out(Wpkh("bulk"), 9_700_000)
             .Build();
         return (seen, payment);
+    }
+
+    /// <summary>
+    /// Gives a payment with two outputs: one to an address the case first saw in a transaction that is now gone, and
+    /// one to an address seen in another earlier transaction, so that neither is fresh while the gone one is known.
+    /// </summary>
+    /// <returns>The gone transaction, the other earlier one and the payment.</returns>
+    private static (BitcoinTransaction Gone, BitcoinTransaction Elsewhere, BitcoinTransaction Payment)
+        SeenOnlyInAGoneTransaction()
+    {
+        var gone = Tx("gone-first-sight", 800_000).In(Wpkh("someone"), 3_000_000).Out(Wpkh("seen-in-gone"), 2_990_000)
+            .Build();
+        var elsewhere = Tx("elsewhere-sight", 800_001).In(Wpkh("another"), 4_000_000).Out(Wpkh("seen-other"), 3_990_000)
+            .Build();
+        var payment = Tx("pays-both", 900_000)
+            .In(Wpkh("fresh-payer"), 5_000_000)
+            .Out(Wpkh("seen-in-gone"), 1_234_567)
+            .Out(Wpkh("seen-other"), 3_745_678)
+            .Build();
+        return (gone, elsewhere, payment);
     }
 }

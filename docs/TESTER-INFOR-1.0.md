@@ -2597,6 +2597,12 @@ HB1a finns i testärendet (se *Testärendet*); prova de andra i ett ärende där
       kvar*; *Släpp* gör adressen till en egen nod, och kortet står överstruket med *Slutsatsen släppt, också dess fynd*
       och vem. *Ångra* på det senaste beslutet tar tillbaka det: en släppt slutsats räknas igen, en som fick stå väntar
       igen.
+- [ ] **HB1a av sig själv (2026-11-09):** i ett ärende med en tx som är *Finns inte längre* (bekräftat, inte bara
+      *uppgifterna går inte ihop*) och en plånbok eller växeladress som byggde på den: expandera vad som helst. Ringen
+      kommer utan något annat steg; har den borta tx:en egna sammanslagningar (flera inputs) säger hovringen och
+      Historik *Byggde på tx:en själv (…)*. Plånboken står kvar ihop tills du väljer; *Släpp slutsatsen* delar den, och
+      nästa expansion slår inte ihop den igen. Med en tx som bara en värd sagt är borta, medan ärendet har fler, kommer
+      ingen ring.
 - [ ] **BU1a:** *Bryt upp* (U) på ett kluster. Bocka en adress och Ctrl+klicka den som inte hör ihop med den: formuläret
       ritar vägen som en kedja med heuristik, version och tx per länk, saxen på den svagaste (*svagast*), och under vad
       som händer (*K1 behåller 4 · … blir en egen plånbok*). Ett klick på en annan länk flyttar saxen; *Alla adresser*
@@ -3138,10 +3144,9 @@ källan besvaras på datorn, och inget går ut på nätet. Gör om testärendet 
       högre avgift till Snabbväxlarens gamla adress i blocket före det nyaste.
 - [ ] Slutsats som hålls tillbaka (HB1a): i det nyaste blocket betalar en annan Whirlpool-utgång den nya
       insättningsadressen ändå, med växel till en ny adress. Växelslutsatsen bygger på den borta utgiften (där adressen
-      sågs först), och den sista körningen i testärendet saknar den: klustret med växeladressen har den streckade gula
-      ringen med paus, hovringen säger vad som saknas och *Ersatt av …*, och Historik har *Låt stå* och *Släpp
-      slutsatsen*. Obs: appens egna körningar tar fortfarande med borta tx (TODO), så en ny expansion i testärendet
-      låter slutsatsen räknas igen och ringen försvinner.
+      sågs först), och expansionen efter att den blev borta lämnar den utanför klustringen av sig själv: klustret med
+      växeladressen har den streckade gula ringen med paus, hovringen säger vad som saknas och *Ersatt av …*, och
+      Historik har *Låt stå* och *Släpp slutsatsen*. Ringen står kvar när du expanderar något mer i testärendet.
 
 **Mönster och annan kedja (`pattern v1` och `cross-chain v1`)**
 - [ ] Två offer till (*Fjärde offret* och *Femte offret*) betalar var sin bedragare som sätter in i Blandaren. Blandaren

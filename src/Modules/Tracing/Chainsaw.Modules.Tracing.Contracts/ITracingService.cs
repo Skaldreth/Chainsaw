@@ -165,6 +165,16 @@ public interface ITracingService
     IReadOnlyList<SwapStopHistoryEntry> GetSwapStopHistory(ICase @case);
 
     /// <summary>
+    /// Reads, from the case only, which of the graph's UTXO transactions the answers settle are gone
+    /// (<see cref="GoneTransaction.IsSettled"/>): those the expansions leave out of the clustering (sketch HB1a), so
+    /// that a decision about a held back conclusion can be checked against the same set.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="cancellationToken">Stops the work.</param>
+    /// <returns>The settled gone transactions.</returns>
+    Task<IReadOnlyCollection<Txid>> GetSettledGoneAsync(ICase @case, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Chooses that the trace follows the transaction that spends the coins of a transaction the source no longer
     /// knows (sketch GR9a, <em>Ersatt av</em>): the user's judgement that the replacer carries the same money on,
     /// sealed with who and when, with a line in the journal. The replacer is fetched through the exit (sealed like

@@ -115,8 +115,9 @@ public sealed record ReorganisationStep(string Transaction, TestAddress Receiver
 
 /// <summary>
 /// Makes the made-up source lag a block behind the newest (<see cref="TestChain.Behind"/>) until
-/// <see cref="ReplacedStep"/> has seen its transaction gone, so that the case learns of the newest block between the
-/// two answers that say so. It comes before anything is looked up.
+/// <see cref="ReplacedStep"/> has had the first answer that its transaction is not known, so that the case learns of
+/// the newest block between the two answers that say so (the second is <see cref="GoneStep"/>'s). It comes before
+/// anything is looked up.
 /// </summary>
 public sealed record LagStep : ITestStep
 {
@@ -130,10 +131,11 @@ public sealed record LagStep : ITestStep
 }
 
 /// <summary>
-/// Makes a transaction gone and replaced (sketch GR9a, <em>Ersatt av</em>), as a replacement by fee (RBF) after a
-/// reorganisation does: while the source lags a block behind (<see cref="LagStep"/>), the transaction is expanded from
-/// an orphaned block; then the source no longer knows it, once before and once after the newest block, and the
-/// transaction its coin came from is asked who spends it now. Every answer is sealed in the case (principle 1).
+/// Lets the source see a transaction that is later replaced (sketch GR9a, <em>Ersatt av</em>), as a replacement by fee
+/// (RBF) after a reorganisation does: while the source lags a block behind (<see cref="LagStep"/>), the transaction is
+/// expanded from an orphaned block, and then the source no longer knows it, once. One such answer does not make it
+/// gone, so the expansions after it still know it, and conclusions can rest on it; <see cref="GoneStep"/> gives the
+/// second answer after the newest block. Every answer is sealed in the case (principle 1).
 /// </summary>
 /// <param name="Transaction">The story's label for the replaced transaction.</param>
 public sealed record ReplacedStep(string Transaction) : ITestStep
@@ -144,7 +146,7 @@ public sealed record ReplacedStep(string Transaction) : ITestStep
         ArgumentNullException.ThrowIfNull(run);
         try
         {
-            await GoneAsync(run, cancellationToken).ConfigureAwait(false);
+            await SeenAsync(run, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
@@ -156,7 +158,7 @@ public sealed record ReplacedStep(string Transaction) : ITestStep
     /// <param name="run">The build.</param>
     /// <param name="cancellationToken">Stops the work.</param>
     /// <returns>A task that completes when the source has answered.</returns>
-    private async Task GoneAsync(TestRun run, CancellationToken cancellationToken)
+    private async Task SeenAsync(TestRun run, CancellationToken cancellationToken)
     {
         if (run.Services.Bitcoin is not { } bitcoin)
         {
@@ -164,15 +166,37 @@ public sealed record ReplacedStep(string Transaction) : ITestStep
             return;
         }
 
-        var txid = run.TxidOf(Transaction);
         await bitcoin.GetTipHeightAsync(run.Case, cancellationToken).ConfigureAwait(false);
         using (run.Chain.Orphaning(Transaction))
         {
             await new ExpandStep(Transaction).RunAsync(run, cancellationToken).ConfigureAwait(false);
         }
 
-        await bitcoin.GetTransactionAsync(run.Case, txid, cancellationToken: cancellationToken).ConfigureAwait(false);
-        run.Chain.Behind = 0;
+        await bitcoin.GetTransactionAsync(run.Case, run.TxidOf(Transaction), cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+    }
+}
+
+/// <summary>
+/// Makes the transaction that <see cref="ReplacedStep"/> let the source see gone and replaced (sketch GR9a): after the
+/// newest block the source again does not know it, which confirms the first answer, and the transaction its coin came
+/// from is asked who spends it now. The next expansion then leaves it out of the clustering, so that a conclusion that
+/// rests on it is held back by itself (sketch HB1a). Every answer is sealed in the case (principle 1).
+/// </summary>
+/// <param name="Transaction">The story's label for the replaced transaction.</param>
+public sealed record GoneStep(string Transaction) : ITestStep
+{
+    /// <inheritdoc/>
+    public async Task RunAsync(TestRun run, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(run);
+        if (run.Services.Bitcoin is not { } bitcoin)
+        {
+            run.Note("Den ersatta tx:en kunde inte göras: Bitcoin-källan finns inte.");
+            return;
+        }
+
+        var txid = run.TxidOf(Transaction);
         await bitcoin.GetTipHeightAsync(run.Case, cancellationToken).ConfigureAwait(false);
         await bitcoin.GetTransactionAsync(run.Case, txid, cancellationToken: cancellationToken).ConfigureAwait(false);
         var replacement = await bitcoin.GetReplacementAsync(run.Case, txid, LookupMode.AsNeeded, cancellationToken)
@@ -182,38 +206,6 @@ public sealed record ReplacedStep(string Transaction) : ITestStep
             || replacement.Value?.Kind != ReplacementKind.Replaced)
         {
             run.Note($"{Transaction} syns inte som borta och ersatt.");
-        }
-    }
-}
-
-/// <summary>
-/// Runs the clustering on what the chain still has, so that a conclusion that rests on a gone transaction is held back
-/// (sketch HB1a): the graph's Bitcoin transactions without those the source no longer knows. The app's own runs still
-/// pass every transaction in the graph, gone ones too, so it never makes this run by itself (TODO); the step makes it as
-/// the last, since every later expansion runs the clustering on the whole graph again and lets the conclusion count.
-/// </summary>
-/// <param name="Transaction">The story's label for the transaction whose conclusion is to be held back.</param>
-public sealed record HeldBackStep(string Transaction) : ITestStep
-{
-    /// <inheritdoc/>
-    public async Task RunAsync(TestRun run, CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(run);
-        if (run.Services.Clustering is not { } clustering)
-        {
-            run.Note("Slutsatsen som hålls tillbaka kunde inte göras: klustringen finns inte.");
-            return;
-        }
-
-        var graph = await run.Services.Tracing.LoadAsync(run.Case, cancellationToken).ConfigureAwait(false);
-        var onChain = graph.Transactions
-            .Where(entry => !graph.Gone.ContainsKey(entry.Key))
-            .Select(entry => entry.Value.Transaction)
-            .ToList();
-        var analysed = clustering.Analyse(run.Case, onChain);
-        if (!analysed.HeldBack.Contains(run.TxidOf(Transaction)))
-        {
-            run.Note($"Slutsatsen om {Transaction} hölls inte tillbaka.");
         }
     }
 }

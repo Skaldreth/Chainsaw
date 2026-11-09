@@ -212,11 +212,11 @@ byggt ur BACKLOG; det som skriver i ärendet granskas oberoende.
      (värdet jämförs med kurserna, och skälet säger avgiften); en bild med båda tillgångarna och kronorna skissas.
 
 **Ur omgång 4, ytorna KV1a, HB1a, BU1a, DM1a, HP1a och TJ1b** (byggda 2026-11-08, rester):
-- **En slutsats hålls aldrig tillbaka av sig själv** (HB1a, fynd 2026-11-09 när testärendet fylldes på): klustringen
-  håller tillbaka en slutsats bara när en körning saknar en tx den bygger på, men Tracing skickar alltid hela grafen,
-  också en tx som källan inte längre känner (den borta tx:en läses ur ärendet som förut). Att en körning lämnar borta
-  tx utanför (och vad grafen då visar för dem) ändrar slutsatserna i ärendet och byggs som en etapp. Testärendet visar
-  HB1a med en körning utan de borta tx:erna sist i berättelsen (`HeldBackStep`), som nästa expansion tar tillbaka.
+- [skiss] **En slutsats som inte dras medan en tx är borta** (HB1a, 2026-11-09): en tx vars nya slutsats skulle vila
+  på en borta tx dras inte (`ClusteringRun.NotDrawn`, och `notDrawn` i journalen när mängden ändras, sparad i
+  arbetsläget `clustering_not_drawn`), men i grafen och i Historik syns det inte. En tyst rad i Historik, *Väntar:
+  byggde på en tx som försvunnit*, eller HB1a-ringen utan beslut, skissas först (det som står kvar är inte byggt på
+  den borta tx:en, så *Låt stå* och *Släpp* passar inte).
 - **Förhandsvisningen av ett tillbakadragande** (KV1a) räknar på det som är sparat: det v1 slår ihop i tx som v1
   aldrig kört syns först efter nästa körning. Raden längst ner säger när, men inte vem (det står i journalen).
 - **Dammets linjer** (DM1a) är inte hårfina och prickade och har kvar beloppet; noderna tonas ned och förgiftningens

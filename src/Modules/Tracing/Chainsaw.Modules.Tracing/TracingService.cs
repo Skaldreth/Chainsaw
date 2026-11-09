@@ -412,6 +412,24 @@ internal sealed class TracingService : ITracingService
     }
 
     /// <inheritdoc/>
+    public async Task<IReadOnlyCollection<Txid>> GetSettledGoneAsync(
+        ICase @case, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        var inGraph = @case.Read(GraphStateStore.Read).Transactions.ToHashSet();
+        var gone = await GoneAsync(@case, inGraph, cancellationToken).ConfigureAwait(false);
+        return SettledGone(gone);
+    }
+
+    /// <summary>
+    /// Gives the gone transactions whose answers settle that they are gone: the same rule everywhere.
+    /// </summary>
+    /// <param name="gone">The gone transactions.</param>
+    /// <returns>The settled ones.</returns>
+    private static List<Txid> SettledGone(IReadOnlyDictionary<Txid, GoneTransaction> gone) =>
+        [.. gone.Values.Where(each => each.IsSettled).Select(each => each.Txid)];
+
+    /// <inheritdoc/>
     public async Task<ReplacementFollow> FollowReplacementAsync(
         ICase @case, Txid gone, Txid replacer, string? reason, CancellationToken cancellationToken = default)
     {
@@ -795,7 +813,7 @@ internal sealed class TracingService : ITracingService
         var data = await ReadDataAsync(@case, cancellationToken).ConfigureAwait(false);
         if (data.Transactions.Count > 0)
         {
-            _clustering.Analyse(@case, [.. data.Transactions.Values.Select(entry => entry.Transaction)]);
+            AnalyseClusters(@case, data);
         }
 
         return new ExpansionResult(
@@ -1026,7 +1044,7 @@ internal sealed class TracingService : ITracingService
         @case.Write(transaction => GraphStateStore.SaveExpansion(transaction, expansion));
         await FetchSpendsAsync(@case, taken, cancellationToken).ConfigureAwait(false);
         var data = await ReadDataAsync(@case, cancellationToken).ConfigureAwait(false);
-        _clustering.Analyse(@case, [.. data.Transactions.Values.Select(entry => entry.Transaction)]);
+        AnalyseClusters(@case, data);
         return new ExpansionResult(
             problem is null ? ExpansionOutcome.Expanded : ExpansionOutcome.Partly,
             [.. taken.Where(txid => !before.Contains(txid))],
@@ -1216,9 +1234,24 @@ internal sealed class TracingService : ITracingService
         var account = state.EthereumTransactions.Count > 0 || state.EthereumHistories.Count > 0
             ? await ReadAccountsAsync(@case, state, cancellationToken).ConfigureAwait(false)
             : AccountData.Empty;
-        var gone = await GoneAsync(@case, transactions, cancellationToken).ConfigureAwait(false);
+        var gone = await GoneAsync(@case, transactions.Keys.ToHashSet(), cancellationToken).ConfigureAwait(false);
         return new GraphData(state, transactions, spends, problems) { Account = account, Gone = gone };
     }
+
+    /// <summary>
+    /// Runs the clustering over the graph's UTXO transactions without those the source no longer knows (sketch HB1a):
+    /// a conclusion that rests on a gone transaction, or the gone transaction's own, is then held back until the user
+    /// lets it stand or go, and a later run with the transaction back redoes it. Only a transaction whose answers
+    /// settle that it is gone (<see cref="GoneTransaction.IsSettled"/>, the same rule that ends the trail at it) is
+    /// left out; one only a single host says is gone, while the case has heard from others, or whose answers do not
+    /// agree, stays in, so that one endpoint's word cannot hold conclusions back. Nothing is taken back: a held back
+    /// conclusion stands, sealed and counting, until the user decides.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="data">The graph's data.</param>
+    private void AnalyseClusters(ICase @case, GraphData data) =>
+        _clustering.Analyse(
+            @case, [.. data.Transactions.Values.Select(entry => entry.Transaction)], SettledGone(data.Gone));
 
     /// <summary>
     /// Reads which of the graph's Bitcoin transactions the source no longer knows (sketch GR9a), and what the case
@@ -1229,17 +1262,17 @@ internal sealed class TracingService : ITracingService
     /// <param name="cancellationToken">Stops the work.</param>
     /// <returns>The gone transactions, by txid.</returns>
     private async Task<Dictionary<Txid, GoneTransaction>> GoneAsync(
-        ICase @case, IReadOnlyDictionary<Txid, GraphTransaction> transactions, CancellationToken cancellationToken)
+        ICase @case, IReadOnlySet<Txid> transactions, CancellationToken cancellationToken)
     {
         var gone = new Dictionary<Txid, GoneTransaction>();
-        var chains = transactions.Keys.Select(txid => txid.Chain).ToHashSet();
+        var chains = transactions.Select(txid => txid.Chain).ToHashSet();
         foreach (var (chain, source) in _sources.Where(pair => chains.Contains(pair.Key)))
         {
             var changes = await source.GetBlockChangesAsync(@case, cancellationToken).ConfigureAwait(false);
             foreach (var change in changes.Where(change => change.Chain == chain
                 && change.Kind == BlockChangeKind.Gone))
             {
-                if (!Txid.TryParse(chain, change.TransactionId, out var txid) || !transactions.ContainsKey(txid))
+                if (!Txid.TryParse(chain, change.TransactionId, out var txid) || !transactions.Contains(txid))
                 {
                     continue;
                 }
