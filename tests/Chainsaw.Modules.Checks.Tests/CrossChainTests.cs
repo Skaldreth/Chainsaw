@@ -101,7 +101,7 @@ public sealed class CrossChainTests : IDisposable
     }
 
     [Fact]
-    public void The_recipient_the_memo_names_comes_first_also_without_a_rate()
+    public void The_memos_recipient_without_a_rate_or_a_bridge_paying_is_kept_low_and_unchecked()
     {
         var named = Account(Chain.Ethereum, "memo-recipient");
         var memo = $"=:ETH.ETH:{named.Value}:0/1/0";
@@ -111,23 +111,70 @@ public sealed class CrossChainTests : IDisposable
 
         var suggestion = Single(Graph(Deposit(memo), other, toNamed));
 
-        // Without the ether's rate only the memo's recipient can be weighed; the chain names it.
+        // Without the ether's rate only the memo's recipient can be weighed; the sender named it, nothing more.
         var candidate = Assert.Single(suggestion.Finding.Candidates);
         Assert.Equal(toNamed.Key, candidate.Key);
-        Assert.Contains("memot =:ETH.ETH:", candidate.Reason, StringComparison.Ordinal);
-        Assert.Contains("kursen saknas", candidate.Reason, StringComparison.Ordinal);
+        Assert.True(candidate.Score <= CrossChainCheck.UncheckedCeiling);
+        Assert.Contains("avsändaren angav mottagaren i memot =:ETH.ETH:", candidate.Reason, StringComparison.Ordinal);
+        Assert.Contains("beloppet är inte prövat", candidate.Reason, StringComparison.Ordinal);
+        Assert.Contains("avsändarens instruktion", suggestion.Finding.Why, StringComparison.Ordinal);
+        Assert.Contains("betala tillbaka", suggestion.Finding.Why, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void The_memo_ranks_its_recipient_above_a_better_fit()
+    public void The_memos_recipient_paid_by_a_bridge_comes_above_a_better_fit()
     {
         var named = Account(Chain.Ethereum, "memo-recipient");
         var better = Ether("better", "other", "0.198", Start.AddMinutes(5));
         var toNamed = Ether("named", "memo-recipient", "0.18", Start.AddHours(6));
 
-        var suggestion = Single(Graph(Deposit($"SWAP:ETH.ETH:{named.Value}"), better, toNamed));
+        var suggestion = Single(Graph(Deposit($"SWAP:ETH.ETH:{named.Value}"), BridgePayout, better, toNamed));
 
         Assert.Equal([toNamed.Key, better.Key], suggestion.Finding.Candidates.Select(c => c.Key));
+        Assert.Contains("en brygga eller swap betalade", suggestion.Finding.Candidates[0].Reason,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void A_payment_with_no_sign_in_its_address_stays_below_the_memo_level()
+    {
+        var right = Ether("right", "recipient", "0.198", Start.AddMinutes(20));
+
+        var suggestion = Single(Graph(Deposit(), right));
+
+        Assert.True(suggestion.Finding.Candidates[0].Score <= CrossChainCheck.PlainCeiling);
+    }
+
+    [Fact]
+    public void Payments_into_a_bridge_and_to_a_start_point_are_not_continuations()
+    {
+        var intoBridge = Ether("into-bridge", "other-bridge", "0.198", Start.AddMinutes(10));
+        var toStart = Ether("to-start", "start", "0.198", Start.AddMinutes(15));
+        GraphNode Marked(GraphNode node)
+        {
+            if (node.Accounts.Contains(intoBridge.To))
+            {
+                return node with { Ends = [OtherChainEnd] };
+            }
+
+            return node with { IsStartPoint = node.Accounts.Contains(toStart.To) };
+        }
+
+        var graph = Graph(Deposit(), intoBridge, toStart);
+        graph = graph with { Nodes = [.. graph.Nodes.Select(Marked)] };
+
+        Assert.Empty(CrossChain(Run(graph)));
+    }
+
+    [Fact]
+    public void A_memo_naming_the_departures_own_chain_names_no_continuation()
+    {
+        var right = Ether("right", "recipient", "0.198", Start.AddMinutes(20));
+
+        var suggestion = Single(Graph(Deposit($"=:b:{Payer.Value}"), right));
+
+        Assert.Equal([right.Key], suggestion.Finding.Candidates.Select(c => c.Key));
+        Assert.Contains("samma kedja", suggestion.Finding.Why, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -247,6 +294,9 @@ public sealed class CrossChainTests : IDisposable
     [InlineData("SWAP:TRON.USDT-TR7NHQ:TXyz/TRefund:0/1/0", "TRON", "USDT-TR7NHQ", "TXyz")]
     [InlineData("s:e:0xdef", "ETH", "ETH", "0xdef")]
     [InlineData("=:b:bc1qxyz:100", "BTC", "BTC", "bc1qxyz")]
+    [InlineData("=:E:0xabc", "ETH", "ETH", "0xabc")]
+    [InlineData("=:l:ltc1qxyz", "LTC", "LTC", "ltc1qxyz")]
+    [InlineData("=:BSC.BNB:0xabc", "BSC", "BNB", "0xabc")]
     public void A_memo_in_THORChains_form_is_read(string text, string chain, string asset, string destination)
     {
         var memo = SwapMemo.Parse(text)!;
@@ -271,6 +321,12 @@ public sealed class CrossChainTests : IDisposable
 
         Assert.Equal(recipient, memo.Address);
         Assert.Null(SwapMemo.Parse("=:BSC.BNB:0xabc")!.Address);
+        Assert.Equal(Chain.Bsc, SwapMemo.Parse($"=:s:{recipient.Value}")!.Address!.Chain);
+        Assert.Null(SwapMemo.Parse("=:DOGE.DOGE:Dabc")!.Address);
+        Assert.True(SwapMemo.Parse("=:ETH.ETH:kalle")!.IsName);
+        Assert.Null(SwapMemo.Parse("=:ETH.ETH:" + new string('a', SwapMemo.MostLength)));
+        var quoted = SwapMemo.Parse("=:ETH.ETH:" + recipient.Value + ":" + new string('9', 100))!.ToString();
+        Assert.Contains("…", quoted, StringComparison.Ordinal);
         Assert.Null(SwapMemo.FromScript("6a"));
         Assert.Null(SwapMemo.FromScript("0014" + new string('0', 40)));
     }
@@ -302,9 +358,20 @@ public sealed class CrossChainTests : IDisposable
             };
     }
 
+    /// <summary>Marks the payout address as a bridge or swap on the other chain, as its label would.</summary>
+    private const bool BridgePayout = true;
+
     /// <summary>A graph of the deposit, the swap's address as an actor the trail ends at, and the payments.</summary>
-    private static TraceGraph Graph(BitcoinTransaction deposit, params ChainMovement[] arrivals)
+    private static TraceGraph Graph(BitcoinTransaction deposit, params ChainMovement[] arrivals) =>
+        Graph(deposit, false, arrivals);
+
+    /// <summary>
+    /// A graph of the deposit, the swap's address as an actor the trail ends at, and the payments, with the payout
+    /// address as a bridge or swap when asked.
+    /// </summary>
+    private static TraceGraph Graph(BitcoinTransaction deposit, bool bridgePayout, params ChainMovement[] arrivals)
     {
+        var payout = Account(Chain.Ethereum, "payout");
         var nodes = new List<GraphNode>
         {
             BitcoinNode(Payer),
@@ -312,7 +379,9 @@ public sealed class CrossChainTests : IDisposable
         };
         nodes.AddRange(arrivals.SelectMany(arrival => new[] { arrival.From!, arrival.To })
             .Distinct()
-            .Select(address => AccountNode(address)));
+            .Select(address => bridgePayout && address == payout
+                ? AccountNode(address, OtherChainEnd)
+                : AccountNode(address)));
         return Empty() with
         {
             Nodes = nodes,

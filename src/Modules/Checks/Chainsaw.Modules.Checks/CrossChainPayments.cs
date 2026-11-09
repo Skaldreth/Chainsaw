@@ -56,7 +56,10 @@ internal static class CrossChainPayments
         var departures = new List<CrossChainDeparture>();
         foreach (var payment in payments)
         {
-            if (graph.NodeOf(payment.To) is not { } node
+            // A link from a coin is a Bitcoin coin's (Tracing's links name no other UTXO chain yet), so a payment in
+            // on Litecoin is not suggested for until a link can say it left Litecoin.
+            if ((payment.Coin is not null && payment.Transaction.Chain != Chain.Bitcoin)
+                || graph.NodeOf(payment.To) is not { } node
                 || node.Ends.FirstOrDefault(end => end.Reason == TrailEndReason.OtherChain) is not { } end
                 || (payment.From is { } from && graph.NodeOf(from)?.Key == node.Key))
             {
@@ -107,13 +110,20 @@ internal static class CrossChainPayments
             .FirstOrDefault(memo => memo is not null);
     }
 
-    /// <summary>Gives a Bitcoin transaction's outputs with an address as payments.</summary>
+    /// <summary>
+    /// Gives a UTXO transaction's outputs with an address as payments, on the chain its addresses are on (Bitcoin or
+    /// Litecoin), in that chain's coin.
+    /// </summary>
     /// <param name="transaction">The transaction.</param>
     /// <returns>The payments, by output.</returns>
     public static IEnumerable<ChainMovement> CoinsOf(BitcoinTransaction transaction)
     {
         var payer = transaction.Inputs.Select(input => input.Address).OfType<BitcoinAddress>().FirstOrDefault();
-        var reference = ChainTransactionRef.Of(transaction.Txid);
+        var chain = transaction.Outputs.Select(output => output.Address).OfType<BitcoinAddress>()
+            .Concat(payer is null ? [] : [payer])
+            .Select(address => address.Chain)
+            .FirstOrDefault(Chain.Bitcoin);
+        var reference = new ChainTransactionRef(chain, transaction.Txid.Value);
         foreach (var output in transaction.Outputs)
         {
             if (output.Address is not { } address)
@@ -125,7 +135,7 @@ internal static class CrossChainPayments
                 reference,
                 payer?.ToChainAddress(),
                 address.ToChainAddress(),
-                output.Amount.ToAmount(),
+                new AssetAmount(chain.NativeAsset(), output.Amount.Value),
                 transaction.Block?.Height,
                 transaction.Block?.Hash.Value,
                 transaction.Block?.Time)

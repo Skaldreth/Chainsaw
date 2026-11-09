@@ -253,20 +253,8 @@ internal static class FindingCodec
         {
             var chain = Enum.Parse<Chain>(Chain);
             return Enum.Parse<AssetKind>(Kind) == AssetKind.Native
-                ? NativeOf(chain)
+                ? chain.NativeAsset()
                 : Asset.Token(chain, Contract!, Symbol, Decimals);
         }
-
-        /// <summary>Gives a chain's own coin.</summary>
-        /// <param name="chain">The chain.</param>
-        /// <returns>The coin.</returns>
-        /// <exception cref="InvalidDataException">Chainsaw does not know the chain's coin.</exception>
-        private static Asset NativeOf(Chain chain) => chain switch
-        {
-            SharedKernel.Chain.Bitcoin => Asset.Bitcoin,
-            SharedKernel.Chain.Ethereum => Asset.Ether,
-            SharedKernel.Chain.Tron => Asset.Tronix,
-            _ => throw new InvalidDataException("A sealed payment names a chain whose coin is not known."),
-        };
     }
 }

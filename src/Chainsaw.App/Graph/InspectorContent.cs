@@ -806,6 +806,26 @@ public sealed record InspectorContent(
         }
     }
 
+    /// <summary>
+    /// Writes why a line continues on another chain: the user's judgement with when, and the approved suggestion it
+    /// came from (the analysis with its version and the decision) when it did not come by hand, and the reason only
+    /// when one was given.
+    /// </summary>
+    /// <param name="link">The link.</param>
+    /// <returns>The answer, in Swedish.</returns>
+    public static string LinkWhy(CrossChainLink link)
+    {
+        ArgumentNullException.ThrowIfNull(link);
+        var origin = link.Origin is { } made
+            ? string.Create(
+                CultureInfo.InvariantCulture, $", ett godkänt förslag ur {made.Analysis} (beslut {made.Decision})")
+            : string.Empty;
+        var reason = string.IsNullOrWhiteSpace(link.Reason) ? string.Empty : ": " + link.Reason.Trim().TrimEnd('.');
+        return $"Fortsätter på {link.To.Chain}: användarens bedömning "
+            + $"{link.RecordedUtc.UtcDateTime:yyyy-MM-dd HH:mm} UTC{origin}{reason}. Beloppet är det som lämnade "
+            + $"{link.FromChain}, inte det som kom fram på den andra kedjan.";
+    }
+
     /// <summary>Answers <em>Varför?</em> for a line: the facts it sums, the traced part and what is uncertain.</summary>
     /// <param name="scene">The scene.</param>
     /// <param name="edge">The line.</param>
@@ -818,11 +838,7 @@ public sealed record InspectorContent(
         {
             why.AddRange(scene.Snapshot.Graph.CrossChainLinks
                 .Where(link => InspectorForms.Carries(model, link))
-                .Select(link => new WhyLine(
-                    $"Fortsätter på {link.To.Chain}: användarens bedömning "
-                    + $"{link.RecordedUtc.UtcDateTime:yyyy-MM-dd HH:mm} UTC: {link.Reason}. Beloppet är det som "
-                    + $"lämnade {link.FromChain}, inte det som kom fram på den andra kedjan.",
-                    GuideTopic.TrailEnds)));
+                .Select(link => new WhyLine(LinkWhy(link), GuideTopic.CrossChain)));
         }
         else
         {

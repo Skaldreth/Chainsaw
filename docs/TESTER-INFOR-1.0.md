@@ -1846,15 +1846,22 @@ Testärendet visar dem inte än (TODO); prova i ett ärende där mönstren finns
 ### Fortsättningen på annan kedja (cross-chain v1, 2026-11-09)
 
 Kräver ett ärende där pengar på Bitcoin går in till en adress med etiketten *Swap eller brygga*, och grafen också har
-en utbetalning på Ethereum eller TRON strax efter (till exempel en startpunkt där), med kurserna i ärendet.
-- *Förslag · N* har ett förslag *Fortsättning på annan kedja* med lila område, brickorna *Tjänstens memo först*,
+en utbetalning på Ethereum, TRON, BSC eller Litecoin strax efter, med kurserna i ärendet. **Gamla testärenden måste
+skapas på nytt:** länkarnas förseglade kolumner har fått `origin`, så ett ärende från före 2026-11-09 klarar inte
+*Verifiera*.
+- *Förslag · N* har ett förslag *Fortsättning på annan kedja* med lila område, brickorna *Avsändarens memo*,
   *Värde − avgift*, *Tid* och *Samma nyckel*, och kandidaterna som rader: mottagaren förkortad, beloppet med sin
   tillgång (till exempel USDT) och tiden efter. Raden under titeln säger beloppet in med sin tillgång.
 - En utbetalning vars värde är mycket större eller mindre än det som gick in blir ingen kandidat. Utan kurs i ärendet
   blir det inget förslag (utom för en mottagare som memot namnger, se nästa punkt).
 - En Bitcoin-tx till en THORChain-adress med ett `OP_RETURN`-memo `=:ETH.ETH:0x…`: när kontrollerna körs med utgången
-  ansluten slås mottagaren upp på Ethereum (bara adressen), och en betalning till den står först, med *mottagaren står i
-  memot …* i skälet.
+  ansluten slås mottagaren upp på Ethereum (bara adressen, också ether som routern betalat ut inne i en tx). En
+  betalning dit från en adress med etiketten *Swap eller brygga* står först (*avsändaren angav mottagaren i memot …*);
+  från någon annan står den lägre, och utan kurs med *beloppet är inte prövat*. *Varför?* säger att memot är
+  avsändarens instruktion och att THORChain kan betala tillbaka.
+- Byt vy fram och tillbaka flera gånger: samma mottagare frågas inte igen inom en kvart (journalen och källornas
+  förseglade svar växer inte).
+- En betalning utan memo och utan samma nyckel eller brygga har högst 0,60 i poäng.
 - Med utgången frånkopplad: panelen säger *Fortsättningen på Ethereum kunde inte slås upp: …*, och förslagen bygger på
   det som redan finns i ärendet.
 - Godkänn en kandidat (Enter), gärna utan skäl: grafen får den lila streckade länken till tx:en på den andra kedjan,
@@ -1862,7 +1869,10 @@ en utbetalning på Ethereum eller TRON strax efter (till exempel en startpunkt d
 - Ångra beslutet (Ctrl+Z eller *Ångra* i loggen): länken försvinner och förslaget väntar igen. Godkänn igen och ta
   tillbaka länken i nodens *Historik* i stället: samma resultat, beslutet är ångrat.
 - Knyt fortsättningen för hand (K) på en annan betalning in: den får inget förslag.
-- Försök godkänna en andra kandidat för samma betalning: det vägras (en betalning fortsätter på ett ställe i taget).
+- Godkänn en kandidat: knappen *Godkänn* försvinner och bara *Avfärda resten* finns kvar (en betalning fortsätter på
+  ett ställe i taget).
+- Linjens *Varför?* säger *ett godkänt förslag ur cross-chain v1 (beslut N)* och inget skäl när inget skrevs; spårets
+  slut säger *knutet till … (godkänt förslag ur cross-chain v1)* eller *(för hand)*.
 
 ## Etiketter
 

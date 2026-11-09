@@ -35,7 +35,7 @@ försvåra en spårning byter därför gärna kedja, och ofta token, en eller fl
 ## I Chainsaw
 
 En känd brygga eller swap (en etikett) avslutar spåret med *Fortsätter på annan kedja*, i **lila**. Chainsaw föreslår
-själv troliga fortsättningar ur tjänstens memo, värde och tid (**cross-chain v1**), och du godkänner eller avfärdar dem;
+själv troliga fortsättningar ur avsändarens memo, värde och tid (**cross-chain v1**), och du godkänner eller avfärdar dem;
 du kan också knyta fortsättningen för hand med **K**, se [Fortsättningen på en annan kedja](annan-kedja.md). Länken är
 streckad, eftersom den är din bedömning. Ett byte av token på samma kedja står som ett litet piller på linjen (₮ → Ξ),
 se [Spåret genom en swap](swappar.md).

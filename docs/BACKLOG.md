@@ -196,11 +196,12 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
   - **Bara mottagarens senaste sida** läses (Bitcoin 25 tx, Ethereum och TRON en sida per historik), så en gammal swap
     till en livlig adress kan saknas.
   - **Spåret slutar på en tx-etikett** (*Swap eller brygga* på en tx, inte en adress): sådana betalningar vägs inte än.
-  - **Bryggorna till L2-kedjorna** (Arbitrum, OP Mainnet, Base, Polygon) leder till kedjor Chainsaw inte har; BSC och
-    Litecoin vägs när de finns i `Chain` (memots `BSC.` och `LTC.` känns igen men sägs ärligt som en kedja Chainsaw inte
-    har).
-  - **En utbetalning i flera delar** godkänns som en kandidat i taget, men en betalning kan bara knytas till en tx åt
-    gången (Tracing), så den andra delen vägras; delar som tillsammans är värdet föreslås inte.
+  - **Bryggorna till L2-kedjorna** (Arbitrum, OP Mainnet, Base, Polygon) leder till kedjor Chainsaw inte har.
+  - **En betalning in på Litecoin** föreslås inte än: en länk från ett mynt är ett Bitcoin-myntes i Tracing
+    (`CrossChainLink.FromChain`), så Litecoin behöver en kedja på myntet först. Betalningar *ut* på Litecoin vägs.
+  - **En utbetalning i flera delar:** bara en kandidat kan godkännas (en betalning knyts till en tx åt gången), och
+    delar som tillsammans är värdet föreslås inte.
+  - **En THORName** i memot (ett namn i stället för en adress) slås inte upp; det sägs i *Varför?*.
   - **Ett godkänt förslag vars betalning in sedan knyts om för hand** står kvar som godkänt i panelen tills nästa körning.
 - **Direkt mot kedjan:** egen nod och eget index (Bitcoin Core med `txindex`, Fulcrum eller electrs eller ett eget index;
   Reth eller Erigon för Ethereum; java-tron för TRON). Kräver en server. Esplora går att köra själv, så Bitcoin blir bara en

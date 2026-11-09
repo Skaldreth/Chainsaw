@@ -11,17 +11,30 @@ namespace Chainsaw.Modules.Checks;
 /// The cross-chain search (<see cref="ICrossChainLookup"/>): reads the first page of history of each recipient a
 /// swap's memo names on another chain, through the chain's source (which seals every answer with its hash and goes
 /// only through the exit, principles 1 and 4), and the case's rates for the payments the analysis weighs. Only the
-/// address is sent; the case never is.
+/// address is sent; the case never is. What the case already has is read from it first; a recipient is asked of the
+/// source again only after <see cref="MinimumInterval"/>, so that a graph shown again and again does not ask again.
 /// </summary>
 /// <param name="bitcoin">Bitcoin's source.</param>
 /// <param name="ethereum">Ethereum's source.</param>
 /// <param name="prices">The rates, or <see langword="null"/> when Pricing is not registered.</param>
 /// <param name="tron">TRON's source, or <see langword="null"/> where TRON is not registered.</param>
+/// <param name="litecoin">Litecoin's source, or <see langword="null"/> where it is not registered.</param>
+/// <param name="bsc">BSC's source, or <see langword="null"/> where it is not registered.</param>
+/// <param name="clock">The clock, for how old an answer is; the system's when <see langword="null"/>.</param>
 internal sealed class CrossChainLookup(
-    IBitcoinSource bitcoin, IEthereumSource ethereum, IPriceService? prices = null, ITronSource? tron = null)
+    IBitcoinSource bitcoin,
+    IEthereumSource ethereum,
+    IPriceService? prices = null,
+    ITronSource? tron = null,
+    ILitecoinSource? litecoin = null,
+    IBscSource? bsc = null,
+    IClock? clock = null)
     : ICrossChainLookup
 {
-    /// <summary>The most recipients read in one search, so that many swaps do not ask too much.</summary>
+    /// <summary>
+    /// The most recipients asked of a source in one search, so that many swaps do not ask too much; those the case
+    /// already has are read from it and do not count.
+    /// </summary>
     public const int MostTargets = 8;
 
     /// <summary>The most payments valued in one search, the nearest in time to their departure first.</summary>
@@ -29,6 +42,19 @@ internal sealed class CrossChainLookup(
 
     /// <summary>The most rates asked of the source in one search; the rest wait for the next.</summary>
     public const int MostRateLookups = 24;
+
+    /// <summary>
+    /// How long a recipient's sealed history counts as fresh: within it the source is not asked again, however often
+    /// the checks run.
+    /// </summary>
+    public static readonly TimeSpan MinimumInterval = TimeSpan.FromMinutes(15);
+
+    /// <summary>The histories of an account read for payments to it: ether, ether from contracts, and tokens.</summary>
+    private static readonly EthereumHistory[] AccountHistories =
+        [EthereumHistory.Transactions, EthereumHistory.Internal, EthereumHistory.Tokens];
+
+    /// <summary>The clock.</summary>
+    private readonly IClock _clock = clock ?? new SystemClock();
 
     /// <inheritdoc/>
     public async Task<CrossChainArrivals> FindAsync(
@@ -45,14 +71,14 @@ internal sealed class CrossChainLookup(
 
         var arrivals = new List<ChainMovement>();
         var targets = new List<CrossChainTarget>();
-        var wanted = departures.Select(departure => departure.Memo?.Address)
+        var budget = new FetchBudget(mode, MostTargets);
+        var wanted = departures.Select(CrossChainCheck.NamedRecipient)
             .OfType<ChainAddress>()
             .Distinct()
-            .Where(address => !IsReadInGraph(graph, address))
-            .Take(MostTargets);
+            .Where(address => !IsReadInGraph(graph, address));
         foreach (var address in wanted)
         {
-            var (found, target) = await ReadAsync(@case, address, mode, cancellationToken).ConfigureAwait(false);
+            var (found, target) = await ReadAsync(@case, address, budget, cancellationToken).ConfigureAwait(false);
             arrivals.AddRange(found);
             targets.Add(target);
         }
@@ -72,35 +98,39 @@ internal sealed class CrossChainLookup(
     /// <returns><see langword="true"/> when it does.</returns>
     private static bool IsReadInGraph(TraceGraph graph, ChainAddress address) =>
         graph.Account.ReadAccounts.Contains(address)
-        || graph.Expansions.Any(expansion => expansion.Address?.Value == address.Value
-            && address.Chain == Chain.Bitcoin);
+        || graph.Expansions.Any(expansion => expansion.Address?.ToChainAddress() == address);
 
     /// <summary>Reads the first page of a recipient's history and gives the payments to it.</summary>
     /// <param name="case">The open case.</param>
     /// <param name="address">The recipient.</param>
-    /// <param name="mode">Whether the source may be asked.</param>
+    /// <param name="budget">Whether, and how often more, a source may be asked.</param>
     /// <param name="cancellationToken">Stops the work.</param>
     /// <returns>The payments to it, and whether it was read.</returns>
     private async Task<(IReadOnlyList<ChainMovement> Found, CrossChainTarget Target)> ReadAsync(
-        ICase @case, ChainAddress address, LookupMode mode, CancellationToken cancellationToken)
+        ICase @case, ChainAddress address, FetchBudget budget, CancellationToken cancellationToken)
     {
         try
         {
-            if (address.Chain == Chain.Bitcoin)
+            if (address.Chain.Model() == LedgerModel.Utxo)
             {
-                var page = await bitcoin.GetAddressTransactionsAsync(
-                    @case, BitcoinAddress.Parse(address.Value), null, mode, cancellationToken).ConfigureAwait(false);
-                var coins = page.Value?.Transactions.SelectMany(CrossChainPayments.CoinsOf) ?? [];
-                return ([.. coins.Where(coin => coin.To == address)], TargetOf(address, page.Status, page.Problem));
+                if (CoinSourceOf(address.Chain) is not { } coins)
+                {
+                    return ([], NoSource(address));
+                }
+
+                var recipient = BitcoinAddress.Parse(address.Value);
+                var page = await LookUpAsync(
+                    address,
+                    budget,
+                    mode => coins.GetAddressTransactionsAsync(@case, recipient, null, mode, cancellationToken))
+                    .ConfigureAwait(false);
+                var paid = page.Value?.Transactions.SelectMany(CrossChainPayments.CoinsOf) ?? [];
+                return ([.. paid.Where(coin => coin.To == address)], TargetOf(address, page.Status, page.Problem));
             }
 
-            if (SourceOf(address.Chain) is not { } source)
-            {
-                return ([], new CrossChainTarget(
-                    address, CrossChainTargetState.Unreachable, $"Chainsaw har ingen källa för {address.Chain} här."));
-            }
-
-            return await ReadAccountAsync(@case, source, address, mode, cancellationToken).ConfigureAwait(false);
+            return SourceOf(address.Chain) is { } source
+                ? await ReadAccountAsync(@case, source, address, budget, cancellationToken).ConfigureAwait(false)
+                : ([], NoSource(address));
         }
         catch (NotSupportedException)
         {
@@ -109,37 +139,88 @@ internal sealed class CrossChainLookup(
         }
     }
 
-    /// <summary>Reads an account's transactions and token transfers, and gives the payments to it.</summary>
+    /// <summary>Says that Chainsaw has no source for a recipient's chain here.</summary>
+    /// <param name="address">The recipient.</param>
+    /// <returns>The target.</returns>
+    private static CrossChainTarget NoSource(ChainAddress address) => new(
+        address, CrossChainTargetState.Unreachable, $"Chainsaw har ingen källa för {address.Chain} här.");
+
+    /// <summary>
+    /// Reads an account's ether, ether from contracts (where a bridge's router pays out) and token transfers, and gives
+    /// the payments to it.
+    /// </summary>
     /// <param name="case">The open case.</param>
     /// <param name="source">The chain's source.</param>
     /// <param name="address">The recipient.</param>
-    /// <param name="mode">Whether the source may be asked.</param>
+    /// <param name="budget">Whether, and how often more, a source may be asked.</param>
     /// <param name="cancellationToken">Stops the work.</param>
     /// <returns>The payments to it, and whether it was read.</returns>
-    private static async Task<(IReadOnlyList<ChainMovement> Found, CrossChainTarget Target)> ReadAccountAsync(
-        ICase @case, IAccountSource source, ChainAddress address, LookupMode mode, CancellationToken cancellationToken)
+    private async Task<(IReadOnlyList<ChainMovement> Found, CrossChainTarget Target)> ReadAccountAsync(
+        ICase @case, IAccountSource source, ChainAddress address, FetchBudget budget,
+        CancellationToken cancellationToken)
     {
         var account = EthereumAddress.Parse(address.Chain, address.Value);
         var found = new List<ChainMovement>();
         CrossChainTarget? target = null;
-        foreach (var history in new[] { EthereumHistory.Transactions, EthereumHistory.Tokens })
+        foreach (var history in AccountHistories)
         {
-            var page = await source.GetAddressHistoryAsync(@case, account, history, null, mode, cancellationToken)
+            var page = await LookUpAsync(
+                address,
+                budget,
+                mode => source.GetAddressHistoryAsync(@case, account, history, null, mode, cancellationToken))
                 .ConfigureAwait(false);
             found.AddRange((page.Value?.Transfers ?? [])
                 .Where(transfer => transfer.To == account)
                 .Select(CrossChainPayments.Movement));
-            var read = TargetOf(address, page.Status, page.Problem);
 
-            // The address counts as read only when both histories are; the first that is not says why.
-            if (target is null || read.State != CrossChainTargetState.Read)
-            {
-                target = target is { State: not CrossChainTargetState.Read } ? target : read;
-            }
+            // The address counts as read only when every history is; the first that is not says why.
+            var read = TargetOf(address, page.Status, page.Problem);
+            target = target is { State: not CrossChainTargetState.Read } ? target : read;
         }
 
         return (found, target!);
     }
+
+    /// <summary>
+    /// Reads one answer from the case first, and asks the source only when the search may, the case's answer is
+    /// missing or older than <see cref="MinimumInterval"/>, and the budget allows the recipient.
+    /// </summary>
+    /// <typeparam name="T">What is looked up.</typeparam>
+    /// <param name="address">The recipient, which the budget counts.</param>
+    /// <param name="budget">Whether, and how often more, a source may be asked.</param>
+    /// <param name="ask">Asks in a mode.</param>
+    /// <returns>The answer.</returns>
+    private async Task<BitcoinLookup<T>> LookUpAsync<T>(
+        ChainAddress address, FetchBudget budget, Func<LookupMode, Task<BitcoinLookup<T>>> ask)
+        where T : class
+    {
+        var stored = await ask(LookupMode.CaseOnly).ConfigureAwait(false);
+        if (!budget.MayFetch || (stored.HasValue && IsFresh(stored)) || !budget.TryTake(address))
+        {
+            return stored;
+        }
+
+        return await ask(LookupMode.AsNeeded).ConfigureAwait(false);
+    }
+
+    /// <summary>Says whether a sealed answer is newer than <see cref="MinimumInterval"/>.</summary>
+    /// <typeparam name="T">What was looked up.</typeparam>
+    /// <param name="lookup">The answer.</param>
+    /// <returns><see langword="true"/> when it is.</returns>
+    private bool IsFresh<T>(BitcoinLookup<T> lookup)
+        where T : class =>
+        lookup.Origins.Count > 0
+        && lookup.Origins.Max(origin => origin.ReceivedUtc) >= _clock.UtcNow - MinimumInterval;
+
+    /// <summary>Gives a UTXO chain's source, or <see langword="null"/> when Chainsaw has none here.</summary>
+    /// <param name="chain">The chain.</param>
+    /// <returns>The source.</returns>
+    private IBitcoinSource? CoinSourceOf(Chain chain) => chain switch
+    {
+        Chain.Bitcoin => bitcoin,
+        Chain.Litecoin => litecoin,
+        _ => null,
+    };
 
     /// <summary>Gives an account chain's source, or <see langword="null"/> when Chainsaw has none here.</summary>
     /// <param name="chain">The chain.</param>
@@ -148,6 +229,7 @@ internal sealed class CrossChainLookup(
     {
         Chain.Ethereum => ethereum,
         Chain.Tron => tron,
+        Chain.Bsc => bsc,
         _ => null,
     };
 
@@ -194,15 +276,12 @@ internal sealed class CrossChainLookup(
             return (values, null);
         }
 
-        var wanted = departures.Select(departure => departure.Payment)
-            .Concat(InWindows(departures, pool))
-            .DistinctBy(payment => payment.Key)
-            .ToList();
         var asking = new RateAsking(mode == LookupMode.AsNeeded);
         string? currency = null;
-        foreach (var payment in wanted)
+        async Task Value(ChainMovement payment)
         {
-            if (await ValueOfAsync(@case, payment, asking, cancellationToken).ConfigureAwait(false) is { } valued
+            if (!values.ContainsKey(payment.Key)
+                && await ValueOfAsync(@case, payment, asking, cancellationToken).ConfigureAwait(false) is { } valued
                 && (currency is null || currency == valued.Currency))
             {
                 currency = valued.Currency;
@@ -210,23 +289,41 @@ internal sealed class CrossChainLookup(
             }
         }
 
+        foreach (var departure in departures)
+        {
+            await Value(departure.Payment).ConfigureAwait(false);
+        }
+
+        // Only a payment that can be weighed is valued: one in the window of a departure whose value is known, or one
+        // to the recipient a memo names (weighed also without a value).
+        foreach (var payment in InWindows(departures, pool, values))
+        {
+            await Value(payment).ConfigureAwait(false);
+        }
+
         return (values, currency);
     }
 
     /// <summary>
-    /// Gives the payments on another chain than a departure's, within its window, the nearest in time first.
+    /// Gives the payments that can be weighed against a departure, the nearest in time first: on another chain, within
+    /// its window, and either the departure's value is known or the payment goes to the recipient its memo names.
     /// </summary>
     /// <param name="departures">The departures.</param>
     /// <param name="pool">Every payment known.</param>
+    /// <param name="values">The values known so far, by payment's key.</param>
     /// <returns>At most <see cref="MostValued"/> payments.</returns>
     private static IEnumerable<ChainMovement> InWindows(
-        IReadOnlyList<CrossChainDeparture> departures, IReadOnlyList<ChainMovement> pool) =>
+        IReadOnlyList<CrossChainDeparture> departures,
+        IReadOnlyList<ChainMovement> pool,
+        IReadOnlyDictionary<string, decimal> values) =>
         departures
             .Where(departure => departure.Payment.Time is not null)
             .SelectMany(departure => pool
                 .Where(payment => payment.Transaction.Chain != departure.Payment.Transaction.Chain
                     && payment.Time is { } time
-                    && CrossChainCheck.TimeScore(time - departure.Payment.Time!.Value) > 0)
+                    && CrossChainCheck.TimeScore(time - departure.Payment.Time!.Value) > 0
+                    && (values.ContainsKey(departure.Payment.Key)
+                        || payment.To == CrossChainCheck.NamedRecipient(departure)))
                 .Select(payment => (Payment: payment, Distance: (payment.Time!.Value - departure.Payment.Time!.Value)
                     .Duration())))
             .OrderBy(item => item.Distance)
@@ -302,6 +399,24 @@ internal sealed class CrossChainLookup(
     /// <param name="asset">The asset.</param>
     /// <returns>The asset to price.</returns>
     private static Asset PricedAs(Asset asset) => asset == KnownTokens.EthereumWeth ? Asset.Ether : asset;
+
+    /// <summary>How many recipients one search may still ask of a source.</summary>
+    /// <param name="mode">The search's mode; only <see cref="LookupMode.AsNeeded"/> may ask at all.</param>
+    /// <param name="most">The most recipients asked.</param>
+    private sealed class FetchBudget(LookupMode mode, int most)
+    {
+        /// <summary>The recipients already asked, which may be asked again for their other histories.</summary>
+        private readonly HashSet<ChainAddress> _asked = [];
+
+        /// <summary>Gets whether the search may ask a source at all.</summary>
+        public bool MayFetch => mode == LookupMode.AsNeeded;
+
+        /// <summary>Takes a recipient from the budget, or says it was taken already.</summary>
+        /// <param name="address">The recipient.</param>
+        /// <returns><see langword="true"/> when it may be asked.</returns>
+        public bool TryTake(ChainAddress address) =>
+            _asked.Contains(address) || (_asked.Count < most && _asked.Add(address));
+    }
 
     /// <summary>How many rates one search may still ask of the source.</summary>
     /// <param name="mayFetch">Whether the search may ask the source at all.</param>

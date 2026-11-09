@@ -42,7 +42,13 @@ public static class ChecksModule
             provider.GetService<IBitcoinSource>() is { } bitcoin
             && provider.GetService<IEthereumSource>() is { } ethereum
                 ? new CrossChainLookup(
-                    bitcoin, ethereum, provider.GetService<IPriceService>(), provider.GetService<ITronSource>())
+                    bitcoin,
+                    ethereum,
+                    provider.GetService<IPriceService>(),
+                    provider.GetService<ITronSource>(),
+                    provider.GetService<ILitecoinSource>(),
+                    provider.GetService<IBscSource>(),
+                    provider.GetService<IClock>())
                 : NoCrossChainLookup.Instance);
         services.AddSingleton<ICheckService, CheckService>();
         return services;

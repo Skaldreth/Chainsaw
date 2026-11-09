@@ -1,6 +1,7 @@
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Clustering.Contracts;
 using Chainsaw.Modules.Tracing.Contracts;
+using Chainsaw.SharedKernel;
 
 namespace Chainsaw.Modules.Checks.Contracts;
 
@@ -60,6 +61,12 @@ public sealed record CheckInput(
     /// example as a customer's deposit).
     /// </summary>
     public IReadOnlySet<BitcoinAddress> Protected { get; init; } = new HashSet<BitcoinAddress>();
+
+    /// <summary>
+    /// Gets the addresses on every chain that a payment to or from is never a continuation of another payment: the
+    /// start points' and those a label says are a victim's.
+    /// </summary>
+    public IReadOnlySet<ChainAddress> ProtectedAccounts { get; init; } = new HashSet<ChainAddress>();
 
     /// <summary>
     /// Gets the graph the input was built from, for an analysis that reads more than the Bitcoin transactions (the

@@ -256,6 +256,14 @@ internal sealed class TracingService : ITracingService
                 return false;
             }
 
+            if (stored.Origin is not null)
+            {
+                // Taken back alone, the approval would stand without its link; the checks take both back together.
+                throw new ArgumentException(
+                    "A link an approved suggestion made is taken back with its approval, in the checks.",
+                    nameof(link));
+            }
+
             CrossChainLinks.Unlink(transaction, stored, reason);
             return true;
         });

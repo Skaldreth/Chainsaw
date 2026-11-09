@@ -5113,7 +5113,7 @@ i KF2b-panelen, och ett godkännande som knyter fortsättningen i samma transakt
   10 min tidigare tillåts för klockorna) och adressen (samma 20 byte på Ethereum och TRON 0,9, utbetalning från en
   brygga eller swap 0,8, annars 0,5). Poängen är värde 0,5, tid 0,25, adress 0,25, och kandidater under 0,45 tas bort.
   Utan kurs, eller när värdet inte passar, blir betalningen ingen kandidat.
-- **Tjänstens egen händelse först:** ett `OP_RETURN`-memo i THORChains form (`SWAP`, `s` eller `=`, `KEDJA.TILLGÅNG`
+- **Avsändarens memo först** (se granskningens I-4 nedan): ett `OP_RETURN`-memo i THORChains form (`SWAP`, `s` eller `=`, `KEDJA.TILLGÅNG`
   eller `b`/`e`, mottagaren; `SwapMemo`) i betalningens Bitcoin-tx namnger mottagaren på den andra kedjan. En betalning
   till den är kandidat också utan kurs, med 0,7 i grund plus värde och tid, och står alltid först.
 - **Sökningen** (`ICrossChainLookup`, `CrossChainLookup`): slår upp memots mottagare (bara adressen, första sidan; på
@@ -5150,7 +5150,35 @@ i KF2b-panelen, och ett godkännande som knyter fortsättningen i samma transakt
   kring Bitcoin-adresser); det står i panelen. Ytan skissas först (TODO, punkt 9).
 - Ett andra godkännande för samma betalning vägras av Tracing (en länk per betalning); BACKLOG.
 
-**Återstår:** BACKLOG, *Cross-chain, efter `cross-chain v1`*, och ytorna i TODO, punkt 9. Oberoende granskning.
+**Granskningens rättelser (0 C, 6 I, 10 M), efter sammanslagningen med Litecoin och BSC:**
+- **I-1:** sökningen läser också kontots interna transaktioner (`EthereumHistory.Internal`), där THORChains router
+  betalar ut ether (`transferOut`). Test med en utbetalning från routern.
+- **I-2:** varje mottagare läses först ur ärendet, och källan frågas bara när svaret saknas eller är äldre än en kvart
+  (`CrossChainLookup.MinimumInterval`, ur det förseglade svarets tid). En körning för en äldre graf avbryts när en ny
+  kommer (`ChecksViewModel`).
+- **I-3:** när en kandidat är godkänd erbjuds inte *Godkänn* för `cross-chain` (`SuggestionWords.OneApproval`,
+  `CheckRowViewModel.CanApprove`), bara *Avfärda resten*.
+- **I-4:** memot är **avsändarens instruktion** till tjänsten, inte tjänstens uppgift; *Varför?*, `SwapMemo` och
+  brickan *Avsändarens memo* säger det, och att utbetalningen bara syns på den andra kedjan och att THORChain kan betala
+  tillbaka.
+- **I-5:** memots mottagare kommer först bara när en brygga eller swap på den andra kedjan betalade den
+  (`Sign.NamedFromBridge`). Annars vägs den med värdet (adressen 0,85), och utan kurs står den kvar under 0,5 med
+  *beloppet är inte prövat*.
+- **I-6:** en betalning utan tecken i adressen (inget memo, ingen samma nyckel, ingen brygga) hålls under 0,6
+  (`PlainCeiling`). Betalningar som själva går in i en brygga, och till eller från en startpunkt eller ett offer
+  (`CheckInput.ProtectedAccounts`), vägs inte.
+- **M-1** bara frågor till källan räknas mot de åtta mottagarna, **M-2** *Varför?* säger att bara första sidan läses,
+  **M-3** ett memo som pekar på avsändarens egen kedja ger ingen mottagare, **M-4** memot är högst 250 byte och citeras
+  bara i början, **M-5** korta namn i båda skiftlägena (`b`, `e`, `l`, `s`) och *ett namn (THORName)*, **M-6** *Varför?*
+  nämner bara den här insättningens mottagare, **M-7** linjens *Varför?* nämner `cross-chain v1` och beslutet och inget
+  tomt skäl, och spårets slut säger *för hand* eller förslaget, **M-8** `TracingService.UnlinkCrossChain` vägrar en
+  länk från ett godkänt förslag (den tas tillbaka med godkännandet), **M-9** TESTER-INFOR säger att gamla testärenden
+  måste skapas på nytt, **M-10** bara betalningar som kan vägas värderas (fönstret kring en insättning med känt värde,
+  eller till memots mottagare).
+- **Litecoin och BSC:** memots `LTC.` och `BSC.` (och `l`, `s`) vägs, BSC och Litecoin slås upp med sina källor, och
+  Litecoins mynt är betalningar i LTC. En betalning *in* på Litecoin föreslås inte än (BACKLOG).
+
+**Återstår:** BACKLOG, *Cross-chain, efter `cross-chain v1`*, och ytorna i TODO, punkt 9.
 
 ## Omgång 8b: Litecoin och BSC (backloggen, 2026-11-09)
 

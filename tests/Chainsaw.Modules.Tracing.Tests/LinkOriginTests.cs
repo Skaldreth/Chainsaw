@@ -45,6 +45,22 @@ public sealed class LinkOriginTests : IDisposable
     }
 
     [Fact]
+    public async Task An_approved_link_is_not_taken_back_alone_by_hand()
+    {
+        await _flows.ExpandInto(_harness);
+        var link = _harness.Case.Write(transaction => Links.Link(
+            transaction, new CrossChainLinkDraft(new Outpoint(_flows.Peel3.Txid, 1), null, TronTx, null, Origin)));
+
+        Assert.Throws<ArgumentException>(() => _harness.Service.UnlinkCrossChain(_harness.Case, link, null));
+
+        Assert.False(Assert.Single(_harness.Service.GetCrossChainHistory(_harness.Case)).IsTakenBack);
+        var trace = _harness.Service.Trace(await _harness.Load(), new TraceRequest(
+            TracingMethodKind.Fifo, [new TraceSeed(new Outpoint(_flows.Peel3.Txid, 1))]));
+        var end = Assert.Single(trace.Ends, item => item.Reason == TrailEndReason.OtherChain);
+        Assert.Contains("godkänt förslag ur cross-chain v1", end.Explanation, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task A_link_by_hand_has_no_origin()
     {
         await _flows.ExpandInto(_harness);

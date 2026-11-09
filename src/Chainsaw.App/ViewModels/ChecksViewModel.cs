@@ -195,6 +195,12 @@ public sealed partial class ChecksViewModel : ObservableObject
     /// <summary>Counts the runs, so that an answer to an older one is dropped.</summary>
     private int _version;
 
+    /// <summary>
+    /// Stops the run in progress when a newer graph comes, so that an older run does not go on asking the sources
+    /// (the cross-chain search) for a graph no longer shown.
+    /// </summary>
+    private CancellationTokenSource _running = new();
+
     /// <summary>The own area the form renames or removes.</summary>
     private OwnArea? _formArea;
 
@@ -867,6 +873,10 @@ public sealed partial class ChecksViewModel : ObservableObject
     public async Task FollowAsync(GraphScene? scene)
     {
         var version = ++_version;
+        _running.Cancel();
+        _running.Dispose();
+        _running = new CancellationTokenSource();
+        var stop = _running.Token;
         _scene = scene;
         if (scene is null || _session.Current is not { } openCase)
         {
@@ -880,7 +890,7 @@ public sealed partial class ChecksViewModel : ObservableObject
         try
         {
             var own = await _source.GetAreasAsync(openCase, CancellationToken.None);
-            var run = await _source.RunAsync(openCase, scene.Snapshot.Graph, CancellationToken.None);
+            var run = await _source.RunAsync(openCase, scene.Snapshot.Graph, stop);
             if (version != _version || _session.Current != openCase)
             {
                 return;

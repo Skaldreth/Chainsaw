@@ -811,6 +811,7 @@ internal sealed class CheckService : ICheckService
             Services = services,
             Owners = OwnersOf(@case, transactions),
             Protected = ProtectedOf(@case, graph),
+            ProtectedAccounts = ProtectedAccountsOf(@case, graph),
         };
     }
 
@@ -835,6 +836,20 @@ internal sealed class CheckService : ICheckService
             .Select(label => label.Subject.Address)
             .OfType<BitcoinAddress>() ?? [];
         return [.. starts.SelectMany(node => node.GraphAddresses).Concat(startPayers).Concat(victims)];
+    }
+
+    /// <summary>
+    /// Gives the addresses on every chain whose payments are never a continuation: the start points' and the victims'.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="graph">The graph.</param>
+    /// <returns>The addresses.</returns>
+    private HashSet<ChainAddress> ProtectedAccountsOf(ICase @case, TraceGraph graph)
+    {
+        var victims = _attribution?.GetLabels(@case)
+            .Where(label => label.Kind == LabelKind.Victim)
+            .Select(label => label.Subject.Target) ?? [];
+        return [.. graph.Nodes.Where(node => node.IsStartPoint).SelectMany(node => node.Addresses).Concat(victims)];
     }
 
     /// <summary>

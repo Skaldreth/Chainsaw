@@ -59,12 +59,17 @@ public sealed record SuggestionFlow(string InText, string FeeText, IReadOnlyList
 /// Whether the candidates are parts of one combination (<c>mixer-parts</c>), so that the fee is the deposit against
 /// all the parts that are not dismissed, not against the chosen one alone.
 /// </param>
+/// <param name="OneApproval">
+/// Whether only one candidate can be approved (<c>cross-chain</c>: a payment continues in one place), so that once one
+/// is approved only <em>Avfärda resten</em> is offered.
+/// </param>
 public sealed record SuggestionWords(
     IReadOnlyList<BasisChip> Chips,
     string CandidateNoun,
     string FirstColumn,
     string TimeColumn,
-    bool CandidatesAreParts = false)
+    bool CandidatesAreParts = false,
+    bool OneApproval = false)
 {
     /// <summary>The words of an analysis this table does not know: no chips, plain headings.</summary>
     public static SuggestionWords Plain { get; } = new([], "Kandidaten", "ADRESS", "TID");
@@ -108,8 +113,8 @@ public sealed record SuggestionWords(
     /// <summary>The words of the likely continuations on another chain (<c>cross-chain</c>).</summary>
     public static SuggestionWords CrossChain { get; } = new(
         [
-            new("Icon.Link", "Tjänstens memo först", "En mottagare som betalningens memo namnger på kedjan kommer "
-                + "först"),
+            new("Icon.Link", "Avsändarens memo", "Mottagaren som avsändaren angav i betalningens memo väger mest, "
+                + "och kommer först när en brygga eller swap betalade den; memot är en instruktion, ingen utbetalning"),
             new("Icon.Amounts", "Värde − avgift", "Värdet ut jämförs med värdet in minus en trolig avgift, med "
                 + "ärendets kurser"),
             new("Icon.Clock", "Tid", "Ju kortare tid efter betalningen in, desto högre poäng"),
@@ -118,7 +123,8 @@ public sealed record SuggestionWords(
         ],
         "Trolig fortsättning",
         "ADRESS",
-        "TID");
+        "TID",
+        OneApproval: true);
 
     /// <summary>The words of a wallet the clustering proposes (<c>wallet-proposals</c>).</summary>
     public static SuggestionWords Wallets { get; } = new(
@@ -445,7 +451,7 @@ public sealed partial class CheckRowViewModel : ObservableObject
     /// <returns>The request, or <see langword="null"/>.</returns>
     public DecisionRequest? ApproveRequest()
     {
-        if (!CanDecide || (HasCandidates && ChosenCandidate is null))
+        if (!CanApprove || (HasCandidates && ChosenCandidate is null))
         {
             return null;
         }
@@ -477,6 +483,12 @@ public sealed partial class CheckRowViewModel : ObservableObject
                 Check.Analysis, Check.Finding.Key, c.Candidate.Key, CheckVerdict.Dismissed, ReasonText())),
         ];
     }
+
+    /// <summary>
+    /// Gets whether Enter approves something now: the row waits, and it is not a suggestion where one approved
+    /// candidate is all there can be (<see cref="SuggestionWords.OneApproval"/>), so that only X is offered then.
+    /// </summary>
+    public bool CanApprove => CanDecide && !(Words.OneApproval && HasApprovedCandidate);
 
     /// <summary>Gets whether one of the candidates is approved, so that X dismisses only the rest.</summary>
     public bool HasApprovedCandidate => Candidates.Any(c => c.IsApproved);

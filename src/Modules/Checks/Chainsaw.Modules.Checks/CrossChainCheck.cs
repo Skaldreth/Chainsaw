@@ -10,11 +10,13 @@ namespace Chainsaw.Modules.Checks;
 /// <summary>
 /// Suggests where money that reached a bridge or a swap service continues on another chain (CLAUDE.md,
 /// <em>Cross-chain</em>): for each payment into one, the payments on the other chains that may be the same money after
-/// the service's fee. The swap's own event comes first: a recipient that the payment's memo names on the chain is a
-/// candidate wherever it is paid in the window. Otherwise a payment is weighed by its value against the payment in
-/// (by the case's rates, since the assets differ), the time after it, and its address: the same key on another account
-/// chain, or a payout from a bridge or swap there. Nothing on either chain ties the two together, so every candidate
-/// is a judgement, always dashed (principle 2); approving one links the money to it as the user's judgement.
+/// the service's fee. The recipient the sender named in the payment's memo comes first when a bridge or swap on the
+/// other chain paid it; the memo is the sender's instruction, not the service's record of a payout. Otherwise a
+/// payment is weighed by its value against the payment in (by the case's rates, since the assets differ), the time
+/// after it, and its address: the recipient the memo names, the same key on another account chain, or a payout from a
+/// bridge or swap there. A payment with no such sign is held below them. Nothing on either chain ties the two
+/// together, so every candidate is a judgement, always dashed (principle 2); approving one links the money to it as
+/// the user's judgement.
 /// </summary>
 /// <remarks>
 /// It reads the graph's payments on every chain and those the cross-chain search read into the case
@@ -71,7 +73,28 @@ internal sealed class CrossChainCheck : ICheckAnalysis
     /// <summary>What the address counts in the score of a candidate the memo does not name.</summary>
     private const double AddressWeight = 0.25;
 
-    /// <summary>The score a candidate the memo names starts from: the chain itself names its recipient.</summary>
+    /// <summary>What the memo's recipient counts when the payout's payer is not a known bridge or swap.</summary>
+    public const double NamedScore = 0.85;
+
+    /// <summary>
+    /// The highest score of a payment with no sign in its address (neither named, the same key, nor from a bridge):
+    /// below every payment the memo names that a bridge paid, however well the value and the time fit.
+    /// </summary>
+    public const double PlainCeiling = 0.6;
+
+    /// <summary>What the value counts in the score of a payment with no sign in its address.</summary>
+    private const double PlainValueWeight = 0.65;
+
+    /// <summary>
+    /// The highest score of a payment to the memo's recipient whose value cannot be compared (no rate) and whose
+    /// payer is not a known bridge: it is kept, marked as not checked, but clearly lower.
+    /// </summary>
+    public const double UncheckedCeiling = 0.5;
+
+    /// <summary>
+    /// The score a candidate starts from when the memo names its recipient and a bridge or swap on the other chain
+    /// paid it: the sender's instruction and the payer both point there.
+    /// </summary>
     private const double MemoBase = 0.7;
 
     /// <summary>What the value and the time each add to a candidate the memo names.</summary>
@@ -111,7 +134,10 @@ internal sealed class CrossChainCheck : ICheckAnalysis
         }
 
         var payments = CrossChainPayments.All(graph);
-        var pool = payments.Concat(input.CrossChain.Arrivals).DistinctBy(payment => payment.Key).ToList();
+        var pool = payments.Concat(input.CrossChain.Arrivals)
+            .DistinctBy(payment => payment.Key)
+            .Where(payment => MayContinue(graph, input, payment))
+            .ToList();
         return
         [
             .. CrossChainPayments.DeparturesOf(graph, payments, Identity.ToString())
@@ -191,7 +217,8 @@ internal sealed class CrossChainCheck : ICheckAnalysis
         }
 
         var valueIn = input.CrossChain.ValueOf(departure.Payment);
-        var weighed = new List<(CheckCandidate Candidate, bool Named, DateTimeOffset Time)>();
+        var recipient = NamedRecipient(departure);
+        var weighed = new List<(CheckCandidate Candidate, bool First, DateTimeOffset Time)>();
         foreach (var arrival in pool)
         {
             if (arrival.Transaction.Chain == departure.Payment.Transaction.Chain || arrival.Time is not { } time)
@@ -205,30 +232,27 @@ internal sealed class CrossChainCheck : ICheckAnalysis
                 continue;
             }
 
-            var named = departure.Memo?.Address is { } recipient && recipient == arrival.To;
+            var sign = SignOf(graph, departure, arrival, recipient);
             var feeScore = FeeOf(valueIn, input.CrossChain.ValueOf(arrival)) is { } fee ? FeeScore(fee) : (double?)null;
-            if (feeScore == 0 || (feeScore is null && !named))
+            if (feeScore == 0 || (feeScore is null && sign is not (Sign.Named or Sign.NamedFromBridge)))
             {
                 // The amount does not fit, or cannot be compared without the memo naming the recipient.
                 continue;
             }
 
-            var addressScore = named ? 1 : AddressScore(graph, departure, arrival);
-            var score = named
-                ? MemoBase + (MemoPartWeight * (feeScore ?? PlainAddressScore)) + (MemoPartWeight * timeScore)
-                : (ValueWeight * feeScore!.Value) + (TimeWeight * timeScore) + (AddressWeight * addressScore);
-            if (score < LowestScore)
+            var score = Score(sign, feeScore, timeScore);
+            if (score < LowestScore && sign is not (Sign.Named or Sign.NamedFromBridge))
             {
                 continue;
             }
 
-            var reason = Reason(input, departure, arrival, named, addressScore, time - start);
-            weighed.Add((Candidate(arrival, Math.Round(score, 2), reason), named, time));
+            var reason = Reason(input, departure, arrival, sign, time - start);
+            weighed.Add((Candidate(arrival, Math.Round(score, 2), reason), sign == Sign.NamedFromBridge, time));
         }
 
         return
         [
-            .. weighed.OrderByDescending(item => item.Named)
+            .. weighed.OrderByDescending(item => item.First)
                 .ThenByDescending(item => item.Candidate.Score)
                 .ThenBy(item => item.Time)
                 .ThenBy(item => item.Candidate.Key, StringComparer.Ordinal)
@@ -243,20 +267,103 @@ internal sealed class CrossChainCheck : ICheckAnalysis
     private static decimal? FeeOf(decimal? valueIn, decimal? valueOut) =>
         valueIn is > 0 && valueOut is { } paid ? 1 - (paid / valueIn.Value) : null;
 
-    /// <summary>Gives the score of a payment's recipient and payer.</summary>
+    /// <summary>What a payment's addresses say about it as a continuation, strongest first.</summary>
+    private enum Sign
+    {
+        /// <summary>The memo names its recipient and a bridge or swap on the other chain paid it.</summary>
+        NamedFromBridge,
+
+        /// <summary>The memo names its recipient, but the payer is not a known bridge or swap.</summary>
+        Named,
+
+        /// <summary>The recipient is the payer's own key on another account chain.</summary>
+        SameKey,
+
+        /// <summary>A bridge or swap on the other chain paid it.</summary>
+        FromBridge,
+
+        /// <summary>Nothing in its addresses.</summary>
+        None,
+    }
+
+    /// <summary>
+    /// Gives the recipient the departure's memo names on another chain, or <see langword="null"/> when there is no
+    /// memo, it names no address, or it names one on the departure's own chain (no continuation elsewhere).
+    /// </summary>
+    /// <param name="departure">The departure.</param>
+    /// <returns>The recipient.</returns>
+    public static ChainAddress? NamedRecipient(CrossChainDeparture departure)
+    {
+        ArgumentNullException.ThrowIfNull(departure);
+        return departure.Memo?.Address is { } address && address.Chain != departure.Payment.Transaction.Chain
+            ? address
+            : null;
+    }
+
+    /// <summary>
+    /// Says whether a payment may be a continuation at all: not one that itself goes into a bridge or a swap (that is a
+    /// departure), and not a payment to or from a start point or a victim's address.
+    /// </summary>
+    /// <param name="graph">The graph.</param>
+    /// <param name="input">The input, with the protected addresses.</param>
+    /// <param name="payment">The payment.</param>
+    /// <returns><see langword="true"/> when it may.</returns>
+    private static bool MayContinue(TraceGraph graph, CheckInput input, ChainMovement payment) =>
+        graph.NodeOf(payment.To)?.Ends.Any(end => end.Reason == TrailEndReason.OtherChain) != true
+        && !input.ProtectedAccounts.Contains(payment.To)
+        && (payment.From is null || !input.ProtectedAccounts.Contains(payment.From));
+
+    /// <summary>Gives what a payment's addresses say about it.</summary>
     /// <param name="graph">The graph.</param>
     /// <param name="departure">The departure.</param>
     /// <param name="arrival">The payment out.</param>
-    /// <returns>The score.</returns>
-    private static double AddressScore(TraceGraph graph, CrossChainDeparture departure, ChainMovement arrival)
+    /// <param name="recipient">The recipient the memo names, or <see langword="null"/>.</param>
+    /// <returns>The sign.</returns>
+    private static Sign SignOf(
+        TraceGraph graph, CrossChainDeparture departure, ChainMovement arrival, ChainAddress? recipient)
     {
-        if (SameKey(departure.Payment.From, arrival.To))
+        var fromBridge = FromBridge(graph, arrival);
+        if (recipient is not null && recipient == arrival.To)
         {
-            return SameKeyScore;
+            return fromBridge ? Sign.NamedFromBridge : Sign.Named;
         }
 
-        return FromBridge(graph, arrival) ? FromBridgeScore : PlainAddressScore;
+        if (SameKey(departure.Payment.From, arrival.To))
+        {
+            return Sign.SameKey;
+        }
+
+        return fromBridge ? Sign.FromBridge : Sign.None;
     }
+
+    /// <summary>
+    /// Gives a payment's score: the memo's recipient paid by a bridge from <see cref="MemoBase"/>; a sign in the
+    /// address by value, time and address; the memo's recipient without a value below <see cref="UncheckedCeiling"/>;
+    /// and a payment with no sign below <see cref="PlainCeiling"/>.
+    /// </summary>
+    /// <param name="sign">What its addresses say.</param>
+    /// <param name="feeScore">The fee's score, or <see langword="null"/> when the value cannot be compared.</param>
+    /// <param name="timeScore">The time's score.</param>
+    /// <returns>The score, from 0 to 1.</returns>
+    private static double Score(Sign sign, double? feeScore, double timeScore) => sign switch
+    {
+        Sign.NamedFromBridge =>
+            MemoBase + (MemoPartWeight * (feeScore ?? PlainAddressScore)) + (MemoPartWeight * timeScore),
+        Sign.Named when feeScore is null => UncheckedCeiling * (PlainAddressScore + (PlainAddressScore * timeScore)),
+        Sign.None => PlainCeiling * ((PlainValueWeight * feeScore!.Value) + ((1 - PlainValueWeight) * timeScore)),
+        _ => (ValueWeight * feeScore!.Value) + (TimeWeight * timeScore) + (AddressWeight * AddressScore(sign)),
+    };
+
+    /// <summary>Gives what a sign in the address counts in the score.</summary>
+    /// <param name="sign">The sign.</param>
+    /// <returns>The address's score.</returns>
+    private static double AddressScore(Sign sign) => sign switch
+    {
+        Sign.Named => NamedScore,
+        Sign.SameKey => SameKeyScore,
+        Sign.FromBridge => FromBridgeScore,
+        _ => PlainAddressScore,
+    };
 
     /// <summary>Says whether a payment was paid by an actor the trail ends at as a bridge or a swap.</summary>
     /// <param name="graph">The graph.</param>
@@ -273,7 +380,8 @@ internal sealed class CrossChainCheck : ICheckAnalysis
     /// <returns>The candidate.</returns>
     private static CheckCandidate Candidate(ChainMovement arrival, double score, string reason)
     {
-        var coin = arrival.Coin;
+        // Only a candidate on Bitcoin is also written in Bitcoin's terms; Litecoin's stays a payment of its own coin.
+        var coin = arrival.Transaction.Chain == Chain.Bitcoin ? arrival.Coin : null;
         var address = coin is null ? null : BitcoinAddress.Parse(arrival.To.Value);
         var amount = coin is null ? (Satoshi?)null : new Satoshi((long)arrival.Amount.Units);
         return new CheckCandidate(arrival.Key, address, coin?.Txid, coin?.Index ?? 0, amount, score, reason)
@@ -286,34 +394,30 @@ internal sealed class CrossChainCheck : ICheckAnalysis
     /// <param name="input">The input, with the values.</param>
     /// <param name="departure">The departure.</param>
     /// <param name="arrival">The payment out.</param>
-    /// <param name="named">Whether the memo names its recipient.</param>
-    /// <param name="addressScore">What its address counted.</param>
+    /// <param name="sign">What its addresses say.</param>
     /// <param name="after">The time after the payment in.</param>
     /// <returns>The reason, in Swedish.</returns>
     private static string Reason(
-        CheckInput input,
-        CrossChainDeparture departure,
-        ChainMovement arrival,
-        bool named,
-        double addressScore,
-        TimeSpan after)
+        CheckInput input, CrossChainDeparture departure, ChainMovement arrival, Sign sign, TimeSpan after)
     {
         var parts = new List<string>
         {
             $"{Amount(arrival.Amount)} på {arrival.Transaction.Chain} {Span(after)} efter",
             ValueText(input, departure.Payment, arrival),
         };
-        if (named)
+        var said = sign switch
         {
-            parts.Add($"mottagaren står i {departure.Memo}");
-        }
-        else if (addressScore == SameKeyScore)
+            Sign.NamedFromBridge =>
+                $"avsändaren angav mottagaren i {departure.Memo}, och en brygga eller swap betalade",
+            Sign.Named => $"avsändaren angav mottagaren i {departure.Memo}, men betalaren är ingen känd brygga eller "
+                + "swap",
+            Sign.SameKey => "samma nyckel som betalaren (samma 20 byte på båda kedjorna)",
+            Sign.FromBridge => "betald av en brygga eller swap på den andra kedjan",
+            _ => null,
+        };
+        if (said is not null)
         {
-            parts.Add("samma nyckel som betalaren (samma 20 byte på båda kedjorna)");
-        }
-        else if (addressScore == FromBridgeScore)
-        {
-            parts.Add("betald av en brygga eller swap på den andra kedjan");
+            parts.Add(said);
         }
 
         return string.Join("; ", parts) + ".";
@@ -358,7 +462,7 @@ internal sealed class CrossChainCheck : ICheckAnalysis
         }
 
         var payment = departure.Payment;
-        var anchor = payment.Coin is not null ? BitcoinAddress.Parse(payment.To.Value) : null;
+        var anchor = payment.Transaction.Chain == Chain.Bitcoin ? BitcoinAddress.Parse(payment.To.Value) : null;
         var block = payment.Coin is { } spent && graph.Transactions.TryGetValue(spent.Txid, out var known)
             ? known.Transaction.Block
             : null;
@@ -409,27 +513,55 @@ internal sealed class CrossChainCheck : ICheckAnalysis
         };
         if (departure.Memo is { } memo)
         {
-            lines.Add(memo.Address is null
-                ? $"Betalningen har {memo}, men mottagaren är på {memo.ChainCode}, som Chainsaw inte har, eller är "
-                    + "ingen giltig adress där."
-                : $"Betalningen har {memo}: tjänstens egen uppgift om mottagaren på {memo.Chain}, läst ur kedjan. "
-                    + "Betalningar till den kommer först.");
+            lines.Add(MemoText(departure, memo));
         }
 
         lines.Add(
             $"Kandidaterna är betalningar på andra kedjor inom {Window.TotalHours:0} timmar, där värdet efter en "
             + $"trolig avgift (högst {MostFee * 100:0} %) stämmer med det som gick in, räknat med ärendets kurser"
             + (input.CrossChain.Currency is { } currency ? $" i {currency}" : string.Empty)
-            + ", eftersom tillgångarna skiljer sig. Samma nyckel på Ethereum och TRON, och en utbetalning från en "
-            + "brygga eller swap, väger mer.");
+            + ", eftersom tillgångarna skiljer sig. Memots mottagare, samma nyckel på Ethereum, BSC och TRON, och en "
+            + "utbetalning från en brygga eller swap väger mer; en betalning utan något sådant hålls under dem. "
+            + "Betalningar som själva går in i en brygga, och startpunkternas och offrets, vägs inte.");
+        var recipient = NamedRecipient(departure);
         lines.AddRange(input.CrossChain.Targets
-            .Where(target => target.State != CrossChainTargetState.Read)
+            .Where(target => target.Address == recipient && target.State != CrossChainTargetState.Read)
             .Select(target => $"Mottagaren {target.Address} är inte uppslagen: "
                 + (target.Problem ?? "den hämtas nästa gång kontrollerna körs med utgången ansluten.")));
         lines.Add(
             "Inget på kedjorna knyter betalningarna till varandra; det är en bedömning, aldrig ett faktum. Godkänner "
             + $"du en kandidat knyts pengarna till dess tx som ditt beslut, med {Identity} som underlag.");
         return string.Join(" ", lines);
+    }
+
+    /// <summary>
+    /// Writes what the memo says, as the sender's instruction to the service: not a payout, which only the other chain
+    /// shows, and THORChain may refund instead.
+    /// </summary>
+    /// <param name="departure">The departure.</param>
+    /// <param name="memo">Its memo.</param>
+    /// <returns>The sentences, in Swedish.</returns>
+    private static string MemoText(CrossChainDeparture departure, SwapMemo memo)
+    {
+        if (NamedRecipient(departure) is { } recipient)
+        {
+            return $"Betalningen har {memo}: avsändarens instruktion till tjänsten om mottagaren {recipient.Value} på "
+                + $"{recipient.Chain}, läst ur kedjan. Det är inte tjänstens egen uppgift om en utbetalning; den syns "
+                + "bara på den andra kedjan, och THORChain kan betala tillbaka till avsändaren i stället. Chainsaw "
+                + "läser bara den första sidan av mottagarens historik. En betalning dit från en brygga eller swap "
+                + "kommer först.";
+        }
+
+        if (memo.IsName)
+        {
+            return $"Betalningen har {memo}, men mottagaren är ett namn (THORName), inte en adress, och kan inte "
+                + "slås upp.";
+        }
+
+        return memo.Address is { } own
+            ? $"Betalningen har {memo}, men mottagaren är på samma kedja ({own.Chain})."
+            : $"Betalningen har {memo}, men mottagaren är på {memo.ChainCode}, som Chainsaw inte har, eller är ingen "
+                + "giltig adress där.";
     }
 
     /// <summary>Writes a payment's block, so that it can be checked against the chain.</summary>

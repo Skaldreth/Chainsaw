@@ -341,6 +341,7 @@
                             </Button>
                             <Button Grid.Column="2" Style="{StaticResource Button.Primary}" Height="40" Padding="0" Margin="4,0,0,0"
                                     Focusable="False" ToolTip="Godkänn den valda · Enter" AutomationProperties.Name="Godkänn"
+                                    Visibility="{Binding Selected.CanApprove, Converter={StaticResource Visible}}"
                                     Command="{Binding ApproveCommand}">
                                 <StackPanel Orientation="Horizontal">
                                     <controls:GridIcon Size="14" Data="{StaticResource Icon.Check}" Foreground="{StaticResource Brush.OnAccent}"
