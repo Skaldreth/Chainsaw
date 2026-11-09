@@ -167,8 +167,18 @@ byggt ur BACKLOG; det som skriver i ärendet granskas oberoende.
      *Väntar på källan* visar `T` för TRON; en egen ton och ett eget märke skissas om det behövs.
    - [skiss] **TRX:s avgift i inspektören:** TRON bränner TRX för energi och bandbredd (ofta noll med låst TRX);
      inspektören visar avgiften som på Ethereum, men skillnaden mellan energi och bandbredd syns inte.
-9. **Egen nod och eget index**, hitta fortsättningen på en annan kedja själv, och mönsterigenkänning som analys
-   (utan språkmodell, princip 5).
+9. **Egen nod och eget index** och hitta fortsättningen på en annan kedja själv. Mönsterigenkänningen som analys
+   (`pattern v1`, princip 5) är byggd 2026-11-09 (DEV-LOG); dess ytor väntar:
+   - [skiss] **Mönstrets utseende:** kontrollerna `pattern` ritas i dag som förvirring (sand med mixerns ikon), som
+     inte passar *samma insamling* och *samma väg*. En egen ikon och ton för mönster (och om de ska ha en egen rad i
+     menyn *Områden i grafen*) skissas.
+   - [skiss] **Delarna som liknar varandra:** ett mönster bygger på flera delar av ärendet (två insamlingar, två vägar),
+     men området ritas som ett. Att visa delarna var för sig i KF2b-bilden och i grafen (en ton per del, eller *1 av 2*
+     som stegar mellan delarna) skissas.
+   - [skiss] **Mönstret i rapporten och i Begäran:** om *samma insamling* och *samma väg* ska kunna tas med i
+     rapporten (RP1b) som en egen del.
+   - **Testärendet** (`/testdata`) visar inget mönster än [direkt]: två offers pengar som går samma väg genom en mixer
+     till Sydbörsen och en rad likadana belopp läggs in i berättelsen (`TestStoryChain`).
 
 **Ur omgång 4, ytorna KV1a, HB1a, BU1a, DM1a, HP1a och TJ1b** (byggda 2026-11-08, rester):
 - **Testärendet** (`/testdata`) visar inte de nya kontrollerna och ytorna än [direkt]: damm, en adressförgiftning

@@ -97,6 +97,9 @@ public enum GuideTopic
     /// <summary><em>Tidsmönster</em>: the hours an owner is active, and the time zone they hint at.</summary>
     TimePattern,
 
+    /// <summary><em>Mönster</em>: known patterns of crime and like cases in the same case, without a model.</summary>
+    Patterns,
+
     /// <summary><em>Ankaret och flera datorer</em>: why an anchor was replaced (sketch AK1a).</summary>
     Anchors,
 
@@ -153,6 +156,7 @@ public static class GuideTopics
         GuideTopic.Dust => "damm-och-forgiftning",
         GuideTopic.PayJoin => "payjoin",
         GuideTopic.TimePattern => "tidsmonster",
+        GuideTopic.Patterns => "monster",
         GuideTopic.Anchors => "ankaret",
         GuideTopic.GoneTransaction => "ersatt-tx",
         _ => "utxo-modellen",
@@ -192,6 +196,7 @@ public static class GuideTopics
         GuideTopic.Dust => "Damm och adressförgiftning",
         GuideTopic.PayJoin => "PayJoin",
         GuideTopic.TimePattern => "Tidsmönster",
+        GuideTopic.Patterns => "Mönster",
         GuideTopic.Anchors => "Ankaret och flera datorer",
         GuideTopic.GoneTransaction => "En tx som inte finns längre",
         _ => "UTXO-modellen",

@@ -1808,6 +1808,23 @@ analysen med version och att det är en bedömning; *?* öppnar Guidens avsnitt.
   damm (mynt, sand); tjänst, plånbok och tid har sortens ikon.
 - **Snabbhet:** öppna ett stort ärende och se att *Förslag · N* inte blir märkbart långsammare än förut.
 
+### Mönster (`pattern v1`, 2026-11-09)
+
+Testärendet visar inga mönster än (TODO); prova i ett ärende där formen finns. Varje träff står under *GJORT AV SIG
+SJÄLVT* i *Förslag · N*, med analysen *pattern v1* och att det är en bedömning; *?* öppnar Guidens avsnitt *Mönster*.
+- **Samma insamling:** två adresser som var och en tar emot från minst fem avsändare och sedan sveper allt i en tx till
+  samma adress (eller till två börser) ger *Samma insamling, 2 delar*; *Varför?* nämner båda med belopp, antal
+  avsändare och svepets tx. En ensam insamling ger inget.
+- **Samma väg:** två offers pengar som var för sig går genom en mixer till en börs (etiketter på båda) ger *Samma väg,
+  2 delar* med *okänd → mixer → börs* i raden under. Pengar som samlas och flyttas i en tx ger ingen andra väg.
+- **Rundgång:** pengar som går ut genom två andra och tillbaka (minst 80 %) ger *Rundgång, 3 steg*. En återbetalning
+  direkt tillbaka, eller en väg genom en börs, ger inget.
+- **Likadana belopp:** minst fyra lika betalningar (inom 1 %) på en vecka ger *Likadana belopp, N i följd*; delar en
+  annan aktör upp i samma belopp nämner *Varför?* den.
+- **Området** är förvirringens (sand med mixerns ikon) tills mönstrets utseende är skissat (TODO).
+- **Snabbhet:** ett stort ärende (tusentals noder) får inte göra *Förslag · N* märkbart långsammare; analysen körs i
+  bakgrunden med de andra.
+
 ### Ytorna för omgång 4 (KV1a, HB1a, BU1a, DM1a, HP1a och TJ1b, 2026-11-08)
 
 Testärendet visar dem inte än (TODO); prova i ett ärende där mönstren finns.

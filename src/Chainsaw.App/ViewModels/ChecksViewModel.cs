@@ -971,6 +971,7 @@ public sealed partial class ChecksViewModel : ObservableObject
         "dust" => GuideTopic.Dust,
         "payjoin-hint" => GuideTopic.PayJoin,
         "active-hours" => GuideTopic.TimePattern,
+        "pattern" => GuideTopic.Patterns,
         _ => GuideTopic.Areas,
     };
 

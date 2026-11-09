@@ -5100,3 +5100,52 @@ offline), App 6 i `ChainStateTests` (rutans rad och fot, länken, en fråga per 
   resten vid nästa uppslag*.
 - **M-3:** det instabila App-testet gick inte att framkalla (App.Tests tre gånger i rad, alla gröna); lämnat.
 - **M-4:** raderna i `ersatt-tx.md` är brutna.
+
+## Mönsterigenkänning som analys, utan språkmodell (`pattern v1`, 2026-11-09)
+
+Den öppna dörren i princip 5 och en första analys, i modulen Checks.
+
+- **Dörren:** `IGraphShapeAnalysis` (Checks.Contracts) är en `ICheckAnalysis` som bara läser **grafens form**,
+  `GraphShape`: aktörerna (klustringens ägare, etiketternas mixers, börser och tjänster som egna aktörer, startpunkter
+  och offer som `Protected`), linjerna mellan dem (en per betalare och mottagare i en tx, utan växel, med belopp, tx,
+  block, om fler betalade i samma tx och klustringens slutsatser om tx:en) och index för linjerna in och ut i tidsordning.
+  Formen läses en gång per körning (`ConditionalWeakTable` på `CheckInput`). Dörren har standardimplementationer av
+  `Scope` (Bitcoin) och `Run(CheckInput)`, så en ny analys, och senare en lokal modell, registreras som
+  `services.AddSingleton<ICheckAnalysis, …>()` och inget annat ändras (ett test visar det med en påhittad analys).
+  Kontraktet säger att en analys är deterministisk, körs på datorn och aldrig skickar något någonstans.
+- **`pattern v1`** (`PatternCheck`, *Mönster*) har fyra regler, var och en en kontroll med området *förvirring* och ett
+  *Varför?* som nämner aktörerna, beloppen, tx:erna och tiden:
+  - `CollectionPattern` (*Samma insamling*, nyckel `collect:`): minst fem avsändare till en okänd aktör utan utgifter
+    emellan, sedan ett svep av 90–105 % i en tx; minst två sådana som sveper till samma aktör eller till samma sort med
+    etikett.
+  - `RoutePattern` (*Samma väg*, `route:`): vägar på högst fyra linjer från en okänd aktör (eller startpunkt) som
+    passerar minst två aktörer med etikett och slutar hos en; varje steg kommer efter det förra, i en annan tx, och bär
+    minst halva beloppet. Lika sorter i samma ordning från olika aktörer utan gemensam tx; en väg som bara är svansen
+    av en annan räknas inte.
+  - `RoundTripPattern` (*Rundgång*, `round:`): 3–5 linjer tillbaka till en okänd aktör utan börs eller tjänst, varje
+    steg 80–100 % av det förra och minst 80 % tillbaka.
+  - `StructuringPattern` (*Likadana belopp i följd*, `struct:`): minst fyra betalningar i följd från en okänd aktör,
+    inom en vecka och 1 % från den första, minst 10 000 satoshi; andra aktörer med samma belopp nämns.
+  - Vägarna följs av `PatternWalk` med högst 256 försök per startlinje, så att stora grafer läses i tid.
+- **Facit:** 19 tester i `PatternCheckTests` med positiva och negativa fall för varje regel, en körning genom
+  tjänsten (förseglad, `Verify` hel) och dörren. **Falsklarm** mäts på slumpade grafer (en betalning per tx med
+  växel, belopp jämnt fördelade på log-skala från 0,0001 till 10 BTC, tre adresser med etikett): inga larm i 300
+  grafer med 1 500 tx (450 000 linjer). Den första versionen gav 3 larm i 20 grafer (rundgång med 50 % per steg)
+  och nästa 6 i 300 (svep större än det insamlade, och en rundgång med 76 % tillbaka); därför 80 % per steg och tillbaka i en rundgång och
+  högst 105 % i ett svep. Testet kör 20 grafer.
+- **Snabbhet:** 20 000 tx och omkring 5 000 aktörer på under en halv sekund i molnmiljön (testet kräver under fem).
+  Analysen körs med de andra i `CheckSource`, utanför UI-tråden.
+- **Guiden:** avsnittet *Mönster* (`docs/guide/monster.md`) under *Förvirring*, öppnat från kontrollens *?*
+  (`GuideTopic.Patterns`).
+
+**Det skriver i ärendet:** kontrollerna förseglas som de andra analysernas (`pattern v1`, journal och hashkedja); inget
+nytt schema.
+
+**Egna beslut och avsteg:**
+- Alla träffar är **kontroller**, inte förslag: det finns inget att godkänna som ändrar något (ingen kandidat eller
+  sammanslagning).
+- Området är `AreaSort.Obfuscation`, eftersom en egen sort kräver en skiss (TODO, [skiss] *Mönstrets utseende*).
+- Gränsen för strukturering är i kronor, som kedjan inte känner; regeln läser bara att beloppen är lika.
+- Ingen regel läser `ShapeFlow.Conclusions` än; de finns i formen för en senare analys.
+
+**Återstår** (TODO, punkt 9): mönstrets utseende, delarna var för sig, mönstret i rapporten och testärendet.

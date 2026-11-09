@@ -262,7 +262,6 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
   `TakeBackWithdrawal`): ett förslag som vägdes mot den tillbakadragna versionen räknas som förslag tills tx:en
   analyseras igen; att analysera om de berörda tx:erna direkt vid tillbakadragandet kräver att Clustering läser tx:erna
   ur ärendet (*Klustringens underlag ur ärendet* ovan).
-- **Mönsterigenkänning** (kanske en lokal modell senare): läggs till som ännu en analys med namn och version.
 
 ## Förvirringstekniker (användarens beslut 2026-11-07)
 Allt som används för att förvirra spårningen ska kännas igen och analyseras, med så mycket automatiska kontroller och
