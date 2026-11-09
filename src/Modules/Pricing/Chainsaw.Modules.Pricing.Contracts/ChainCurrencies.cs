@@ -16,6 +16,7 @@ public static class ChainCurrencies
         Chain.Tron => "TRX",
         Chain.Litecoin => "LTC",
         Chain.Bsc => "BNB",
+        Chain.Zcash => "ZEC",
         _ => throw new ArgumentOutOfRangeException(nameof(chain), chain, "Unknown chain."),
     };
 }

@@ -10,7 +10,7 @@ namespace Chainsaw.Modules.Chains;
 
 /// <summary>
 /// Registers the module Chains: one contract per kind of chain, and the sources behind it (Esplora for Bitcoin and
-/// Litecoin, Blockscout for Ethereum and BSC, TronGrid for TRON).
+/// Litecoin, Blockbook for Zcash's transparent part, Blockscout for Ethereum and BSC, TronGrid for TRON).
 /// </summary>
 /// <remarks>
 /// The module needs the Network module's <c>IExitHttp</c> (its only way out to the sources), and its
@@ -41,12 +41,16 @@ public static class ChainsModule
     /// (<see cref="BitcoinSourceOptions.ForLitecoin"/>). Their network must be Litecoin's.
     /// </param>
     /// <param name="bsc">The BSC source's settings; by default no endpoint until the user adds one.</param>
+    /// <param name="zcash">
+    /// The Zcash source's settings; by default Zelcore's open Blockbook as Zcash's endpoint until the user changes it.
+    /// </param>
     /// <returns>The same container, so that the registrations can be chained.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="services"/> is null.</exception>
     public static IServiceCollection AddChainsModule(
         this IServiceCollection services, BitcoinSourceOptions? options = null,
         Action<ChainSourcesOptions>? sources = null, EthereumSourceOptions? ethereum = null,
-        TronSourceOptions? tron = null, BitcoinSourceOptions? litecoin = null, BscSourceOptions? bsc = null)
+        TronSourceOptions? tron = null, BitcoinSourceOptions? litecoin = null, BscSourceOptions? bsc = null,
+        ZcashSourceOptions? zcash = null)
     {
         ArgumentNullException.ThrowIfNull(services);
         var settings = options ?? new BitcoinSourceOptions();
@@ -54,6 +58,7 @@ public static class ChainsModule
         var tronSettings = tron ?? new TronSourceOptions();
         var litecoinSettings = litecoin ?? BitcoinSourceOptions.ForLitecoin();
         var bscSettings = bsc ?? new BscSourceOptions();
+        var zcashSettings = zcash ?? new ZcashSourceOptions();
         var sourcesOptions = new ChainSourcesOptions();
         sources?.Invoke(sourcesOptions);
         services.TryAddSingleton<IClock, SystemClock>();
@@ -67,6 +72,7 @@ public static class ChainsModule
         services.AddSingleton<ISourceApi>(new TronGridApi(tronSettings));
         services.AddSingleton<ISourceApi>(new EsploraApi(litecoinSettings));
         services.AddSingleton<ISourceApi>(new BlockscoutApi(bscSettings));
+        services.AddSingleton<ISourceApi>(new BlockbookApi(zcashSettings));
         services.AddSingleton(provider => new ChainSources(
             provider.GetServices<ISourceApi>(),
             provider.GetRequiredService<IExitHttp>(),
@@ -108,6 +114,12 @@ public static class ChainsModule
             provider.GetRequiredService<IOperatorProfileStore>(),
             provider.GetRequiredService<IClock>(),
             litecoinSettings,
+            TimeZoneInfo.Local));
+        services.AddSingleton<IZcashSource>(provider => new BlockbookZcashSource(
+            provider.GetRequiredService<ChainSources>(),
+            provider.GetRequiredService<IOperatorProfileStore>(),
+            provider.GetRequiredService<IClock>(),
+            zcashSettings,
             TimeZoneInfo.Local));
         services.AddSingleton<IBscSource>(provider => new BlockscoutBscSource(
             provider.GetRequiredService<IOperatorProfileStore>(),

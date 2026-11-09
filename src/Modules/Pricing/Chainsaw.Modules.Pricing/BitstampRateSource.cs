@@ -10,7 +10,8 @@ namespace Chainsaw.Modules.Pricing;
 /// Bitstamp's public price history (<c>GET /api/v2/ohlc/{market}/</c>), open without an API key, with candles of a
 /// minute, an hour or a day back to 2011 for BTC/USD and BTC/EUR, and for ETH, TRX, LTC, BNB, USDT and USDC (on
 /// Ethereum, USDT on TRON, and both on BSC) in dollars and euro (markets read 2026-11-09: <c>ltceur</c> and
-/// <c>bnbeur</c> among them). One request asks for one candle: <c>step</c> is the length in seconds,
+/// <c>bnbeur</c> among them), and ZEC, whose <c>zeceur</c> has candles only from 2026-03-31 and trades thinly
+/// (days with volume 0, read 2026-11-09), so a ZEC rate is often missing and that is said. One request asks for one candle: <c>step</c> is the length in seconds,
 /// <c>limit=1</c> and <c>start</c> the candle's start as Unix time.
 /// </summary>
 /// <param name="baseUri">The API's base address, for example <c>https://www.bitstamp.net/api/v2/</c>.</param>
@@ -48,7 +49,8 @@ internal sealed class BitstampRateSource(Uri baseUri) : ICryptoRateSource
 
     /// <inheritdoc/>
     public bool Supports(Chain chain, FiatCurrency quote) =>
-        chain is Chain.Bitcoin or Chain.Ethereum or Chain.Tron or Chain.Litecoin or Chain.Bsc && HasQuote(quote);
+        chain is Chain.Bitcoin or Chain.Ethereum or Chain.Tron or Chain.Litecoin or Chain.Bsc or Chain.Zcash
+        && HasQuote(quote);
 
 
     /// <inheritdoc/>

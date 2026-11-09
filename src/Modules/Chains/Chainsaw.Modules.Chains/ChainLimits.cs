@@ -17,7 +17,8 @@ internal static class ChainLimits
     /// each fork (three seconds at first, under a second since 2025), is bounded at a quarter of a second). Litecoin's
     /// and BSC's first blocks were read from litecoinspace.org and from BSC's public JSON-RPC node (2026-11-09). TRON
     /// keeps its slots so closely, with only a few missed, that its bound is set just under the slot (2.8 seconds): a
-    /// tip three times too high is refused, while a true one never comes near.
+    /// tip three times too high is refused, while a true one never comes near. Zcash aims at 75 seconds since 2019
+    /// (150 before), so it is bounded at 30; its first block was read from a Blockbook for Zcash (2026-11-09).
     /// </summary>
     private static readonly Dictionary<string, (string Genesis, DateTimeOffset Made, TimeSpan Fastest)> Known =
         new(StringComparer.Ordinal)
@@ -38,6 +39,10 @@ internal static class ChainLimits
                 "0x0d21840abff46b96c84b2ac9e10e4f5cdaeb5693cb665db62a2f3b02d2d57b5b",
                 new DateTimeOffset(2020, 4, 20, 13, 46, 54, TimeSpan.Zero),
                 TimeSpan.FromSeconds(0.25)),
+            [RawResponseStore.ZcashChainName] = (
+                "00040fe8ec8471911baa1db1266ea15dd06b4a8a5c453883c000b031973dce08",
+                new DateTimeOffset(2016, 10, 28, 7, 56, 0, TimeSpan.Zero),
+                TimeSpan.FromSeconds(30)),
             [TronGridTronSource.ChainName] = (
                 "00000000000000001ebf88508a03865c71d452e25f4d51194196a1d22b6653dc",
                 new DateTimeOffset(2018, 6, 25, 0, 0, 0, TimeSpan.Zero),
