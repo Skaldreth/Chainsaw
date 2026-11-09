@@ -171,7 +171,8 @@ byggt ur BACKLOG; det som skriver i ärendet granskas oberoende.
    - Resterna i BACKLOG under Exponering, Begäran, Låsskärmen, Historik, Testärendet och *Vyerna efter 1.0* står kvar
      där, med varför.
 8. **TRON med USDT** är byggt (omgång 8, DEV-LOG, resterna i BACKLOG under *TRON efter omgång 8*), och **Litecoin** och
-   **BSC** (omgång 8b, DEV-LOG); kvar **Solana** och den genomskinliga delen av **Zcash**. Litecoin och BSC, kvar:
+   **BSC** (omgång 8b, DEV-LOG) och **Solana** (omgång 8c, DEV-LOG, resterna i BACKLOG under *Solana efter omgång
+   8c*); kvar den genomskinliga delen av **Zcash**. Litecoin och BSC, kvar:
    - **Litecoin i grafen:** grafens UTXO-del (`UtxoGraph`, `TraceCalculator`, `GraphStateStore`, `TracingService`
      med en källa) räknar i bitcoin och lagrar Bitcoins txid utan kedja. En Litecoin-startpunkt hämtas i förväg och
      kan bevakas men läggs inte i grafen. Att bära kedjan i UTXO-delen (en källa per kedja, `litecoin-address` och
@@ -186,6 +187,16 @@ byggt ur BACKLOG; det som skriver i ärendet granskas oberoende.
    - [skiss] **Ett eget märke för Litecoin och BSC:** raden i *Nytt ärende* och *Väntar på källan* visar `Ł` och `B`
      som text, inte en ritad ikon som TRON:s.
    - **Testärendet** (`/testdata`) har ingen Litecoin- eller BSC-källa än (som TRON:s `TestTronHttp`).
+
+   Solana, kvar:
+   - **Testärendet** (`/testdata`) har ingen Solana-källa än (som TRON:s `TestTronHttp`).
+   - [skiss] **Ett eget märke för Solana:** raden i *Nytt ärende* och *Väntar på källan* visar `S` som text, som `B`
+     för BSC; SOL har stålets färg på kortets baksida som ether.
+   - [skiss] **Startpunktsnodens brickor (GR6c)** visar inte Solana.
+   - [skiss] **Fryst på Solana:** saldot säger redan när ett tokenkonto är fryst (`state: frozen`); en markering
+     *Fryst* bredvid snöflingan skissas med TRON:s.
+   - [skiss] **En tx som inte kunde paras:** en Solana-tx med flera avsändare och mottagare av samma tillgång sägs i
+     inspektörens text; hur den syns i grafen (en streckad nod för tx:en?) skissas först.
 
    TRON:s ytor som väntar:
    - [skiss] **Fryst:** Tethers kontrakt på TRON har en svartlista (`isBlackListed`); en adress som står där kunde få
@@ -210,8 +221,6 @@ byggt ur BACKLOG; det som skriver i ärendet granskas oberoende.
      `pattern` står kvar. Att kunna avfärda en kontroll (som ett förslag, med skäl) skissas i KF2b.
    - [skiss] **Mönstret i rapporten och i Begäran:** om *samma insamling* och *samma väg* ska kunna tas med i
      rapporten (RP1b) som en egen del.
-   - **Testärendet** (`/testdata`) visar inget mönster än [direkt]: två offers pengar som går samma väg genom en mixer
-     till Sydbörsen och en rad likadana belopp läggs in i berättelsen (`TestStoryChain`).
    - [skiss] **Fortsättningen på annan kedja i grafen:** en betalning in till en brygga ritar inte sitt förslags
      kandidater på den andra kedjan (de finns bara i KF2b-panelen), och ett förslag vars betalning in är på Ethereum
      eller TRON har inget område i grafen, eftersom områdena bara ritas kring Bitcoin-adresser. Hur kandidaterna på
@@ -220,8 +229,11 @@ byggt ur BACKLOG; det som skriver i ärendet granskas oberoende.
      (värdet jämförs med kurserna, och skälet säger avgiften); en bild med båda tillgångarna och kronorna skissas.
 
 **Ur omgång 4, ytorna KV1a, HB1a, BU1a, DM1a, HP1a och TJ1b** (byggda 2026-11-08, rester):
-- **Testärendet** (`/testdata`): en slutsats som hålls tillbaka (HB1a) kräver en obekräftad tx som ersätts; testkedjan
-  har en ersatt tx (RBF) men bara bekräftade, så HB1a syns inte där än [direkt].
+- **En slutsats hålls aldrig tillbaka av sig själv** (HB1a, fynd 2026-11-09 när testärendet fylldes på): klustringen
+  håller tillbaka en slutsats bara när en körning saknar en tx den bygger på, men Tracing skickar alltid hela grafen,
+  också en tx som källan inte längre känner (den borta tx:en läses ur ärendet som förut). Att en körning lämnar borta
+  tx utanför (och vad grafen då visar för dem) ändrar slutsatserna i ärendet och byggs som en etapp. Testärendet visar
+  HB1a med en körning utan de borta tx:erna sist i berättelsen (`HeldBackStep`), som nästa expansion tar tillbaka.
 - **Förhandsvisningen av ett tillbakadragande** (KV1a) räknar på det som är sparat: det v1 slår ihop i tx som v1
   aldrig kört syns först efter nästa körning. Raden längst ner säger när, men inte vem (det står i journalen).
 - **Dammets linjer** (DM1a) är inte hårfina och prickade och har kvar beloppet; noderna tonas ned och förgiftningens

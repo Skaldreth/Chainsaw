@@ -35,6 +35,12 @@ internal static class GraphStateStore
     /// <summary>The kind of a start point or expansion at a transaction on BSC.</summary>
     public const string BscTransactionKind = "bsc-transaction";
 
+    /// <summary>The kind of a start point or expansion at a Solana address.</summary>
+    public const string SolanaAddressKind = "solana-address";
+
+    /// <summary>The kind of a start point or expansion at a Solana transaction.</summary>
+    public const string SolanaTransactionKind = "solana-transaction";
+
     /// <summary>The action of a sealed record that links a coin to another chain.</summary>
     public const string LinkAction = "link";
 
@@ -366,7 +372,8 @@ internal static class GraphStateStore
 
     /// <summary>
     /// Writes an account movement's kind and transaction as the link's record stores them. Ethereum's hash begins
-    /// with <c>0x</c> and TRON's does not; BSC's is written as Ethereum's, so it carries its chain before it.
+    /// with <c>0x</c> and TRON's does not; BSC's is written as Ethereum's, so it carries its chain before it; Solana's
+    /// is a signature in Base58, which neither is.
     /// </summary>
     /// <param name="from">The movement.</param>
     /// <returns>For example <c>token:0x…</c>, or <c>token:bsc:0x…</c> on BSC.</returns>
@@ -405,7 +412,15 @@ internal static class GraphStateStore
             return EthereumTxHash.Parse(Chain.Bsc, hash[BscMovementPrefix.Length..]);
         }
 
-        return EthereumTxHash.TryParse(hash, out var ethereum) ? ethereum : EthereumTxHash.Parse(Chain.Tron, hash);
+        if (EthereumTxHash.TryParse(hash, out var ethereum))
+        {
+            return ethereum;
+        }
+
+        // A Solana signature is Base58 (up to 88 characters), which no TRON id (64 hex digits) is.
+        return EthereumTxHash.TryParse(Chain.Solana, hash, out var solana)
+            ? solana
+            : EthereumTxHash.Parse(Chain.Tron, hash);
     }
 
     /// <summary>
@@ -443,9 +458,9 @@ internal static class GraphStateStore
             startPoints.Add(kind switch
             {
                 AddressKind => TraceStartPoint.ForAddress(BitcoinAddress.Parse(subject)),
-                EthereumAddressKind or TronAddressKind or BscAddressKind => TraceStartPoint.ForEthereumAddress(
-                    EthereumAddress.Parse(AccountChainOf(kind)!.Value, subject)),
-                EthereumTransactionKind or TronTransactionKind or BscTransactionKind =>
+                EthereumAddressKind or TronAddressKind or BscAddressKind or SolanaAddressKind =>
+                    TraceStartPoint.ForEthereumAddress(EthereumAddress.Parse(AccountChainOf(kind)!.Value, subject)),
+                EthereumTransactionKind or TronTransactionKind or BscTransactionKind or SolanaTransactionKind =>
                     TraceStartPoint.ForEthereumTransaction(EthereumTxHash.Parse(AccountChainOf(kind)!.Value, subject)),
                 _ => TraceStartPoint.ForTransaction(Txid.Parse(subject)),
             });
@@ -483,12 +498,13 @@ internal static class GraphStateStore
             {
                 AddressKind => new Expansion(
                     BitcoinAddress.Parse(subject), null, [.. transactions.Select(Txid.Parse)], complete, utc),
-                EthereumAddressKind or TronAddressKind or BscAddressKind => new Expansion(null, null, [], complete, utc)
+                EthereumAddressKind or TronAddressKind or BscAddressKind or SolanaAddressKind =>
+                    new Expansion(null, null, [], complete, utc)
                 {
                     EthereumAddress = EthereumAddress.Parse(AccountChainOf(kind)!.Value, subject),
                     EthereumTransactions = AccountHashes(kind, transactions),
                 },
-                EthereumTransactionKind or TronTransactionKind or BscTransactionKind =>
+                EthereumTransactionKind or TronTransactionKind or BscTransactionKind or SolanaTransactionKind =>
                     new Expansion(null, null, [], complete, utc)
                     {
                         EthereumTransaction = EthereumTxHash.Parse(AccountChainOf(kind)!.Value, subject),
@@ -621,6 +637,8 @@ internal static class GraphStateStore
         (Chain.Tron, false) => TronTransactionKind,
         (Chain.Bsc, true) => BscAddressKind,
         (Chain.Bsc, false) => BscTransactionKind,
+        (Chain.Solana, true) => SolanaAddressKind,
+        (Chain.Solana, false) => SolanaTransactionKind,
         _ => throw new ArgumentException("Not an account chain Chainsaw reads.", nameof(chain)),
     };
 
@@ -632,6 +650,7 @@ internal static class GraphStateStore
         EthereumAddressKind or EthereumTransactionKind => Chain.Ethereum,
         TronAddressKind or TronTransactionKind => Chain.Tron,
         BscAddressKind or BscTransactionKind => Chain.Bsc,
+        SolanaAddressKind or SolanaTransactionKind => Chain.Solana,
         _ => null,
     };
 

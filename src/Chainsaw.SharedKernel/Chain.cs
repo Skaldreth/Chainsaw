@@ -26,4 +26,10 @@ public enum Chain
     /// BNB Smart Chain (BSC): accounts on Ethereum's virtual machine, amounts in wei of BNB, tokens such as BEP-20.
     /// </summary>
     Bsc,
+
+    /// <summary>
+    /// Solana: accounts, amounts in lamports of SOL (9 decimals), tokens such as SPL (USDT and USDC) held in token
+    /// accounts that belong to an owner.
+    /// </summary>
+    Solana,
 }

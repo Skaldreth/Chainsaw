@@ -104,9 +104,10 @@ public interface IGraphChainState
 /// <param name="prices">The rates.</param>
 /// <param name="tron">TRON's source, or <see langword="null"/> where it is not registered.</param>
 /// <param name="bsc">BSC's source, or <see langword="null"/> where it is not registered.</param>
+/// <param name="solana">Solana's source, or <see langword="null"/> where it is not registered.</param>
 public sealed class GraphChainState(
     IBitcoinSource bitcoin, IEthereumSource ethereum, IPriceService prices, ITronSource? tron = null,
-    IBscSource? bsc = null)
+    IBscSource? bsc = null, ISolanaSource? solana = null)
     : IGraphChainState
 {
     /// <summary>The most addresses of a cluster whose balance is asked for, so that a large one is not asked one by one.</summary>
@@ -131,6 +132,9 @@ public sealed class GraphChainState(
             Chain.Tron when tron is not null => await EthereumAsync(@case, tron, node.Accounts, cancellationToken)
                 .ConfigureAwait(false),
             Chain.Bsc when bsc is not null => await EthereumAsync(@case, bsc, node.Accounts, cancellationToken)
+                .ConfigureAwait(false),
+            Chain.Solana when solana is not null => await EthereumAsync(
+                    @case, solana, node.Accounts, cancellationToken)
                 .ConfigureAwait(false),
             _ => new NodeHoldings([], null, null, false, NoAddressText),
         };

@@ -124,7 +124,17 @@ public sealed partial class WatchFormViewModel : ObservableObject
             new WatchChoice("₮ USDT", KnownTokens.BscUsdt),
             new WatchChoice("USDC", KnownTokens.BscUsdc),
         ];
+        _solanaAssets =
+        [
+            new WatchChoice("Alla", null),
+            new WatchChoice("SOL", SharedKernel.Asset.Sol),
+            new WatchChoice("₮ USDT", KnownTokens.SolanaUsdt),
+            new WatchChoice("USDC", KnownTokens.SolanaUsdc),
+        ];
     }
+
+    /// <summary>The assets to choose from on Solana.</summary>
+    private readonly IReadOnlyList<WatchChoice> _solanaAssets;
 
     /// <summary>The assets to choose from on BSC.</summary>
     private readonly IReadOnlyList<WatchChoice> _bscAssets;
@@ -144,11 +154,14 @@ public sealed partial class WatchFormViewModel : ObservableObject
     /// <summary>Gets how often the watch can ask the source.</summary>
     public IReadOnlyList<WatchChoice> Paces { get; }
 
-    /// <summary>Gets the assets to choose from on the watch's account chain (Ethereum's, TRON's or BSC's).</summary>
+    /// <summary>
+    /// Gets the assets to choose from on the watch's account chain (Ethereum's, TRON's, BSC's or Solana's).
+    /// </summary>
     public IReadOnlyList<WatchChoice> Assets => Chain switch
     {
         SharedKernel.Chain.Tron => _tronAssets,
         SharedKernel.Chain.Bsc => _bscAssets,
+        SharedKernel.Chain.Solana => _solanaAssets,
         _ => _ethereumAssets,
     };
 
@@ -623,9 +636,13 @@ public sealed partial class WatchFormViewModel : ObservableObject
         }
 
         // Only TRON's own written form: hex (41…) is how its API writes an address, not how a user types one.
-        return EthereumAddress.TryParseTron(trimmed, out var tron, out _) && tron.Value == trimmed
-            ? SharedKernel.Chain.Tron
-            : null;
+        if (EthereumAddress.TryParseTron(trimmed, out var tron, out _) && tron.Value == trimmed)
+        {
+            return SharedKernel.Chain.Tron;
+        }
+
+        // A Solana address is 32 bytes in plain Base58, which no other chain's address decodes to.
+        return EthereumAddress.TryParseSolana(trimmed, out _, out _) ? SharedKernel.Chain.Solana : null;
     }
 
     /// <summary>Says whether a text is an address on a chain.</summary>

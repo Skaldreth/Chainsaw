@@ -42,6 +42,12 @@ public sealed record TestServices(
 
     /// <summary>Gets the labels of Chainsaw's known contracts on Ethereum; none when they are not registered.</summary>
     public IKnownContractLabels? KnownContracts { get; init; }
+
+    /// <summary>
+    /// Gets the cross-chain search, which brings into the case what <c>cross-chain v1</c> weighs (the rates, a memo's
+    /// recipient), as the app does before the checks run; none when it is not registered.
+    /// </summary>
+    public ICrossChainLookup? CrossChain { get; init; }
 }
 
 /// <summary>One build of the test case: the case, the story it is built from, and what did not go as planned.</summary>
@@ -240,7 +246,11 @@ public sealed record WatchCheckStep : ITestStep
     }
 }
 
-/// <summary>Runs the checks and suggestions on the graph, so that there is something to decide.</summary>
+/// <summary>
+/// Runs the checks and suggestions on the graph, so that there is something to decide. As the app does, the cross-chain
+/// search first brings into the case what the cross-chain analysis weighs (the rates at the payments' times), here from
+/// the made-up sources only.
+/// </summary>
 public sealed record ChecksStep : ITestStep
 {
     /// <inheritdoc/>
@@ -248,6 +258,16 @@ public sealed record ChecksStep : ITestStep
     {
         ArgumentNullException.ThrowIfNull(run);
         var graph = await run.Services.Tracing.LoadAsync(run.Case, cancellationToken).ConfigureAwait(false);
+        if (run.Services.CrossChain is { } crossChain)
+        {
+            var found = await crossChain.FindAsync(run.Case, graph, LookupMode.AsNeeded, cancellationToken)
+                .ConfigureAwait(false);
+            foreach (var target in found.Targets.Where(target => target.State == CrossChainTargetState.Unreachable))
+            {
+                run.Note($"Fortsättningen på {target.Address.Chain} kunde inte slås upp: {target.Problem}");
+            }
+        }
+
         var checks = run.Services.Checks.Run(run.Case, graph);
         if (!checks.Checks.Any(check => check.Finding.Kind == CheckKind.Suggestion))
         {

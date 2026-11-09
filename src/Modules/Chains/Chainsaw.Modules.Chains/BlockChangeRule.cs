@@ -77,8 +77,19 @@ internal static class BlockChangeRule
     /// <returns><see langword="true"/> when the block is the same as far as the answers tell.</returns>
     private static bool SameBlock(BlockSighting before, BlockSighting now) =>
         before.Hash is not null && now.Hash is not null
-            ? string.Equals(before.Hash, now.Hash, StringComparison.OrdinalIgnoreCase)
+            ? string.Equals(before.Hash, now.Hash, HashComparison(before.Hash))
             : before.Height == now.Height;
+
+    /// <summary>
+    /// Gives how two block hashes are compared: hex (Bitcoin, Ethereum, TRON) without case, any other (Solana's Base58,
+    /// whose case is part of it) exactly.
+    /// </summary>
+    /// <param name="hash">One of the hashes.</param>
+    /// <returns>The comparison.</returns>
+    internal static StringComparison HashComparison(string hash) =>
+        hash.AsSpan().TrimStart("0x").ContainsAnyExcept("0123456789abcdefABCDEF")
+            ? StringComparison.Ordinal
+            : StringComparison.OrdinalIgnoreCase;
 
     /// <summary>
     /// Says whether a later answer confirms an earlier one: it came from another endpoint, or the case knew of at least

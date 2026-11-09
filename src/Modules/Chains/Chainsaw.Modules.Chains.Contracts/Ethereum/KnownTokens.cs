@@ -13,7 +13,8 @@ public sealed record TokenIssuer(string Name, string Glyph);
 /// <summary>
 /// The tokens Chainsaw recognises by their contract, never by their symbol (anyone can issue a token called USDT):
 /// USDT and USDC, whose issuers can freeze them on Ethereum and TRON, and the same two on BSC, which Binance issues as
-/// bridged tokens (<em>Binance-Peg</em>) and which Chainsaw knows no way to freeze. A token that is not here is shown
+/// bridged tokens (<em>Binance-Peg</em>) and which Chainsaw knows no way to freeze, and the same two on Solana (SPL
+/// tokens known by their mint), whose mints name a freeze authority. A token that is not here is shown
 /// with its contract and the symbol the source gave, and is never taken for one of these.
 /// </summary>
 public static class KnownTokens
@@ -83,6 +84,35 @@ public static class KnownTokens
     public static Asset BscUsdc { get; } =
         Asset.Token(Chain.Bsc, "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d", "USDC", 18);
 
+    /// <summary>
+    /// Where the SPL tokens' mints were read: each mint account through Solana's public JSON-RPC
+    /// (<c>getAccountInfo</c> with <c>jsonParsed</c>), which gives the decimals and the freeze authority.
+    /// </summary>
+    public const string SolanaSource =
+        "https://api.mainnet-beta.solana.com, getAccountInfo för mint-kontot (läst 2026-11-09)";
+
+    /// <summary>
+    /// Tether's USDT on Solana (an SPL token), 6 decimals. Its mint names a freeze authority
+    /// (<c>Q6XprfkF8RQQKoQVG33xT88H7wi8Uk1B1CC7YAs69Gi</c>, read from the mint, <see cref="SolanaSource"/>), which can
+    /// freeze the token in any account, so it is marked <em>Kan frysas</em>.
+    /// </summary>
+    public static Asset SolanaUsdt { get; } =
+        Asset.Token(Chain.Solana, "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB", "USDT", 6);
+
+    /// <summary>
+    /// Circle's USDC on Solana (an SPL token), 6 decimals. Its mint names a freeze authority
+    /// (<c>7dGbd2QZcCKcTndnHcTL8q7SMVXAkp688NTQYwrRCrar</c>, read from the mint, <see cref="SolanaSource"/>), so it
+    /// is marked <em>Kan frysas</em>.
+    /// </summary>
+    public static Asset SolanaUsdc { get; } =
+        Asset.Token(Chain.Solana, "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", "USDC", 6);
+
+    /// <summary>
+    /// The mint of wrapped SOL, SOL held in a token account (9 decimals). Its amount is the account's own lamports,
+    /// which the chain's balances already count as SOL, so Solana's source never counts it as a token.
+    /// </summary>
+    public const string SolanaWrappedSolMint = "So11111111111111111111111111111111111111112";
+
     /// <summary>Where Ethereum's DAI and WBTC were read: the chain explorer Blockscout's token records.</summary>
     public const string EthereumSource =
         "https://eth.blockscout.com/api?module=token&action=getToken&contractaddress=… (läst 2026-11-09)";
@@ -114,6 +144,8 @@ public static class KnownTokens
         [TronUsdt] = ("₮", new TokenIssuer("Tether", "₮")),
         [BscUsdt] = ("₮", null),
         [BscUsdc] = ("$", null),
+        [SolanaUsdt] = ("₮", new TokenIssuer("Tether", "₮")),
+        [SolanaUsdc] = ("$", new TokenIssuer("Circle", "$")),
         [EthereumDai] = (null, null),
         [EthereumWbtc] = (null, null),
     };
@@ -131,9 +163,9 @@ public static class KnownTokens
     }
 
     /// <summary>
-    /// Says whether Chainsaw knows a token by its contract (USDT and USDC on Ethereum, TRON and BSC, and DAI and WBTC on
-    /// Ethereum), whether or not its issuer can freeze it: a known token's movements are read and watched, a
-    /// stranger's are only shown.
+    /// Says whether Chainsaw knows a token by its contract (USDT and USDC on Ethereum, TRON, BSC and Solana, and DAI
+    /// and WBTC on Ethereum), whether or not its issuer can freeze it: a known token's movements are read and watched,
+    /// a stranger's are only shown.
     /// </summary>
     /// <param name="asset">The asset.</param>
     /// <returns><see langword="true"/> for a known token.</returns>

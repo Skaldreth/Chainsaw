@@ -5401,6 +5401,95 @@ i KF2b-panelen, och ett godkännande som knyter fortsättningen i samma transakt
   - **M:** MWEB-raden i Nytt ärende och journalraden ger MWEB-skälet; `RecogniseMweb` säger att bara formen prövas;
     flaggan 08 nämner inte Litecoin, eftersom samma läsare används för Bitcoin.
 
+## Omgång 8c: Solana med SOL och SPL (backloggen, 2026-11-09)
+
+- **Byggt:**
+  - **Kedjan:** `Chain.Solana` (sist i uppräkningen), kontomodellen, SOL i lamports (`Asset.Sol`, 9 decimaler).
+    Adresser (32 byte) och signaturer (64 byte) i ren Base58 (`Base58`, kanonisk form) på kontomodellens typer:
+    `EthereumAddress.TryParseSolana` och `EthereumTxHash.TryParse(Chain.Solana, …)`, skiftlägeskänsliga och sparade
+    som de skrivs. Ingen kontrollsumma finns, och felet säger det. `ChainStartPoint` känner igen Solana också utan
+    kedja (ingen annan kedjas värde avkodas till 32 eller 64 byte).
+  - **Tokens:** USDT och USDC på Solana kända på mint-adressen (`KnownTokens.SolanaUsdt`/`SolanaUsdc`, 6 decimaler)
+    med *Kan frysas*: båda mint-kontona har en freeze authority, läst ur kedjan. Wrapped SOL räknas aldrig som token.
+  - **Källan** (`SolanaRpcApi`, `SolanaRpcParser`, `SolanaMovements`, `SolanaRpcSource`, `SolanaPageMemory`): Solanas
+    JSON-RPC med POST, alltid `commitment: finalized`, `maxSupportedTransactionVersion: 1`. `getSignaturesForAddress`
+    för historiken, `getTransaction` för varje tx på sidan, `getBlock` (utan tx) för slotens hash, `getSlot` som höjd,
+    `getBalance` och `getTokenAccountsByOwner` för saldot. Förseglat som `solana-mainnet` med källan `solana-rpc`.
+    `LookupQuery` kan bära en POST-kropp (`ISourceApi.Post`), så att JSON-RPC går genom samma `SourceLookups`.
+  - **Rörelserna** läses ur saldona före och efter (`preBalances`/`postBalances`, `preTokenBalances`/
+    `postTokenBalances`), inte ur instruktionerna: SOL per konto med avgiften tillbaka till betalaren, tokens per ägare
+    (tokenkontot knutet till ägaren), parade bara där aritmetiken ger ett svar (en part som förlorat och flera som
+    vunnit, eller tvärtom; mint-kontot mot det som skapats eller förstörts). Flera mot flera räknas inte och sägs.
+  - **Tokenhistoriken:** ägarens tokenkonton för USDT och USDC (`getTokenAccountsByOwner` med mint) och varje kontos
+    signaturer, ihop ned till den slot den fullaste sidan når.
+  - Sidan *Källor* (Solana inte längre tonat), NC2a (förhämtning genom källan), länkar och prefixen `solana:`/`sol:`,
+    *Annan kedja*, kortets baksida, sanktionerna (OFAC:s `SOL`, och `USDT`/`USDC` med en Solana-adress), kurserna
+    (Bitstamps `soleur`; USDT och USDC på Solana till stablecoin-marknaderna), bevakningen (också i bakgrunden),
+    grafen (`solana-address`/`solana-transaction`, länkar från en Solana-rörelse), egna ytor, etiketter, Guiden
+    (*Solana* under *Fler kedjor*).
+- **Undersökt (2026-11-09) mot `api.mainnet-beta.solana.com`:**
+  - Öppen utan nyckel och arkiverande (`getBlock` för slot 100 000 000 från 2021 svarade). Huvudena sa
+    `x-ratelimit-method-limit: 10` för `getTransaction` och 150 för `getSignaturesForAddress`; dokumentationen säger 100
+    anrop per tio sekunder och IP. Chainsaw frågar en gång per 1,1 s.
+  - `getTransaction` med `maxSupportedTransactionVersion: 0` vägrades för en tx av **version 1** (felkod -32015);
+    med 1 svarade den, och meddelandet hade `transactionConfig`. `meta` har `preBalances`, `postBalances`,
+    `preTokenBalances`/`postTokenBalances` (med `owner`, `mint`, `programId` och `uiTokenAmount.amount/decimals`) och
+    `loadedAddresses`; svaret har `transactionIndex`.
+  - `getSignaturesForAddress` ger `slot`, `err`, `confirmationStatus` och `transactionIndex` och bläddrar med `before`.
+  - Genesis-hashen `5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d` (`getGenesisHash`); slot 0:s tid 2020-03-16.
+  - Mint-kontona: USDT (`Es9vMFrz…`) och USDC (`EPjFWdd5…`) har 6 decimaler och en `freezeAuthority`.
+  - Bitstamp har `soleur`, `solusd` och `solusdc`; `soleur` saknar candle i maj 2022 och har en i september 2022.
+  - OFAC SDN (CSV, 2026-11-09): två `SOL`-adresser, inga `USDT`/`USDC` med Solana-adress.
+- **Egna beslut:**
+  - **Typerna:** som för TRON bär kontomodellens `EthereumAddress` och `EthereumTxHash` kedjan, så att läsaren,
+    spårningen, grafen och bevakningen återanvänds. `Hex` är på Solana de 32 byten.
+  - **Slutligt vid `finalized`:** allt frågas med `finalized`, så ett svar kan inte rullas tillbaka och
+    `SafeConfirmations` är 1; en äldre sida hämtas aldrig igen, bara den nyaste.
+  - **Saldona, inte instruktionerna:** saldona är kedjans egen bokföring vad programmen än gjorde; att para dem är
+    aritmetik och ingen gissning. Instruktionerna står i BACKLOG.
+  - **Wrapped SOL** i ett tokenkonto räknas som SOL och som ägarens, eftersom dess värde är kontots lamports; det gör
+    att en pools två sidor möts hos samma ägare och att mönstret för swappar (SW1a) ser en swap mot SOL.
+  - **Sidorna efter slot:** kontraktet bläddrar efter var en sida börjar, Solana efter signatur; `SolanaPageMemory`
+    minns de lästa sidorna, så att nästa sida frågas efter den äldsta signaturen ovanför sloten. En sida som inte kan
+    frågas (den nyare är inte läst) läses bara ur ärendet och säger det.
+  - **Bevakningen:** *vid varje nytt block* är som på de andra kedjorna varje gång höjden läses (en gång i minuten);
+    en ofullständig sida håller kontrollen kvar som på TRON.
+  - **Märket `S`** för Solana som `B` för BSC; ett eget märke står som [skiss] i TODO.
+  - **Jupiter och Raydium** står inte i `KnownContracts`: swappen känns igen på mönstret och priset prövas, men
+    programmen är inte belagda med en offentlig källa.
+- **Skriver i ärendet** (granskas oberoende): Solanas råsvar förseglas som `solana-mainnet` med `solana-rpc` och
+  endpointen (kinds `solana.tx`, `solana.signatures`, `solana.block`, `solana.tip`, `solana.balance`,
+  `solana.token-accounts`); grafens tillstånd lagrar `solana-address` och `solana-transaction`; en länk från en
+  Solana-rörelse lagras som `<kind>:<signatur>`; etiketter, sanktionsträffar och egna ytor på Solana lagras med adressen
+  som den skrivs; ett swap-stopp läses nu på sin egen kedja (rättat för TRON också).
+- **Avsteg och kvar:** testärendet har ingen Solana-källa (TODO punkt 8), ytorna som skissas (TODO), och BACKLOG
+  *Solana efter omgång 8c*. Oberoende granskning återstår.
+- **Tester:** Chains (adresser, signaturer, kända tokens, källan mot syntetiska svar ur `Solana/generate.py`: SOL,
+  USDT mellan ägare, misslyckad tx, flera mot flera, skapad token, wrapped SOL ur en pool, historiken efter slot,
+  tokenhistoriken, höjden, saldot, hoppad slot, rate limit, offline), Tracing (grafen, tillståndet, länken, spårning
+  och swap på Solana), Attribution (OFAC:s `SOL`), Pricing (`soleur`, USDT och USDC), Monitoring (källan registrerad),
+  App (prefix, bevakningens kedja, startpunkten, *Annan kedja*).
+- **Granskningen (inga C, sex I; alla rättade):**
+  - **I1:** rörelserna läses nu ur instruktionerna (`jsonParsed`: System-programmets överföringar, Token- och
+    Token-2022-programmens `transfer`/`transferChecked`, `mintTo`, `burn` och `closeAccount`, också de inre) i den
+    ordning de kördes (`SolanaInstructions`), och saldona före och efter är kontrollen (`SolanaMovements` spelar upp
+    dem). Ingen nettning: en mellanhand mitt i en tx syns, och en stängning plus en SOL-sändning ger rätt belopp. Det
+    instruktionerna inte förklarar visas inte och sägs; en stängnings belopp, som bara uppspelningen ger, tas bort när
+    SOL inte går ihop.
+  - **I2:** varje tokenkontos lamports räknas som ägarens (ur saldona och ur `initializeAccount`/ATA-`create`), så
+    hyra och stängning skapar inga tokenkonton som aktörer.
+  - **I3:** `SolanaPageMemory.Locate` ger en sida som inte är full sina egna poster vid eller under sloten, så ett
+    andra tokenkonto med en äldre post pagineras rätt; ägarens tokenkonton frågas bara med den nyaste sidan.
+  - **I4:** tx som inte går ihop står i `EthereumAddressPage.Unexplained` (inte *Skipped*), grafen säger dem som
+    problem och bevakningens flöde säger dem. `CaseFeeds` bläddrade dessutom Solana som TRON (efter tid); nu efter
+    slot.
+  - **I5:** marginalen för *efter* är per kedja (`ChainSources.HeightMarginOf`: 75 slotar på Solana, ungefär 30 s).
+  - **I6:** nyckeln rekommenderas aldrig i adressen, och ett JSON-RPC-svar förseglas under värden ensam med anropet
+    som fragment (`SourceLookups.SealedPostUri`), så att sökvägen aldrig når ärendet och det som frågades (`before`
+    med mera) förseglas (M1).
+  - **M:** Token-2022 frågas för saldot (M4), symbolregeln står på ett ställe (`SolanaMovements.Token`, M5),
+    jämförelser av Base58 är exakta (M6). Swap-stopp gäller alla kontokedjor och läses tillbaka på TRON och Solana.
+    M2 och M3 står i BACKLOG.
 
 ## Egen nod: Bitcoin Core, electrs och bekräftelse mot den egna noden (backloggen, 2026-11-09)
 
@@ -5593,3 +5682,28 @@ i KF2b-panelen, och ett godkännande som knyter fortsättningen i samma transakt
 
 **Kvar:** testärendet (TODO), jämna belopp i fiat (TODO, BACKLOG), egna fynd under *Förvirringstekniker* i BACKLOG,
 provet på Windows (TESTER-INFOR, *Förvirring, omgång 5*).
+
+## Testärendet: mönster, en slutsats som hålls tillbaka och en fortsättning på annan kedja (2026-11-09)
+
+Rester [direkt] ur TODO (punkt 9 och omgång 4), bara i Debug-testärendet (`src/Chainsaw.App/TestData/`); berättelsen
+är version 5.
+
+- **`pattern v1`** (`TestStoryChain.AlikeWays`): två offer till (märkta *Offer*, så att reglerna aldrig räknar dem)
+  betalar var sin bedragare som sätter in i Blandaren. Blandaren betalar ut ur egna mynt (2 % avgift), och varje
+  utgång går genom två mulor till samma insättningsadress hos Sydbörsen: *Samma väg, 2 delar*. En tredje utgång
+  betalar samma insättning fyra lika, inte jämna belopp i följd: *Likadana belopp, 4 i följd*.
+- **`cross-chain v1`:** en fjärde utgång betalar Bytaren (`BridgeHeight`, två timmar före swappen på Ethereum), och
+  `ChecksStep` kör `ICrossChainLookup` (som appens `CheckSource`) före kontrollerna, så att kurserna finns i ärendet;
+  förslaget har swappens utbetalning av 2,95 ETH som bästa kandidat.
+- **HB1a:** den ersatta utgiften betalar nu en ny insättningsadress hos Snabbväxlaren (ersättaren den gamla), och en
+  tx i det nyaste blocket betalar den nya adressen igen med växel. Växelslutsatsen bygger på den borta tx:en (där
+  adressen sågs först). `HeldBackStep` sist i berättelsen kör klustringen på grafen utan de borta tx:erna.
+- **`DecideStep`** godkänner mixerns troligaste utgång för fördelningens insättning (`Deposit`), eftersom mixern nu
+  har fler insättningar.
+- **Tester:** tre nya i `TestCaseStoryTests` (samma väg och likadana belopp, förslaget på Ethereum, slutsatsen som
+  hålls tillbaka med det som saknas); testet om användarens beslut väljer fördelningens insättning.
+
+**Fynd:** en slutsats hålls aldrig tillbaka av sig själv i appen, eftersom Tracing skickar hela grafen till
+klustringen, också borta tx (TODO). Därför gör testärendet körningen själv, och nästa expansion tar tillbaka den.
+
+**Kvar:** *Samma insamling* och *Rundgång* i testärendet (BACKLOG, *Testärendet*).

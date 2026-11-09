@@ -41,6 +41,7 @@ internal sealed class CaseHeights(BitcoinSourceOptions bitcoin) : ICaseHeights
             Chain.Tron => TronGridTronSource.ChainName,
             Chain.Litecoin => RawResponseStore.LitecoinChainName,
             Chain.Bsc => BlockscoutBscSource.ChainName,
+            Chain.Solana => SolanaRpcSource.ChainName,
             _ => null,
         };
         return name is null ? null : new RawResponseStore(TimeZoneInfo.Utc, name);

@@ -410,13 +410,13 @@ public sealed partial class CaseWorkflow
     public const string MwebText =
         "Adressen ligger i Litecoins skyddade del (MWEB), där belopp och ägare inte syns: spåret tar slut här.";
 
-    /// <summary>Gives the Tracing start point for a Bitcoin, Ethereum, TRON or BSC start point.</summary>
+    /// <summary>Gives the Tracing start point for a Bitcoin, Ethereum, TRON, BSC or Solana start point.</summary>
     /// <param name="startPoint">The recognised start point.</param>
     /// <returns>The start point, or <see langword="null"/> when its chain is not built.</returns>
     public static TraceStartPoint? ToTrace(ChainStartPoint startPoint)
     {
         ArgumentNullException.ThrowIfNull(startPoint);
-        if (startPoint.Chain is Chain.Ethereum or Chain.Tron or Chain.Bsc)
+        if (startPoint.Chain is { } chain && chain.Model() == LedgerModel.Account)
         {
             if (startPoint.EthereumAccount is { } address)
             {

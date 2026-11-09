@@ -444,8 +444,12 @@ public sealed partial class CommandSearchViewModel : ObservableObject
         var startPoint = StartPointText.Parse(outcome.Term);
         var recognised = !guideOnly && startPoint is { IsRecognised: true, Chain: not null };
         ChainText = recognised ? ChainWords(startPoint.Chain!.Value) : string.Empty;
+        // Only Ethereum's form ignores case (its mixed case is a checksum); Base58 and the canonical forms do not.
+        var comparison = startPoint.Chain is { } chain && chain.IsEvm()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
         var held = _rows.Any(row => row.Entry.Kind is SearchKind.Address or SearchKind.Transaction
-            && string.Equals(row.Entry.Text, startPoint.Value, StringComparison.OrdinalIgnoreCase));
+            && string.Equals(row.Entry.Text, startPoint.Value, comparison));
         IsUnknown = !guideOnly && startPoint.IsRecognised && startPoint.IsSupported && !held && HasCase;
         UnknownText = IsUnknown ? StartPointWords(startPoint) : string.Empty;
     }

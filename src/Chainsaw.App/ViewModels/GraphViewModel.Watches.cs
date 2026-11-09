@@ -415,7 +415,7 @@ public sealed partial class GraphViewModel
         WatchForm is not null && _session.Current is not null
         && node.Node.Kind is GraphNodeKind.Address or GraphNodeKind.Cluster
         && node.Node.Addresses.Count > 0
-        && node.Node.Chain is Chain.Bitcoin or Chain.Ethereum or Chain.Tron or Chain.Bsc;
+        && node.Node.Chain is Chain.Bitcoin or Chain.Ethereum or Chain.Tron or Chain.Bsc or Chain.Solana;
 
     /// <summary>
     /// Closes the node's menu and the watch form when another case opens, so that nothing is saved there.

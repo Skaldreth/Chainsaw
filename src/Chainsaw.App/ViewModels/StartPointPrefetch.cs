@@ -61,6 +61,9 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
     /// <summary>BSC's source, or <see langword="null"/> where it is not registered.</summary>
     private readonly IBscSource? _bsc;
 
+    /// <summary>Solana's source, or <see langword="null"/> where it is not registered.</summary>
+    private readonly ISolanaSource? _solana;
+
     /// <summary>The imported sanction lists.</summary>
     private readonly ISanctionLists _sanctions;
 
@@ -86,6 +89,7 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
     /// <param name="tron">TRON's source, or <see langword="null"/> where it is not registered.</param>
     /// <param name="litecoin">Litecoin's source, or <see langword="null"/> where it is not registered.</param>
     /// <param name="bsc">BSC's source, or <see langword="null"/> where it is not registered.</param>
+    /// <param name="solana">Solana's source, or <see langword="null"/> where it is not registered.</param>
     public StartPointPrefetch(
         IMemoryCases memory,
         IResponseTransfer transfer,
@@ -95,7 +99,8 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
         IClock clock,
         ITronSource? tron = null,
         ILitecoinSource? litecoin = null,
-        IBscSource? bsc = null)
+        IBscSource? bsc = null,
+        ISolanaSource? solana = null)
     {
         _memory = memory;
         _transfer = transfer;
@@ -104,6 +109,7 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
         _tron = tron;
         _litecoin = litecoin;
         _bsc = bsc;
+        _solana = solana;
         _sanctions = sanctions;
         _clock = clock;
     }
@@ -294,13 +300,15 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
     private Task<StartPointPreview> FetchAsync(
         IMemoryCase memory, ChainStartPoint startPoint, CancellationToken cancellationToken)
     {
-        if (startPoint.Chain is Chain.Ethereum or Chain.Tron or Chain.Bsc)
+        if (startPoint.Chain is { } chain && chain.Model() == LedgerModel.Account)
         {
-            IAccountSource? source = startPoint.Chain switch
+            IAccountSource? source = chain switch
             {
                 Chain.Ethereum => _ethereum,
                 Chain.Tron => _tron,
-                _ => _bsc,
+                Chain.Bsc => _bsc,
+                Chain.Solana => _solana,
+                _ => null,
             };
             if (source is null)
             {

@@ -96,7 +96,9 @@ public sealed class TestCaseStoryTests : IDisposable
         var wallet = Assert.Single(checks, check => check.Analysis.Name == CheckAnalysisNames.Wallets
             && check.Finding.Addresses.Contains(actors.MixerOut1.Address!));
         Assert.Contains(wallet.Decisions, decision => decision.Verdict == CheckVerdict.Approved);
-        var outputs = Assert.Single(checks, check => check.Analysis.Name == DecideStep.MixerOutputs);
+        var deposit = _harness.Get<TestChain>()[TestStoryChain.Distribution].Txid + ":";
+        var outputs = Assert.Single(checks, check => check.Analysis.Name == DecideStep.MixerOutputs
+            && check.Finding.Key.StartsWith(deposit, StringComparison.Ordinal));
         Assert.Contains(outputs.Decisions, decision => decision.Verdict == CheckVerdict.Approved);
         Assert.True(outputs.Waiting > 0);
         Assert.Contains(checks, check => check.Analysis.Name == "mixer-chain");
@@ -215,6 +217,21 @@ public sealed class TestCaseStoryTests : IDisposable
     }
 
     [Fact]
+    public async Task The_change_conclusion_that_rests_on_the_gone_spend_is_held_back()
+    {
+        using var @case = await OpenAsync();
+        var chain = _harness.Get<TestChain>();
+
+        var held = Assert.Single(_harness.Get<IClusteringService>().GetHeldBack(@case));
+
+        Assert.Equal(chain[TestStoryChain.ReusedDeposit].Txid, held.Txid.Value);
+        Assert.Equal([chain[TestStoryChain.ReplacedSpend].Txid], held.Missing.Select(txid => txid.Value));
+        Assert.True(held.IsWaiting);
+        Assert.NotEmpty(held.Evidence);
+        Assert.Equal(0, _harness.Outside.Attempts);
+    }
+
+    [Fact]
     public async Task A_possible_sanction_a_reported_address_and_a_label_on_a_transaction_are_there()
     {
         using var @case = await OpenAsync();
@@ -251,6 +268,51 @@ public sealed class TestCaseStoryTests : IDisposable
         var tornado = scene.Nodes.Single(node =>
             node.Node.Addresses.Contains(TestEthereumChain.Tornado.ToChainAddress()));
         Assert.Contains(NodeBadge.FormerlySanctioned, tornado.Badges);
+        Assert.Equal(0, _harness.Outside.Attempts);
+    }
+
+    [Fact]
+    public async Task The_two_victims_money_goes_the_same_way_and_a_run_of_alike_amounts_reaches_sydborsen()
+    {
+        using var @case = await OpenAsync();
+        var actors = _harness.Get<TestActors>();
+        var chain = _harness.Get<TestChain>();
+        var graph = await _harness.Get<ITracingService>().LoadAsync(@case);
+
+        var checks = _harness.Get<ICheckService>().Run(@case, graph).Checks
+            .Where(check => check.Analysis.Name == "pattern")
+            .ToList();
+
+        var way = Assert.Single(checks, check => check.Finding.Key.StartsWith(
+            "route:" + actors.PatternDeposit.Address!.Value, StringComparison.Ordinal));
+        Assert.StartsWith("Samma väg, 2 delar", way.Finding.Title, StringComparison.Ordinal);
+        Assert.All(
+            TestStoryChain.PatternHops.SelectMany(hops => hops),
+            hop => Assert.Contains(way.Finding.Basis, basis => basis.Txid.Value == chain[hop].Txid));
+        var alike = Assert.Single(checks, check =>
+            check.Finding.Key == "struct:" + chain[TestStoryChain.StructuringPayments[0]].Txid);
+        Assert.StartsWith("Likadana belopp, 4 i följd", alike.Finding.Title, StringComparison.Ordinal);
+        Assert.Equal(0, _harness.Outside.Attempts);
+    }
+
+    [Fact]
+    public async Task The_payment_to_the_swap_service_gets_its_continuation_on_ethereum_suggested()
+    {
+        using var @case = await OpenAsync();
+        var chain = _harness.Get<TestChain>();
+        var graph = await _harness.Get<ITracingService>().LoadAsync(@case);
+
+        var checks = _harness.Get<ICheckService>().Run(@case, graph).Checks;
+
+        var suggestion = Assert.Single(checks, check => check.Analysis.Name == CheckAnalysisNames.CrossChain
+            && check.Finding.Departure?.Coin?.Txid.Value == chain[TestStoryChain.BridgePayment].Txid);
+        Assert.Equal(CheckKind.Suggestion, suggestion.Finding.Kind);
+        var first = suggestion.Finding.Candidates.MaxBy(candidate => candidate.Score)!;
+        Assert.Equal(Chain.Ethereum, first.Arrival!.Transaction.Chain);
+        Assert.Equal(
+            TestEthereumChain.HashOf(TestEthereumChain.Swap),
+            first.Arrival.Transaction.Id,
+            StringComparer.OrdinalIgnoreCase);
         Assert.Equal(0, _harness.Outside.Attempts);
     }
 

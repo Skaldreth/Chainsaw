@@ -40,6 +40,7 @@ public sealed partial class StartPointRowViewModel : ObservableObject
         Chain.Ethereum => "Ξ",
         Chain.Litecoin => "Ł",
         Chain.Bsc => "B",
+        Chain.Solana => "S",
         _ => string.Empty,
     };
 

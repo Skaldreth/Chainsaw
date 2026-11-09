@@ -171,11 +171,57 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
 - **`ChainTransactionRef.Of(Txid)`** kontrollerar en txid som redan är kontrollerad med ett reguljärt uttryck, för varje
   överföring i varje bygge av grafen (granskningen av etapp 20, M). Billigt, men kan tas bort med en konstruktor som
   litar på `Txid`.
-- **Solana och SOL** (användarens fråga 2026-11-07), efter Ethereum (uppskattningsvis 3–4 etapper): kontomodellen från
-  etapp 20 och Ethereum, men tokens (SPL, Token-2022) ligger i egna tokenkonton som måste knytas till ägaren, en tx har
-  många instruktioner som läses per program (System, Token, DEX-swappar som Jupiter och Raydium), och historiken kräver
-  en arkiverande RPC-källa med API-nyckel i valvet. USDC och USDT på Solana får *Kan frysas*. Swappar mellan tokens och
-  bryggor (Wormhole, deBridge, Mayan) är vanlig förvirring och hör till *Förvirringstekniker*.
+- **Solana efter omgång 8c** (källan, grafen, startpunkterna, sanktionerna, kurserna och bevakningen är byggda,
+  DEV-LOG):
+  - **Andra programs instruktioner:** bara System-, Token-, Token-2022- och ATA-programmen läses (det noden tolkar i
+    `jsonParsed`). Ett program som flyttar lamports själv (stängda programkonton, bonding curves) eller Token-2022:s
+    `transferCheckedWithFee` gör att saldona inte går ihop; tx:en sägs (`EthereumAddressPage.Unexplained`) och det som
+    fattas visas inte. Att läsa fler program, eller visa resten som en namngiven bedömning (*netto ur saldona*,
+    streckad, med *Varför?*), är nästa steg; det senare skissas först.
+  - **En nyckel i endpointens sökväg** (Helius, QuickNode): Chainsaw skickar nyckeln bara som `Authorization: Bearer`
+    och förseglar ett JSON-RPC-svar under värden ensam (sökvägen förseglas aldrig), men en leverantör som kräver
+    nyckeln i sökvägen kan bara läggas till med nyckeln i adressen, som då ligger i inställningarna utanför valvet. En
+    platshållare för valvet i adressen (`{nyckel}`) skulle hålla den där.
+  - **Bevakningen i fas på Solana:** en endpoint räknas i fas bara med exakt den högsta sloten i sin omgång, och
+    slotarna går 2,5 i sekunden; *efter* har en marginal på 75 slotar (`ChainSources.HeightMarginOf`), men *i fas*
+    för bevakningen har det inte.
+  - **En full sida i en enda slot** (granskningen av omgång 8c, M2): sidor efter slot kommer inte förbi en full sida
+    som ligger i en slot (`SolanaSignaturePage.IsCutShort`), så historiken för en upptagen börs hot wallet med 25 tx
+    eller fler i samma slot slutar där. Det sägs ärligt, men Solana kan bläddra efter signatur; en sida som skärs av
+    borde behålla en signatur som markör och fortsätta därifrån.
+  - **Ägare som saknas eller byts** (granskningen av omgång 8c, M3): äldre tx har inget `owner` i sina tokensaldon. Ett
+    tokenkonto som skapas i tx:en får sin ägare ur `initializeAccount` eller ATA-`create` (rättat med I2), men ett äldre
+    konto utan ägare faller tillbaka på tokenkontots adress, så samma ägare kan synas som två parter. Ett ägarbyte inne
+    i tx:en (`setAuthority`) räknas helt till den nya ägaren. Inget av det sägs eller testas än.
+  - **Token-2022 med avgift** (andra granskningen av omgång 8c, M1): `transferChecked` på en mint med överföringsavgift
+    ritar bruttobeloppet på linjen (1000), medan mottagaren fick 990; tx:en sägs som oförklarad, men spårningen följer
+    hela 1000. Dra av `feeAmount` eller rita linjen streckad med *Varför?*.
+  - **Endpointens sökväg finns inte i ärendet** (M2): en egen nod på `https://node.lan/solana` förseglas som
+    `https://node.lan/#…`; bara `endpoint_id` och namnet säger vilken endpoint det var. Försegla en hash av hela
+    adressen, eller säg det i Guiden.
+  - **Hash-jämförelsen hex eller Base58 står två gånger** (M3): `BlockChangeRule.HashComparison` och
+    `MonitoringService.HashComparison`; en regel i Contracts.
+  - **Ägarbyte inne i tx:en** (M4): `Know` håller ägaren från saldona före, så rörelser efter en `setAuthority` räknas
+    till den gamla ägaren; märk åtminstone tx:en oförklarad när ägaren före och efter skiljer sig.
+  - **Stängda tokenkonton:** tokenhistoriken läser ägarens tokenkonton som noden listar dem nu; ett stängt konto finns
+    inte där, och dess rörelser hittas bara i tx:er som ägaren själv signerade.
+  - **Kända tokens i tokenhistoriken** är USDT och USDC; andra SPL-tokens syns i hela tx:er och i ägarens egna
+    signaturer.
+  - **En sida kostar ett uppslag per tx** (signaturlistan säger inte vad som flyttades), och den publika noden tar tio
+    `getTransaction` per tio sekunder. En köpt eller egen nod med högre takt behöver bara läggas till under *Källor*;
+    en batch av JSON-RPC-anrop skulle spara tid men förseglas då som ett svar för flera tx.
+  - **Sidorna efter signatur:** Solana bläddrar med `before` (en signatur), så en äldre sida kan bara frågas efter att
+    den nyare har lästs i samma körning (`SolanaPageMemory`); läsarna gör alltid så, och ur ärendet läses sidan på sin
+    slot.
+  - **Gamla tx utan `blockTime`** (de första månaderna 2020) kan inte läsas: tiden saknas.
+  - **Fryst:** saldot säger när ett tokenkonto är fryst (`state: frozen`), men grafen har ingen markering för det
+    (TODO, [skiss] *Fryst*).
+  - **Jupiter och Raydium som DEX i swap-pillret (DX1b):** swappen känns igen på mönstret och priset prövas, men
+    programmens adresser står inte i `KnownContracts` med en offentlig källa; läggs till när de kan beläggas.
+  - **Bryggor från Solana** (Wormhole, deBridge, Mayan) känns inte igen som slut på spåret; samma skäl.
+  - **Chainabuse på Solana:** leverantören frågas bara för Bitcoin och Ethereum (`ChainabuseProvider`).
+  - **Wrapped SOL som ägarens:** ett wrapped-SOL-kontos lamports räknas som ägarens (dess tokensaldo säger vem det
+    är), också den hyra som ligger i kontot; det gör att en pools SOL och token möts hos samma ägare.
 - **Zcash** (användarens fråga 2026-11-07): den genomskinliga delen (t-adresser) är en UTXO-kedja som Bitcoin och
   passar efter etapp 20 som de andra UTXO-kedjorna, men Esplora finns inte för Zcash, så källan blir en annan (en
   tjänst med API-nyckel eller egen nod med Zebra). Tx som går in i den skyddade poolen (Sapling, Orchard) blir *Spåret
@@ -230,7 +276,6 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
 - **Varför en endpoint fick röd prick** (etapp 24, granskningen omgång 2, M): en nyckel som saknas i valvet gör att
   endpointen hoppas över och får röd prick med den allmänna texten *Ett uppslag genom den misslyckades …*; att nyckeln
   saknas står bara i uppslagets text. Raden kunde säga orsaken.
-- **Solana i sidan Källor** (etapp 24): chipet står tonat, men `Chain` har inget värde för Solana än.
 - **Tx på en adress sida kontrolleras inte mot sina bytes** (etapp 15): bara tx som expanderas för sig (och deras
   spenderare) hämtar `/tx/:txid/hex`. En adress historik med 50 tx skulle kosta 50 uppslag till. Kontrollera dem när
   de visas i inspektören, eller i bakgrunden?
@@ -734,6 +779,9 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
   (GR8a) sparas på datorn och läses bara när startvyn visas, så `/testdata` lägger inga ärenden i en hög.
 - **Bara Bitcoin** i det bytta blocket: en tx på Ethereum som bytt block väntar på att Ethereums svar jämförs (TODO,
   *Bytt block på Ethereum*).
+- **Samma insamling och Rundgång** (`pattern v1`) finns inte i testärendet: berättelsen har *Samma väg* och
+  *Likadana belopp* (2026-11-09). En insamling (minst fem avsändare till en adress, två gånger, svepta till samma
+  okända plånbok) och en rundgång genom två mellanhänder tillbaka vore nästa.
 - **Adressförgiftningens par** är framsökt: fröna till Sydbörsens insättning och förgiftarens adress
   (`sydborsen-insattning-1849900` och `forgiftaren-754626`) hittades genom att pröva miljontals frön tills de fyra
   första och sista tecknen var lika. Byts adresstyp eller prefix i `TestAddress` måste paret sökas om.
