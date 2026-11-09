@@ -28,6 +28,9 @@ public sealed partial class GraphCanvas : FrameworkElement
     /// <summary>A node's corner radius.</summary>
     private const double NodeRadius = 10;
 
+    /// <summary>How thick the chevron that shows a line's direction is drawn, whatever the line's thickness.</summary>
+    private const double ArrowWidth = 1.5;
+
     /// <summary>The square that holds a node's icon.</summary>
     private const double IconBox = 24;
 
@@ -776,7 +779,60 @@ public sealed partial class GraphCanvas : FrameworkElement
         // of twice and differ by a shade.
         var faded = PushFade(dc, opacity);
         dc.DrawGeometry(null, pen, CurveGeometry(curve));
+        DrawArrow(dc, edge, curve, ink);
         PopFade(dc, faded);
+    }
+
+    /// <summary>
+    /// Draws the small chevron that shows which way the money flows on a line (<see cref="EdgeArrow"/>), clear of its
+    /// amount and its swap pill, in the line's own colour and always whole, also on a dashed line.
+    /// </summary>
+    /// <param name="dc">Where to draw.</param>
+    /// <param name="edge">The line.</param>
+    /// <param name="curve">Its curve.</param>
+    /// <param name="ink">The line's colour.</param>
+    private void DrawArrow(DrawingContext dc, EdgeView edge, EdgeCurve curve, Brush ink)
+    {
+        if (EdgeArrow.On(curve, edge.Width, OnTheLine(edge, curve)) is not { } arrow)
+        {
+            return;
+        }
+
+        var geometry = new StreamGeometry();
+        using (var context = geometry.Open())
+        {
+            context.BeginFigure(ToPoint(arrow.Wing1), false, false);
+            context.LineTo(ToPoint(arrow.Tip), true, true);
+            context.LineTo(ToPoint(arrow.Wing2), true, true);
+        }
+
+        geometry.Freeze();
+        dc.DrawGeometry(null, RoundPen(ink, ArrowWidth), geometry);
+    }
+
+    /// <summary>Gives what stands on a line and the arrow keeps clear of: its amount and its swap pill.</summary>
+    /// <param name="edge">The line.</param>
+    /// <param name="curve">Its curve.</param>
+    /// <returns>The boxes.</returns>
+    private List<GraphRect> OnTheLine(EdgeView edge, EdgeCurve curve)
+    {
+        var boxes = new List<GraphRect>(2);
+        if (_model!.Amounts.TryGetValue(edge.Key, out var spot))
+        {
+            boxes.Add(spot.Box);
+        }
+        else if (edge.Label.Length > 0)
+        {
+            // Without a free place the amount is written at the middle while the line is hovered or chosen.
+            boxes.Add(AmountLayout.BoxAt(edge, curve.Middle));
+        }
+
+        if (AmountLayout.SwapBox(edge, curve) is { } pill)
+        {
+            boxes.Add(pill);
+        }
+
+        return boxes;
     }
 
     /// <summary>Gives how faint a line is: faint away from what is chosen, a little faint without traced money.</summary>
