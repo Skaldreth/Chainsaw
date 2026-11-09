@@ -66,8 +66,7 @@ internal static class AccountTraceCalculator
         }
 
         var checks = graph.Account.Swaps.Select(swap => SwapValue.CheckPrice(swap, pricing)).ToList();
-        var swaps = SwapSteps.Of(
-            graph, checks.Where(check => check.IsUnreasonable).Select(check => check.Swap).ToHashSet());
+        var swaps = SwapSteps.Of(graph, checks);
         var seedAssets = seeded.Select(transfer => transfer.Amount.Asset).Distinct().ToList();
         var assets = swaps.Reachable(seedAssets);
         var tracers = assets.ToDictionary(
@@ -126,7 +125,10 @@ internal static class AccountTraceCalculator
         }
     }
 
-    /// <summary>Puts the traced value that went into a followed swap on what came out of it.</summary>
+    /// <summary>
+    /// Puts the traced value that went into a followed swap on what came out of it; when what came out was worth more
+    /// than what went in, only the share that went in follows, so that the traced value never grows.
+    /// </summary>
     /// <param name="sold">The tracer of the sold asset.</param>
     /// <param name="bought">The tracer of the bought asset.</param>
     /// <param name="step">The swap.</param>
@@ -135,7 +137,9 @@ internal static class AccountTraceCalculator
     {
         var traced = sold.TracedOf(step.SoldTransfers);
         return step.BoughtTransfers.Aggregate(false, (any, transfer) => bought.SwapIn(
-            transfer, SwapValue.Follow(traced, step.Swap.Sold, transfer.Amount.Units)) | any);
+            transfer,
+            SwapPriceCheck.ShareOf(
+                SwapValue.Follow(traced, step.Swap.Sold, transfer.Amount.Units), step.FollowShare)) | any);
     }
 
     /// <summary>Gives what the rule did at each swap the traced money reached.</summary>
@@ -185,17 +189,8 @@ internal static class AccountTraceCalculator
     /// <param name="traced">The traced units that went in.</param>
     /// <param name="keptShare">What came out was worth as a share of what went in, or <see langword="null"/>.</param>
     /// <returns>The units that stay in the pool.</returns>
-    private static BigInteger KeptOf(BigInteger traced, decimal? keptShare)
-    {
-        if (keptShare is not { } share || share >= 1)
-        {
-            return BigInteger.Zero;
-        }
-
-        const long Scale = 1_000_000_000_000;
-        var follows = traced * new BigInteger(Math.Floor(share * Scale)) / Scale;
-        return traced - follows;
-    }
+    private static BigInteger KeptOf(BigInteger traced, decimal? keptShare) =>
+        keptShare is null ? BigInteger.Zero : traced - SwapPriceCheck.ShareOf(traced, keptShare);
 
     /// <summary>
     /// Finds which swaps each movement's traced money may rest on: what came out of a followed swap rests on it and on
@@ -275,21 +270,26 @@ internal static class AccountTraceCalculator
         /// linked to another chain is never part of a swap, and what came out.
         /// </summary>
         /// <param name="graph">The graph.</param>
-        /// <param name="absurd">
-        /// The swaps whose price is absurd (<see cref="SwapValue.CheckPrice"/>): they are no swaps in the trace, and the
-        /// money goes on to the pool as an ordinary payment.
+        /// <param name="checks">
+        /// The swaps' price checks (<see cref="SwapValue.CheckPrice"/>): a swap whose price is absurd is no swap in the
+        /// trace, and the money goes on to the pool as an ordinary payment; one where more came out than went in lets
+        /// only the share that went in follow.
         /// </param>
         /// <returns>The swaps.</returns>
-        public static SwapSteps Of(TraceGraph graph, IReadOnlySet<TokenSwap> absurd) => new(
+        public static SwapSteps Of(TraceGraph graph, IReadOnlyList<SwapPriceCheck> checks) => new(
         [
-            .. graph.Account.Swaps.Where(swap => !absurd.Contains(swap)).Select(swap => new SwapStep(
-                swap,
-                [
-                    .. graph.Account.Transfers.Where(transfer => SwapValue.GoesIn(
-                        swap, AssetTransfer.OfEthereum(transfer, null), graph.CrossChainLinks)),
-                ],
-                [.. graph.Account.Transfers.Where(swap.IsBought)],
-                SwapValue.StopOf(swap, graph.SwapStops))),
+            .. graph.Account.Swaps
+                .Select(swap => (Swap: swap, Check: checks.FirstOrDefault(check => check.Swap.Equals(swap))))
+                .Where(pair => pair.Check?.IsUnreasonable != true)
+                .Select(pair => new SwapStep(
+                    pair.Swap,
+                    [
+                        .. graph.Account.Transfers.Where(transfer => SwapValue.GoesIn(
+                            pair.Swap, AssetTransfer.OfEthereum(transfer, null), graph.CrossChainLinks)),
+                    ],
+                    [.. graph.Account.Transfers.Where(pair.Swap.IsBought)],
+                    SwapValue.StopOf(pair.Swap, graph.SwapStops),
+                    pair.Check?.FollowShare)),
         ]);
 
         /// <summary>
@@ -332,11 +332,16 @@ internal static class AccountTraceCalculator
     /// <param name="SoldTransfers">The movements the account sent into it.</param>
     /// <param name="BoughtTransfers">The movements that came out of it to the account.</param>
     /// <param name="Stop">The user's choice that the value does not follow, or <see langword="null"/>.</param>
+    /// <param name="FollowShare">
+    /// The share of what came out that follows when it was worth more than what went in
+    /// (<see cref="SwapPriceCheck.FollowShare"/>), or <see langword="null"/> for the whole traced share.
+    /// </param>
     private sealed record SwapStep(
         TokenSwap Swap,
         IReadOnlyList<EthereumTransfer> SoldTransfers,
         IReadOnlyList<EthereumTransfer> BoughtTransfers,
-        SwapStop? Stop)
+        SwapStop? Stop,
+        decimal? FollowShare)
     {
         /// <summary>Gets whether the traced value follows through the swap.</summary>
         public bool Follows => Stop is null;

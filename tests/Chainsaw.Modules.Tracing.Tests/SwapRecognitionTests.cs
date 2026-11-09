@@ -327,6 +327,32 @@ public sealed class SwapRecognitionTests : IDisposable
     }
 
     [Fact]
+    public async Task More_out_than_in_within_the_band_never_grows_the_traced_value()
+    {
+        // The reviewer's probe: 1 000 USDT (10 000 kr) in, 0.4 ETH (12 000 kr) out, 20 % more, within the band.
+        var graph = await Build(["m-swap"],
+            Tx("m-victim", 101, Victim, 0m, Token(Victim, Scammer, Usdt(1000))),
+            Tx("m-swap", 110, Scammer, 0m, Token(Scammer, BridgePool, Usdt(1000)),
+                Internal(BridgePool, Scammer, 0.4m)),
+            Tx("m-out", 130, Scammer, 0m, Eth(Scammer, Exchange, 0.4m)));
+
+        var result = await FromVictim(graph, Rates);
+
+        var check = Assert.Single(result.PriceChecks);
+        Assert.Equal(SwapPriceVerdict.Reasonable, check.Verdict);
+        Assert.Null(check.KeptShare);
+        var conversion = Assert.Single(result.Swaps);
+        Assert.Equal(Usdt(0), conversion.KeptByPool);
+        var traced = conversion.TracedBought;
+        Assert.Equal(SwapPriceCheck.ShareOf(Ether(0.4m).Units, check.FollowShare), traced.Units);
+        Assert.True(Rates.ValueAt(traced, DateTimeOffset.UnixEpoch) <= 10_000m);
+        Assert.True(Rates.ValueAt(traced, DateTimeOffset.UnixEpoch) > 9_999.99m);
+        var exchange = Assert.Single(result.Ends, end => end.NodeKey == Key(graph, Exchange));
+        Assert.Equal(traced, exchange.Amount.Amount);
+        Assert.Contains("värt mer än det som gick in", conversion.Explain(), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task A_label_set_later_refuses_the_swap_and_says_why()
     {
         _harness.Labels.Accounts[Pair.ToChainAddress()] = TrailEndReason.Exchange;

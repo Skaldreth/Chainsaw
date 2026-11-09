@@ -78,6 +78,32 @@ public sealed class SwapPriceRatesTests
             StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task More_out_than_in_is_said_as_a_recalculation_since_less_follows()
+    {
+        var (source, _, @case) = Setup(Weth(0.16m));
+
+        var before = await source.LoadAsync(@case, TracingMethodKind.Fifo, CancellationToken.None);
+        await source.FillRatesAsync(@case, before, CancellationToken.None);
+        var after = await source.LoadAsync(@case, TracingMethodKind.Fifo, CancellationToken.None);
+
+        var check = Assert.Single(after.Snapshot.AccountTrace!.PriceChecks);
+        Assert.NotNull(check.FollowShare);
+        Assert.Single(GraphViewModel.RecalculatedSwaps(
+            before.Snapshot.AccountTrace!.PriceChecks, after.Snapshot.AccountTrace.PriceChecks));
+    }
+
+    [Fact]
+    public async Task An_untested_swap_that_no_traced_money_goes_through_asks_for_no_rates()
+    {
+        var (source, _, @case) = Setup(Weth(100), throughSwap: false);
+
+        var scene = await source.LoadAsync(@case, TracingMethodKind.Fifo, CancellationToken.None);
+
+        Assert.Equal(SwapPriceVerdict.NotTested, Assert.Single(scene.Snapshot.AccountTrace!.PriceChecks).Verdict);
+        Assert.False(scene.HasUntestedSwapPrices);
+    }
+
     /// <summary>Gives wrapped ether.</summary>
     private static AssetAmount Weth(decimal amount) =>
         new(KnownTokens.EthereumWeth, new BigInteger(amount * 1_000_000_000_000_000_000m));
@@ -85,9 +111,10 @@ public sealed class SwapPriceRatesTests
     /// <summary>
     /// Gives a source over the sample graph whose swap sells 400 USDT for the wrapped ether given, at the swap's time;
     /// the rates (ether 30 000 kr, USDT 10 kr) are only at the source, and the trace checks the swap's price with what
-    /// the source hands it.
+    /// the source hands it. Traced money goes through the swap unless <paramref name="throughSwap"/> is false.
     /// </summary>
-    private static (GraphSource Source, TestPrices Prices, TestCase Case) Setup(AssetAmount bought)
+    private static (GraphSource Source, TestPrices Prices, TestCase Case) Setup(
+        AssetAmount bought, bool throughSwap = true)
     {
         var graph = EthSamples.Graph();
         var swap = new TokenSwap(Hash(3), S.ToChainAddress(), Usdt(400), bought)
@@ -103,6 +130,13 @@ public sealed class SwapPriceRatesTests
                 new TracingMethodId(request.Method, 1), request.Seeds, [])
             {
                 PriceChecks = [.. traced.Account.Swaps.Select(each => SwapValue.CheckPrice(each, request.Pricing))],
+                Swaps = throughSwap
+                    ? [.. traced.Account.Swaps.Select(each => new SwapConversion(
+                        each, each.Sold, each.Bought, new TracingMethodId(request.Method, 1), null)
+                    {
+                        Price = SwapValue.CheckPrice(each, request.Pricing),
+                    })]
+                    : [],
             },
         };
         var prices = new TestPrices { AtSourceOnly = true };

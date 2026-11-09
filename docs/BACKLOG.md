@@ -13,7 +13,8 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
     inte där.
   - **Swappens pris och val** (SW1a, femte och sjätte granskningen): `StopAtSwap` läser hela ärendets Ethereum-del
     för att se att swappen finns, inte bara tx:ens svar; och exponeringen (EP1b) drar inte av den del som stannar i
-    poolen när det som kom ut var värt mindre (spåret gör det, med slutet *Stannar i poolen*).
+    poolen när det som kom ut var värt mindre, och inte heller andelen när det var värt mer (spåret gör båda;
+    *Varför?* i Exponering säger det).
   - **Swappar som inte känns igen** (SW1a, andra granskningen; hellre ingen swap än en felaktig): Uniswap V2 genom
     routern när bara historiken är hämtad (parets WETH till routern syns först när hela tx:en läses; att läsa swappens
     tx av sig själv vore ett uppslag per swap), och en aggregator som tar en avgift till en egen adress i samma tx (en

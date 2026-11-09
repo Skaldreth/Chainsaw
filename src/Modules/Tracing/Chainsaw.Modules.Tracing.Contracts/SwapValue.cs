@@ -212,12 +212,30 @@ public sealed record SwapConversion(
             $"Swap i tx {Swap.Transaction.Value}: in {Swap.Sold}, varav spårat {TracedSold} enligt {Method} ");
         text.Append(CultureInfo.InvariantCulture, $"({ShareText}); ut {Swap.Bought}");
         text.Append(Swap.Venue is { } venue ? $" genom {venue.Name}." : ".");
-        text.Append(Follows
-            ? string.Create(CultureInfo.InvariantCulture,
-                $" Värdet följer med: samma andel av det som kom ut, {TracedBought}, enligt {SwapValue.Analysis}.")
-            : " Spåret slutar i swappen, enligt användarens val.");
+        text.Append(Follows ? FollowsText() : " Spåret slutar i swappen, enligt användarens val.");
         text.Append(" Det är en bedömning, inte ett faktum på kedjan.");
         return text.ToString();
+    }
+
+    /// <summary>
+    /// Says what follows through the swap, and what the price check took away: the part that stays in the pool when
+    /// less value came out, or the part not traced when more came out.
+    /// </summary>
+    /// <returns>The sentences, each starting with a space.</returns>
+    private string FollowsText()
+    {
+        if (Price?.FollowShare is not null)
+        {
+            return string.Create(CultureInfo.InvariantCulture,
+                $" Det som kom ut var värt mer än det som gick in ({Price.Summary}), så bara den andel som det spårade "
+                + $"var värt följer med, {TracedBought}, enligt {SwapValue.Analysis}; resten är inte spårat.");
+        }
+
+        var kept = KeptByPool.Units.Sign > 0
+            ? string.Create(CultureInfo.InvariantCulture, $" {KeptByPool} stannar i poolen ({Price!.Summary}).")
+            : string.Empty;
+        return string.Create(CultureInfo.InvariantCulture,
+            $" Värdet följer med: samma andel av det som kom ut, {TracedBought}, enligt {SwapValue.Analysis}.{kept}");
     }
 }
 
@@ -270,6 +288,33 @@ public sealed record SwapPriceCheck(
     public decimal? KeptShare => Verdict == SwapPriceVerdict.Reasonable && SoldValue > 0 && BoughtValue < SoldValue
         ? BoughtValue / SoldValue
         : null;
+
+    /// <summary>
+    /// Gets what went in was worth as a share of what came out, when the price is tested and more came out, for
+    /// example 0.8; <see langword="null"/> otherwise. Only that share of what came out follows as traced, so that the
+    /// traced value never grows through a swap; the rest is not traced.
+    /// </summary>
+    public decimal? FollowShare => Verdict == SwapPriceVerdict.Reasonable && BoughtValue > 0 && SoldValue < BoughtValue
+        ? SoldValue / BoughtValue
+        : null;
+
+    /// <summary>Gets whether the tested price changes the traced amounts: an absurd price, or values that differ.</summary>
+    public bool ChangesAmounts => IsUnreasonable || KeptShare is not null || FollowShare is not null;
+
+    /// <summary>Takes a share of an amount in whole units, rounded down, so that the share never creates value.</summary>
+    /// <param name="units">The units.</param>
+    /// <param name="share">The share, from 0 to 1, or <see langword="null"/> for all of it.</param>
+    /// <returns>The share of the units.</returns>
+    public static BigInteger ShareOf(BigInteger units, decimal? share)
+    {
+        if (share is not { } part || part >= 1)
+        {
+            return units;
+        }
+
+        const long Scale = 1_000_000_000_000;
+        return units * new BigInteger(Math.Floor(Math.Max(part, 0) * Scale)) / Scale;
+    }
 
     /// <summary>
     /// Gets how much the values in and out differ, as a share of the larger, for example 0.001; <see langword="null"/>

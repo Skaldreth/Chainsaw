@@ -436,8 +436,9 @@ public sealed record GraphScene(
     /// Gets whether a swap that traced money goes through has not had its price tested, for want of a rate, so that the
     /// rates are asked for and the trace calculated again.
     /// </summary>
-    public bool HasUntestedSwapPrices => Snapshot.AccountTrace?.PriceChecks
-        .Any(check => check.Verdict == SwapPriceVerdict.NotTested && check.Swap.Time is not null) == true;
+    public bool HasUntestedSwapPrices => Snapshot.AccountTrace?.Swaps
+        .Any(conversion => conversion.Price is { Verdict: SwapPriceVerdict.NotTested }
+            && conversion.Swap.Time is not null) == true;
 
     /// <summary>Gives the lines' values as the scene has them, to be changed and shown again.</summary>
     public GraphRates Rates => new(Snapshot.Values, Snapshot.ValueGaps, Snapshot.Rates);

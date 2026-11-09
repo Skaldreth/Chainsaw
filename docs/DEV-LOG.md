@@ -4037,3 +4037,14 @@ Inga C; två I med samma rot i hur en swap känns igen, och fyra M.
   kurserna hämtats, och sägs som omräknad), ett rimligt pris med 2,5 % i poolen, en källa som ber Chainsaw vänta, och
   i Tracing 1 000 USDT mot 0,32 ETH (40 USDT stannar i poolen, 960 följer, summan 1 000).
 - **Kvar (BACKLOG):** exponeringen drar inte av poolens del.
+
+## Sjunde granskningen av SW1a rättad: värdet växer aldrig genom en swap (2026-11-09)
+
+- **I, mer ut än in inom bandet:** regeln är symmetrisk. Var det som kom ut värt mer än det som gick in följer bara
+  andelen (värdet in / värdet ut) av det köpta som spårat, avrundat nedåt (`SwapPriceCheck.FollowShare`,
+  `SwapPriceCheck.ShareOf`); resten är inte spårat. Granskarens prob (10 000 kr in, 12 000 kr ut) är ett test bredvid
+  fallet med mindre ut.
+- **M-4:** toastern säger också när beloppen ändrades av detta (`SwapPriceCheck.ChangesAmounts`).
+- **M-1:** *Varför?* i Exponering säger att poolens del inte dras av där (BACKLOG).
+- **M-2:** grafen läses om för swapparnas kurser högst en gång per läsning.
+- **M-3:** `HasUntestedSwapPrices` gäller bara swappar som spårade pengar går genom.

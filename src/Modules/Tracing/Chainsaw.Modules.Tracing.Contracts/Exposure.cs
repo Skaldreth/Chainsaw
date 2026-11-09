@@ -196,6 +196,14 @@ public sealed record ExposureResult(
     public static string Analysis { get; } =
         AnalysisName + " v" + AnalysisVersion.ToString(CultureInfo.InvariantCulture);
 
+    /// <summary>
+    /// What <em>Varför?</em> adds about a way through a swap: the exposure does not deduct the part that stays in the
+    /// pool when the values in and out differ, which the graph's trace does.
+    /// </summary>
+    public const string PoolNotDeducted =
+        " Poolens del dras inte av här när värdena in och ut skiljer (det gör spåret i grafen), så andelen kan vara "
+        + "något för stor.";
+
     /// <summary>Gets what reached no service, all reasons together.</summary>
     public AssetAmount Unknown => Rest.Values.Aggregate(AssetAmount.Zero(Total.Asset), (sum, part) => sum + part);
 
@@ -231,6 +239,7 @@ public sealed record ExposureResult(
                 $" Vägen går genom {reach.Swaps.Count} swap(par), i tx {string.Join(", ", reach.Swaps)} med "
                 + $"ämnets andel av det som {SwapSides().Known} inom parentes; där följer värdet med enligt "
                 + $"{SwapValue.Analysis}: samma andel av det som {SwapSides().Other}, räknat i {Total.Asset.Symbol}.");
+            text.Append(PoolNotDeducted);
         }
 
         text.Append(reach.Amount.Asset.Chain.Model() == LedgerModel.Utxo

@@ -23,12 +23,19 @@ public sealed partial class GraphViewModel
     /// </summary>
     private IReadOnlyList<SwapPriceCheck>? _swapChecksBefore;
 
+    /// <summary>
+    /// Gets whether the graph shown was read again for the swaps' rates, so that a reading is read again for them at
+    /// most once and a rate that keeps arriving can never loop.
+    /// </summary>
+    private bool _swapRereadUsed;
+
     /// <summary>What the toaster says when the trace through a swap changed after the swaps' rates arrived.</summary>
     public const string SwapsRecalculatedText = "Spåret genom en swap räknades om efter kurserna.";
 
     /// <summary>
     /// Says which swaps the trace goes through differently now that their price is tested: one whose price became
-    /// absurd (the value no longer follows) or where less came out than went in (part stays in the pool).
+    /// absurd (the value no longer follows), where less came out than went in (part stays in the pool), or where more
+    /// came out (only the share that went in follows).
     /// </summary>
     /// <param name="before">The checks before the rates arrived.</param>
     /// <param name="after">The checks now.</param>
@@ -42,9 +49,10 @@ public sealed partial class GraphViewModel
         ArgumentNullException.ThrowIfNull(after);
         return
         [
-            .. after.Where(check => check.IsUnreasonable || check.KeptShare is not null)
+            .. after.Where(check => check.ChangesAmounts)
                 .Where(check => before.FirstOrDefault(old => old.Swap.Equals(check.Swap)) is { } old
-                    && (old.Verdict != check.Verdict || old.KeptShare != check.KeptShare))
+                    && (old.Verdict != check.Verdict || old.KeptShare != check.KeptShare
+                        || old.FollowShare != check.FollowShare))
                 .Select(check => $"{SwapMarks.Of(check.Swap).Text} i tx "
                     + $"{GraphScene.Shorten(check.Swap.Transaction.Value)}: {check.Summary}"),
         ];
@@ -57,6 +65,7 @@ public sealed partial class GraphViewModel
     /// <param name="scene">The scene just read.</param>
     private void TellRecalculatedSwaps(GraphScene scene)
     {
+        _swapRereadUsed = _swapChecksBefore is not null;
         if (_swapChecksBefore is not { } before)
         {
             return;
@@ -125,7 +134,7 @@ public sealed partial class GraphViewModel
                 return;
             }
 
-            if (rates.SwapRatesFetched)
+            if (rates.SwapRatesFetched && !_swapRereadUsed)
             {
                 // A swap's price can now be tested, which may change where the traced money goes: the trace is
                 // calculated again, and the reading says once what changed (TellRecalculatedSwaps).

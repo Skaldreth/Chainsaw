@@ -83,7 +83,8 @@ missad bara låter spåret sluta ärligt vid poolen som *inte expanderad*. Chain
   genom en swap räknades om efter kurserna*. Offline, eller när källan ber Chainsaw vänta, står priset kvar som inte
   prövat, och det står i *Varför?* och i begäran. Var det som kom ut värt mindre än det som gick in, men inom en
   femtedel, följer bara så stor del av det spårade med som det som kom ut var värt; resten **stannar i poolen** som
-  avgifter och slippage, ett eget slut på spåret, så att det spårade beloppet inte ser helt ut när värde försvunnit;
+  avgifter och slippage, ett eget slut på spåret, så att det spårade beloppet inte ser helt ut när värde försvunnit. Var det som kom ut värt mer, följer bara den andel som det spårade var värt med, och resten
+  är inte spårat: det spårade värdet växer aldrig genom en swap;
 - ingen motpart är en känd brygga eller mixer, eller har en etikett som börs, mixer eller brygga: dit ska spåret nå.
   *Varför?* på linjen och noden säger då *Ingen swap* med etiketten och dess källa, och ett val *Följer inte* som
   redan finns står kvar i Historik med *ingen swap längre*.
