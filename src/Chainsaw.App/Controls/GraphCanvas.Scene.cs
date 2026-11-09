@@ -323,7 +323,8 @@ public sealed partial class GraphCanvas
     private void KeepSceneMotions()
     {
         KeepRings((_ringsOnScreen || _ringsOverNodes) && _blast == BlastPhase.None);
-        KeepTurning(_cardsMove || _breathing.Count > 0);
+        // A turn keeps the frames running until a whole drawing has settled it, even one that ended while drawing.
+        KeepTurning(_cardsMove || _turns.Count > 0 || _breathing.Count > 0);
     }
 
     /// <summary>
@@ -437,18 +438,24 @@ public sealed partial class GraphCanvas
     {
         _drawingOverNodes = true;
         _ringsOverNodes = false;
-        dc.PushTransform(FanPush());
-        DrawCards(dc, nearNodes);
-        DrawTrashPending(dc);
-        dc.PushOpacity(HeldBackMotion.LineOpacity(_blast, BlastK));
-        DrawCandidates(dc, visible);
-        DrawAreaChips(dc, visible);
-        DrawGuide(dc);
-        dc.Pop();
-        dc.Pop();
-        DrawFan(dc, visible);
-        DrawFound(dc);
-        _drawingOverNodes = false;
+        try
+        {
+            dc.PushTransform(FanPush());
+            DrawCards(dc, nearNodes);
+            DrawTrashPending(dc);
+            dc.PushOpacity(HeldBackMotion.LineOpacity(_blast, BlastK));
+            DrawCandidates(dc, visible);
+            DrawAreaChips(dc, visible);
+            DrawGuide(dc);
+            dc.Pop();
+            dc.Pop();
+            DrawFan(dc, visible);
+            DrawFound(dc);
+        }
+        finally
+        {
+            _drawingOverNodes = false;
+        }
     }
 
     /// <summary>
