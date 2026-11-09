@@ -174,7 +174,7 @@ public sealed class EthereumBlockChangeTests : IDisposable
         await Source.GetTransactionAsync(_harness.Case, pending);
         Assert.Empty(await Source.GetBlockChangesAsync(_harness.Case));
 
-        _harness.Clock.UtcNow += TimeSpan.FromMinutes(61);
+        _harness.Clock.UtcNow += TimeSpan.FromMinutes(181);
         await TipAsync(922);
         await Source.GetTransactionAsync(_harness.Case, pending);
         var change = Assert.Single(await Source.GetBlockChangesAsync(_harness.Case));

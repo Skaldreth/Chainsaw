@@ -6008,8 +6008,8 @@ De två resterna ur TODO efter Bitcoin-etappen (*Ethereum* och *En obekräftad t
 - **Chains, regeln `mempool-gone v1`** (`BlockChangeRule.CompareMempool`): en tx som inget svar haft i ett block
   räknas som borta när två svar i rad efter det senaste som hade den säger att källan inte känner den (bekräftade som
   förut: olika endpoints eller ett nytt block emellan, från endpoints som hade kommit minst lika långt som ärendet när
-  det sist såg tx:en), det nyaste minst en timme (`MempoolGrace`) efter det, och ärendet då har sett minst ett nytt
-  block. Bitcoin-kandidaterna (`BlockChangeCandidates`) tar med `404` efter ett svar i mempool, inte bara efter ett i
+  det sist såg tx:en), det nyaste minst en väntetid efter det, och ärendet då har sett minst ett nytt block
+  (granskningen skärpte regeln, se nedan). Bitcoin-kandidaterna (`BlockChangeCandidates`) tar med `404` efter ett svar i mempool, inte bara efter ett i
   ett block. `Compare` kraschade när inget svar låg i ett block (`FirstOrDefault` på en struct), vilket aldrig nåddes
   förut; rättat.
 - **Förseglat och journalfört:** en ny förseglad kedja `chains.mempool_gone` (schema 2 i Chains) med en post `gone`
@@ -6037,9 +6037,8 @@ De två resterna ur TODO efter Bitcoin-etappen (*Ethereum* och *En obekräftad t
   ytor.
 
 **Egna beslut och avsteg:**
-- **Regeln:** en timme och ett nytt block, utöver de två bekräftande svaren. En publik källa har många noder, och en ny
-  tx har inte alltid nått alla; en timme är sex Bitcoin-block och hundratals Ethereum-block, så en giltig tx med rimlig
-  avgift har normalt hunnit in. Värdet är en konstant i koden, inte en inställning.
+- **Regeln:** väntetid och ett nytt block, utöver de två bekräftande svaren från mer än en värd (se granskningen
+  nedan). Väntetiderna är konstanter i koden, inte inställningar.
 - **Kontomodellen lämnar en borta tx utanför i stället för att avsluta spåret där.** På Bitcoin slutar spåret vid en
   borta tx och ersättaren följs bara efter ett val, eftersom myntets identitet avgör vart pengarna går. På en
   kontokedja finns bara saldot, och en tx som inte finns har inte ändrat det; att pengarna ligger kvar hos avsändaren
@@ -6054,7 +6053,6 @@ De två resterna ur TODO efter Bitcoin-etappen (*Ethereum* och *En obekräftad t
 - TRON (TronGrid) har inte `mempool-gone v1` och sätter inte värdarna för en borta tx; dess svar om en tx som inte
   finns ser annorlunda ut. Kontomodellens spårning lämnar ändå en borta TRON-tx utanför när källan säger att den är
   borta.
-- Nodens baksida (IN4a, innehavet) räknar fortfarande linjernas alla överföringar, också en borta tx:s.
 - Kontrollerna för annan kedja (`CrossChainPayments`, `CrossChainCheck`) läser `AccountGraph.Transfers` med en borta tx.
 - Testärendet `/testdata` har ingen borta Ethereum-tx eller tx som föll ur mempool.
 
@@ -6065,3 +6063,19 @@ föll ur mempool och kom tillbaka), Tracing 10 (`GoneAccountTransactionTests`: u
 avgift, obekräftat, spår som börjar i den, exponeringen bekräftat och obekräftat, swap, läst ur ärendet;
 `GoneTransactionTests`: en Bitcoin-tx som föll ur mempool), App 4 (rutans fot för mempool och kontokedja, en
 insättning i en borta tx i Begäran, Flöde).
+
+**Granskningens rättelser (2 I, 1 M):**
+- **I1:** en tx kunde räknas som borta ur mempool på en enda värds ord (två svar från samma endpoint med ett nytt block
+  emellan), till exempel en värd med mindre mempool som kastat en tx med låg avgift, och journalen sa då mer än analysen
+  (`IsCorroborated` var falskt). `CompareMempool` kräver nu samma bekräftelse som en tx som föll ur ett block: de
+  räknade svaren från minst två värdar, eller att ärendet bara har hört från en (`RawResponseStore.HostOf`,
+  `MempoolVerdict`). Journalraden nämner värdarna och säger när det vilar på en enda källa. Väntetiden är tre dygn på
+  Bitcoin, Litecoin och Zcash (`UtxoMempoolGrace`; Core håller en tx i upp till 336 timmar, men en önskad tx har efter
+  tre dygn i regel skickats om eller ersatts) och tre timmar på Ethereum och BSC (`AccountMempoolGrace`, som en
+  geth-nods förval). Det minskar också att *borta* och *tillbaka* växlar mellan två endpoints med olika mempool (M1).
+  Tester: en värd bland två avgör aldrig ensam, en endpoint som ligger efter räknas inte medan två värdar gör det,
+  inom väntetiden (71 timmar) händer inget, och journalraden för en enda källa.
+- **I2:** nodens baksida (IN4a) och inspektörens saldo räknade en bekräftat borta tx:s överföringar och avgift
+  (`GraphScene.Balances`); de räknas inte längre, som i spåret. Samma sak för vad som ligger kvar att frysa i
+  Begäran (`RequestExits.Total`): en adress vars enda insättning är borta får ingen frysning. Tester i App.
+- **M2:** en för lång rad i `RawResponseStore` är bruten.

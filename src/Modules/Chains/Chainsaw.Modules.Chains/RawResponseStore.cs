@@ -160,7 +160,8 @@ internal sealed class RawResponseStore(TimeZoneInfo timeZone, string chainName)
     /// Gives the transactions whose block may have changed since the case first saw them in one: a later answer that
     /// shows another block (another hash, or another height when the hash was not kept) or none, two or more answers to
     /// the transaction itself (a shallow one is asked for again), or a later answer the lookup took as the source not
-    /// knowing it, after an answer that had it in a block or in the mempool. Only the indexes are read, so that the answers themselves are read only for these few.
+    /// knowing it, after an answer that had it in a block or in the mempool. Only the indexes are read, so that the
+    /// answers themselves are read only for these few.
     /// </summary>
     /// <param name="reader">The case's reader.</param>
     /// <returns>The transactions, in txid order.</returns>
@@ -395,6 +396,22 @@ internal sealed class RawResponseStore(TimeZoneInfo timeZone, string chainName)
         Add(command, "$gone", NotFoundStatus);
         Add(command, "$after", after);
         return HostsOf(command);
+    }
+
+    /// <summary>Gives the host a sealed answer came from, read from its sealed address, in lower case.</summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <param name="sequence">The answer's number.</param>
+    /// <returns>The host, or <see langword="null"/> when the answer is not the chain's or its address cannot be read.
+    /// </returns>
+    public string? HostOf(ICaseReader reader, long sequence)
+    {
+        using var command = reader.CreateCommand(
+            $"SELECT url FROM {ChainsSchema.RawResponsesTable} WHERE chain = $chain AND sequence = $sequence");
+        Add(command, "$chain", ChainName);
+        Add(command, "$sequence", sequence);
+        return command.ExecuteScalar() is string text && Uri.TryCreate(text, UriKind.Absolute, out var url)
+            ? url.Host.ToLowerInvariant()
+            : null;
     }
 
     /// <summary>

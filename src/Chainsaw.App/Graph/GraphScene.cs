@@ -834,7 +834,9 @@ public sealed record GraphScene(
     /// <summary>
     /// Gives an account's balance per asset along the graph's lines (sketch TK1a), with the fees it paid counted out
     /// of its ether. What is left is only known when the account's history is read (it is expanded); otherwise the
-    /// row says so and no snowflake is set, since it would rest on a guess.
+    /// row says so and no snowflake is set, since it would rest on a guess. A transaction the answers settle the source
+    /// no longer knows (sketch GR9a, <see cref="TraceGraph.IsLeftOut"/>) moved nothing, so its transfers and fee are
+    /// not counted, as the trace does not count them.
     /// </summary>
     /// <param name="node">The account's node.</param>
     /// <param name="snapshot">The graph and the case's latest rate per asset, which values what is left.</param>
@@ -850,6 +852,7 @@ public sealed record GraphScene(
         IReadOnlyList<EthereumFee> fees)
     {
         var graph = snapshot.Graph;
+        fees = [.. fees.Where(fee => !graph.Account.IsLeftOut(fee.Transaction))];
         var assets = incoming.Concat(outgoing)
             .Select(edge => edge.Edge.Amount.Asset).Distinct()
             .OrderBy(asset => asset.Kind == AssetKind.Native ? 0 : 1)
@@ -860,8 +863,8 @@ public sealed record GraphScene(
         var rows = new List<TokenBalanceRow>();
         foreach (var asset in assets)
         {
-            var came = Total(asset, incoming);
-            var went = Total(asset, outgoing);
+            var came = Total(asset, incoming) - LeftOut(asset, incoming, graph);
+            var went = Total(asset, outgoing) - LeftOut(asset, outgoing, graph);
             if (asset.Kind == AssetKind.Native)
             {
                 went = fees.Aggregate(went, (sum, fee) => sum + fee.Amount);
@@ -908,6 +911,20 @@ public sealed record GraphScene(
     private static AssetAmount Total(Asset asset, IEnumerable<EdgeView> lines) => lines
         .Where(edge => edge.Edge.Amount.Asset == asset)
         .Aggregate(AssetAmount.Zero(asset), (sum, edge) => sum + edge.Edge.Amount);
+
+    /// <summary>
+    /// Sums the transfers of one asset on lines that belong to transactions the answers settle are gone (sketch GR9a):
+    /// what the lines' amounts hold but the chain never moved.
+    /// </summary>
+    /// <param name="asset">The asset.</param>
+    /// <param name="lines">The lines.</param>
+    /// <param name="graph">The graph, which knows the gone transactions.</param>
+    /// <returns>The sum.</returns>
+    private static AssetAmount LeftOut(Asset asset, IEnumerable<EdgeView> lines, TraceGraph graph) => lines
+        .Where(edge => edge.Edge.Amount.Asset == asset)
+        .SelectMany(edge => edge.Edge.Transfers)
+        .Where(transfer => transfer.Amount.Asset == asset && graph.IsLeftOut(transfer.Transaction))
+        .Aggregate(AssetAmount.Zero(asset), (sum, transfer) => sum + transfer.Amount);
 
     /// <summary>
     /// Gives an actor's sort: its kind in the model, then its labels (a sanction is a mark when another label says

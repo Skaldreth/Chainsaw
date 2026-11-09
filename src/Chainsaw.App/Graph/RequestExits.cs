@@ -282,8 +282,8 @@ public static class RequestExits
                 continue;
             }
 
-            var left = Total(asset, lines.Where(edge => edge.To == node.Key))
-                - Total(asset, lines.Where(edge => edge.From == node.Key));
+            var left = Total(asset, lines.Where(edge => edge.To == node.Key), graph)
+                - Total(asset, lines.Where(edge => edge.From == node.Key), graph);
             if (left.Units.Sign <= 0)
             {
                 continue;
@@ -323,13 +323,18 @@ public static class RequestExits
     private static IEnumerable<GraphEdge> Incoming(TraceGraph graph, string key) =>
         graph.Edges.Where(edge => edge.Kind == GraphEdgeKind.Transfer && edge.To == key);
 
-    /// <summary>Sums the amounts of one asset on lines.</summary>
+    /// <summary>
+    /// Sums the transfers of one asset on lines, without those of a transaction the answers settle the source no
+    /// longer knows (sketch GR9a), which moved nothing on the chain.
+    /// </summary>
     /// <param name="asset">The asset.</param>
     /// <param name="lines">The lines.</param>
+    /// <param name="graph">The graph, which knows the gone transactions.</param>
     /// <returns>The sum.</returns>
-    private static AssetAmount Total(Asset asset, IEnumerable<GraphEdge> lines) =>
-        lines.Where(edge => edge.Amount.Asset == asset)
-            .Aggregate(AssetAmount.Zero(asset), (sum, edge) => sum + edge.Amount);
+    private static AssetAmount Total(Asset asset, IEnumerable<GraphEdge> lines, TraceGraph graph) =>
+        lines.SelectMany(edge => edge.Transfers)
+            .Where(transfer => transfer.Amount.Asset == asset && !graph.IsLeftOut(transfer.Transaction))
+            .Aggregate(AssetAmount.Zero(asset), (sum, transfer) => sum + transfer.Amount);
 
     /// <summary>
     /// Gives the deposits to an actor, facts from the chain, each marked traced when traced money came in with it: on

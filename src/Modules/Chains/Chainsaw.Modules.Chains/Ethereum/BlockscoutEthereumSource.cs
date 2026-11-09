@@ -102,7 +102,7 @@ internal abstract class BlockscoutSource : IAccountSource
 
         _clock = clock;
         _chain = chain;
-        _mempool = new MempoolGoneStore(chain.ChainName, chain.DisplayName);
+        _mempool = new MempoolGoneStore(chain.ChainName, chain.DisplayName, BlockChangeRule.AccountMempoolGrace);
         _lookups = new SourceLookups(
             chain.Chain, chain.DisplayName, operators, sources, new RawResponseStore(timeZone, chain.ChainName),
             chain.SafeConfirmations,

@@ -13,6 +13,14 @@ internal readonly record struct BlockAnswer(BlockSighting Sighting, string Endpo
     public bool InBlock => Sighting.Height is not null || Sighting.Hash is not null;
 }
 
+/// <summary>The verdict that a transaction that never was in a block is gone from the mempool.</summary>
+/// <param name="Before">The last answer that had it unconfirmed.</param>
+/// <param name="Now">The newest answer that said the source does not know it.</param>
+/// <param name="Hosts">The hosts whose counted answers said so, in lower case and in order.</param>
+/// <param name="SingleSource">Whether the case has only ever heard from one host on the chain.</param>
+internal sealed record MempoolVerdict(
+    BlockSighting Before, BlockSighting Now, IReadOnlyList<string> Hosts, bool SingleSource);
+
 /// <summary>
 /// The one rule by which every chain's sealed answers about a transaction are compared (GR9a), so that Bitcoin and
 /// Ethereum say the same thing for the same answers. The first answer that had the transaction in a block is compared
@@ -71,12 +79,20 @@ internal static class BlockChangeRule
     }
 
     /// <summary>
-    /// How long after the last answer that had a transaction unconfirmed the source must still not know it before it
-    /// counts as gone from the mempool (<see cref="CompareMempool"/>): an hour is six of Bitcoin's blocks and some 300
-    /// of Ethereum's, so that a transaction that was valid and paid its way would normally have been in one, while a
-    /// public endpoint whose nodes have not all seen a new transaction yet is given time.
+    /// How long after the last answer that had a Bitcoin-like transaction (Bitcoin, Litecoin, Zcash) unconfirmed the
+    /// source must still not know it before it counts as gone from the mempool (<see cref="CompareMempool"/>): three
+    /// days. Bitcoin Core keeps a transaction for up to 336 hours, but a node with a smaller mempool evicts one with a
+    /// low fee much sooner, while the rest of the network may still hold it; three days of not being known, from more
+    /// than one host, is long enough that a transaction that is still wanted has been rebroadcast or replaced.
     /// </summary>
-    public static readonly TimeSpan MempoolGrace = TimeSpan.FromHours(1);
+    public static readonly TimeSpan UtxoMempoolGrace = TimeSpan.FromHours(72);
+
+    /// <summary>
+    /// How long after the last answer that had a transaction on Ethereum's machine (Ethereum, BSC) pending the source
+    /// must still not know it before it counts as gone from the mempool: three hours, the time a geth node keeps a
+    /// pending transaction by default, some 900 of Ethereum's blocks.
+    /// </summary>
+    public static readonly TimeSpan AccountMempoolGrace = TimeSpan.FromHours(3);
 
     /// <summary>
     /// Compares the sealed answers about a transaction that no answer ever had in a block: it counts as gone from the
@@ -85,7 +101,10 @@ internal static class BlockChangeRule
     /// <item>two answers in a row said the source does not know it, confirming each other as in
     /// <see cref="Compare"/> (another endpoint, or a new block between them), each from an endpoint that had come at
     /// least as far as the case knew when it last saw the transaction;</item>
-    /// <item>the newest of them came at least <see cref="MempoolGrace"/> after that answer;</item>
+    /// <item>those answers came from endpoints on at least two hosts, or the case has only ever heard from one host on
+    /// the chain, so that one host whose mempool is smaller than the others' never decides it alone while others can
+    /// be asked (the same corroboration as <see cref="BlockChange.IsCorroborated"/>);</item>
+    /// <item>the newest of them came at least the grace time after that answer;</item>
     /// <item>and the case knew of at least one block more when it came, so that the chain went on without it.</item>
     /// </list>
     /// A transaction that a block ever held is left to <see cref="Compare"/>. The rule is an assessment of what the
@@ -94,12 +113,11 @@ internal static class BlockChangeRule
     /// <param name="answers">Every sealed answer about it, in any order.</param>
     /// <param name="store">The chain's sealed answers, for the heights the endpoints and the case had reached.</param>
     /// <param name="reader">The case's reader.</param>
-    /// <returns>
-    /// The last answer that had it unconfirmed and the newest that says it is not known, or <see langword="null"/>
-    /// when the rule does not hold.
-    /// </returns>
-    public static (BlockSighting Before, BlockSighting Now)? CompareMempool(
-        IEnumerable<BlockAnswer> answers, RawResponseStore store, ICaseReader reader)
+    /// <param name="grace">How long the source must not know it (<see cref="UtxoMempoolGrace"/>,
+    /// <see cref="AccountMempoolGrace"/>).</param>
+    /// <returns>The verdict, or <see langword="null"/> when the rule does not hold.</returns>
+    public static MempoolVerdict? CompareMempool(
+        IEnumerable<BlockAnswer> answers, RawResponseStore store, ICaseReader reader, TimeSpan grace)
     {
         var ordered = answers.OrderBy(answer => answer.Sighting.Sequence).ToList();
         var seenAt = ordered.FindLastIndex(answer => !answer.IsGone);
@@ -123,9 +141,18 @@ internal static class BlockChangeRule
         }
 
         var newest = negatives[^1].Sighting;
-        return newest.Seen - seen.Seen >= MempoolGrace && store.KnownHeight(reader, newest.Sequence) > known
-            ? (seen, newest)
-            : null;
+        if (newest.Seen - seen.Seen < grace || !(store.KnownHeight(reader, newest.Sequence) > known))
+        {
+            return null;
+        }
+
+        var hosts = negatives.Select(answer => store.HostOf(reader, answer.Sighting.Sequence))
+            .OfType<string>()
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)
+            .ToList();
+        var single = store.AnsweringHosts(reader).Count <= 1;
+        return hosts.Count >= 2 || single ? new MempoolVerdict(seen, newest, hosts, single) : null;
     }
 
     /// <summary>

@@ -526,11 +526,54 @@ public sealed class RequestFreezeTests
     [Fact]
     public void A_deposit_in_a_transaction_the_source_no_longer_knows_is_never_told_traced()
     {
-        // The line V → S carries traced USDT, but the source no longer knows the transaction of its one deposit, and
-        // the answers settle it (sketch GR9a): it is not in the chain, so the request must not count it.
+        // The traced line V → S gets a second deposit of 50 USDT in tx 7, which the source no longer knows, and the
+        // answers settle it (sketch GR9a): it is not in the chain, so the request never counts it as traced, while the
+        // deposit in tx 0 still is.
+        var extra = EthSamples.Move(7, EthereumTransferKind.Token, EthSamples.V, EthSamples.S, EthSamples.Usdt(50), 2);
+        var hash = extra.Transaction;
+        var change = new BlockChange(hash.Value, BlockChangeKind.Gone,
+            new BlockSighting(107, EthSamples.Block(107).Hash, DateTimeOffset.UnixEpoch, 1),
+            new BlockSighting(null, null, DateTimeOffset.UnixEpoch, 2)) { Chain = Chain.Ethereum };
+        var scene = EthSamples.Scene();
+        var line = EthSamples.EdgeKey(EthSamples.V, EthSamples.S, "USDT");
+        var graph = scene.Snapshot.Graph with
+        {
+            Edges =
+            [
+                .. scene.Snapshot.Graph.Edges.Select(edge => edge.Key == line
+                    ? edge with
+                    {
+                        Amount = edge.Amount + extra.Amount,
+                        Transfers = [.. edge.Transfers, AssetTransfer.OfEthereum(extra, EthSamples.BlockOf(extra.Block!))],
+                    }
+                    : edge),
+            ],
+            Account = scene.Snapshot.Graph.Account with
+            {
+                Gone = new Dictionary<EthereumTxHash, GoneAccountTransaction>
+                {
+                    [hash] = new GoneAccountTransaction(hash, change),
+                },
+            },
+        };
+
+        var freeze = Assert.Single(
+            RequestExits.Find(GraphScene.Build(scene.Snapshot with { Graph = graph })),
+            exit => exit.Kind == RequestKind.Freeze);
+
+        Assert.Contains(freeze.Deposits, deposit => deposit.Transaction == hash.Value && !deposit.IsTraced);
+        Assert.Contains(freeze.Deposits, deposit => deposit.Transaction == EthSamples.Hash(0).Value && deposit.IsTraced);
+        Assert.Equal(EthSamples.Usdt(100), freeze.Holding!.Left);
+    }
+
+    [Fact]
+    public void A_freeze_rests_on_what_the_chain_moved_not_on_a_gone_deposit()
+    {
+        // The only deposit of USDT to S is in a transaction the answers settle is gone: S never got it, so there is
+        // nothing of it to freeze.
         var hash = EthSamples.Transfers[0].Transaction;
         var change = new BlockChange(hash.Value, BlockChangeKind.Gone,
-            new BlockSighting(3, EthSamples.Block(3).Hash, DateTimeOffset.UnixEpoch, 1),
+            new BlockSighting(100, EthSamples.Block(100).Hash, DateTimeOffset.UnixEpoch, 1),
             new BlockSighting(null, null, DateTimeOffset.UnixEpoch, 2)) { Chain = Chain.Ethereum };
         var scene = EthSamples.Scene();
         var graph = scene.Snapshot.Graph with
@@ -543,13 +586,10 @@ public sealed class RequestFreezeTests
                 },
             },
         };
-        var gone = GraphScene.Build(scene.Snapshot with { Graph = graph });
 
-        var before = Assert.Single(RequestExits.Find(scene), exit => exit.Kind == RequestKind.Freeze);
-        var after = Assert.Single(RequestExits.Find(gone), exit => exit.Kind == RequestKind.Freeze);
-
-        Assert.Contains(before.Deposits, deposit => deposit.Transaction == hash.Value && deposit.IsTraced);
-        Assert.Contains(after.Deposits, deposit => deposit.Transaction == hash.Value && !deposit.IsTraced);
+        Assert.DoesNotContain(
+            RequestExits.Find(GraphScene.Build(scene.Snapshot with { Graph = graph })),
+            exit => exit.Kind == RequestKind.Freeze);
     }
 
     [Fact]

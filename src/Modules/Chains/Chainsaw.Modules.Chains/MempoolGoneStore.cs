@@ -20,7 +20,11 @@ internal sealed record MempoolGoneRecord(long Sequence, long SeenSequence, long 
 /// </summary>
 /// <param name="chainName">The chain and network in the sealed table, for example <c>bitcoin-mainnet</c>.</param>
 /// <param name="displayName">The chain as the user reads it, for example <c>Bitcoin</c>.</param>
-internal sealed class MempoolGoneStore(string chainName, string displayName)
+/// <param name="grace">
+/// How long the source must not know a transaction before it counts as gone
+/// (<see cref="BlockChangeRule.UtxoMempoolGrace"/> or <see cref="BlockChangeRule.AccountMempoolGrace"/>).
+/// </param>
+internal sealed class MempoolGoneStore(string chainName, string displayName, TimeSpan grace)
 {
     /// <summary>The journal kind of a transaction counted as gone from the mempool.</summary>
     public const string GoneJournalKind = "chains.mempool-gone";
@@ -111,7 +115,7 @@ internal sealed class MempoolGoneStore(string chainName, string displayName)
         ICaseReader reader, string subject, RawResponseStore store, IReadOnlyList<BlockAnswer> answers) =>
         InForce(reader, subject) is { } record
             ? BackAfter(answers, record) is not null
-            : BlockChangeRule.CompareMempool(answers, store, reader) is not null;
+            : BlockChangeRule.CompareMempool(answers, store, reader, grace) is not null;
 
     /// <summary>Seals what the answers change, with its line in the journal.</summary>
     /// <param name="transaction">The case's transaction.</param>
@@ -141,23 +145,37 @@ internal sealed class MempoolGoneStore(string chainName, string displayName)
             return true;
         }
 
-        if (BlockChangeRule.CompareMempool(answers, store, transaction) is not { } gone)
+        if (BlockChangeRule.CompareMempool(answers, store, transaction, grace) is not { } gone)
         {
             return false;
         }
 
         var entry = transaction.AppendJournal(new JournalDraft(
             GoneJournalKind,
-            $"{displayName}-tx {subject} räknas som borta ur mempool: den låg aldrig i ett block, och källan känner "
-                + "inte längre till den",
+            $"{displayName}-tx {subject} räknas som borta ur mempool: den låg aldrig i ett block, och "
+                + SourcesText(gone) + " känner inte längre till den",
             JsonSerializer.Serialize(new
             {
                 chain = chainName, transaction = subject, lastSeen = gone.Before.Sequence,
-                notKnown = gone.Now.Sequence, endpoint = gone.Now.Endpoint, rule = Rule,
-                graceMinutes = (int)BlockChangeRule.MempoolGrace.TotalMinutes,
+                notKnown = gone.Now.Sequence, endpoint = gone.Now.Endpoint, hosts = gone.Hosts,
+                singleSource = gone.SingleSource, rule = Rule, graceHours = (int)grace.TotalHours,
             })));
         Append(transaction, GoneAction, subject, gone.Before.Sequence, gone.Now.Sequence, entry);
         return true;
+    }
+
+    /// <summary>
+    /// Says in the journal's words which sources the verdict rests on: the hosts, or, when the case has only heard from
+    /// one, that it rests on that single source.
+    /// </summary>
+    /// <param name="gone">The verdict.</param>
+    /// <returns>For example <c>källorna (a.example, b.example)</c>.</returns>
+    private static string SourcesText(MempoolVerdict gone)
+    {
+        var hosts = string.Join(", ", gone.Hosts);
+        return gone.Hosts.Count >= 2
+            ? $"källorna ({hosts})"
+            : $"den enda källa ärendet har hört från ({hosts}; det är inte bekräftat på annat håll)";
     }
 
     /// <summary>Gives the first answer after a record that has the transaction again, in a block or not.</summary>

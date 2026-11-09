@@ -153,8 +153,8 @@ public static class BlockMarks
     /// rule <c>mempool-gone v1</c>, sealed with a line in the journal.
     /// </summary>
     public const string MempoolGoneFoot =
-        "Tx:en låg aldrig i ett block, och källan har i mer än en timme och över ett nytt block svarat att den inte "
-        + "känner till den. Troligen ersattes den eller föll ur mempool. Spåret slutar här; det står i journalen, och "
+        "Tx:en låg aldrig i ett block, och källorna har länge (tre dygn på Bitcoin, tre timmar på Ethereum) och över ett "
+        + "nytt block svarat att de inte känner till den. Troligen ersattes den eller föll ur mempool. Spåret slutar här; det står i journalen, och "
         + "syns tx:en igen räknas den som förut. Alla svar står kvar i ärendet.";
 
     /// <summary>

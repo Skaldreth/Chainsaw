@@ -35,11 +35,15 @@ hunnit fram till alla. Chainsaw räknar därför en sådan tx som borta först n
 
 - två svar i rad efter det senaste som hade tx:en säger att källan inte känner till den, från olika endpoints eller
   med ett nytt block emellan, och från endpoints som hade kommit minst lika långt som ärendet när det sist såg tx:en;
-- det nyaste av dem kom **minst en timme** efter att ärendet sist såg tx:en (sex Bitcoin-block, hundratals på
-  Ethereum), så att en tx som var giltig och betalade sin avgift normalt hade hunnit in i ett block;
+- svaren kommer från **minst två olika värdar**, eller så har ärendet bara hört från en enda värd. En nod med en mindre
+  mempool kastar en tx med låg avgift långt före de andra, så en värds ord räcker inte när det finns fler att fråga;
+- det nyaste av dem kom **minst tre dygn** efter att ärendet sist såg tx:en på Bitcoin (Bitcoin Core håller en tx i
+  upp till två veckor, men en tx som fortfarande är önskad har efter tre dygn i regel skickats om eller ersatts), och
+  **minst tre timmar** efter på Ethereum (så länge en geth-nod håller en väntande tx som förval);
 - och ärendet hade då sett **minst ett nytt block**, så att kedjan har gått vidare utan den.
 
-När regeln håller första gången **förseglas** det, med en rad i journalen som säger vilka svar det bygger på. Ingen tx
+När regeln håller första gången **förseglas** det, med en rad i journalen som säger vilka svar och vilka värdar det
+bygger på, och att det vilar på en enda källa när ärendet bara har hört från en. Ingen tx
 räknas som borta ur mempool utan en sådan rad. Kommer ett nytt svar som har tx:en igen, i mempool eller i ett block,
 förseglas det också, med en egen rad i journalen, och tx:en räknas som förut. Inget av de gamla svaren eller raderna
 tas bort. Märket i grafen är detsamma, **Finns inte längre**, men första raden i rutan säger *mempool* i stället för

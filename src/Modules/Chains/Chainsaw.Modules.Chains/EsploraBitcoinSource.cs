@@ -81,7 +81,8 @@ internal class EsploraBitcoinSource : IBitcoinSource
         _options = options;
         _parser = new EsploraParser(options.Network);
         _store = new RawResponseStore(timeZone, options.Network);
-        _mempool = new MempoolGoneStore(_store.ChainName, options.Network.ChainOf().ToString());
+        _mempool = new MempoolGoneStore(
+            _store.ChainName, options.Network.ChainOf().ToString(), BlockChangeRule.UtxoMempoolGrace);
         if (options.SafeConfirmations < 1)
         {
             throw new ArgumentException("The depth must be at least 1.", nameof(options));

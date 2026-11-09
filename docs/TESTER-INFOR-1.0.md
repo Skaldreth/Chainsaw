@@ -1990,14 +1990,16 @@ källan svarat `404` två gånger efter att ha visat tx:en i ett block.
 
 Lättast på testnät: skicka en obekräftad tx med för låg avgift och ersätt den (RBF på Bitcoin, samma nonce med högre
 avgift på Ethereum), eller ett ärende där källan svarat att den inte känner tx:en efter att ha visat den.
-- [ ] En obekräftad Bitcoin-tx som aldrig låg i ett block och som källan sedan inte känner: inget märke förrän minst en
-      timme efter att ärendet sist såg den, två svar i rad och ett nytt block. Då får linjen det röda märket *Finns inte
+- [ ] En obekräftad Bitcoin-tx som aldrig låg i ett block och som källan sedan inte känner: inget märke förrän tre dygn
+      efter att ärendet sist såg den, två svar i rad från två värdar (eller den enda ärendet hört från) och ett nytt
+      block. Svarar bara en av två värdar att den inte känner tx:en händer ingenting. Då får linjen det röda märket *Finns inte
       längre*; rutans första rad säger *mempool · obekräftad*, och foten säger att tx:en aldrig låg i ett block.
       Journalen har raden *Bitcoin-tx … räknas som borta ur mempool* (`chains.mempool-gone`), och `/verify` klarar sig.
 - [ ] Svarar källan att den känner tx:en igen (den kom tillbaka i mempool eller i ett block): märket försvinner, spåret
       går genom den som förut, och journalen har raden *… syns igen hos källan …* (`chains.mempool-back`). Den första
       raden står kvar.
-- [ ] Samma sak för en Ethereum-tx som väntade (pending) och försvann: raden säger *Ethereum-tx …*.
+- [ ] Samma sak för en Ethereum-tx som väntade (pending) och försvann, efter tre timmar: raden säger *Ethereum-tx …*.
+- [ ] Har ärendet bara hört från en värd säger journalraden att det vilar på den enda källan, med värden.
 - [ ] Spåra USDT eller ether genom en Ethereum-adress där en utbetalning är en tx som källan inte längre känner (två
       värdar har sagt det, eller ärendet har bara en): linjen är grå och streckad utan spårat belopp, pengarna följer i
       stället adressens nästa utbetalning med FIFO, och det som ligger kvar säger i *Varför?* att en borta tx inte
