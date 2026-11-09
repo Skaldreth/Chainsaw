@@ -322,13 +322,23 @@
                                        Margin="8,0,0,0" VerticalAlignment="Center" />
                             <Grid Margin="8,0,0,0" Height="18" VerticalAlignment="Center"
                                   ToolTip="{Binding Preview.SanctionTip}"
-                                  Visibility="{Binding IsSanctioned, Converter={StaticResource Visible}}">
+                                  Visibility="{Binding Preview.HasSanctionTip, Converter={StaticResource Visible}}">
+                                <Grid.Style>
+                                    <Style TargetType="Grid">
+                                        <Style.Triggers>
+                                            <!-- A possible sanction is toned down: never shown as a sanction. -->
+                                            <DataTrigger Binding="{Binding Preview.IsPossiblySanctioned}" Value="True">
+                                                <Setter Property="Opacity" Value="0.6" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Grid.Style>
                                 <Border CornerRadius="9" Background="{StaticResource Brush.Kind.Sanctioned}"
                                         Opacity="0.12" />
                                 <StackPanel Orientation="Horizontal" Margin="5,0,7,0" VerticalAlignment="Center">
                                     <controls:GridIcon Size="12" Data="{StaticResource Icon.Kind.Ban}"
                                                        Foreground="{StaticResource Brush.Kind.Sanctioned}" />
-                                    <TextBlock Text="Sanktionerad" FontSize="11" Margin="4,0,0,0"
+                                    <TextBlock Text="{Binding Preview.SanctionChipText}" FontSize="11" Margin="4,0,0,0"
                                                Foreground="{StaticResource Brush.Kind.Sanctioned}"
                                                VerticalAlignment="Center" />
                                 </StackPanel>

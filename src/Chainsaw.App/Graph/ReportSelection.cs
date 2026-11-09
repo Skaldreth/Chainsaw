@@ -292,13 +292,22 @@ public static class ReportSelection
         {
             LabelSource.Own => $"egen etikett {day}",
             LabelSource.SanctionList => $"{origin.SourceName}{version}, kontrollerad {day}",
-            LabelSource.OpenSource => $"öppen källa {origin.SourceName}{version}, hämtad {day}",
+            LabelSource.OpenSource => $"öppen källa {origin.SourceName}{version}{LicenseOf(origin)}, läst {day}",
             LabelSource.Behaviour => $"beteende enligt {origin.SourceName}{version}, {day}",
             LabelSource.Provider => $"{origin.SourceName}{version}, hämtad {day}",
             _ => $"{origin.SourceName}{version}, {day}",
         };
         return origin.IsFromOtherCase ? "från ett annat ärende: " + what : what;
     }
+
+    /// <summary>
+    /// Gives the licence of an open source Chainsaw knows, so that the report gives the attribution its licence asks
+    /// for (Ransomwhere: CC BY 4.0).
+    /// </summary>
+    /// <param name="origin">The origin.</param>
+    /// <returns>The licence after a comma, or nothing.</returns>
+    private static string LicenseOf(LabelOrigin origin) =>
+        OpenSourceLicenses.Of(origin) is { } license ? $" ({license})" : string.Empty;
 
     /// <summary>Says that the traced amounts are counted by the method, and so are a judgement.</summary>
     /// <param name="method">The method.</param>

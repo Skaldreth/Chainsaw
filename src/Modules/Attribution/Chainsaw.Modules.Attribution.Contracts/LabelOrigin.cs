@@ -55,6 +55,9 @@ public sealed record LabelOrigin(
     /// <summary>Gets whether the label came from another case through the library.</summary>
     public bool IsFromOtherCase => Source == LabelSource.OtherCase;
 
+    /// <summary>Gets the licence of an open source Chainsaw knows, after a comma, or nothing.</summary>
+    private string LicenseText => OpenSourceLicenses.Of(this) is { } license ? ", " + license : string.Empty;
+
     /// <summary>Describes the origin in plain Swedish, for <em>varför?</em>.</summary>
     /// <returns>One line.</returns>
     public string Describe()
@@ -64,7 +67,7 @@ public sealed record LabelOrigin(
         {
             LabelSource.Own => $"egen etikett av {who}",
             LabelSource.SanctionList => $"{SourceName} ({SourceVersion}), kontrollerad av {who}",
-            LabelSource.OpenSource => $"öppen källa {SourceName} ({SourceVersion}), hämtad av {who}",
+            LabelSource.OpenSource => $"öppen källa {SourceName} ({SourceVersion}{LicenseText}), läst av {who}",
             LabelSource.Behaviour => $"beteende enligt {SourceName} {SourceVersion}, av {who}",
             LabelSource.Provider => $"underleverantören {SourceName} ({SourceVersion}), hämtad av {who}",
             _ => $"{SourceName} ({SourceVersion}), av {who}",

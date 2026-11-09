@@ -4146,6 +4146,7 @@ topp.
     tillbaka version 2. Tester åt båda hållen: en riktig PayJoin blir förslag, granskarens prob (bedragaren som betalar
     en börs från tre insättningar) och en vanlig plånboks betalning med ett extra mynt slås ihop.
 
+<<<<<<< HEAD
 ## Omgång 3: Bitcoin-källan, bevakningen och bakgrunden (backloggen, 2026-11-08)
 
 - **VPN i bakgrunden** (användarens beslut 2026-11-08): `IBackgroundExits` i Network håller en kopia av en utgångs post
@@ -4629,3 +4630,92 @@ när draget slutar. Den behölls, och renderingen från denna gren ligger ovanp�
 eventstyrda slingan och cacharna. Mitt eget rutnät och diffningen av platser (`GraphMoved.Between`,
 `KeepSameCurves`) togs bort; ett drag skickar `Moved` med de dragna noderna i stället för `Redraw`.
 
+=======
+## Omgång 5: attribution och kurser (backloggen, 2026-11-08)
+
+- **EU:s konsoliderade lista** (`EuFsfParser`): läses ur en sparad FSF-fil i XML (`export` med `sanctionEntity`)
+  bredvid OFAC:s SDN-lista, med genereringsdatumet som listans datum, och sparas orörd som `eu-fsf-<sha256>.xml`.
+  **Eget beslut:** EU:s lista har ingen egen sort för kryptoadresser (kontrollerat mot den publicerade strukturen),
+  så en adress känns igen på formen, en Bitcoin-adress med giltig kontrollsumma eller `0x` och 40 hextecken, i en
+  identifierings nummer eller i en anmärkning, och etikettens skäl säger var den stod och att den känts igen på
+  formen. Listan kan sakna adresser helt; det sägs ärligt i TESTER-INFOR.
+- **Varje sorts lista har sin aktuella** (`ISanctionLists.CurrentLists`, `FindAll`): en adress slås upp på alla, så
+  en nyare OFAC-lista skuggar aldrig EU:s. `Current` och `Find` finns kvar för den nyaste listan, och de nya
+  medlemmarna har standardimplementationer så att andras attrapper fortsätter att fungera. Journalens rad nämner alla
+  listor träffarna kom från.
+- **Fynden i appdata (etapp 8, M5 och M6):** `Remove` (utan yta, TODO [skiss]), en trasig beskrivning skrivs om ur
+  listan i stället för att listan försvinner, ändringar utanför Chainsaw märks på mappens ändringstid, och en post
+  läses del för del med ett tak på 20 000 delar (`SanctionXml.Parts`), så en konstruerad post kan inte fylla minnet.
+- **Öppna källor** (`IOpenSourceLists`, `RansomwhereParser`): granskade för licens och kvalitet. Ransomwhere ligger
+  på Zenodo under CC BY 4.0 och byggs in; varje träff blir *Rapporterad* (`Ransomware: <familj>`) med
+  `LabelSource.OpenSource`, källans datum och hash som version och licensen i skälet. WalletExplorer (inga villkor)
+  och OpenSanctions (icke-kommersiellt) byggs inte in; det står i BACKLOG.
+- **Sanktionskontroll vid en expansion, båda kedjorna:** `GraphSource` kontrollerar grafens adresser mot listorna och
+  de öppna källorna varje gång grafen läses eller expanderas (`CheckSanctions` för `ChainAddress`,
+  `CheckOpenSources`), så en adress som kommer in märks direkt, och en lista som importeras medan ärendet är öppet
+  gäller vid nästa läsning. Ett fel i en lista hindrar aldrig grafen.
+- **Etiketter på tx** (`ITransactionLabels`): förseglas i en egen hashkedja (`attribution.transaction_labels`, schema
+  steg 4, så att adressetiketterna behåller sina hashar), tas tillbaka som en ny post, och `LabelTrailEnds`
+  avslutar spåret vid en märkt Bitcoin-tx efter samma regler som för adresser. Ingen yta än (TODO [skiss]).
+- **Importen** (`SanctionListImport`): samma menyrad tar en JSON-fil som öppen källa och säger det i svaret;
+  filväljaren visar `*.xml;*.json`.
+- **Kurser:** ett svar som kom efter att perioden var slut och saknar kurs (före Bitstamps eller Riksbankens historik)
+  pekas ut som slutligt och besvaras ur ärendet utan att frågas igen, med ett svar som säger det; bara ett lyckat svar
+  (2xx) kan bli ett sådant. Riksbankens dygnsgräns räknas över omstarter i `Kurser\riksbank-requests.json`
+  (`PricingOptions.StateDirectory`).
+- **Avsteg och kvar:** fler tokens (TRX och USDT på TRON väntar på TRON-agentens kedja), en andra kryptokälla och
+  Riksbankens nyckel i valvet står kvar i BACKLOG. Det gemensamma lagret för råsvar bedömdes och sköts upp (BACKLOG,
+  med skälen). Testärendet visar inte omgångens delar än (BACKLOG, [direkt]).
+- **Skriver i ärendet** (granskas oberoende): träffar på EU:s lista och i öppna källor förseglas som etiketter med
+  journalrad (`attribution.sanctions-matched`, `attribution.open-sources-matched`), etiketter på tx i en ny
+  förseglad tabell (`attribution.transaction-label-added`, `-retracted`), grafens läsning skriver nu träffar, och
+  Pricing pekar ut svar utan kurs i registret (oförseglat, som förut, men läst bara när det förseglade svaret är
+  lyckat och kom efter perioden).
+
+- **Rättat efter den oberoende granskningen av omgång 5** (0 C, 7 I, 9 M, alla rättade):
+  - **I1:** `CheckSanctions` och `CheckOpenSources` läser först och öppnar en skrivning bara när något är nytt; test
+    med en räknande `ICase`.
+  - **I2:** Riksbankens tomma svar är aldrig slutliga (eget beslut: utan bevis, i stället för ett bevis som bara
+    fungerar vid seriens början).
+  - **I3:** Bitstamps svar utan perioden är slutligt bara när svaret har perioder som alla börjar efter den
+    (`ICryptoRateSource.HistoryStartsAfter`); ett tomt svar aldrig.
+  - **I4:** listorna slås upp en gång per anrop (`ISanctionLists.FindMany`, `IOpenSourceLists.Find`) och varje lista
+    för sig; en lista som tappat sin hash hoppas över, minns som trasig (läses inte om) och nämns i
+    `SanctionCheck.Unusable`. Grafen säger det i sina problem, som blir en toast en gång. Sanktionslistorna och de
+    öppna källorna kontrolleras var för sig.
+  - **I5:** EU:s lista tar bara adresser på huvudnätet och hoppar över en adress när texten runt den nämner en annan
+    kedja; de räknas som överhoppade.
+  - **I6:** etikettens skäl citerar ungefär 100 tecken runt adressen.
+  - **I7:** licensen och erkännandet för Ransomwhere står i *Varför?*, i vyn Etiketter och i rapporten
+    (`OpenSourceLicenses`); öppna källor har ett eget filter, *Öppna källor*, med jordgloben (`Icon.Globe`, en ikon som
+    redan fanns), och *Varför?* visas för dem.
+  - **M1** delarna räknas med allt inuti, **M2** `CurrentLists` en gång per anrop, **M3** etiketterna på tx läses en
+    gång per öppet ärende och glöms när de skrivs, **M4** en trasig beskrivning av en öppen källa skrivs om, **M5**
+    datum efter i dag vägras för öppna källor, **M6** TRON-adresser och testnät räknas som överhoppade, **M7** en fil
+    med BOM känns igen, **M8** dygnsräknaren nollställs inte när klockan ställs bakåt och skriver genom en unik
+    temporär fil, **M9** ytan för etiketter på tx står redan i TODO som [skiss].
+- **Andra granskningen av omgång 5** (0 C, 2 nya I, 3 M, alla rättade):
+  - **I-a:** EU:s lista tar kedjan ur den närmaste märkningen före adressen i samma del av texten (delad vid `;`,
+    komma och radbrytning): XBT/BTC/Bitcoin och ETH/Ethereum/ERC-20 ger en träff, BCH, LTC, TRX/TRC-20, BEP-20/BSC med
+    flera hoppas över, och allt annat (ingen märkning, ett namn som Polygon som kan vara ett företags, en märkning som
+    inte passar formen, en Base58-adress utan märkning) blir **Möjlig sanktion** (`LabelKind.PossiblySanctioned`),
+    aldrig en sanktion och aldrig ett slut på spåret. En SegWit-adress (`bc1…`) är Bitcoins och en träff utan
+    märkning. Importens svar säger *tvetydiga* i stället för *ogiltiga*. Test med EU:s typiska rad med flera kedjor.
+    Markeringen i grafen skissas (TODO).
+  - **I-b:** en räknad dag mer än en dag efter i dag glöms och skrivs i loggen, så att Riksbanken aldrig stängs till
+    det datumet; test.
+  - **M-b** lås runt cachen för etiketter på tx, **M-c** licensen hör till den inbyggda källans ursprung (id som börjar
+    med `open/`), aldrig bara namnet, **M-d** en fil som saknas är inte ändrad (`Missing`) och frågas igen; M-a står i
+    BACKLOG märkt *prova mot ett riktigt anrop före 1.0*.
+- **Tredje granskningen av omgång 5** (0 C, 2 I, 4 M, alla rättade):
+  - **I-1:** förhandshämtningen i Nytt ärende visar en säker träff först och skriver *Möjlig sanktion enligt …* för en
+    tvetydig; brickan säger då *Möjlig sanktion* och är nedtonad.
+  - **I-2:** vyn Etiketter avgör sanktionen på etikettens sort: `IsSanction` och träffarna överst gäller bara
+    *Sanktionerad*; en möjlig sanktion står streckad med brickan *Möjlig: kedjan står inte säkert*, utanför den röda
+    gruppen. Test.
+  - **M-1** en märkning gäller över kommatecken tills nästa märkning (kedjan delas vid `;` och radbrytning), **M-2**
+    tjänsten vägrar en sanktion, möjlig eller tidigare ur ett utkast (`LabelRules.IsFromListsOnly`, också för
+    etiketter på tx); testärendets sanktion på Skuggtorget kommer nu ur den påhittade listan, och *Tidigare
+    sanktionerad* står i BACKLOG, **M-3** en lista som saknas säger *saknas på datorn* (`Missing`), **M-4** *etc* och
+    *base* är borttagna ur de svaga orden.
+>>>>>>> worktree-agent-a9532d92522604c5d

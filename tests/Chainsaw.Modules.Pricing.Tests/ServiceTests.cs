@@ -352,6 +352,44 @@ public sealed class ServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task A_period_before_the_sources_history_is_answered_from_the_case_and_never_asked_again()
+    {
+        // The market's first period starts a day after the hour asked about: the history begins later.
+        var marketStart = Fixtures.HourStart + 86_400;
+        _harness.Http.AnswerText(Fixtures.BitstampUsdHour, $$$"""
+            {"data": {"pair": "BTC/USD", "ohlc": [{"timestamp": "{{{marketStart}}}",
+            "open": "1", "high": "1", "low": "1",
+            "close": "1", "volume": "0"}]}}
+            """);
+
+        var first = await _harness.PriceAsync(Fixtures.At);
+        var again = await _harness.PriceAsync(Fixtures.At);
+        _harness.Clock.UtcNow += new PricingOptions().FailureCooldown * 10;
+        var later = await _harness.PriceAsync(Fixtures.At);
+
+        Assert.Equal(PriceLookupStatus.NotAvailable, first.Status);
+        Assert.Equal(PriceLookupStatus.NotAvailable, again.Status);
+        Assert.False(again.IsThrottled);
+        Assert.Equal(first.Origins.Single().Sha256, again.Origins.Single().Sha256);
+        Assert.Contains("före källans historik", later.Problem, StringComparison.Ordinal);
+        Assert.Single(_harness.Http.Sent);
+        Assert.Single(_harness.RawRows());
+    }
+
+    [Fact]
+    public async Task A_period_without_a_rate_asked_before_it_ended_is_not_kept_as_final()
+    {
+        _harness.Http.AnswerText(Fixtures.BitstampUsdHour, """{"data": {"pair": "BTC/USD", "ohlc": []}}""");
+        _harness.Http.Lag = TimeSpan.FromSeconds(-1);
+        _harness.Clock.UtcNow = DateTimeOffset.FromUnixTimeSeconds(Fixtures.HourStart + 3_600 + 300);
+
+        var lookup = await _harness.PriceAsync(Fixtures.At, FiatCurrency.Usd);
+
+        Assert.Equal(PriceLookupStatus.NotAvailable, lookup.Status);
+        Assert.Equal(0, _harness.Count("pricing_lookup"));
+    }
+
+    [Fact]
     public async Task Says_when_the_source_has_no_rate_for_the_period()
     {
         _harness.Http.AnswerText(Fixtures.BitstampUsdHour, """{"data": {"pair": "BTC/USD", "ohlc": []}}""");
@@ -422,6 +460,21 @@ public sealed class ServiceTests : IDisposable
         Assert.Equal(PriceLookupStatus.NotAvailable, lookup.Status);
         Assert.Contains("SEKUSDPMI", lookup.Problem, StringComparison.Ordinal);
         Assert.Equal(0, _harness.Count("pricing_fiat_ranges"));
+    }
+
+    [Fact]
+    public async Task An_empty_answer_from_the_riksbank_is_never_kept_as_final()
+    {
+        _harness.Http.Answer(Fixtures.BitstampUsdHour, "bitstamp-btcusd-hour.json");
+        _harness.Http.AnswerText(Fixtures.RiksbankUsdNovember, string.Empty, 204);
+
+        await _harness.PriceAsync(Fixtures.At);
+        var sent = _harness.Http.Sent.Count;
+        _harness.Clock.UtcNow += TimeSpan.FromDays(2);
+        var again = await _harness.PriceAsync(Fixtures.At);
+
+        Assert.Equal(PriceLookupStatus.NotAvailable, again.Status);
+        Assert.True(_harness.Http.Sent.Count > sent);
     }
 
     [Fact]

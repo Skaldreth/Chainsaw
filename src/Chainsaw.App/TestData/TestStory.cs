@@ -123,12 +123,9 @@ public static class TestStory
         new LabelStep(actors.Merchant, LabelKind.Merchant, "Elbutiken"),
         new LabelStep(actors.GiftCard, LabelKind.GiftCard, "Kortkungen"),
         new LabelStep(actors.Darknet, LabelKind.Darknet, "Skuggtorget"),
-        new LabelStep(actors.Darknet, LabelKind.Sanctioned, "Skuggtorget"),
         new LabelStep(actors.Mixer, LabelKind.Mixer, "Blandaren"),
         new LabelStep(actors.SecondMixer, LabelKind.Mixer, "Virveln"),
 
-        // A made-up former sanction beside the mixer, as Tornado Cash's on Ethereum: the toned-down mark.
-        new LabelStep(actors.Mixer, LabelKind.FormerlySanctioned, "Påhittad lista 2022-08-08 – 2025-03-21"),
         new LabelStep(actors.Swap, LabelKind.SwapBridge, "Bytaren"),
 
         // A supplier's report of fraud (as from Chainabuse): a red mark beside the node's own sort.

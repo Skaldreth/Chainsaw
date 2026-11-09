@@ -108,6 +108,21 @@ internal sealed class TestAttribution : IAttributionService
         SanctionChecked.AddRange(addresses.Select(address => address.ToChainAddress()));
         return new SanctionCheck(null, [], 0);
     }
+
+    /// <summary>The addresses the graph checked against the lists when it was read, each with its chain.</summary>
+    public List<ChainAddress> ListsChecked { get; } = [];
+
+    /// <summary>The sanction lists the check says could not be used.</summary>
+    public List<SanctionListInfo> UnusableLists { get; } = [];
+
+    public SanctionCheck CheckSanctions(ICase @case, IReadOnlyCollection<ChainAddress> addresses)
+    {
+        ListsChecked.AddRange(addresses);
+        return new SanctionCheck(null, [], 0) { Unusable = UnusableLists };
+    }
+
+    public OpenSourceCheck CheckOpenSources(ICase @case, IReadOnlyCollection<ChainAddress> addresses) =>
+        new([], [], 0);
 }
 
 /// <summary>A clustering that knows one cluster; nothing else is used by the graph.</summary>
@@ -312,6 +327,38 @@ public sealed class GraphSourceTests
         Assert.Equal(ExpansionOutcome.Partly, result.Outcome);
         Assert.Equal(["Ingen utgång är ansluten."], result.Problems);
         Assert.Equal(5, result.Scene.Nodes.Count);
+    }
+
+    /// <summary>
+    /// The addresses an expansion brings into the graph are checked against the sanction lists and the open sources
+    /// at once, with their chain, so that a hit is labelled the moment the address is in the case.
+    /// </summary>
+    [Fact]
+    public async Task ExpansionChecksTheGraphsAddressesAgainstTheLists()
+    {
+        _tracing.Tracer = (_, _) => GraphSamples.Trace();
+
+        await Source.ExpandAsync(
+            _case, [ExpansionRequest.ForAddress(GraphSamples.K1)], TracingMethodKind.Fifo, CancellationToken.None);
+
+        Assert.Contains(GraphSamples.K1.ToChainAddress(), _attribution.ListsChecked);
+        Assert.Contains(GraphSamples.E.ToChainAddress(), _attribution.ListsChecked);
+    }
+
+    /// <summary>A sanction list that has changed on the computer is said in the graph's problems.</summary>
+    [Fact]
+    public async Task AChangedListIsSaid()
+    {
+        _tracing.Tracer = (_, _) => GraphSamples.Trace();
+        _attribution.UnusableLists.Add(new SanctionListInfo(
+            "OFAC SDN", new string('a', 64), new DateOnly(2026, 11, 1), DateTimeOffset.UnixEpoch,
+            new Dictionary<string, int>(), 0));
+
+        var scene = await Source.LoadAsync(_case, TracingMethodKind.Fifo, CancellationToken.None);
+
+        Assert.Contains(
+            GraphSource.UnusableListText("Sanktionslistan", "OFAC SDN", new DateOnly(2026, 11, 1)),
+            scene.Snapshot.Graph.Problems);
     }
 
     /// <summary>Only a cluster is asked of Clustering, from its first address.</summary>

@@ -332,7 +332,17 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
   - *Ångra* i toasten efter *Ta tillbaka* (skissens Ctrl+Z) är inte byggt: en tillbakatagen etikett sätts på nytt, och
     då med den som ångrar som ursprung, inte den ursprungliga. Behöver ett eget förseglat *återinsatt*.
   - Raderna *Kom in*, *Gick ut* och *Sprids inte* under BIBLIOTEKET är bara antal; de kunde filtrera listan.
-- **EU:s sanktionslista** (och andra) bredvid OFAC SDN, som etapp 8 läser ur en sparad XML-fil.
+- **EU:s lista, märkningarna för kedjor** (granskningen av omgång 5, I5 och I-a): kedjan tas ur den närmaste
+  märkningen före adressen i samma del av texten (delad vid `;`, komma och radbrytning, `EuFsfParser.Labels`). Listan
+  med märkningar är Chainsaws egen och kan behöva fyllas på när en riktig EU-fil har setts; en adress utan säker
+  märkning blir *Möjlig sanktion*.
+- **EU:s lista (omgång 5, byggd 2026-11-08), det som återstår:** listan har ingen egen sort för kryptoadresser, så
+  `EuFsfParser` känner igen en adress på formen (Bitcoin med kontrollsumma, `0x` och 40 hextecken) i identifieringar
+  och anmärkningar. Det är inte kontrollerat mot en riktig fil om EU skriver adresser någon annanstans (till exempel i
+  `nameAlias` eller i `regulation`s sammanfattning), och TRON-adresser (`T…`) känns inte igen förrän TRON har en
+  adresstyp i Chains. Fler listor (FN:s, Storbritanniens OFSI) kan läggas till som en ny `ListKind`.
+- **Ta bort en sanktionslista eller öppen källa i gränssnittet:** `ISanctionLists.Remove` och
+  `IOpenSourceLists.Remove` finns (en lista med fel datum i framtiden kan tas bort), men ingen knapp; se TODO [skiss].
 - **Kan frysas** (CLAUDE.md, *Sorterna*): markeringen för adresser med USDT eller USDC hör till Ethereum och TRON. SDN
   har redan adresser för `USDT`, `ETH` och `TRX`, som etapp 8 läser in och räknar men ännu inte slår upp.
 - **Chainabuse som underleverantör** (användarens beslut 2026-11-08): Chainabuse (TRM Labs,
@@ -355,8 +365,16 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
   inte en sort, så att noden behåller sin sort.
 - **Flera attributionskällor samtidigt, var och en med en strömbrytare** (användarens beslut 2026-11-08): Chainsaw
   hämtar från alla källor som är på, inte bara en, och varje källa kan stängas av.
-- **Öppna källor:** till exempel ransomwhe.re (öppen datamängd med ransomware-adresser), WalletExplorer (äldre BTC-kluster). Varje källa granskas för licens och kvalitet innan den byggs in. `LabelSource.OpenSource`
-  finns i kontraktet.
+- **Öppna källor, granskade 2026-11-08 (omgång 5):**
+  - **Ransomwhere är inbyggd** (CC BY 4.0 på Zenodo, post 13999026, Jack Cable): läses ur en sparad
+    `ransomwhere.json` och ger *Rapporterad* med licensen i skälet. Datamängdens tx-hashar (lösensummorna) läses inte
+    än; de kunde bli etiketter på tx (*betalning till ransomware*) och offrens sida i spåret.
+  - **WalletExplorer** (äldre BTC-kluster) har inga uttalade villkor för datan och inget nedladdningsbart underlag, så
+    den byggs inte in; att skrapa webbplatsen är inte tillåtet utan villkor.
+  - **OpenSanctions** återpublicerar Ransomwhere och sanktionslistorna, men gratis bara för icke-kommersiellt bruk;
+    för en myndighet krävs troligen en licens (som Bitstamps fråga under *Före tjänstebruk* i TODO). Läses inte.
+  - Andra kandidater att granska: GraphSense TagPacks (licens per paket), Etherscans etiketter (villkoren förbjuder
+    återanvändning), CryptoScamDB (arkiverad).
 - **Etiketterna läses två gånger per bygge** (granskningen etapp 15, M6): `LabelTrailEnds` och grafens etiketter läser
   var för sig, och klustren byggs om för etiketterna. Ett gemensamt underlag per bygge.
 - **Biblioteket vid avslut och låsning** (granskningen etapp 15, M8): `Absorb` körs när ett ärende öppnas och stängs
@@ -372,12 +390,11 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
 - **Allt sprids:** etikettens namn, skälet, anteckningen, ärendenumret och hela operatörsprofilen följer med till andra
   ärenden (Allt följer med). Gränssnittet ska säga det, och kanske varna när namnet liknar ett ärendenummer (granskningen etapp 8, M3).
 - **Listan i ärendet:** ärendet sparar listans hash, datum och postens uid, inte listan. En kollega eller en annan dator
-  kan inte kontrollera träffen utan filen. Försegla postens XML i ärendet? (granskningen etapp 8, M4).
-- **Sanktionslistorna i appdata:** ingen funktion för att ta bort en lista (en lista med fel datum i framtiden förblir
-  aktuell), en trasig beskrivning gör att listan försvinner tyst ur listningen, och ändringar utanför Chainsaw märks
-  först vid omstart (granskningen etapp 8, M5).
-- **Minnet vid import:** en `sdnEntry` läses in hel; en konstruerad fil med miljontals `id` i en post kan ta mycket
-  minne. Läs id:n strömmande eller sätt ett tak per post (granskningen etapp 8, M6).
+  kan inte kontrollera träffen utan filen. Försegla postens XML i ärendet? (granskningen etapp 8, M4). Detsamma för
+  en öppen källas post.
+- **Sanktionslistorna i appdata** (omgång 5): en trasig beskrivning skrivs om ur listan och ändringar utanför
+  Chainsaw märks utan omstart (mappens ändringstid), men en lista vars fil fått fel hash försvinner fortfarande ur
+  listningen utan att något säger det; vyn Etiketter kunde visa den som *ändrad*.
 - **Biblioteket:** ärenden som tagits bort ligger kvar som innehavare, två kopior av samma ärende (samma id) skriver
   över varandra, och ett bibliotek som inte går att läsa (skadat eller från ett annat valv) stoppar varje inläsning
   tills det byggs om. Bygg om biblioteket ur ärendena, och ta bort ett ärendes etiketter (granskningen etapp 8, M8).
@@ -391,7 +408,10 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
   rensas aldrig (granskningen etapp 8, omgång 2, M). Räcker för tusentals etiketter.
 - **Samma person på två datorer:** en egen etikett räknas som oberoende per operatörsprofil (namn, titel, enhet). En
   profil som ändras räknas som en annan person; ett stabilt operatörs-id i Security vore bättre.
-- **Etiketter på tx** (till exempel en känd brygga eller swap): `ClassifyTransaction` ger inget från etiketter än.
+- **Etiketter på tx (omgång 5, modellen byggd 2026-11-08):** `ITransactionLabels` förseglar och tar tillbaka en
+  etikett på en tx (Bitcoin och Ethereum), och `ClassifyTransaction` avslutar spåret vid en märkt Bitcoin-tx. Kvar:
+  ytan (TODO [skiss]), att etiketter på tx följer med i biblioteket (*Etiketter smittar* gäller adresser), att en
+  märkt Ethereum-tx avslutar spåret (Tracings klassning för konton tar bara adresser), och historiken (AN1b) för tx.
 - **Uppbrytningen mot den riktiga klustringen** (granskningen etapp 16, M4): `InspectorForms.BreakOut` testas mot
   ett handbyggt kluster i App.Tests; ett test i Clustering.Tests som sparar bevis, bryter ut genom `Split` och läser
   klustret efteråt (blandat val i en CIO-länk med tre adresser, en senare länk med annan heuristik, valda adresser som
@@ -408,17 +428,27 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
   värdet är kronor per *en* enhet (stämmer med nivån, cirka 10 kr per dollar), vilken tid på dagen kursen sätts, och
   att Bitstamps perioder börjar på jämna multipler av sin längd från 1970 och att en period utan handel har volym noll
   och föregående pris.
-- **Perioder före källans historik** (granskningen, omgång 1 M6 och omgång 3 M-3): ett svar utan kurs (Bitstamp före
-  2011, Riksbanken före 1993) sparas men pekas inte ut som slutligt, så varje uppslag som inte sker samtidigt frågar
-  igen och sparar ett nytt svar. Kan pekas ut som *ingen kurs* när perioden är slut.
-- **Riksbankens dygnsgräns** räknas bara sedan Chainsaw startade och bara på den här datorn; datorer bakom samma utgång
-  delar gränsen utan att veta om det. Kan sparas i appdata, och en nyckel i valvet höjer gränsen.
+- **Svar utan kurs räknas som kurser** (omgång 5): ett slutligt svar före Bitstamps historik pekas ut i registret som
+  en kurs, så *Sparas i ärendet* (`RateSummary`) räknar det. Ett eget register för *ingen kurs* vore rättare.
+- **Före källans historik, efter granskningen av omgång 5 (prova mot ett riktigt anrop före 1.0):** ett svar från
+  Bitstamp utan perioden är slutligt bara när svaret har perioder som alla börjar efter den (`HistoryStartsAfter`);
+  att Bitstamp svarar så för en period före marknadens början är inte kontrollerat mot dokumentationen eller ett
+  riktigt anrop. Riksbanken pekas aldrig ut som
+  slutlig utan kurs (ett tomt svar visar inte att serien saknade kurs), så en dag före 1993 frågas igen efter
+  väntetiden. Bevis för Riksbanken (kurser efter dagen men ingen före i samma svar) kan läggas till.
+- **Riksbankens dygnsgräns** räknas sedan omgång 5 över omstarter på den här datorn (`Kurser\riksbank-requests.json`),
+  men datorer bakom samma utgång delar gränsen utan att veta om det. En nyckel i valvet (200 anrop i minuten) höjer
+  gränsen; den behöver en rad på sidan Källor (skiss).
 - **Fler källor och tokens:** TRX när TRON byggs (ETH sedan etapp 23, USDT och USDC på Ethereum sedan etapp 23b, efter
   kontraktet och aldrig som en dollar av sig själv; TRON:s USDT har ingen källa än); en
   andra kryptokälla att jämföra med (till exempel Kraken eller Coinbase för nyare perioder); Riksbankens nyckel (200
   anrop i minuten) i valvet om gränsen på 5 i minuten blir ett problem.
-- **Ett gemensamt lager för råsvar:** Chains och Pricing har var sin likadan tabell och kod för förseglade råsvar. Kan
-  bli ett kontrakt i Cases när en tredje modul behöver det.
+- **Ett gemensamt lager för råsvar:** Chains, Pricing och nu Attribution (Chainabuse) har var sin tabell och kod för
+  förseglade råsvar, så villkoret *när en tredje modul behöver det* är uppfyllt. Bedömt i omgång 5 och inte gjort än:
+  kolumnerna skiljer sig (Chains har endpoint och block, Pricing sort och ämne, Attribution kedja och adress), en
+  flytt ändrar tre moduler och tre hashkedjor samtidigt som andra arbetar i Chains och Cases, och vinsten är mindre
+  kod, inte en ny förmåga. Görs som en egen etapp: ett kontrakt i Cases (`ISealedResponses` med källa, ämne,
+  utgång, hash och kropp) och modulernas egna index ovanpå.
 
 ## Säkerhet
 - **Klartext i minnet:** API-nycklarnas hemligheter och profilen ligger som `string` medan valvet är upplåst och kan inte
@@ -504,6 +534,10 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
 - **Sanktionslistan och det öppna ärendet:** en import kontrollerar inte ärendets adresser
   (`IAttributionService.CheckSanctions`, som i dag bara körs för startpunkterna när ärendet skapas); att köra den för
   grafens adresser efter en import skriver i ärendet och hör till Attribution (omgång 7 lät den vara).
+- **Nytt → Etikett** är tonad som inte byggd (en etikett sätts sedan etapp 16 i inspektören med L); ändra
+  `SubmenuNeed` i `Navigation/SubmenuTable.cs` till `OpenCase` och koppla raden i `ShellViewModel` när vyn Etiketter
+  finns. Begäran är kopplad sedan BG1b.
+- **Startpunkt med ett ärende** lägger bara markören i kommandoraden; ett eget fält (som i Nytt ärende) kan skissas.
 
 ## Låsskärmen och förstagångsinställningen (etapp 10)
 - **Inställningarna, Utseende:** raden *Kättingen* (*Rör sig* eller *Står still*) är tonad med *Inte byggt än* i
@@ -572,6 +606,13 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
 
 ## Testärendet (/testdata)
 
+- **Tidigare sanktionerad syns inte i testärendet** sedan omgång 5: en sanktion, en möjlig och en tidigare kommer
+  bara ur en lista (aldrig ur en etikett i formuläret), och den påhittade listan har inga borttagna poster. En
+  påhittad lista med borttagna poster (som Tornado Cash i Chainsaws kontraktlista) fyller luckan [direkt].
+
+- **Omgång 5 syns inte i testärendet än:** en träff på EU:s lista, en *Rapporterad* adress ur Ransomwhere och en
+  etikett på en tx (en swap som avslutar spåret) behöver påhittade listor på samma sätt som
+  `TestDataSanctionLists` och ett steg i berättelsen (`TestStory`) som sätter etiketten på tx:en [direkt].
 - **Kan frysas** syns inte i testärendet: det kräver USDT eller USDC på Ethereum, och Blockscout-källan går inte lika
   lätt att fejka som Esplora (tx, kvitton med Transfer-loggar, tokenuppgifter). En påhittad Ethereum-källa på samma sätt
   (en egen `ISourceApi` i Debug) och en del av berättelsen på Ethereum fyller luckan; TRON när den kedjan byggs.

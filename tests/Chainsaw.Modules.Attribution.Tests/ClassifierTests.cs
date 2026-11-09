@@ -39,12 +39,21 @@ public sealed class ClassifierTests : IDisposable
 
     [Theory]
     [InlineData(LabelKind.Victim)]
-    [InlineData(LabelKind.Sanctioned)]
     [InlineData(LabelKind.Unknown)]
     public void A_label_on_an_owner_does_not_end_the_trail(LabelKind kind)
     {
         var address = Wpkh("owner-" + kind);
         _harness.Own(LabelSubject.ForAddress(address), kind);
+
+        Assert.Empty(_harness.Classifier.ClassifyAddress(_harness.Case, address));
+    }
+
+    [Fact]
+    public void A_sanction_from_a_list_does_not_end_the_trail()
+    {
+        var address = Wpkh("owner-sanctioned");
+        _harness.Sanctions.Import(new SdnFile().Xbt("9001", "SYNTETISK", address.Value).Stream());
+        Assert.Single(_harness.Labels.CheckSanctions(_harness.Case, [address]).Added);
 
         Assert.Empty(_harness.Classifier.ClassifyAddress(_harness.Case, address));
     }

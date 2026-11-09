@@ -793,10 +793,11 @@ public sealed class InspectorFormsTests
         Assert.Equal(LabelKind.Victim, kinds[0]);
         Assert.Equal(LabelKind.Unknown, kinds[1]);
         Assert.Equal(LabelKind.Exchange, kinds[2]);
-        Assert.Equal(Enum.GetValues<LabelKind>().Length - 3, kinds.Distinct().Count());
+        Assert.Equal(Enum.GetValues<LabelKind>().Length - 4, kinds.Distinct().Count());
         Assert.DoesNotContain(LabelKind.Sanctioned, kinds);
         Assert.DoesNotContain(LabelKind.Reported, kinds);
         Assert.DoesNotContain(LabelKind.FormerlySanctioned, kinds);
+        Assert.DoesNotContain(LabelKind.PossiblySanctioned, kinds);
         Assert.Equal("CIO v1", InspectorForms.ShortName(new HeuristicId(HeuristicNames.CommonInputOwnership, 1)));
         Assert.Equal("Växel v2", InspectorForms.ShortName(new HeuristicId(HeuristicNames.ChangeAddress, 2)));
     }

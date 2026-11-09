@@ -14,8 +14,11 @@ public enum LabelFilter
     /// <summary>A sanction list the user imported.</summary>
     Sanction,
 
-    /// <summary>The user's own labels, also those from an open source the user named.</summary>
+    /// <summary>The user's own labels.</summary>
     Own,
+
+    /// <summary>An open source: one built in (Ransomwhere) or one the user named in the form.</summary>
+    OpenSource,
 
     /// <summary>A supplier of attribution, for example Chainabuse.</summary>
     Provider,
@@ -58,7 +61,10 @@ public static class LabelFilters
 {
     /// <summary>Gets every filter in the order of the left column.</summary>
     public static IReadOnlyList<LabelFilter> All { get; } =
-        [LabelFilter.Sanction, LabelFilter.Own, LabelFilter.Provider, LabelFilter.Behaviour, LabelFilter.OtherCase];
+    [
+        LabelFilter.Sanction, LabelFilter.Own, LabelFilter.OpenSource, LabelFilter.Provider, LabelFilter.Behaviour,
+        LabelFilter.OtherCase,
+    ];
 
     /// <summary>Gives the filter a source belongs to.</summary>
     /// <param name="source">How the case got a label.</param>
@@ -66,6 +72,7 @@ public static class LabelFilters
     public static LabelFilter Of(LabelSource source) => source switch
     {
         LabelSource.SanctionList => LabelFilter.Sanction,
+        LabelSource.OpenSource => LabelFilter.OpenSource,
         LabelSource.Provider => LabelFilter.Provider,
         LabelSource.Behaviour => LabelFilter.Behaviour,
         LabelSource.OtherCase => LabelFilter.OtherCase,
@@ -78,6 +85,7 @@ public static class LabelFilters
     public static string Icon(LabelFilter filter) => filter switch
     {
         LabelFilter.Sanction => "Icon.Kind.Ban",
+        LabelFilter.OpenSource => "Icon.Globe",
         LabelFilter.Provider => "Icon.Alert",
         LabelFilter.Behaviour => "Icon.Pulse",
         LabelFilter.OtherCase => "Icon.Library",
@@ -91,6 +99,7 @@ public static class LabelFilters
     public static string Name(LabelFilter filter, string providers) => filter switch
     {
         LabelFilter.Sanction => "Sanktionslista",
+        LabelFilter.OpenSource => "Öppen källa",
         LabelFilter.Provider => providers,
         LabelFilter.Behaviour => "Beteende",
         LabelFilter.OtherCase => "Annat ärende",
@@ -105,6 +114,7 @@ public static class LabelFilters
     {
         LabelFilter.Sanction => "Sanktionslistor",
         LabelFilter.Own => "Egna",
+        LabelFilter.OpenSource => "Öppna källor",
         LabelFilter.OtherCase => "Andra ärenden",
         _ => Name(filter, providers),
     };
@@ -234,8 +244,14 @@ public sealed partial class LabelRowViewModel : ObservableObject
     /// <summary>Gets whether the small node is round: an actor we know nothing about.</summary>
     public bool IsRound => Look.Shape == NodeShape.Round;
 
-    /// <summary>Gets whether the small node's frame is dashed: uncertain, or a suggestion from an analysis.</summary>
-    public bool IsDashed => Look.IsDashed || IsSuggestion;
+    /// <summary>
+    /// Gets whether the small node's frame is dashed: uncertain, a suggestion from an analysis, or only a possible
+    /// sanction.
+    /// </summary>
+    public bool IsDashed => Look.IsDashed || IsSuggestion || IsPossibleSanction;
+
+    /// <summary>Gets what the label says, for telling a sanction from a possible one.</summary>
+    public LabelKind Kind { get; init; } = LabelKind.Unknown;
 
     /// <summary>Gets the source it is listed under.</summary>
     public required LabelFilter Source { get; init; }
@@ -252,8 +268,17 @@ public sealed partial class LabelRowViewModel : ObservableObject
     /// <summary>Gets whether it is a suggestion from an analysis, drawn dashed.</summary>
     public bool IsSuggestion => Source == LabelFilter.Behaviour;
 
-    /// <summary>Gets whether it is a hit on a sanction list, whose source frame is red.</summary>
-    public bool IsSanction => Source == LabelFilter.Sanction;
+    /// <summary>
+    /// Gets whether it is a sanction from a list, whose source frame is red and which stands among the hits at the
+    /// top: decided by what the label says, so that a possible sanction is never shown as one.
+    /// </summary>
+    public bool IsSanction => Source == LabelFilter.Sanction && Kind == LabelKind.Sanctioned;
+
+    /// <summary>
+    /// Gets whether it is only a possible sanction: a list names the address, but not for certain on this chain. It is
+    /// drawn dashed and never among the hits at the top.
+    /// </summary>
+    public bool IsPossibleSanction => Source == LabelFilter.Sanction && Kind == LabelKind.PossiblySanctioned;
 
     /// <summary>Gets whether every one of its labels is taken back: struck through and faint.</summary>
     public bool IsRetracted { get; init; }
@@ -363,8 +388,9 @@ public sealed partial class LabelRowViewModel : ObservableObject
         _ => "URSPRUNG",
     };
 
-    /// <summary>Gets whether <em>Varför?</em> is offered: for what an analysis or a supplier says.</summary>
-    public bool HasWhy => Sources.Contains(LabelFilter.Behaviour) || Sources.Contains(LabelFilter.Provider);
+    /// <summary>Gets whether <em>Varför?</em> is offered: for an analysis, a supplier or an open source.</summary>
+    public bool HasWhy => Sources.Contains(LabelFilter.Behaviour) || Sources.Contains(LabelFilter.Provider)
+        || Sources.Contains(LabelFilter.OpenSource);
 
     /// <summary>Gets the text the filter field searches: the label, its node, its address and its cases.</summary>
     public required string SearchText { get; init; }
@@ -489,6 +515,7 @@ public static class LabelRows
             Address = GraphScene.Shorten(first.Subject.Target.Value),
             FullAddress = first.Subject.Target.Value,
             Look = node?.Look ?? VisualLanguage.Of(VisualLanguage.SortOf(first.Kind)),
+            Kind = first.Kind,
             Source = source,
             Sources = entries.Select(entry => LabelFilters.Of(entry.Label.Origin.Source)).ToHashSet(),
             SourceToolTip = words.SourceToolTip(source),
@@ -499,7 +526,7 @@ public static class LabelRows
             Place = hit.Place,
             IsNearVictim = isNearVictim,
             Origins = Origins(entries, words),
-            Chips = Chips(source, isNoSpread, words),
+            Chips = Chips(source, first.Kind, isNoSpread, words),
             NodeInfo = node is null ? string.Empty : NodeInfo(node),
             RetractedText = active.Count == 0 ? words.Retracted(entries[^1].Retraction!) : string.Empty,
             Retractable = [.. active.Where(entry => entry.CanRetract).Select(entry => entry.Label.Sequence)],
@@ -530,6 +557,7 @@ public static class LabelRows
             Address = GraphScene.Shorten(label.Subject.Target.Value),
             FullAddress = label.Subject.Target.Value,
             Look = node?.Look ?? VisualLanguage.Of(VisualLanguage.SortOf(label.Kind)),
+            Kind = label.Kind,
             Source = source,
             Sources = new HashSet<LabelFilter> { source },
             SourceToolTip = words.SourceName(source),
@@ -538,7 +566,7 @@ public static class LabelRows
             Place = hit.Place,
             Cases = label.CaseNumbers,
             Origins = [origin],
-            Chips = Chips(source, isNoSpread: false, words),
+            Chips = Chips(source, label.Kind, isNoSpread: false, words),
             NodeInfo = node is null ? string.Empty : NodeInfo(node),
             SearchText = string.Join(
                 ' ', title, node?.Name, label.Subject.Target.Value, string.Join(' ', label.CaseNumbers)),
@@ -571,18 +599,24 @@ public static class LabelRows
 
     /// <summary>Gives the chips under the chosen label's name: its source, judgement or list, and Sprid inte.</summary>
     /// <param name="source">The source.</param>
+    /// <param name="kind">What the label says.</param>
     /// <param name="isNoSpread">Whether it stays in the case.</param>
     /// <param name="words">How sources are written.</param>
     /// <returns>The chips.</returns>
-    private static IReadOnlyList<LabelChip> Chips(LabelFilter source, bool isNoSpread, LabelWords words)
+    private static IReadOnlyList<LabelChip> Chips(
+        LabelFilter source, LabelKind kind, bool isNoSpread, LabelWords words)
     {
+        var possible = source == LabelFilter.Sanction && kind == LabelKind.PossiblySanctioned;
         var chips = new List<LabelChip>
         {
             new(words.SourceName(source), LabelFilters.Icon(source), string.Empty, false,
-                source == LabelFilter.Sanction),
+                source == LabelFilter.Sanction && !possible),
         };
         chips.Add(source switch
         {
+            LabelFilter.Sanction when possible => new("Möjlig: kedjan står inte säkert", "Icon.Question",
+                "Listan nämner adressen men säger inte säkert vilken kedja den gäller: en möjlig sanktion att " +
+                "kontrollera, aldrig en sanktion.", true, false),
             LabelFilter.Sanction => new("Står på listan", "Icon.Check",
                 "Listan är en källa. Att ägaren är sanktionerad följer av listan.", false, false),
             LabelFilter.Behaviour => new(
@@ -818,6 +852,10 @@ public sealed record LabelWords(string CaseNumber, string Providers, TimeZoneInf
                 origin.SourceVersion),
             LabelFilter.Provider => (origin.SourceName, "Hämtad " + when + " av " + origin.SetBy.Name,
                 origin.SourceVersion),
+            LabelFilter.OpenSource => (origin.SourceName, "Läst " + when + " av " + origin.SetBy.Name,
+                OpenSourceLicenses.Of(origin) is { } license
+                    ? $"{origin.SourceVersion} · {license}"
+                    : origin.SourceVersion),
             LabelFilter.Behaviour => ($"Analysen {origin.SourceName} {origin.SourceVersion}", when, string.Empty),
             _ => (Person(origin.SetBy), when, NoteOf(origin)),
         };

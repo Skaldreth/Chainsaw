@@ -98,6 +98,21 @@ public interface ICryptoRateSource
             ? ReadCandle(body, asset.Chain, quote, resolution, periodStart)
             : throw new NotSupportedException($"The source has no market for {asset}.");
     }
+
+    /// <summary>
+    /// Says whether a response shows that the source's history of a market begins after a period: it has periods, and
+    /// the first of them starts after the period asked about ended. Only then is an answer without the period final
+    /// (a period before the source's history); an empty answer never is. By default no response shows it.
+    /// </summary>
+    /// <param name="body">The response's raw bytes.</param>
+    /// <param name="asset">The asset.</param>
+    /// <param name="quote">The currency.</param>
+    /// <param name="resolution">The length of the period.</param>
+    /// <param name="periodStart">The period asked about.</param>
+    /// <returns><see langword="true"/> when the response shows the history begins later.</returns>
+    bool HistoryStartsAfter(
+        ReadOnlySpan<byte> body, Asset asset, FiatCurrency quote, PriceResolution resolution,
+        DateTimeOffset periodStart) => false;
 }
 
 /// <summary>One period of a price history as a source gives it.</summary>

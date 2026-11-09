@@ -148,6 +148,28 @@ public sealed class LabelsTests
     }
 
     [Fact]
+    public async Task A_possible_sanction_is_dashed_and_never_among_the_hits()
+    {
+        _sanctions.Imported.Add([1]);
+        _attribution.History =
+        [
+            Entry(1, E, LabelKind.PossiblySanctioned, "Växlare Z", LabelSource.SanctionList, Me, sourceName: "EU FSF"),
+        ];
+
+        var model = await ModelAsync(Scene());
+
+        Assert.DoesNotContain(
+            model.Items.OfType<LabelGroupHeader>(), header => header.Title == "SANKTIONSTRÄFFAR I GRAFEN");
+        var row = Assert.Single(model.Items.OfType<LabelRowViewModel>());
+        Assert.False(row.IsSanction);
+        Assert.True(row.IsPossibleSanction);
+        Assert.True(row.IsDashed);
+        var chip = Assert.Single(row.Chips, chip => chip.Text == "Möjlig: kedjan står inte säkert");
+        Assert.True(chip.IsDashed);
+        Assert.DoesNotContain(row.Chips, each => each.IsSanction);
+    }
+
+    [Fact]
     public async Task Without_labels_the_list_says_so_honestly()
     {
         var model = await ModelAsync(Scene());

@@ -517,7 +517,7 @@ public sealed class ShellSubmenuTests
             var reply = await rig.Sanctions.ImportAsync();
 
             Assert.True(reply!.IsError);
-            Assert.Equal("Filen är inte en SDN-lista i XML.", reply.Text);
+            Assert.StartsWith("Filen är ingen sanktionslista som Chainsaw läser", reply.Text, StringComparison.Ordinal);
         }
         finally
         {
@@ -546,8 +546,21 @@ public sealed class ShellSubmenuTests
 
         Assert.Equal(
             "OFAC SDN publicerad 2026-01-02 är importerad: 0 adresser, 0 för Bitcoin. "
-                + "2 ogiltiga adresser hoppades över.",
+                + "2 adresser hoppades över (ogiltiga, på testnät eller märkta för en annan kedja).",
             SanctionListImport.Describe(list));
+    }
+
+    [Fact]
+    public void Uncertain_addresses_are_said_as_ambiguous_not_invalid()
+    {
+        var list = new SanctionListInfo(
+            "EU FSF", "ab", new DateOnly(2026, 1, 2), DateTimeOffset.UnixEpoch,
+            new Dictionary<string, int> { ["XBT"] = 3 }, 0) { Uncertain = 2 };
+
+        var text = SanctionListImport.Describe(list);
+
+        Assert.Contains("2 är tvetydiga", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("ogiltiga", text, StringComparison.Ordinal);
     }
 
     [Fact]

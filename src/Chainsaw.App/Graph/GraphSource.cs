@@ -447,7 +447,8 @@ public sealed class GraphSource(
     {
         var addresses = graph.Nodes.SelectMany(node => node.GraphAddresses).Distinct().ToList();
         var accounts = graph.Nodes.SelectMany(node => node.Accounts).Distinct().ToList();
-        var labelled = LabelKnownContracts(@case, accounts);
+        var lists = CheckLists(@case, [.. addresses.Select(address => address.ToChainAddress()), .. accounts]);
+        var labelled = LabelKnownContracts(@case, accounts) + lists.Added;
         var shared = 0;
         if (library is not null)
         {
@@ -469,9 +470,10 @@ public sealed class GraphSource(
             }
         }
 
-        return shared + labelled == 0
+        var read = shared + labelled == 0
             ? graph
             : await tracing.LoadAsync(@case, cancellationToken).ConfigureAwait(false);
+        return lists.Problems.Count == 0 ? read : read with { Problems = [.. read.Problems, .. lists.Problems] };
     }
 
     /// <summary>
@@ -503,6 +505,90 @@ public sealed class GraphSource(
             // The same, but unexpected: only the type is logged, since the message could name the case's data.
             Trace.TraceWarning("Labelling the known contracts failed: {0}", exception.GetType().FullName);
             return 0;
+        }
+    }
+
+    /// <summary>
+    /// Checks the graph's addresses on both chains against the imported sanction lists (OFAC SDN and the EU's) and
+    /// open sources (Ransomwhere), so that an address that comes in with an expansion is labelled the moment it is in
+    /// the case, and a list imported while a case is open is applied the next time its graph is read. Nothing is
+    /// fetched: the lists are files on this computer. The sanction lists and the open sources are checked each on
+    /// their own, so that a failure in one never keeps the other from being checked; a list whose file has changed is
+    /// passed over by Attribution and said in the graph's problems (the review of round 5, I4).
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="addresses">The graph's addresses on every chain.</param>
+    /// <returns>How many labels were added, and what to say about lists that could not be used.</returns>
+    private (int Added, IReadOnlyList<string> Problems) CheckLists(
+        ICase @case, IReadOnlyCollection<ChainAddress> addresses)
+    {
+        if (addresses.Count == 0)
+        {
+            return (0, []);
+        }
+
+        var problems = new List<string>();
+        var sanctions = Quietly(() => attribution.CheckSanctions(@case, addresses), "sanction lists");
+        var open = Quietly(() => attribution.CheckOpenSources(@case, addresses), "open sources");
+        problems.AddRange(sanctions?.Unusable.Select(list => UnusableListText(
+            "Sanktionslistan", list.Name, list.PublishDate)) ?? []);
+        problems.AddRange(sanctions?.Missing.Select(list => MissingListText(
+            "Sanktionslistan", list.Name, list.PublishDate)) ?? []);
+        problems.AddRange(open?.Unusable.Select(source => UnusableListText(
+            "Den öppna källan", source.Name, source.DataDate)) ?? []);
+        problems.AddRange(open?.Missing.Select(source => MissingListText(
+            "Den öppna källan", source.Name, source.DataDate)) ?? []);
+        return ((sanctions?.Added.Count ?? 0) + (open?.Added.Count ?? 0), problems);
+    }
+
+    /// <summary>Says that a list on this computer has changed since it was imported and is not used.</summary>
+    /// <param name="what">What kind of list, with its article, for example <c>Sanktionslistan</c>.</param>
+    /// <param name="name">The list's name.</param>
+    /// <param name="date">Its date.</param>
+    /// <returns>The text, in Swedish.</returns>
+    public static string UnusableListText(string what, string name, DateOnly date) => string.Format(
+        CultureInfo.InvariantCulture,
+        "{0} {1} {2:yyyy-MM-dd} har ändrats på datorn sedan den importerades och används inte; importera den igen.",
+        what,
+        name,
+        date);
+
+    /// <summary>Says that a list is gone from the computer since it was imported, so it was not used.</summary>
+    /// <param name="what">What kind of list, with its article, for example <c>Sanktionslistan</c>.</param>
+    /// <param name="name">The list's name.</param>
+    /// <param name="date">Its date.</param>
+    /// <returns>The text, in Swedish.</returns>
+    public static string MissingListText(string what, string name, DateOnly date) => string.Format(
+        CultureInfo.InvariantCulture,
+        "{0} {1} {2:yyyy-MM-dd} saknas på datorn och användes inte; importera den igen om den behövs.",
+        what,
+        name,
+        date);
+
+    /// <summary>Runs a check of the lists, giving nothing when it fails, so that the graph is always shown.</summary>
+    /// <typeparam name="T">The check's result.</typeparam>
+    /// <param name="check">The check.</param>
+    /// <param name="what">What is checked, for the log.</param>
+    /// <returns>The result, or <see langword="null"/> when the check failed.</returns>
+    private static T? Quietly<T>(Func<T> check, string what)
+        where T : class
+    {
+        try
+        {
+            return check();
+        }
+        catch (Exception exception) when (exception is CaseException or SanctionListException
+            or OpenSourceListException or IOException or UnauthorizedAccessException)
+        {
+            // A closed case or a list that cannot be read must never keep the graph from being shown; the check runs
+            // again at the next reading.
+            return null;
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException and not OperationCanceledException)
+        {
+            // The same, but unexpected: only the type is logged, since the message could name the case's data.
+            Trace.TraceWarning("Checking the {0} failed: {1}", what, exception.GetType().FullName);
+            return null;
         }
     }
 
