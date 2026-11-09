@@ -56,7 +56,10 @@ först sågs i den) **hålls tillbaka**. Klustret får då en tyst markering i h
 och hovringen säger vilken tx slutsatsen byggde på och vad som ersatte den.
 
 Ingenting tas bort och ingenting slutar räknas av sig självt: slutsatsen står kvar, förseglad, tills du väljer i
-*Historik*. **Låt stå** behåller den, och nästa körning respekterar det. **Släpp slutsatsen** gör att den inte räknas
+*Historik*. Klustringen drar inte heller några **nya** slutsatser av att tx:en saknas: en adress som först syntes i
+den räknas fortfarande som sedd, eftersom den visades för världen där, och en ny slutsats som skulle bygga på den
+borta tx:en dras inte alls. Drar du tillbaka en version av en heuristik medan tx:en är borta görs inte heller det
+som byggde på den om. **Låt stå** behåller den, och nästa körning respekterar det. **Släpp slutsatsen** gör att den inte räknas
 längre (också dess fynd), men den står kvar förseglad, och nästa körning drar sina slutsatser utan den borta tx:en.
 Båda valen förseglas med vem och när, och kan tas tillbaka.
 

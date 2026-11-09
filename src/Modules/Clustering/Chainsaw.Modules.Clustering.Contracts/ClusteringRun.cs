@@ -30,7 +30,14 @@ public sealed record ClusteringRun(
     int Stopped,
     IReadOnlyList<Txid> CoinJoins,
     IReadOnlyList<Txid> Failed,
-    IReadOnlyList<Txid> HeldBack);
+    IReadOnlyList<Txid> HeldBack)
+{
+    /// <summary>
+    /// Gets the transactions the run was told the source no longer knows, and so left out of what it analysed (sketch
+    /// HB1a); empty for a run told of none.
+    /// </summary>
+    public IReadOnlyList<Txid> LeftOut { get; init; } = [];
+}
 
 /// <summary>Everything the analyses concluded about one transaction, as stored in the case.</summary>
 /// <param name="Txid">The transaction.</param>

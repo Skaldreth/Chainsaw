@@ -21,8 +21,28 @@ public sealed class GraphEditorTests
     /// <summary>The checks, which take a wallet's approval back with its merge.</summary>
     private readonly TestCheckService _checks = new();
 
+    /// <summary>The tracing, which says which transactions are gone.</summary>
+    private readonly TestTracing _tracing = new();
+
     /// <summary>Gives the editor over the fakes.</summary>
-    private GraphEditor Editor => new(new TestTracing(), _attribution, _clustering, _library, _checks);
+    private GraphEditor Editor => new(_tracing, _attribution, _clustering, _library, _checks);
+
+    /// <summary>
+    /// A decision about a held back conclusion is checked against the gone transactions the expansions leave out
+    /// (sketch HB1a), so that one held back on its own gone transaction can be decided.
+    /// </summary>
+    [Fact]
+    public async Task AHeldBackDecisionIsToldWhichTransactionsAreGone()
+    {
+        var gone = Txid.Parse(new string('a', 64));
+        _tracing.SettledGone.Add(gone);
+
+        var outcome = await Editor.DecideHeldBackAsync(
+            _case, gone, Chainsaw.Modules.Clustering.Contracts.ConclusionChoice.Keep, null);
+
+        Assert.True(outcome.Done);
+        Assert.Equal([gone], Assert.Single(_clustering.GoneTold));
+    }
 
     /// <summary>A label taken back is taken in by the library at once, so that its copies are withdrawn.</summary>
     [Fact]

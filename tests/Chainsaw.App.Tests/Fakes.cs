@@ -786,6 +786,12 @@ internal sealed class TestTracing : ITracingService
 
     public IReadOnlyList<SwapStopHistoryEntry> GetSwapStopHistory(ICase @case) => SwapHistory;
 
+    public List<Txid> SettledGone { get; } = [];
+
+    public Task<IReadOnlyCollection<Txid>> GetSettledGoneAsync(
+        ICase @case, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyCollection<Txid>>([.. SettledGone]);
+
     public Task<ReplacementFollow> FollowReplacementAsync(
         ICase @case, Txid gone, Txid replacer, string? reason, CancellationToken cancellationToken = default) =>
         Task.FromResult(new ReplacementFollow(1, gone, replacer, reason, 1, DateTimeOffset.UnixEpoch));

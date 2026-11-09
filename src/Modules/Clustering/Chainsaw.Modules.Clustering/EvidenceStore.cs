@@ -91,8 +91,24 @@ internal static class EvidenceStore
     /// <returns>The stored results by transaction and analysis.</returns>
     /// <exception cref="CaseException"><see cref="CaseError.Corrupt"/> when a record cannot be read back.</exception>
     public static Dictionary<(Txid Txid, HeuristicId Heuristic), StoredResult> LatestResults(
-        ICaseReader reader, IReadOnlySet<Txid> txids)
+        ICaseReader reader, IReadOnlySet<Txid> txids) =>
+        ReadResults(reader, txids).Latest;
+
+    /// <summary>
+    /// Reads, in one pass, what <see cref="LatestResults"/> gives and, for every transaction, the holding basis: per
+    /// analysis, the transactions that the newest result of the highest stored version rests on, also when that
+    /// version is drawn back, and of the highest version that counts now; never a result the user let go (sketch
+    /// HB1a). A run that does not know a gone transaction in it must not redo the transaction's conclusions, not even
+    /// after a withdrawal re-weighs them (KV1a), since the conclusion that would be re-weighed rests on it too.
+    /// </summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <param name="txids">The transactions.</param>
+    /// <returns>The counting results by transaction and analysis, and the holding basis by transaction.</returns>
+    /// <exception cref="CaseException"><see cref="CaseError.Corrupt"/> when a record cannot be read back.</exception>
+    public static (Dictionary<(Txid Txid, HeuristicId Heuristic), StoredResult> Latest,
+        Dictionary<Txid, HashSet<Txid>> Holding) ReadResults(ICaseReader reader, IReadOnlySet<Txid> txids)
     {
+        var everyVersion = new Dictionary<(Txid, HeuristicId), (long Journal, List<Txid> Basis)>();
         var withdrawnAt = ReadWithdrawals(reader)
             .Where(withdrawal => withdrawal.IsInForce)
             .ToDictionary(withdrawal => withdrawal.Heuristic, withdrawal => withdrawal.JournalSequence);
@@ -111,13 +127,6 @@ internal static class EvidenceStore
             }
 
             var key = (txid, Heuristic(row.GetString(1), row.GetInt64(2)));
-            if (withdrawnAt.TryGetValue(key.Item2, out var at))
-            {
-                // A version drawn back neither counts nor holds a run back.
-                weighedWithWithdrawn[txid] = Math.Max(weighedWithWithdrawn.GetValueOrDefault(txid), at);
-                continue;
-            }
-
             var journal = row.GetInt64(3);
             if (IsReleased(releases, txid, journal))
             {
@@ -125,17 +134,48 @@ internal static class EvidenceStore
                 continue;
             }
 
+            var basis = Deserialize<List<string>>(row.GetString(5)).Select(ParseTxid).ToList();
+            if (!everyVersion.TryGetValue(key, out var newest) || journal > newest.Journal)
+            {
+                everyVersion[key] = (journal, basis);
+            }
+
+            if (withdrawnAt.TryGetValue(key.Item2, out var at))
+            {
+                // A version drawn back does not count; what it rests on still holds back (ReadResults).
+                weighedWithWithdrawn[txid] = Math.Max(weighedWithWithdrawn.GetValueOrDefault(txid), at);
+                continue;
+            }
+
             if (!latest.TryGetValue(key, out var known) || journal > known.Journal)
             {
-                var basis = Deserialize<List<string>>(row.GetString(5)).Select(ParseTxid).ToList();
                 latest[key] = (journal, new StoredResult(row.GetString(4), basis));
             }
         }
 
-        return latest
+        // Per analysis name, the highest version as if nothing were drawn back, and the highest that counts now.
+        var holding = new Dictionary<Txid, HashSet<Txid>>();
+        foreach (var group in everyVersion.GroupBy(entry => (entry.Key.Item1, entry.Key.Item2.Name)))
+        {
+            if (!holding.TryGetValue(group.Key.Item1, out var set))
+            {
+                set = [];
+                holding[group.Key.Item1] = set;
+            }
+
+            set.UnionWith(group.MaxBy(entry => entry.Key.Item2.Version).Value.Basis);
+            var counting = group.Where(entry => !withdrawnAt.ContainsKey(entry.Key.Item2)).ToList();
+            if (counting.Count > 0)
+            {
+                set.UnionWith(counting.MaxBy(entry => entry.Key.Item2.Version).Value.Basis);
+            }
+        }
+
+        var current = latest
             .Where(entry =>
                 !(weighedWithWithdrawn.TryGetValue(entry.Key.Item1, out var at) && entry.Value.Journal < at))
             .ToDictionary(entry => entry.Key, entry => entry.Value.Result);
+        return (current, holding);
     }
 
     /// <summary>Seals one weighed result as records under a run's journal entry.</summary>

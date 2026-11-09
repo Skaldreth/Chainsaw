@@ -561,11 +561,18 @@ public sealed class GraphEditor(
     }
 
     /// <inheritdoc/>
-    public Task<UndoOutcome> DecideHeldBackAsync(ICase @case, Txid txid, ConclusionChoice choice, string? reason)
+    public async Task<UndoOutcome> DecideHeldBackAsync(
+        ICase @case, Txid txid, ConclusionChoice choice, string? reason)
     {
         ArgumentNullException.ThrowIfNull(@case);
         ArgumentNullException.ThrowIfNull(txid);
-        return Task.Run(() => new UndoOutcome(clustering.DecideHeldBack(@case, txid, choice, reason) is not null));
+
+        // The same gone transactions the expansions leave out, so that a conclusion held back on its own gone
+        // transaction can be decided, and no other can claim to be.
+        var gone = await tracing.GetSettledGoneAsync(@case).ConfigureAwait(false);
+        return await Task.Run(() =>
+            new UndoOutcome(clustering.DecideHeldBack(@case, txid, choice, reason, gone) is not null))
+            .ConfigureAwait(false);
     }
 
     /// <inheritdoc/>

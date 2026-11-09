@@ -19,6 +19,12 @@ internal sealed class ClusteringService : IClusteringService
     /// <summary>The longest line the case's journal takes (Cases refuses a longer summary).</summary>
     private const int JournalSummaryLength = 1_000;
 
+    /// <summary>Writes a run's journal data without the parts it does not have (<c>leftOut</c>).</summary>
+    private static readonly JsonSerializerOptions SkipNull = new()
+    {
+        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
+    };
+
     /// <summary>
     /// Every registered version of the analyses for the UTXO chains, grouped by name in the order the names were first
     /// registered, highest version first; the first that a case has not drawn back runs.
@@ -79,7 +85,8 @@ internal sealed class ClusteringService : IClusteringService
         ArgumentNullException.ThrowIfNull(transactions);
         ArgumentNullException.ThrowIfNull(gone);
         var goneTxids = gone.ToHashSet();
-        var known = new KnownTransactions([.. transactions.Where(found => !goneTxids.Contains(found.Txid))]);
+        var known = new KnownTransactions(
+            transactions, transactions.Where(found => goneTxids.Contains(found.Txid)));
         var running = Running(@case.Read(EvidenceStore.ReadWithdrawals));
         var failed = new List<Txid>();
         var analysed = new List<(Txid Txid, List<(WeighedResult Result, string Fingerprint)> Results)>();
@@ -97,20 +104,24 @@ internal sealed class ClusteringService : IClusteringService
         }
 
         var txids = known.All.Select(transaction => transaction.Txid).ToHashSet();
+        List<Txid> leftOut = [.. goneTxids.OrderBy(txid => txid.Stored, StringComparer.Ordinal)];
 
         return @case.Write(transaction =>
         {
-            var latest = EvidenceStore.LatestResults(transaction, txids);
-            var resting = analysed.Where(entry => !KnowsBasis(entry.Txid, latest, txids))
-                .Select(entry => entry.Txid)
+            var (latest, holding) = EvidenceStore.ReadResults(transaction, txids.Union(goneTxids).ToHashSet());
+            var counting = CountingBasis(latest);
+            var resting = analysed
+                .Select(entry => (entry.Txid, Missing: Missing(entry.Txid, counting, holding, txids, goneTxids)))
+                .Where(entry => entry.Missing.Count > 0)
                 .ToList();
-            var goneOwn = GoneOwn(transaction, goneTxids, txids);
-            HeldBackStore.Replace(
-                transaction,
-                [.. resting.Select(txid => (txid, MissingBasis(txid, latest, txids))), .. goneOwn]);
-            List<Txid> heldBack = [.. resting, .. goneOwn.Select(entry => entry.Txid)];
-            var changed = analysed.Where(entry => !resting.Contains(entry.Txid))
+            var goneOwn = GoneOwn(transaction, goneTxids, counting, txids);
+            HeldBackStore.Replace(transaction, [.. resting, .. goneOwn]);
+            List<Txid> heldBack = [.. resting.Select(entry => entry.Txid), .. goneOwn.Select(entry => entry.Txid)];
+            var notRedone = resting.Select(entry => entry.Txid).ToHashSet();
+            // A new result that would rest on a gone transaction is not drawn: the chain no longer has it.
+            var changed = analysed.Where(entry => !notRedone.Contains(entry.Txid))
                 .SelectMany(entry => entry.Results)
+                .Where(entry => !entry.Result.Result.Basis.Any(goneTxids.Contains))
                 .Where(entry => Replaces(entry.Result, entry.Fingerprint, latest))
                 .ToList();
             // A run that only holds something back stores nothing, so it writes nothing in the journal either; an app
@@ -118,7 +129,7 @@ internal sealed class ClusteringService : IClusteringService
             // back is still in the run's result.
             if (changed.Count == 0 && failed.Count == 0)
             {
-                return new ClusteringRun(null, known.Count, 0, 0, 0, 0, [], failed, heldBack);
+                return new ClusteringRun(null, known.Count, 0, 0, 0, 0, [], failed, heldBack) { LeftOut = leftOut };
             }
 
             var proposals = changed.SelectMany(entry => entry.Result.Proposals).ToList();
@@ -144,14 +155,20 @@ internal sealed class ClusteringService : IClusteringService
                     coinJoins = coinJoins.Select(txid => txid.Value),
                     failed = failed.Select(txid => txid.Value),
                     heldBack = heldBack.Select(txid => txid.Value),
-                })));
+                    // Only when something was left out, so that a run told of nothing writes what it always did.
+                    leftOut = leftOut.Count > 0 ? leftOut.Select(txid => txid.Value) : null,
+                },
+                SkipNull)));
             foreach (var (result, fingerprint) in changed)
             {
                 EvidenceStore.Append(transaction, result, fingerprint, journal);
             }
 
             return new ClusteringRun(
-                journal, known.Count, changed.Count, merges, suggestions, stopped, coinJoins, failed, heldBack);
+                journal, known.Count, changed.Count, merges, suggestions, stopped, coinJoins, failed, heldBack)
+            {
+                LeftOut = leftOut,
+            };
         });
     }
 
@@ -528,10 +545,16 @@ internal sealed class ClusteringService : IClusteringService
     }
 
     /// <inheritdoc/>
-    public HeldBackDecision? DecideHeldBack(ICase @case, Txid txid, ConclusionChoice choice, string? reason)
+    public HeldBackDecision? DecideHeldBack(ICase @case, Txid txid, ConclusionChoice choice, string? reason) =>
+        DecideHeldBack(@case, txid, choice, reason, []);
+
+    /// <inheritdoc/>
+    public HeldBackDecision? DecideHeldBack(
+        ICase @case, Txid txid, ConclusionChoice choice, string? reason, IReadOnlyCollection<Txid> gone)
     {
         ArgumentNullException.ThrowIfNull(@case);
         ArgumentNullException.ThrowIfNull(txid);
+        ArgumentNullException.ThrowIfNull(gone);
         if (choice == ConclusionChoice.Reopen)
         {
             throw new ArgumentException("A decision is taken back with ReopenHeldBack.", nameof(choice));
@@ -544,10 +567,15 @@ internal sealed class ClusteringService : IClusteringService
             var (evidence, findings) = EvidenceStore.ReadLatest(transaction, txid);
 
             // The kept row is working state that is not sealed, so what it says was missing is checked against the
-            // sealed conclusions' own basis before anything is sealed from it. A conclusion always rests on its own
-            // transaction too, which is what is missing when that transaction is gone.
-            var basis = SealedBasis(transaction, txid);
-            basis.Add(txid);
+            // sealed conclusions' own holding basis before anything is sealed from it. A conclusion also rests on its
+            // own transaction, which may be what is missing, but only when the caller says that it is gone.
+            var basis = EvidenceStore.ReadResults(transaction, new HashSet<Txid> { txid }).Holding
+                .GetValueOrDefault(txid, []);
+            if (gone.Contains(txid))
+            {
+                basis.Add(txid);
+            }
+
             var missing = held.Txid is null ? [] : held.Missing.Where(basis.Contains).ToList();
             if (missing.Count == 0 || (evidence.Count == 0 && findings.Count == 0))
             {
@@ -606,21 +634,6 @@ internal sealed class ClusteringService : IClusteringService
                 checkedReason, journal, decision.Sequence);
         });
     }
-
-    /// <summary>
-    /// Gives the transactions the counting sealed results of a transaction rest on (the highest version of each
-    /// analysis), read from the sealed records themselves.
-    /// </summary>
-    /// <param name="reader">The case's reader.</param>
-    /// <param name="txid">The transaction.</param>
-    /// <returns>The basis.</returns>
-    private static HashSet<Txid> SealedBasis(ICaseReader reader, Txid txid) =>
-    [
-        .. EvidenceStore.LatestResults(reader, new HashSet<Txid> { txid })
-            .GroupBy(entry => entry.Key.Heuristic.Name)
-            .Select(group => group.MaxBy(entry => entry.Key.Heuristic.Version))
-            .SelectMany(entry => entry.Value.Basis),
-    ];
 
     /// <inheritdoc/>
     public IReadOnlyList<HeldBackDecision> GetHeldBackDecisions(ICase @case)
@@ -937,7 +950,9 @@ internal sealed class ClusteringService : IClusteringService
         var findings = result.Findings.All(finding => finding is not null
             && !string.IsNullOrWhiteSpace(finding.Reason)
             && ValidOutput(finding.ChangeOutput));
-        var basis = result.Basis.All(txid => txid is not null && known.Find(txid) is not null);
+        // A gone transaction can be a basis: where an address was seen stays as the case saw it.
+        var basis = result.Basis.All(txid => txid is not null
+            && (known.Find(txid) is not null || known.IsGone(txid)));
         var veto = result.Veto is null
             || (Enum.IsDefined(result.Veto.Kind) && !string.IsNullOrWhiteSpace(result.Veto.Reason));
         return proposals && findings && basis && veto;
@@ -970,63 +985,63 @@ internal sealed class ClusteringService : IClusteringService
     /// </summary>
     /// <param name="reader">The case's reader.</param>
     /// <param name="gone">The transactions the source no longer knows.</param>
+    /// <param name="counting">The counting basis by transaction (<see cref="CountingBasis"/>).</param>
     /// <param name="known">The transactions the run knows.</param>
     /// <returns>The gone transactions held back, with what is missing.</returns>
     private static List<(Txid Txid, IReadOnlyList<Txid> Missing)> GoneOwn(
-        ICaseReader reader, HashSet<Txid> gone, HashSet<Txid> known)
-    {
-        if (gone.Count == 0)
-        {
-            return [];
-        }
-
-        var latest = EvidenceStore.LatestResults(reader, gone);
-        var conclusions = EvidenceStore.ReadLatest(reader, gone);
-        return
-        [
-            .. gone.Where(txid => conclusions[txid] is var own && (own.Evidence.Count > 0 || own.Findings.Count > 0))
-                .OrderBy(txid => txid.Stored, StringComparer.Ordinal)
-                .Select(txid => (txid, (IReadOnlyList<Txid>)[txid, .. MissingBasis(txid, latest, known)
-                    .Where(missing => missing != txid)])),
-        ];
-    }
-
-    /// <summary>
-    /// Gives the transactions that the counting stored results of a transaction rest on and the run does not know,
-    /// so that the user can see what a held back conclusion was built on (sketch HB1a).
-    /// </summary>
-    /// <param name="txid">The transaction.</param>
-    /// <param name="latest">What is stored.</param>
-    /// <param name="known">The transactions the run knows.</param>
-    /// <returns>The missing transactions.</returns>
-    private static IReadOnlyList<Txid> MissingBasis(
-        Txid txid, Dictionary<(Txid Txid, HeuristicId Heuristic), StoredResult> latest, HashSet<Txid> known) =>
+        ICaseReader reader, HashSet<Txid> gone, Dictionary<Txid, List<Txid>> counting, HashSet<Txid> known) =>
     [
-        .. latest.Where(entry => entry.Key.Txid == txid)
-            .GroupBy(entry => entry.Key.Heuristic.Name)
-            .Select(group => group.MaxBy(entry => entry.Key.Heuristic.Version))
-            .SelectMany(entry => entry.Value.Basis)
-            .Where(basis => !known.Contains(basis))
-            .Distinct(),
+        .. gone.OrderBy(txid => txid.Stored, StringComparer.Ordinal)
+            .Where(txid => EvidenceStore.ReadLatest(reader, txid) is var (evidence, findings)
+                && (evidence.Count > 0 || findings.Count > 0))
+            .Select(txid => (txid, (IReadOnlyList<Txid>)
+            [
+                txid,
+                .. counting.GetValueOrDefault(txid, []).Where(basis => basis != txid && !known.Contains(basis)),
+            ])),
     ];
 
     /// <summary>
-    /// Says whether the run knows every transaction that any counting stored result of a transaction (the highest
-    /// version of each analysis) rests on. The results of
-    /// a transaction are weighed together, so they are replaced together or not at all: a narrower run never takes
-    /// back what a wider one concluded.
+    /// Gives, per transaction, what its counting stored results rest on: the highest version of each analysis. Worked
+    /// out once per run rather than once per transaction.
+    /// </summary>
+    /// <param name="latest">What is stored.</param>
+    /// <returns>The basis by transaction.</returns>
+    private static Dictionary<Txid, List<Txid>> CountingBasis(
+        Dictionary<(Txid Txid, HeuristicId Heuristic), StoredResult> latest) =>
+        latest.GroupBy(entry => entry.Key.Txid)
+            .ToDictionary(
+                byTxid => byTxid.Key,
+                byTxid => byTxid.GroupBy(entry => entry.Key.Heuristic.Name)
+                    .Select(group => group.MaxBy(entry => entry.Key.Heuristic.Version))
+                    .SelectMany(entry => entry.Value.Basis)
+                    .Distinct()
+                    .ToList());
+
+    /// <summary>
+    /// Gives what a transaction's stored conclusions rest on that the run does not know, so that the run holds them
+    /// back and the user can see what they were built on (sketch HB1a); empty when the run may redo them. The results
+    /// of a transaction are weighed together, so they are replaced together or not at all: a narrower run never takes
+    /// back what a wider one concluded. A gone transaction in the holding basis also holds them back, so that a
+    /// withdrawal (KV1a), which re-weighs what the withdrawn version had weighed, cannot redo them without it.
     /// </summary>
     /// <param name="txid">The transaction.</param>
-    /// <param name="latest">What is stored.</param>
+    /// <param name="counting">The counting basis by transaction (<see cref="CountingBasis"/>).</param>
+    /// <param name="holding">The holding basis by transaction (<see cref="EvidenceStore.ReadResults"/>).</param>
     /// <param name="known">The transactions the run knows.</param>
-    /// <returns><see langword="true"/> when the run may replace the transaction's results.</returns>
-    private static bool KnowsBasis(
-        Txid txid, Dictionary<(Txid Txid, HeuristicId Heuristic), StoredResult> latest, HashSet<Txid> known) =>
-        latest.Where(entry => entry.Key.Txid == txid)
-            .GroupBy(entry => entry.Key.Heuristic.Name)
-            .Select(group => group.MaxBy(entry => entry.Key.Heuristic.Version))
-            .SelectMany(entry => entry.Value.Basis)
-            .All(known.Contains);
+    /// <param name="gone">The transactions the source no longer knows.</param>
+    /// <returns>The missing transactions.</returns>
+    private static IReadOnlyList<Txid> Missing(
+        Txid txid,
+        Dictionary<Txid, List<Txid>> counting,
+        Dictionary<Txid, HashSet<Txid>> holding,
+        HashSet<Txid> known,
+        HashSet<Txid> gone) =>
+    [
+        .. counting.GetValueOrDefault(txid, []).Where(basis => !known.Contains(basis))
+            .Concat(holding.GetValueOrDefault(txid, []).Where(gone.Contains))
+            .Distinct(),
+    ];
 
     /// <summary>
     /// Decides whether a new result is stored: when nothing is stored for its version it must conclude something, or

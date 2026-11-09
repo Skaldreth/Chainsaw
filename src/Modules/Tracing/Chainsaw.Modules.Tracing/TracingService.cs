@@ -412,6 +412,24 @@ internal sealed class TracingService : ITracingService
     }
 
     /// <inheritdoc/>
+    public async Task<IReadOnlyCollection<Txid>> GetSettledGoneAsync(
+        ICase @case, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        var inGraph = @case.Read(GraphStateStore.Read).Transactions.ToHashSet();
+        var gone = await GoneAsync(@case, inGraph, cancellationToken).ConfigureAwait(false);
+        return SettledGone(gone);
+    }
+
+    /// <summary>
+    /// Gives the gone transactions whose answers settle that they are gone: the same rule everywhere.
+    /// </summary>
+    /// <param name="gone">The gone transactions.</param>
+    /// <returns>The settled ones.</returns>
+    private static List<Txid> SettledGone(IReadOnlyDictionary<Txid, GoneTransaction> gone) =>
+        [.. gone.Values.Where(each => each.IsSettled).Select(each => each.Txid)];
+
+    /// <inheritdoc/>
     public async Task<ReplacementFollow> FollowReplacementAsync(
         ICase @case, Txid gone, Txid replacer, string? reason, CancellationToken cancellationToken = default)
     {
@@ -1216,7 +1234,7 @@ internal sealed class TracingService : ITracingService
         var account = state.EthereumTransactions.Count > 0 || state.EthereumHistories.Count > 0
             ? await ReadAccountsAsync(@case, state, cancellationToken).ConfigureAwait(false)
             : AccountData.Empty;
-        var gone = await GoneAsync(@case, transactions, cancellationToken).ConfigureAwait(false);
+        var gone = await GoneAsync(@case, transactions.Keys.ToHashSet(), cancellationToken).ConfigureAwait(false);
         return new GraphData(state, transactions, spends, problems) { Account = account, Gone = gone };
     }
 
@@ -1233,9 +1251,7 @@ internal sealed class TracingService : ITracingService
     /// <param name="data">The graph's data.</param>
     private void AnalyseClusters(ICase @case, GraphData data) =>
         _clustering.Analyse(
-            @case,
-            [.. data.Transactions.Values.Select(entry => entry.Transaction)],
-            [.. data.Gone.Values.Where(gone => gone.IsSettled).Select(gone => gone.Txid)]);
+            @case, [.. data.Transactions.Values.Select(entry => entry.Transaction)], SettledGone(data.Gone));
 
     /// <summary>
     /// Reads which of the graph's Bitcoin transactions the source no longer knows (sketch GR9a), and what the case
@@ -1246,17 +1262,17 @@ internal sealed class TracingService : ITracingService
     /// <param name="cancellationToken">Stops the work.</param>
     /// <returns>The gone transactions, by txid.</returns>
     private async Task<Dictionary<Txid, GoneTransaction>> GoneAsync(
-        ICase @case, IReadOnlyDictionary<Txid, GraphTransaction> transactions, CancellationToken cancellationToken)
+        ICase @case, IReadOnlySet<Txid> transactions, CancellationToken cancellationToken)
     {
         var gone = new Dictionary<Txid, GoneTransaction>();
-        var chains = transactions.Keys.Select(txid => txid.Chain).ToHashSet();
+        var chains = transactions.Select(txid => txid.Chain).ToHashSet();
         foreach (var (chain, source) in _sources.Where(pair => chains.Contains(pair.Key)))
         {
             var changes = await source.GetBlockChangesAsync(@case, cancellationToken).ConfigureAwait(false);
             foreach (var change in changes.Where(change => change.Chain == chain
                 && change.Kind == BlockChangeKind.Gone))
             {
-                if (!Txid.TryParse(chain, change.TransactionId, out var txid) || !transactions.ContainsKey(txid))
+                if (!Txid.TryParse(chain, change.TransactionId, out var txid) || !transactions.Contains(txid))
                 {
                     continue;
                 }

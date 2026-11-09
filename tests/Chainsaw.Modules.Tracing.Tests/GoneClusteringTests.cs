@@ -79,7 +79,8 @@ public sealed class GoneClusteringTests : IDisposable
         MarkGone(source, gone, corroborated: true);
         await _harness.Expand(a);
 
-        Assert.NotNull(_harness.Clustering.DecideHeldBack(_harness.Case, gone.Txid, ConclusionChoice.Keep, null));
+        Assert.NotNull(
+            _harness.Clustering.DecideHeldBack(_harness.Case, gone.Txid, ConclusionChoice.Keep, null, [gone.Txid]));
         await _harness.Expand(b);
 
         Assert.False(Assert.Single(_harness.Clustering.GetHeldBack(_harness.Case)).IsWaiting);
@@ -95,13 +96,92 @@ public sealed class GoneClusteringTests : IDisposable
         await _harness.Expand(a);
         var stored = Count();
 
-        Assert.NotNull(_harness.Clustering.DecideHeldBack(_harness.Case, gone.Txid, ConclusionChoice.Release, null));
+        Assert.NotNull(_harness.Clustering.DecideHeldBack(
+            _harness.Case, gone.Txid, ConclusionChoice.Release, null, [gone.Txid]));
         await _harness.Expand(b);
 
         Assert.Empty(_harness.Clustering.GetHeldBack(_harness.Case));
         Assert.DoesNotContain(b, _harness.Clustering.GetCluster(_harness.Case, a).Addresses);
         Assert.Equal(stored, Count());
         Assert.True(_harness.Verify().IsIntact);
+    }
+
+    [Fact]
+    public async Task A_change_conclusion_of_another_transaction_that_rests_on_the_gone_one_is_held_back()
+    {
+        var (source, _, _, gone) = Setup(nameof(Chain.Bitcoin));
+        var later = Tx("pays-again", 900_002).In(Wpkh("payer"), 5_000_000)
+            .Out(Wpkh("shop"), 1_234_567).Out(Wpkh("fresh-change"), 3_745_678).Build();
+        source.Add(later);
+        await _harness.Expand(gone);
+        await _harness.Expand(later);
+        Assert.NotEmpty(_harness.Clustering.GetConclusions(_harness.Case, later.Txid).Evidence);
+        var stored = Count();
+
+        MarkGone(source, gone, corroborated: true);
+        await _harness.Expand(Wpkh("payer"));
+
+        var held = Assert.Single(_harness.Clustering.GetHeldBack(_harness.Case), each => each.Txid == later.Txid);
+        Assert.Equal([gone.Txid], held.Missing);
+        Assert.Equal(stored, Count());
+    }
+
+    [Theory]
+    [InlineData("conflicting", false)]
+    [InlineData("coins", true)]
+    [InlineData("single", true)]
+    public async Task Only_what_the_trail_end_also_takes_as_gone_is_left_out(string answers, bool leftOut)
+    {
+        var (source, a, _, gone) = Setup(nameof(Chain.Bitcoin));
+        await _harness.Expand(gone);
+
+        MarkGone(source, gone, corroborated: answers == "single", singleSource: answers == "single");
+        source.Replacements[gone.Txid] = answers switch
+        {
+            "conflicting" => new TransactionReplacement(gone.Txid,
+                [new ReplacedCoin(0, gone.Inputs[0].PreviousTxid!, 0, ReplacedCoinState.SpentByItself, null, 70)]),
+            _ => new TransactionReplacement(gone.Txid,
+            [
+                new ReplacedCoin(0, gone.Inputs[0].PreviousTxid!, 0, ReplacedCoinState.Unspent, null, 70)
+                {
+                    Host = "second.example",
+                },
+            ]),
+        };
+        var graph = (await _harness.Expand(a)).Graph;
+
+        Assert.Equal(leftOut, graph.Gone[gone.Txid].IsSettled);
+        Assert.Equal(leftOut, _harness.Clustering.GetHeldBack(_harness.Case).Any(held => held.Txid == gone.Txid));
+    }
+
+    [Fact]
+    public async Task A_transaction_in_another_block_after_a_reorganisation_holds_nothing_back()
+    {
+        var (source, a, _, gone) = Setup(nameof(Chain.Bitcoin));
+        await _harness.Expand(gone);
+        var before = new BlockSighting(900_001, gone.Block!.Hash.Value, DateTimeOffset.UnixEpoch, 10);
+        var now = new BlockSighting(900_002, new string('a', 64), DateTimeOffset.UnixEpoch.AddHours(1), 60);
+        source.Changes.Add(new BlockChange(gone.Txid, BlockChangeKind.Moved, before, now));
+
+        var graph = (await _harness.Expand(a)).Graph;
+
+        Assert.Empty(graph.Gone);
+        Assert.Empty(_harness.Clustering.GetHeldBack(_harness.Case));
+    }
+
+    [Fact]
+    public async Task A_gone_transactions_own_conclusion_is_decided_through_the_set_the_expansions_use()
+    {
+        var (source, a, _, gone) = Setup(nameof(Chain.Bitcoin));
+        await _harness.Expand(gone);
+        MarkGone(source, gone, corroborated: true);
+        await _harness.Expand(a);
+
+        var settled = await _harness.Service.GetSettledGoneAsync(_harness.Case);
+
+        Assert.Equal([gone.Txid], settled);
+        Assert.NotNull(
+            _harness.Clustering.DecideHeldBack(_harness.Case, gone.Txid, ConclusionChoice.Keep, null, settled));
     }
 
     /// <summary>
@@ -122,7 +202,8 @@ public sealed class GoneClusteringTests : IDisposable
     }
 
     /// <summary>Says, as Chains would from the sealed answers, that the transaction left the chain.</summary>
-    private static void MarkGone(FakeSource source, BitcoinTransaction gone, bool corroborated)
+    private static void MarkGone(
+        FakeSource source, BitcoinTransaction gone, bool corroborated, bool singleSource = false)
     {
         var before = new BlockSighting(900_001, gone.Block!.Hash.Value, DateTimeOffset.UnixEpoch, 10)
         {
@@ -132,6 +213,7 @@ public sealed class GoneClusteringTests : IDisposable
         source.Changes.Add(new BlockChange(gone.Txid, BlockChangeKind.Gone, before, now)
         {
             Chain = gone.Txid.Chain, IsCorroborated = corroborated, GoneHosts = ["esplora.test"],
+            IsSingleSource = singleSource,
         });
     }
 

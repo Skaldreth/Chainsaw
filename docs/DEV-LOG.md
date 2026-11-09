@@ -5822,12 +5822,33 @@ hände aldrig av sig själv.
   oförändrade. Att följa ersättaren kör ingen klustring; nästa expansion gör det, och den borta tx:en är fortfarande
   borta.
 
-**Vad som skrivs i ärendet:** ingenting nytt förseglas av att en tx lämnas utanför. En körning som bara håller
-tillbaka skriver arbetsraden `clustering_held_back` (oförseglad, ersätts av nästa körning) och ingen rad i journalen;
-en körning som också sparar något nytt skriver som förut, med de borta tx:erna i `heldBack` i journalens data. Ny
-grund för en tx som inte vilar på en borta tx sparas som vanligt. *Låt stå* och *Släpp slutsatsen* förseglas som förut
+**Vad som skrivs i ärendet:** ingenting nytt förseglas av att en tx lämnas utanför, och ingen ny slutsats dras av
+att den saknas (efter granskningen, I1 nedan). En körning som bara håller tillbaka skriver arbetsraden
+`clustering_held_back` (oförseglad, ersätts av nästa körning) och ingen rad i journalen; en körning som också sparar
+något nytt skriver som förut, med de borta tx:erna i `heldBack` och `leftOut` i journalens data. Ett nytt resultat för
+en tx som inte vilar på en borta tx sparas som vanligt. *Låt stå* och *Släpp slutsatsen* förseglas som förut
 (`clustering.held_back_decisions`), nu också med tx:en själv i `missing`. Inget tas bort; *Låt stå* respekteras av
 varje senare körning, eftersom det som hålls tillbaka aldrig ersätts.
+
+**Granskningens rättelser (1 I, 4 M):**
+- **I1:** att lämna en borta tx utanför fick en adress som först syntes i den att se *ny* ut, så att en ny automatisk
+  växelslutsats kunde förseglas (med en enda värds ord). `KnownTransactions` håller nu de borta tx:erna i
+  adressregistret (`SeenBefore`) men inte i `Find`, `FindSpender` eller `All`; en grund i en borta tx godtas av
+  `IsWellFormed`, och ett nytt resultat som skulle vila på en borta tx dras inte alls. Testet med facit visar att
+  samma betalning utan tx:en alls får ett växelförslag, och med den borta tx:en inget.
+- **M1:** ett tillbakadragande (KV1a) medan tx:en är borta gjorde om det som vilade på den. `EvidenceStore.ReadResults`
+  ger nu också den *hållande grunden* (per heuristik den högsta versionen som om inget dragits tillbaka, och den som
+  räknas nu), och en borta tx i den håller tillbaka slutsatsen; `DecideHeldBack` kontrollerar mot samma grund.
+- **M2:** `DecideHeldBack` godtar tx:en själv som det som saknas bara när den är bland de borta tx som anroparen
+  säger (`DecideHeldBack(…, gone)`); appen frågar Tracing (`GetSettledGoneAsync`, samma regel som expansionerna).
+- **M3:** grunden läses en gång per körning för både kända och borta tx och grupperas per tx en gång
+  (`CountingBasis`); en borta tx:s egna slutsatser läses per tx.
+- **M4:** journalens data har `leftOut` med de borta tx som lämnades utanför, bara när det finns några (en körning
+  utan borta tx skriver som förut, så Bitcoins golden-filer är oförändrade); `ClusteringRun.LeftOut`.
+- **Tester:** Clustering 5 till (adressen syns inte som ny, ett nytt resultat på en borta tx dras inte,
+  tillbakadragandet, beslutet utan att tx:en sagts borta, journalen med `heldBack` och `leftOut`), Tracing 6 till (en
+  annan tx:s växel vilar på den borta, *går inte ihop*, bekräftad genom mynten, en enda källa, ett bytt block
+  `Moved`, beslutet genom samma mängd), App 1 (redigeraren skickar mängden).
 
 **Kvar:** provet på Windows (TESTER-INFOR, *HB1a av sig själv*).
 
