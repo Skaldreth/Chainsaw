@@ -16,7 +16,9 @@ kandidat är alltid en bedömning, streckad, och du godkänner eller avfärdar d
 För varje insättning i en pool prövas varje väg ut ur **samma kedjas** pool i grafen:
 
 - **efter** insättningens block och högst **7 dygn** senare;
-- som är lika stor som insättningen eller **högst 1 %** mindre (poolerna tar bara nätverkets avgift);
+- som är lika stor som insättningen eller **högst 1 %** mindre, och alltid minst **0,001** i kedjans mynt, så att
+  en liten insättning har plats för avgiften (poolerna tar bara nätverkets avgift, enligt ZIP 317 5 000 zatoshi per
+  del av tx:en);
 - aldrig en väg ut som är större än insättningen.
 
 Bara det som redan finns i grafen prövas. Kedjan runt insättningen söks inte igenom, så expandera de tx med pengar ut
@@ -28,6 +30,10 @@ Poängen går från 0 till 1 och väger två saker:
 
 - **beloppet** till tre femtedelar: samma belopp räknas fullt, och poängen sjunker till noll vid 1 % mindre;
 - **tiden** till två femtedelar: direkt efter räknas fullt, och poängen sjunker till en femtedel vid sju dygn.
+
+Ett **jämnt belopp** (en hel hundradel av myntet) räknas till sju tiondelar, eftersom många tar ut jämna belopp, och
+när flera vägar ut i fönstret har **samma belopp** delas poängen mellan dem, eftersom insättningen bara kan vara en av
+dem.
 
 Kandidater under 0,4 visas inte, och högst fem visas per insättning, den bästa först. Mönster i tid och belopp som
 pekar på samma användare över flera insättningar (forskningens andra metod) är inte byggda än.

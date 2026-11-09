@@ -81,12 +81,46 @@ public sealed class ShieldedPoolTests
     }
 
     [Theory]
-    [InlineData(0.0, 1.0)]
-    [InlineData(0.005, 0.5)]
-    [InlineData(0.01, 0.0)]
-    [InlineData(-0.001, 0.0)]
-    public void The_amount_counts_from_the_same_to_a_per_cent_less(double shortfall, double score) =>
-        Assert.Equal(score, ShieldedPoolCheck.AmountScore(shortfall), 3);
+    [InlineData(0, 100_000, 1.0)]
+    [InlineData(50_000, 100_000, 0.5)]
+    [InlineData(100_000, 100_000, 0.0)]
+    [InlineData(-1, 100_000, 0.0)]
+    public void The_amount_counts_from_the_same_to_what_the_deposit_may_lack(long lacking, long allowance, double score) =>
+        Assert.Equal(score, ShieldedPoolCheck.AmountScore(lacking, allowance), 3);
+
+    [Fact]
+    public void A_small_deposit_has_room_for_a_fee_and_a_large_one_a_per_cent()
+    {
+        Assert.Equal(ShieldedPoolCheck.MostFee, ShieldedPoolCheck.Allowance(1_000_000));
+        Assert.Equal(10_000_000, ShieldedPoolCheck.Allowance(1_000_000_000));
+    }
+
+    [Fact]
+    public void A_round_amount_and_ways_out_of_the_same_amount_rank_below_a_distinct_one()
+    {
+        var deposit = Zcash("shield-round", 100, [(Address("payer"), 101_000_000)], [], net: 100_050_000);
+        var distinct = Zcash("out-distinct", 104, [], [(Address("distinct"), 100_037_000)], net: -100_047_000);
+        var roundA = Zcash("out-round-a", 102, [], [(Address("round-a"), 100_000_000)], net: -100_010_000);
+        var roundB = Zcash("out-round-b", 103, [], [(Address("round-b"), 100_000_000)], net: -100_010_000);
+
+        var finding = Assert.Single(_check.Run(Input(deposit, distinct, roundA, roundB)));
+
+        Assert.Equal(distinct.Txid, finding.Candidates[0].Txid);
+        Assert.True(finding.Candidates.Skip(1).All(candidate => candidate.Score < finding.Candidates[0].Score));
+        Assert.Contains("jämnt belopp", finding.Why, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void The_closer_amount_ranks_first_at_the_same_time()
+    {
+        var deposit = Zcash("shield-close", 100, [(Address("payer"), 5_100_000)], [], net: 5_050_000);
+        var far = Zcash("out-far", 101, [], [(Address("far"), 4_980_000)], net: -4_990_000);
+        var near = Zcash("out-near", 101, [], [(Address("near"), 5_040_000)], net: -5_050_000);
+
+        var finding = Assert.Single(_check.Run(Input(deposit, far, near)));
+
+        Assert.Equal(near.Txid, finding.Candidates[0].Txid);
+    }
 
     /// <summary>Gives the input of some transactions.</summary>
     private static CheckInput Input(params BitcoinTransaction[] transactions) =>

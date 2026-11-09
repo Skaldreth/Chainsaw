@@ -212,8 +212,9 @@ public static class HeldBackLayout
     /// <param name="shortWindow">Whether the window is shorter than twelve days, so that days are named.</param>
     /// <param name="zone">The time zone dates are written in.</param>
     /// <returns>The guides.</returns>
+    /// <param name="unit">The coin's symbol the amounts are written in, for example <c>BTC</c> or <c>LTC</c>.</param>
     public static HeldBackGuides SpiralGuides(
-        IReadOnlyList<HeldBackDot> dots, HeldBackOrder order, bool shortWindow, TimeZoneInfo zone)
+        IReadOnlyList<HeldBackDot> dots, HeldBackOrder order, bool shortWindow, TimeZoneInfo zone, string unit = "BTC")
     {
         ArgumentNullException.ThrowIfNull(dots);
         var points = new List<GraphPoint>();
@@ -222,7 +223,7 @@ public static class HeldBackLayout
             points.Add(SpiralAt(index));
         }
 
-        var marks = order == HeldBackOrder.Time ? TimeMarks(dots, shortWindow, zone) : AmountMarks(dots);
+        var marks = order == HeldBackOrder.Time ? TimeMarks(dots, shortWindow, zone) : AmountMarks(dots, unit);
         var labels = marks.Select(mark =>
         {
             var at = SpiralAt(mark.Index);
@@ -244,8 +245,10 @@ public static class HeldBackLayout
     /// <param name="arrivalText">The arrival's word, for example <c>spårad ankomst · 0,92 BTC</c>.</param>
     /// <param name="zone">The time zone dates are written in.</param>
     /// <returns>The guides.</returns>
+    /// <param name="unit">The coin's symbol the amounts are written in, for example <c>BTC</c> or <c>LTC</c>.</param>
     public static HeldBackGuides ArcGuides(
-        DateTimeOffset from, DateTimeOffset to, DateTimeOffset? arrival, string arrivalText, TimeZoneInfo zone)
+        DateTimeOffset from, DateTimeOffset to, DateTimeOffset? arrival, string arrivalText, TimeZoneInfo zone,
+        string unit = "BTC")
     {
         ArgumentNullException.ThrowIfNull(zone);
         var start = Math.PI + ArcMargin;
@@ -257,7 +260,7 @@ public static class HeldBackLayout
             var radius = ArcRadius(btc);
             dotted.Add([.. Enumerable.Range(0, 49).Select(step => OnArc(start + ((end - start) * step / 48), radius))]);
             var tip = OnArc(end, radius);
-            labels.Add(new GuideLabel(new GraphPoint(tip.X + 24, tip.Y + 6), ShortBtc(btc) + " BTC", false));
+            labels.Add(new GuideLabel(new GraphPoint(tip.X + 24, tip.Y + 6), ShortBtc(btc) + " " + unit, false));
         }
 
         var outer = ArcRadius(4) + 26;
@@ -360,8 +363,9 @@ public static class HeldBackLayout
     /// Gives the words of the spiral in amount order: <c>störst</c>, then where it falls below a guide.
     /// </summary>
     /// <param name="dots">The dots, the largest first.</param>
+    /// <param name="unit">The coin's symbol.</param>
     /// <returns>The words at their dots' places.</returns>
-    private static List<(double Index, string Text)> AmountMarks(IReadOnlyList<HeldBackDot> dots)
+    private static List<(double Index, string Text)> AmountMarks(IReadOnlyList<HeldBackDot> dots, string unit)
     {
         var marks = new List<(double, string)>();
         if (dots.Count > 0)
@@ -374,7 +378,7 @@ public static class HeldBackLayout
             var index = dots.ToList().FindIndex(dot => dot.Btc < btc);
             if (index > 0)
             {
-                marks.Add((index, "< " + ShortBtc(btc) + " BTC"));
+                marks.Add((index, "< " + ShortBtc(btc) + " " + unit));
             }
         }
 

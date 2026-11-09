@@ -153,6 +153,13 @@ public sealed record HeldBackChoices(
     public const double NearShare = 0.97;
 
     /// <summary>
+    /// Gets the symbol of the coin the actor's amounts are in: its chain's (BTC, LTC or ZEC), read from the expansion
+    /// the clue brings in; Bitcoin's when it names none.
+    /// </summary>
+    public string Unit => (Clue.Next.Select(next => next.Address?.Chain ?? next.Txid?.Chain).OfType<Chain>()
+        .FirstOrDefault(Chain.Bitcoin)).NativeAsset().Symbol;
+
+    /// <summary>
     /// Says whether a choice is near the traced amount: a payment out of between 97 % and all of what was traced in.
     /// </summary>
     /// <param name="choice">The choice.</param>

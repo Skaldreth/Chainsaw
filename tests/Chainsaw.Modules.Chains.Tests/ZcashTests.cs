@@ -97,10 +97,9 @@ public sealed class ZcashTests
     public async Task Who_spent_an_output_is_read_from_its_addresss_history()
     {
         using var harness = new SourceHarness();
-        Answer(harness, $"api/v2/tx/{Payment.Value}", PaymentJson());
-        Answer(harness, $"api/v2/tx-specific/{Payment.Value}", Specific(Payment, [1_500_000, 490_000], 0));
-        Answer(harness, History(Payee, 3_000_000), Page(Payee, ShieldingJson(), PaymentJson()));
-        Answer(harness, History(Payer, 3_000_000), Page(Payer, PaymentJson()));
+        AnswerPayment(harness);
+        Answer(harness, History(Payee, 3_000_000), Page(Payee, 1, 1, ShieldingJson(), PaymentJson()));
+        Answer(harness, History(Payer, 3_000_000), Page(Payer, 1, 1, PaymentJson()));
 
         var spends = await harness.Zcash.GetOutputSpendsAsync(harness.Case, Payment);
 
@@ -115,7 +114,8 @@ public sealed class ZcashTests
     public async Task An_addresss_page_and_summary_are_read()
     {
         using var harness = new SourceHarness();
-        Answer(harness, $"api/v2/address/{Payee.Value}?details=txs&pageSize=5", Page(Payee, ShieldingJson(), PaymentJson()));
+        Answer(harness, $"api/v2/address/{Payee.Value}?details=txs&pageSize=5", Page(
+            Payee, 1, 1, ShieldingJson(), PaymentJson()));
         Answer(harness, $"api/v2/address/{Payee.Value}?details=basic", $$"""
             {"page":1,"totalPages":1,"itemsOnPage":1000,"address":"{{Payee.Value}}","balance":"400000",
              "totalReceived":"1900000","totalSent":"1500000","unconfirmedBalance":"0","unconfirmedTxs":0,"txs":2}
@@ -144,51 +144,241 @@ public sealed class ZcashTests
         Assert.Empty(harness.Http.Sent);
     }
 
+    [Fact]
+    public async Task A_coinbase_that_pays_into_orchard_has_no_fee_and_its_flow_into_the_pool()
+    {
+        using var harness = new SourceHarness();
+        var coinbase = Txid.Parse(Chain.Zcash, Fixtures.Repeat("c1", 32));
+        Answer(harness, $"api/v2/tx/{coinbase.Value}", Tx(coinbase, [], [(Payer, 40_000)], 3_000_001, "b3"));
+        Answer(harness, $"api/v2/tx-specific/{coinbase.Value}", Spec(
+            coinbase, [], [40_000], 3_000_001, "b3", orchard: -5_000, orchardActions: 2));
+
+        var transaction = (await harness.Zcash.GetTransactionAsync(harness.Case, coinbase)).Value!;
+
+        Assert.True(transaction.IsCoinbase);
+        Assert.Equal(Satoshi.Zero, transaction.Fee);
+        Assert.Equal(new Satoshi(5_000), transaction.Shielded!.IntoPool);
+        Assert.Equal([ShieldedPool.Orchard], transaction.Shielded.Pools);
+    }
+
+    [Fact]
+    public async Task Money_out_of_sapling_has_no_transparent_input_and_its_fee_counted_from_the_balance()
+    {
+        using var harness = new SourceHarness();
+        var unshield = Txid.Parse(Chain.Zcash, Fixtures.Repeat("d1", 32));
+        Answer(harness, $"api/v2/tx/{unshield.Value}", Tx(unshield, [], [(Payee, 1_990_000)], 3_000_010, "b4"));
+        Answer(harness, $"api/v2/tx-specific/{unshield.Value}", Spec(
+            unshield, [], [1_990_000], 3_000_010, "b4", sapling: 2_000_000));
+
+        var transaction = (await harness.Zcash.GetTransactionAsync(harness.Case, unshield)).Value!;
+
+        Assert.Empty(transaction.Inputs);
+        Assert.Equal(new Satoshi(2_000_000), transaction.Shielded!.OutOfPool);
+        Assert.Equal(new Satoshi(10_000), transaction.Fee);
+    }
+
+    [Fact]
+    public async Task Money_into_sprout_is_read_from_the_joinsplits()
+    {
+        using var harness = new SourceHarness();
+        var sprout = Txid.Parse(Chain.Zcash, Fixtures.Repeat("d2", 32));
+        var funding = Txid.Parse(Chain.Zcash, Fixtures.Repeat("e2", 32));
+        Answer(harness, $"api/v2/tx/{sprout.Value}", Tx(sprout, [(funding, 1, Payer, 600_000)], [], 400_000, "b5"));
+        Answer(harness, $"api/v2/tx-specific/{sprout.Value}", Spec(
+            sprout, [(funding, 1)], [], 400_000, "b5", joinsplits: [(590_000, 0)]));
+
+        var transaction = (await harness.Zcash.GetTransactionAsync(harness.Case, sprout)).Value!;
+
+        Assert.Equal(new Satoshi(590_000), transaction.Shielded!.IntoPool);
+        Assert.Equal([ShieldedPool.Sprout], transaction.Shielded.Pools);
+        Assert.Equal(new Satoshi(10_000), transaction.Fee);
+    }
+
+    [Fact]
+    public async Task A_shielded_part_that_names_another_block_or_other_inputs_is_refused()
+    {
+        using var harness = new SourceHarness();
+        Answer(harness, $"api/v2/tx/{Shielding.Value}", ShieldingJson());
+        Answer(harness, $"api/v2/tx-specific/{Shielding.Value}", Spec(
+            Shielding, [(Payment, 1)], [400_000], 3_000_005, "b2", sapling: -1_090_000));
+
+        Assert.Null((await harness.Zcash.GetTransactionAsync(harness.Case, Shielding)).Value);
+
+        using var other = new SourceHarness();
+        Answer(other, $"api/v2/tx/{Shielding.Value}", ShieldingJson());
+        Answer(other, $"api/v2/tx-specific/{Shielding.Value}", Spec(
+            Shielding, [(Payment, 0)], [400_000], 3_000_006, "b9", sapling: -1_090_000));
+
+        Assert.Null((await other.Zcash.GetTransactionAsync(other.Case, Shielding)).Value);
+    }
+
+    [Fact]
+    public async Task The_spender_is_found_on_the_oldest_page_of_a_busy_address()
+    {
+        using var harness = new SourceHarness();
+        AnswerPayment(harness);
+        Answer(harness, History(Payee, 3_000_000), Page(Payee, 1, 3, Unrelated("aa", Payee)));
+        Answer(harness, History(Payee, 3_000_000) + "&page=3", Page(Payee, 3, 3, ShieldingJson(), PaymentJson()));
+        Answer(harness, History(Payer, 3_000_000), Page(Payer, 1, 1, PaymentJson()));
+
+        var spends = (await harness.Zcash.GetOutputSpendsAsync(harness.Case, Payment)).Value!;
+
+        Assert.Equal(Shielding, spends[0].SpentBy!.Txid);
+        Assert.False(spends[1].IsUnknown);
+        Assert.Null(spends[1].SpentBy);
+    }
+
+    [Fact]
+    public async Task An_output_whose_spender_lies_beyond_the_pages_read_is_unknown_and_the_others_are_kept()
+    {
+        using var harness = new SourceHarness();
+        AnswerPayment(harness);
+        var pages = BlockbookZcashSource.MostSpendPages + 3;
+        Answer(harness, History(Payee, 3_000_000), Page(Payee, 1, pages, Unrelated("aa", Payee)));
+        for (var number = 2; number <= pages; number++)
+        {
+            Answer(harness, History(Payee, 3_000_000) + "&page=" + number, Page(
+                Payee, number, pages, Unrelated(number.ToString("x2", System.Globalization.CultureInfo.InvariantCulture), Payee)));
+        }
+
+        Answer(harness, History(Payer, 3_000_000), Page(Payer, 1, 1, PaymentJson()));
+
+        var lookup = await harness.Zcash.GetOutputSpendsAsync(harness.Case, Payment);
+
+        Assert.True(lookup.Value![0].IsUnknown);
+        Assert.Null(lookup.Value[0].SpentBy);
+        Assert.False(lookup.Value[1].IsUnknown);
+        Assert.Contains("kunde inte läsas", lookup.Problem, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void A_page_with_more_after_it_never_ends_inside_a_block()
+    {
+        var at = new[] { 10L, 9, 9 };
+        var transactions = at.Select((height, index) => Confirmed(index, height)).ToList();
+
+        var page = BlockbookZcashSource.EndAtWholeBlock(Payee, null, transactions, more: true);
+        var whole = BlockbookZcashSource.EndAtWholeBlock(Payee, null, [Confirmed(0, 9), Confirmed(1, 9)], more: true);
+        var last = BlockbookZcashSource.EndAtWholeBlock(Payee, null, transactions, more: false);
+
+        Assert.Equal([transactions[0].Txid], page.Transactions.Select(transaction => transaction.Txid));
+        Assert.Equal(transactions[0].Txid, page.NextAfter);
+        Assert.Equal(2, whole.Transactions.Count);
+        Assert.Null(last.NextAfter);
+    }
+
+    [Fact]
+    public async Task The_page_after_a_transaction_is_asked_below_its_block()
+    {
+        using var harness = new SourceHarness();
+        Answer(harness, $"api/v2/tx/{Payment.Value}", PaymentJson());
+        Answer(harness, $"api/v2/address/{Payee.Value}?details=txs&pageSize=5&to=2999999", Page(Payee, 1, 1));
+
+        var page = await harness.Zcash.GetAddressTransactionsAsync(harness.Case, Payee, Payment);
+
+        Assert.NotNull(page.Value);
+        Assert.Empty(page.Value.Transactions);
+    }
+
     /// <summary>Answers the shielding's two answers, with Sapling's value balance as given.</summary>
     private static void AnswerShielding(SourceHarness harness, long saplingBalance)
     {
         Answer(harness, $"api/v2/tx/{Shielding.Value}", ShieldingJson());
-        Answer(harness, $"api/v2/tx-specific/{Shielding.Value}", Specific(Shielding, [400_000], saplingBalance));
+        Answer(harness, $"api/v2/tx-specific/{Shielding.Value}", Spec(
+            Shielding, [(Payment, 0)], [400_000], 3_000_005, "b2", sapling: saplingBalance));
         Answer(harness, "api/", """{"blockbook":{"coin":"Zcash","bestHeight":3000100},"backend":{} }""");
     }
 
+    /// <summary>Answers the payment's two answers.</summary>
+    private static void AnswerPayment(SourceHarness harness)
+    {
+        Answer(harness, $"api/v2/tx/{Payment.Value}", PaymentJson());
+        Answer(harness, $"api/v2/tx-specific/{Payment.Value}", Spec(
+            Payment, [(Txid.Parse(Chain.Zcash, Fixtures.Repeat("e0", 32)), 2)], [1_500_000, 490_000], 3_000_000, "b1"));
+    }
+
     /// <summary>The payment, as Blockbook's <c>/api/v2/tx</c> writes it.</summary>
-    private static string PaymentJson() => $$"""
-        {"txid":"{{Payment.Value}}","version":4,
-         "vin":[{"txid":"{{Fixtures.Repeat("e0", 32)}}","vout":2,"sequence":4294967295,"n":0,
-                 "addresses":["{{Payer.Value}}"],"isAddress":true,"value":"2000000"}],
-         "vout":[{"value":"1500000","n":0,"spent":true,"hex":"{{Script(Payee)}}","addresses":["{{Payee.Value}}"],
-                  "isAddress":true},
-                 {"value":"490000","n":1,"hex":"{{Script(Payer)}}","addresses":["{{Payer.Value}}"],"isAddress":true}],
-         "blockHash":"{{Fixtures.Repeat("b1", 32)}}","blockHeight":3000000,"confirmations":101,
-         "blockTime":1790000000,"size":225,"value":"1990000","valueIn":"2000000","fees":"10000"}
-        """;
+    private static string PaymentJson() => Tx(
+        Payment,
+        [(Txid.Parse(Chain.Zcash, Fixtures.Repeat("e0", 32)), 2, Payer, 2_000_000)],
+        [(Payee, 1_500_000), (Payer, 490_000)],
+        3_000_000,
+        "b1");
 
     /// <summary>The shielding, with the input's index of 0 left out as Blockbook leaves it out.</summary>
-    private static string ShieldingJson() => $$"""
-        {"txid":"{{Shielding.Value}}","version":5,
-         "vin":[{"txid":"{{Payment.Value}}","sequence":4294967295,"n":0,"addresses":["{{Payee.Value}}"],
-                 "isAddress":true,"value":"1500000"}],
-         "vout":[{"value":"400000","n":0,"hex":"{{Script(Payee)}}","addresses":["{{Payee.Value}}"],"isAddress":true}],
-         "blockHash":"{{Fixtures.Repeat("b2", 32)}}","blockHeight":3000005,"confirmations":96,
-         "blockTime":1790000375,"size":2000,"value":"400000","valueIn":"1500000","fees":"1100000"}
-        """;
+    private static string ShieldingJson() => Tx(Shielding, [(Payment, 0, Payee, 1_500_000)], [(Payee, 400_000)], 3_000_005, "b2");
 
-    /// <summary>zcashd's own answer: the outputs' amounts and Sapling's value balance.</summary>
-    private static string Specific(Txid txid, long[] outputs, long saplingBalance)
+    /// <summary>A transaction that pays an address and spends nothing of the payment's.</summary>
+    private static string Unrelated(string fill, BitcoinAddress address) => Tx(
+        Txid.Parse(Chain.Zcash, Fixtures.Repeat(fill, 32)),
+        [(Txid.Parse(Chain.Zcash, Fixtures.Repeat("ef", 32)), 1, Payer, 70_000)],
+        [(address, 60_000)],
+        3_000_050,
+        "b6");
+
+    /// <summary>A confirmed transaction at a height, for the paging rule.</summary>
+    private static BitcoinTransaction Confirmed(int index, long height) => new(
+        Txid.Parse(Chain.Zcash, Fixtures.Repeat(index.ToString("x2", System.Globalization.CultureInfo.InvariantCulture), 32)),
+        new BlockReference(height, BlockHash.Parse(Fixtures.Repeat("b7", 32)), DateTimeOffset.UnixEpoch.AddDays(height)),
+        [],
+        [],
+        Satoshi.Zero,
+        0,
+        0,
+        5,
+        0);
+
+    /// <summary>Writes an input's output index as Blockbook does: left out when it is 0.</summary>
+    private static string VoutPart(int vout) => vout == 0 ? string.Empty : "\"vout\":" + vout + ",";
+
+    /// <summary>
+    /// A transaction as Blockbook's <c>/api/v2/tx</c> writes it: an input's index of 0 left out, amounts as strings,
+    /// and a coinbase input when there are no inputs and no outputs from the pool (an empty input list otherwise).
+    /// </summary>
+    private static string Tx(
+        Txid txid, (Txid Previous, int Vout, BitcoinAddress Address, long Value)[] inputs,
+        (BitcoinAddress Address, long Value)[] outputs, long height, string block)
     {
-        var vout = string.Join(",", outputs.Select((value, index) => $$"""{"valueZat":{{value}},"n":{{index}}}"""));
-        var spends = saplingBalance == 0 ? "[]" : "[{}]";
+        var vin = string.Join(",", inputs.Select((input, n) =>
+            $$"""{"txid":"{{input.Previous.Value}}",{{VoutPart(input.Vout)}}"sequence":4294967295,"n":{{n}},"addresses":["{{input.Address.Value}}"],"isAddress":true,"value":"{{input.Value}}"}"""));
+        if (inputs.Length == 0 && txid.Value.StartsWith("c1", StringComparison.Ordinal))
+        {
+            vin = """{"n":0,"isAddress":false,"value":"0"}""";
+        }
+
+        var vout = string.Join(",", outputs.Select((output, n) =>
+            $$"""{"value":"{{output.Value}}","n":{{n}},"hex":"{{Script(output.Address)}}","addresses":["{{output.Address.Value}}"],"isAddress":true}"""));
         return $$"""
-            {"txid":"{{txid.Value}}","locktime":0,"vin":[{}],"vout":[{{vout}}],"vjoinsplit":[],
-             "vShieldedSpend":[],"vShieldedOutput":{{spends}},"valueBalanceZat":{{saplingBalance}},
-             "orchard":{"actions":[],"valueBalanceZat":0} }
+            {"txid":"{{txid.Value}}","version":5,"vin":[{{vin}}],"vout":[{{vout}}],
+             "blockHash":"{{Fixtures.Repeat(block, 32)}}","blockHeight":{{height}},"confirmations":10,
+             "blockTime":{{1_790_000_000 + ((height - 3_000_000) * 75)}},"size":300,"value":"0","valueIn":"0","fees":"0"}
             """;
     }
 
-    /// <summary>An address's page of transactions, in one page.</summary>
-    private static string Page(BitcoinAddress address, params string[] transactions) => $$"""
-        {"page":1,"totalPages":1,"itemsOnPage":5,"address":"{{address.Value}}","balance":"0",
+    /// <summary>zcashd's own answer: the inputs, the outputs' amounts, the block and the pools' balances.</summary>
+    private static string Spec(
+        Txid txid, (Txid Previous, int Vout)[] inputs, long[] outputs, long height, string block, long sapling = 0,
+        long orchard = 0, int orchardActions = 0, (long Old, long New)[]? joinsplits = null)
+    {
+        var vin = inputs.Length == 0 && txid.Value.StartsWith("c1", StringComparison.Ordinal)
+            ? """{"coinbase":"03"}"""
+            : string.Join(",", inputs.Select(input => $$"""{"txid":"{{input.Previous.Value}}","vout":{{input.Vout}} }"""));
+        var vout = string.Join(",", outputs.Select((value, index) => $$"""{"valueZat":{{value}},"n":{{index}} }"""));
+        var sprout = string.Join(",", (joinsplits ?? []).Select(js => $$"""{"vpub_oldZat":{{js.Old}},"vpub_newZat":{{js.New}} }"""));
+        var spends = sapling > 0 ? "[{}]" : "[]";
+        var outs = sapling < 0 ? "[{}]" : "[]";
+        var actions = string.Join(",", Enumerable.Repeat("{}", orchardActions));
+        return $$"""
+            {"txid":"{{txid.Value}}","locktime":0,"vin":[{{vin}}],"vout":[{{vout}}],"vjoinsplit":[{{sprout}}],
+             "vShieldedSpend":{{spends}},"vShieldedOutput":{{outs}},"valueBalanceZat":{{sapling}},
+             "orchard":{"actions":[{{actions}}],"valueBalanceZat":{{orchard}} },
+             "blockhash":"{{Fixtures.Repeat(block, 32)}}","height":{{height}} }
+            """;
+    }
+
+    /// <summary>A page of an address's transactions.</summary>
+    private static string Page(BitcoinAddress address, int page, int pages, params string[] transactions) => $$"""
+        {"page":{{page}},"totalPages":{{pages}},"itemsOnPage":5,"address":"{{address.Value}}","balance":"0",
          "totalReceived":"0","totalSent":"0","unconfirmedBalance":"0","unconfirmedTxs":0,
          "txs":{{transactions.Length}},"transactions":[{{string.Join(",", transactions)}}]}
         """;

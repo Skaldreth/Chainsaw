@@ -25,7 +25,8 @@ ut, i tx:ens *value balance*:
 
 - **t→z, in i poolen:** de genomskinliga inputs betalar mer än de genomskinliga outputs och avgiften; resten gick in i
   poolen. Där **tar spåret slut**, med orsaken *Privacy coin*. Tx:en får en egen nod i grafen med slutet, och den
-  genomskinliga växeln, om det finns någon, följs vidare.
+  genomskinliga växeln, om det finns någon, följs vidare. Spårningsmetoden ser poolen som tx:ens **sista utgång**,
+  efter de genomskinliga: med FIFO fylls växeln och de andra utgångarna först, och det som blir över går in i poolen.
 - **z→t, ut ur poolen:** outputs får pengar som inte kom från några genomskinliga inputs. Tx:ens nod säger att pengarna
   kom ur poolen, och de kan inte följas bakåt därifrån.
 

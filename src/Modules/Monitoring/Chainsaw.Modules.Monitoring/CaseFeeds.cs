@@ -143,10 +143,11 @@ internal sealed class BitcoinCaseFeed(IBitcoinSource source, ICase @case) : IWat
 
     /// <summary>
     /// Gives a transaction on a UTXO chain in the check's form: one flow from its inputs to its outputs, counted in the
-    /// chain's own coin (bitcoin, or litecoin, both in units of 10⁻⁸).
+    /// chain's own coin (bitcoin, litecoin or zcash, all in units of 10⁻⁸); money into a Zcash pool is an outgoing leg
+    /// without an address.
     /// </summary>
     /// <param name="transaction">The transaction.</param>
-    /// <param name="chain">The chain it is on: Bitcoin or Litecoin.</param>
+    /// <param name="chain">The chain it is on: Bitcoin, Litecoin or Zcash.</param>
     /// <returns>The check's form.</returns>
     public static WatchTransaction Of(BitcoinTransaction transaction, Chain chain = Chain.Bitcoin)
     {
@@ -155,9 +156,47 @@ internal sealed class BitcoinCaseFeed(IBitcoinSource source, ICase @case) : IWat
         var from = transaction.Inputs.Select(input => new WatchLeg(
             input.Address?.ToChainAddress(), new AssetAmount(coin, (input.Amount ?? Satoshi.Zero).Value)));
         var to = transaction.Outputs.Select(output => new WatchLeg(
-            output.Address?.ToChainAddress(), new AssetAmount(coin, output.Amount.Value)));
+            output.Address?.ToChainAddress(), new AssetAmount(coin, output.Amount.Value)))
+            .Concat(PoolLeg(transaction, chain));
         var block = transaction.Block is { } at ? new WatchBlock(at.Height, at.Hash.Value, at.Time) : null;
         return new WatchTransaction(chain, transaction.Txid.Value, block, [new WatchFlow([.. from], [.. to])]);
+    }
+
+    /// <summary>
+    /// The most a Zcash transaction's transparent inputs may pay beyond its transparent outputs before the rest is read
+    /// as money into a shielded pool, when the pools' own amounts are not at hand (an address's page): 0.01 ZEC, far
+    /// above a fee by ZIP 317 (5 000 zatoshi per action).
+    /// </summary>
+    public const long MostZcashFee = 1_000_000;
+
+    /// <summary>
+    /// Gives the leg of money that goes into a shielded pool, as an outgoing leg without an address, so that a watch
+    /// sees money that leaves the watched addresses for the pool (t→z): the pool's own amount when the transaction
+    /// carries it, otherwise, on Zcash, what the inputs pay beyond the outputs when it is more than a fee (the fee is
+    /// then counted with it).
+    /// </summary>
+    /// <param name="transaction">The transaction.</param>
+    /// <param name="chain">The chain it is on.</param>
+    /// <returns>The leg, or none.</returns>
+    private static IEnumerable<WatchLeg> PoolLeg(BitcoinTransaction transaction, Chain chain)
+    {
+        var into = transaction.Shielded?.IntoPool.Value ?? ExcessOnZcash(transaction, chain);
+        return into > 0 ? [new WatchLeg(null, new AssetAmount(chain.NativeAsset(), into))] : [];
+    }
+
+    /// <summary>What a Zcash transaction's inputs pay beyond its outputs, when more than a fee; otherwise 0.</summary>
+    /// <param name="transaction">The transaction.</param>
+    /// <param name="chain">The chain it is on.</param>
+    /// <returns>The excess in zatoshi.</returns>
+    private static long ExcessOnZcash(BitcoinTransaction transaction, Chain chain)
+    {
+        if (chain != Chain.Zcash || transaction.IsCoinbase)
+        {
+            return 0;
+        }
+
+        var excess = transaction.Inputs.Sum(input => input.Amount?.Value ?? 0) - transaction.TotalOut.Value;
+        return excess > MostZcashFee ? excess : 0;
     }
 }
 

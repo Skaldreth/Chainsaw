@@ -486,7 +486,8 @@ internal sealed class MonitoringService(
     public (IReadOnlyList<ChainAddress> Addresses, IReadOnlyList<string> Notes) AddressesOf(ICase @case, Watch watch)
     {
         var anchor = watch.Subject.Anchor;
-        if (watch.Subject.Kind != WatchSubjectKind.Cluster || !BitcoinAddress.TryParse(anchor.Value, out var start))
+        if (watch.Subject.Kind != WatchSubjectKind.Cluster
+            || !BitcoinAddress.TryParse(anchor.Chain, anchor.Value, out var start))
         {
             return ([anchor], []);
         }
@@ -494,8 +495,7 @@ internal sealed class MonitoringService(
         List<ChainAddress> all;
         try
         {
-            all = [.. clustering.GetCluster(@case, start).Addresses
-                .Select(address => new ChainAddress(Chain.Bitcoin, address.Value))];
+            all = [.. clustering.GetCluster(@case, start).Addresses.Select(address => address.ToChainAddress())];
         }
         catch (Exception exception) when (exception is not (OutOfMemoryException or CaseException))
         {
@@ -711,10 +711,10 @@ internal sealed class MonitoringService(
         }
 
         IEnumerable<ChainAddress> own = [subject.Anchor];
-        if (subject.Kind == WatchSubjectKind.Cluster && BitcoinAddress.TryParse(subject.Anchor.Value, out var start))
+        if (subject.Kind == WatchSubjectKind.Cluster
+            && BitcoinAddress.TryParse(subject.Anchor.Chain, subject.Anchor.Value, out var start))
         {
-            own = clustering.GetCluster(@case, start).Addresses
-                .Select(member => new ChainAddress(Chain.Bitcoin, member.Value));
+            own = clustering.GetCluster(@case, start).Addresses.Select(member => member.ToChainAddress());
         }
 
         if (own.Any(parties.Contains))
@@ -791,9 +791,11 @@ internal sealed class MonitoringService(
             throw new ArgumentException("The watched node needs a name, at most 1 000 characters.", nameof(subject));
         }
 
-        if (subject.Anchor.Chain != chain || (subject.Kind == WatchSubjectKind.Cluster && chain != Chain.Bitcoin))
+        if (subject.Anchor.Chain != chain
+            || (subject.Kind == WatchSubjectKind.Cluster && chain.Model() != LedgerModel.Utxo))
         {
-            throw new ArgumentException("The node is on another chain, or a cluster outside Bitcoin.", nameof(subject));
+            throw new ArgumentException(
+                "The node is on another chain, or a cluster outside the UTXO chains.", nameof(subject));
         }
 
         return IsAddress(chain, subject.Anchor.Value)

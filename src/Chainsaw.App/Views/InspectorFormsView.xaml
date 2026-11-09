@@ -391,6 +391,7 @@
                             <DataTemplate DataType="{x:Type vm:ChainChoice}">
                                 <Button Style="{StaticResource Button.Chip}" Content="{Binding Name}" ToolTip="{Binding ToolTip}"
                                         IsEnabled="{Binding IsBuilt}"
+                                        Visibility="{Binding IsShown, Converter={StaticResource Visible}}"
                                         Command="{Binding DataContext.ChooseChainCommand,
                                                           RelativeSource={RelativeSource AncestorType=UserControl}}"
                                         CommandParameter="{Binding}" />

@@ -21,6 +21,12 @@ internal static class BlockbookParser
     /// <summary>The most zatoshi there can ever be: 21 million ZEC.</summary>
     private const long MaximumUnits = 21_000_000 * Satoshi.PerBitcoin;
 
+    /// <summary>
+    /// The weight written for a Zcash transaction or block: Zcash has no witness and no weight, so none is made up; 0
+    /// says that there is none.
+    /// </summary>
+    private const int NoWeight = 0;
+
     /// <summary>The network the addresses belong to.</summary>
     private const BitcoinNetwork Network = BitcoinNetwork.Zcash;
 
@@ -53,6 +59,8 @@ internal static class BlockbookParser
         }
 
         CheckOutputsAgree(root, transparent);
+        CheckInputsAgree(root, transparent);
+        CheckBlockAgrees(root, transparent);
         var pools = new List<ShieldedPool>();
         long net = 0;
         if (root.TryGetProperty("vjoinsplit", out var joinsplits) && joinsplits.ValueKind == JsonValueKind.Array
@@ -81,27 +89,103 @@ internal static class BlockbookParser
             net = checked(net - OptionalBalance(orchard));
         }
 
-        var transparentIn = transparent.Inputs.Aggregate(0L, (sum, input) => checked(sum + input.Amount!.Value.Value));
-        var fee = checked(transparentIn - transparent.TotalOut.Value - net);
-        if (fee < 0 || (transparent.IsCoinbase && pools.Count == 0 && net != 0))
-        {
-            throw new EsploraFormatException("The transaction's amounts and its pools' value balances do not add up.");
-        }
-
+        var fee = FeeOf(transparent, net, pools.Count > 0);
         return transparent with
         {
-            Fee = transparent.IsCoinbase ? Satoshi.Zero : new Satoshi(fee),
+            Fee = new Satoshi(fee),
             Shielded = pools.Count == 0 && net == 0 ? null : ShieldedFlow.FromNet(net, pools),
             LockTime = UInt32(root, "locktime"),
         };
     }
 
+    /// <summary>
+    /// Counts a transaction's fee: what its transparent inputs pay beyond its transparent outputs and what goes into the
+    /// pools. A coinbase pays no fee and has no inputs to count: its new coins go to transparent outputs and, since
+    /// Heartwood, may go straight into a pool, so money into a pool is allowed there and never out of one.
+    /// </summary>
+    /// <param name="transparent">The transaction's transparent part.</param>
+    /// <param name="net">The net amount into the pools, negative out of them.</param>
+    /// <param name="touchesPool">Whether the transaction has any shielded part.</param>
+    /// <returns>The fee in zatoshi; 0 for a coinbase.</returns>
+    /// <exception cref="EsploraFormatException">The amounts do not add up.</exception>
+    private static long FeeOf(BitcoinTransaction transparent, long net, bool touchesPool)
+    {
+        if (transparent.IsCoinbase)
+        {
+            return net < 0 || (net > 0 && !touchesPool)
+                ? throw new EsploraFormatException("A coinbase takes nothing out of a pool.")
+                : 0;
+        }
+
+        var transparentIn = transparent.Inputs.Aggregate(
+            0L, (sum, input) => checked(sum + (input.Amount ?? throw MissingAmount()).Value));
+        var fee = checked(transparentIn - transparent.TotalOut.Value - net);
+        return fee >= 0
+            ? fee
+            : throw new EsploraFormatException("The transaction's amounts and its pools' value balances do not add up.");
+    }
+
+    /// <summary>Says that an input lacks the amount of the output it spends.</summary>
+    /// <returns>The exception.</returns>
+    private static EsploraFormatException MissingAmount() => new("An input lacks the amount it spends.");
+
+    /// <summary>
+    /// Checks that zcashd's inputs are Blockbook's: the same outputs spent in the same order, or a coinbase in both.
+    /// </summary>
+    /// <param name="root">zcashd's answer.</param>
+    /// <param name="transparent">Blockbook's transaction.</param>
+    private static void CheckInputsAgree(JsonElement root, BitcoinTransaction transparent)
+    {
+        var inputs = Array(root, "vin").ToList();
+        for (var index = 0; index < inputs.Count; index++)
+        {
+            if (!InputAgrees(Object(inputs[index]), transparent.Inputs[index]))
+            {
+                throw new EsploraFormatException("The shielded part's inputs spend other outputs than the transaction's.");
+            }
+        }
+    }
+
+    /// <summary>Says whether one of zcashd's inputs is Blockbook's.</summary>
+    /// <param name="theirs">zcashd's input.</param>
+    /// <param name="mine">Blockbook's input.</param>
+    /// <returns><see langword="true"/> when both spend the same output, or both are the coinbase.</returns>
+    private static bool InputAgrees(JsonElement theirs, BitcoinInput mine)
+    {
+        if (theirs.TryGetProperty("coinbase", out _))
+        {
+            return mine.IsCoinbase;
+        }
+
+        return !mine.IsCoinbase
+            && Txid.TryParse(Chain.Zcash, String(theirs, "txid"), out var previous)
+            && previous == mine.PreviousTxid && Integer(theirs, "vout") == mine.PreviousIndex;
+    }
+
+    /// <summary>
+    /// Checks that zcashd names the same block as Blockbook, or none while the transaction is unconfirmed, so that the
+    /// two sealed answers are of the same transaction in the same place.
+    /// </summary>
+    /// <param name="root">zcashd's answer.</param>
+    /// <param name="transparent">Blockbook's transaction.</param>
+    private static void CheckBlockAgrees(JsonElement root, BitcoinTransaction transparent)
+    {
+        var named = root.TryGetProperty("blockhash", out var hash) && hash.ValueKind == JsonValueKind.String;
+        var agrees = transparent.Block is { } block
+            ? named && hash.GetString() == block.Hash.Value && Integer(root, "height") == block.Height
+            : !named;
+        if (!agrees)
+        {
+            throw new EsploraFormatException("The shielded part names another block than the transaction's.");
+        }
+    }
+
     /// <summary>Reads an address's page of transactions, as from <c>/api/v2/address/:address?details=txs</c>.</summary>
     /// <param name="body">The response's bytes.</param>
     /// <param name="address">The address asked for.</param>
-    /// <returns>The transactions, newest first, and whether more pages follow.</returns>
+    /// <returns>The transactions, newest first, the page's number and how many pages there are.</returns>
     /// <exception cref="EsploraFormatException">The response cannot be read or is another address's.</exception>
-    public static (List<BitcoinTransaction> Transactions, bool More) ParseAddressPage(
+    public static (List<BitcoinTransaction> Transactions, int Page, int Pages) ParseAddressPage(
         ReadOnlySpan<byte> body, BitcoinAddress address)
     {
         using var document = Open(body);
@@ -121,7 +205,12 @@ internal static class BlockbookParser
 
         var page = Integer(root, "page");
         var pages = Integer(root, "totalPages");
-        return (transactions, page < pages);
+        if (page < 1 || pages < 0 || page > Math.Max(pages, 1) || pages > int.MaxValue)
+        {
+            throw new EsploraFormatException("The page's number is not within its pages.");
+        }
+
+        return (transactions, (int)page, (int)pages);
     }
 
     /// <summary>Reads an address's summary, as from <c>/api/v2/address/:address?details=basic</c>.</summary>
@@ -181,7 +270,7 @@ internal static class BlockbookParser
             String(root, "merkleRoot"),
             checked((int)Integer(root, "txCount")),
             size,
-            checked(size * 4),
+            NoWeight,
             Integer(root, "version"));
     }
 
@@ -234,7 +323,7 @@ internal static class BlockbookParser
             outputs,
             new Satoshi(Math.Max(0, transparentIn - transparentOut)),
             size,
-            checked(size * 4),
+            NoWeight,
             Integer(root, "version"),
             0);
         if (transaction.IsCoinbase != inputs.Any(input => input.IsCoinbase))

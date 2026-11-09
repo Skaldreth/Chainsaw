@@ -1240,7 +1240,7 @@ public sealed partial class ChecksViewModel : ObservableObject
             ? new ToastRequest(
                 ToastKind.Success,
                 row.Words.CandidateNoun + " godkänd",
-                $"{chosen.ShortAddress} · {chosen.AmountText} BTC",
+                $"{chosen.ShortAddress} · {chosen.AmountWithUnit}",
                 UndoText)
             : new ToastRequest(ToastKind.Success, "Förslaget godkänt", row.Title, UndoText);
     }
@@ -1547,6 +1547,11 @@ public sealed partial class ChecksViewModel : ObservableObject
         }
 
         var outputs = known.Transaction.Outputs;
+        if (check.Analysis.Name == ShieldedPoolName)
+        {
+            return PoolDeposit(finding.Key, known.Transaction);
+        }
+
         if (OutputIndexOf(finding.Key, finding.Basis[0].Txid) is { } index)
         {
             return outputs.FirstOrDefault(output => output.Index == index && output.Address == finding.Addresses[0])
@@ -1555,6 +1560,28 @@ public sealed partial class ChecksViewModel : ObservableObject
 
         var paid = outputs.Where(output => output.Address == finding.Addresses[0]).ToList();
         return paid.Count == 0 ? null : new Satoshi(paid.Sum(output => output.Amount.Value));
+    }
+
+    /// <summary>The name of the analysis that suggests ways out of a shielded pool.</summary>
+    private const string ShieldedPoolName = "shielded-pool";
+
+    /// <summary>
+    /// Gives what went into a shielded pool in a deposit: the pool's own amount for Zcash (a finding keyed
+    /// <c>txid:pool</c>), or the peg-in's output for MWEB (keyed <c>txid:index</c>).
+    /// </summary>
+    /// <param name="key">The finding's key.</param>
+    /// <param name="deposit">The deposit.</param>
+    /// <returns>The amount, or <see langword="null"/> when the key does not name it.</returns>
+    private static Satoshi? PoolDeposit(string key, BitcoinTransaction deposit)
+    {
+        if (key == deposit.Txid.Value + ":pool")
+        {
+            return deposit.Shielded?.IntoPool;
+        }
+
+        return OutputIndexOf(key, deposit.Txid) is { } index
+            ? deposit.Outputs.FirstOrDefault(output => output.Index == index)?.Amount
+            : null;
     }
 
     /// <summary>Reads the output's index from a finding keyed <c>txid:index</c> on the given transaction.</summary>

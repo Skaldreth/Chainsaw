@@ -266,7 +266,7 @@ public static class GraphAreas
                 addresses.Add(address);
             }
             else if (member.StartsWith(CheckRules.TransactionMember, StringComparison.Ordinal)
-                && Txid.TryParse(member[CheckRules.TransactionMember.Length..], out var txid))
+                && Txid.TryParseStored(member[CheckRules.TransactionMember.Length..], out var txid))
             {
                 txids.Add(txid);
             }

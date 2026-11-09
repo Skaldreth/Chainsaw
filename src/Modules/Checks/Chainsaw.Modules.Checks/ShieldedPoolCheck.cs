@@ -28,6 +28,20 @@ internal sealed class ShieldedPoolCheck : ICheckAnalysis
     /// </summary>
     public const double MostShortfall = 0.01;
 
+    /// <summary>
+    /// The fee a way out may lack whatever the deposit's size, in the chain's smallest unit: 0.001 coin, room for a fee
+    /// by ZIP 317 (5 000 zatoshi per action, so a hundred actions and more) on a small deposit.
+    /// </summary>
+    public const long MostFee = 100_000;
+
+    /// <summary>The smallest unit a round amount is a whole number of: 0.01 coin.</summary>
+    public const long RoundUnit = 1_000_000;
+
+    /// <summary>
+    /// What a round amount counts: many users take out round amounts, so one says less about who put the money in.
+    /// </summary>
+    public const double RoundFactor = 0.7;
+
     /// <summary>The lowest score a candidate is kept at.</summary>
     public const double LowestScore = 0.4;
 
@@ -64,13 +78,32 @@ internal sealed class ShieldedPoolCheck : ICheckAnalysis
     }
 
     /// <summary>
-    /// Gives the score of how much smaller a way out is than the deposit, from 1 for the same amount to 0 at
-    /// <see cref="MostShortfall"/>; a way out larger than the deposit is not the same money.
+    /// Gives the score of how much smaller a way out is than the deposit, from 1 for the same amount to 0 at what the
+    /// deposit may lack (<see cref="Allowance"/>); a way out larger than the deposit is not the same money.
     /// </summary>
-    /// <param name="shortfall">The share of the deposit that did not come out.</param>
+    /// <param name="shortfall">How much less came out, in the chain's smallest unit.</param>
+    /// <param name="allowance">The most it may lack.</param>
     /// <returns>The score.</returns>
-    public static double AmountScore(double shortfall) =>
-        shortfall is < 0 or > MostShortfall ? 0 : 1 - (shortfall / MostShortfall);
+    public static double AmountScore(long shortfall, long allowance) =>
+        shortfall < 0 || allowance <= 0 || shortfall > allowance ? 0 : 1 - ((double)shortfall / allowance);
+
+    /// <summary>
+    /// Gives how much a way out may lack against a deposit: <see cref="MostShortfall"/> of it, and at least
+    /// <see cref="MostFee"/>, so that a small deposit still has room for a fee.
+    /// </summary>
+    /// <param name="deposit">The deposit, in the chain's smallest unit.</param>
+    /// <returns>The allowance.</returns>
+    public static long Allowance(long deposit) => Math.Max(MostFee, (long)(deposit * MostShortfall));
+
+    /// <summary>
+    /// Gives how much a way out's amount says about who took it: less for a round amount, which many take out, and
+    /// split between ways out of the same amount, since the deposit can only be one of them.
+    /// </summary>
+    /// <param name="amount">The way out's amount.</param>
+    /// <param name="same">How many ways out in the graph have that amount on the chain.</param>
+    /// <returns>A factor from above 0 to 1.</returns>
+    public static double Distinctness(long amount, int same) =>
+        (amount % RoundUnit == 0 ? RoundFactor : 1) / Math.Max(1, same);
 
     /// <summary>Gives the score of the time after the deposit, from 1 at once to a fifth at the end of the window.</summary>
     /// <param name="after">The time after the deposit.</param>
@@ -146,9 +179,13 @@ internal sealed class ShieldedPoolCheck : ICheckAnalysis
     /// <returns>The suggestion, or <see langword="null"/>.</returns>
     private CheckFinding? Describe(PoolMove deposit, IReadOnlyList<PoolMove> ways)
     {
-        var best = ways
-            .Where(way => way.Transaction.Txid.Chain == deposit.Transaction.Txid.Chain)
-            .Select(way => (Way: way, Candidate: Candidate(deposit, way)))
+        // Only the ways out in the deposit's window are weighed, and so only they share an amount with each other.
+        var onChain = ways.Where(way => way.Transaction.Txid.Chain == deposit.Transaction.Txid.Chain
+            && way.Transaction.Block!.Height > deposit.Transaction.Block!.Height
+            && TimeScore(way.Transaction.Block.Time - deposit.Transaction.Block.Time) > 0).ToList();
+        var counts = onChain.GroupBy(way => way.Amount.Value).ToDictionary(group => group.Key, group => group.Count());
+        var best = onChain
+            .Select(way => (Way: way, Candidate: Candidate(deposit, way, counts[way.Amount.Value])))
             .Where(item => item.Candidate is not null)
             .OrderByDescending(item => item.Candidate!.Score)
             .ThenBy(item => item.Candidate!.Key, StringComparer.Ordinal)
@@ -162,9 +199,11 @@ internal sealed class ShieldedPoolCheck : ICheckAnalysis
         var coin = deposit.Transaction.Txid.Chain.NativeAsset().Symbol;
         var amount = CheckText.Btc(deposit.Amount);
         var why = $"{Id} letar i grafen efter pengar som kommer ut ur {deposit.Pool} och kan vara insättningens "
-            + $"{amount} {coin} efter en avgift (högst {CheckText.Percent(MostShortfall)} mindre), inom "
-            + $"{CheckText.Span(Window)} efter insättningen i block {deposit.Transaction.Block!.Height}. Poängen väger "
-            + "beloppet till tre femtedelar och tiden till två. Metoden är forskningens: den som sätter in tar ofta ut "
+            + $"{amount} {coin} efter en avgift (högst {CheckText.Percent(MostShortfall)} mindre, och alltid minst "
+            + $"{CheckText.Btc(new Satoshi(MostFee))} {coin}), inom {CheckText.Span(Window)} efter insättningen i block "
+            + $"{deposit.Transaction.Block!.Height}. Poängen väger beloppet till tre femtedelar och tiden till två, och "
+            + "sänks för ett jämnt belopp och när flera vägar ut har samma belopp, eftersom de säger mindre om vem som "
+            + "tog ut. Metoden är forskningens: den som sätter in tar ofta ut "
             + "samma belopp snart efter. I poolen syns varken belopp eller ägare, så en kandidat är en bedömning, "
             + "aldrig ett faktum. Bara det som finns i grafen prövas.";
         IReadOnlyList<BitcoinAddress> depositors =
@@ -188,8 +227,9 @@ internal sealed class ShieldedPoolCheck : ICheckAnalysis
     /// <summary>Weighs one way out as a candidate for a deposit.</summary>
     /// <param name="deposit">The deposit.</param>
     /// <param name="way">A way out of the same chain's pool.</param>
+    /// <param name="same">How many ways out on the chain have the same amount.</param>
     /// <returns>The candidate, or <see langword="null"/> when it is not one.</returns>
-    private static CheckCandidate? Candidate(PoolMove deposit, PoolMove way)
+    private static CheckCandidate? Candidate(PoolMove deposit, PoolMove way, int same)
     {
         var after = way.Transaction.Block!.Time - deposit.Transaction.Block!.Time;
         if (way.Transaction.Block.Height <= deposit.Transaction.Block.Height || deposit.Amount.Value <= 0)
@@ -197,8 +237,9 @@ internal sealed class ShieldedPoolCheck : ICheckAnalysis
             return null;
         }
 
-        var shortfall = (double)(deposit.Amount.Value - way.Amount.Value) / deposit.Amount.Value;
-        var amountScore = AmountScore(shortfall);
+        var lacking = deposit.Amount.Value - way.Amount.Value;
+        var shortfall = (double)lacking / deposit.Amount.Value;
+        var amountScore = AmountScore(lacking, Allowance(deposit.Amount.Value));
         var timeScore = TimeScore(after);
         if (amountScore <= 0 || timeScore <= 0)
         {
@@ -206,7 +247,9 @@ internal sealed class ShieldedPoolCheck : ICheckAnalysis
         }
 
         var score = Math.Round(
-            (AmountWeight * amountScore) + (TimeWeight * timeScore), 2, MidpointRounding.AwayFromZero);
+            ((AmountWeight * amountScore) + (TimeWeight * timeScore)) * Distinctness(way.Amount.Value, same),
+            2,
+            MidpointRounding.AwayFromZero);
         if (score < LowestScore)
         {
             return null;

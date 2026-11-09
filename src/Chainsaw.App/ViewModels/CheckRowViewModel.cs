@@ -238,6 +238,22 @@ public sealed partial class CandidateRowViewModel : ObservableObject
         _ => string.Empty,
     };
 
+    /// <summary>
+    /// Gets the amount with its unit, for example <c>0,7920 BTC</c> or <c>0,0098 ZEC</c>: a coin is counted in its own
+    /// chain's coin.
+    /// </summary>
+    public string AmountWithUnit => Candidate switch
+    {
+        { Amount: { } amount } => WriteAmount(amount) + " " + CoinSymbol(Candidate.Txid?.Chain),
+        { Arrival: { } arrival } => Graph.AmountText.WithUnit(arrival.Amount),
+        _ => string.Empty,
+    };
+
+    /// <summary>Gives the symbol of a UTXO chain's coin, Bitcoin's when the chain is not known.</summary>
+    /// <param name="chain">The chain, or <see langword="null"/>.</param>
+    /// <returns>For example <c>BTC</c>, <c>LTC</c> or <c>ZEC</c>.</returns>
+    public static string CoinSymbol(Chain? chain) => (chain ?? Chain.Bitcoin).NativeAsset().Symbol;
+
     /// <summary>Gets how long after the money came in it was paid, for example <c>4 h</c>; empty if unknown.</summary>
     public string TimeText { get; }
 
@@ -647,7 +663,8 @@ public sealed partial class CheckRowViewModel : ObservableObject
         }
         else if (incoming is { } amount)
         {
-            parts.Add(CandidateRowViewModel.WriteAmount(amount) + " BTC in");
+            var chain = check.Finding.Basis.Count > 0 ? check.Finding.Basis[0].Txid.Chain : Chain.Bitcoin;
+            parts.Add(CandidateRowViewModel.WriteAmount(amount) + " " + CandidateRowViewModel.CoinSymbol(chain) + " in");
         }
 
         if (start is { } time)

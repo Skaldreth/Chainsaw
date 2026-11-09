@@ -5597,4 +5597,12 @@ i KF2b-panelen, och ett godkännande som knyter fortsättningen i samma transakt
   - **En spårning per kedja** i appen (TODO 23), eftersom ett resultat räknar i en tillgång.
   - **Zcash kontrolleras inte mot sina bytes** (ZIP 244); tx:en märks aldrig så.
 - **Återstår:** TODO punkt 8 (ytorna för Zcash, summorna på noderna, testärendet) och BACKLOG, *Flera UTXO-kedjor
-  efter omgång 8c*. Oberoende granskning återstår.
+  efter omgång 8c*.
+- **Efter granskningen** (inga C, sex I, rättade): en Zcash-coinbase läses utan avgift också när den betalar in i en
+  pool; en upptagen output-adress gör bara sina outputar okända (`BitcoinOutputSpend.IsUnknown`) och spenderaren söks
+  också på de äldsta sidorna; bevakningen ser pengar in i en Zcash-pool som ett utgående ben utan adress; kluster
+  bevakas på Litecoin och Zcash; egna ytor sparar en tx med sin kedja (`Txid.Stored`); KF2b visar poolens belopp och
+  kedjans enhet (ZEC, LTC) i stället för BTC, också i det som hölls tillbaka. Dessutom: zcashd:s svar måste ha samma
+  inputs och block som Blockbooks, sidorna slutar vid ett helt block utan att stanna, `shielded-pool` har en fast
+  minsta avgiftsmarginal (0,001) och sänker poängen för jämna och upprepade belopp, Zcash får ingen påhittad
+  blockvikt, kedjans bricka visas bara där den kan väljas, och *Varför?* och Guiden säger att poolen läggs sist i FIFO.

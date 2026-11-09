@@ -87,6 +87,12 @@ public sealed partial class ChainChoice(ChainOption option) : ObservableObject
     /// <summary>Gets whether it is chosen.</summary>
     [ObservableProperty]
     public partial bool IsChosen { get; set; }
+
+    /// <summary>
+    /// Gets whether it is offered for the chosen node: never the node's own chain, since a link leads off it.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool IsShown { get; set; } = true;
 }
 
 /// <summary>A coin in the form <em>Annan kedja</em>, when more than one came into the actor.</summary>
@@ -849,6 +855,11 @@ public sealed partial class InspectorFormsViewModel : ObservableObject
             foreach (var coin in InspectorForms.IncomingCoins(scene, node))
             {
                 Coins.Add(new CoinChoice(coin) { IsChosen = coin == chosen });
+            }
+
+            foreach (var choice in Chains)
+            {
+                choice.IsShown = choice.Option.Chain != node.Node.Chain;
             }
 
             if (node.Node.Chain == TargetChain)

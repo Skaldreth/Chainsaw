@@ -180,15 +180,18 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
   - **CoinJoin, PayJoin och peel chain på Litecoin och Zcash:** mönstren är Bitcoins (Whirlpool, Wasabi, JoinMarket,
     BIP 78) och körs inte; common-input föreslår i stället för att slå ihop en tx med lika stora utgångar på de
     kedjorna. Kontrollerna i grafen (mixer, uppdelning, damm …) körs bara på Bitcoin, utom `shielded-pool v1`.
-  - **Bevaka ett kluster på Litecoin och Zcash:** en bevakning på ett kluster gäller bara Bitcoin; på de andra
-    kedjorna bevakas adresserna var för sig.
   - **Zcash, omorganisationer och ersatta tx:** Blockbook-källan säger inte när en tx bytt block eller försvunnit
     (`GetBlockChangesAsync` ger inget), som Esplora gör. Tx:en hämtas ändå igen tills blocket är 24 block djupt.
   - **Zcashs tx mot sina bytes:** id:t är ZIP 244:s BLAKE2b-träd för version 5 (dubbel SHA-256 för version 4), så en
     Zcash-tx kontrolleras aldrig mot sina bytes; att räkna ZIP 244 själv vore steget dit.
-  - **Zcashs sidor av en adress** hämtas med Blockbooks sidnummer omräknat till blockhöjd (`to=`); tx:er i samma
-    block som den sista på förra sidan kommer igen och hoppas över. En adress med mer än 1 000 tx sedan en tx:s block
-    gör att vem som spenderade en output inte kan läsas (sägs ärligt).
+  - **Zcashs sidor av en adress** hämtas nedåt med `to=` under den sista tx:ens block, och en sida som har fler efter
+    sig slutar vid ett helt block. Ett block med fler tx än en sida (1 000) för samma adress hoppas över till blocket
+    under, och nästa sida efter en obekräftad tx börjar om från toppen; båda är sällsynta men inte ärliga än.
+  - **Vem som spenderade en output på Zcash** läses ur adressens historik: första sidan och sedan de äldsta sidorna,
+    högst fem. Hos en mycket upptagen adress kan spenderaren ligga mittemellan; outputen märks då *okänd* för sig, och
+    de andra outputarna läses ändå. Att söka med `from=`/`to=` runt tx:ens block vore nästa steg.
+  - **Bevakningen av pengar in i en Zcash-pool** ser t→z på adressens sida som det inputs betalar utöver outputs när
+    det är mer än 0,01 ZEC; en t→z under det räknas som avgift och syns inte som en träff.
   - **Zcash på en adress sida** (det som hölls tillbaka, EX1) har inte poolernas del: där är avgiften det
     genomskinliga överskottet, eftersom zcashd:s svar bara hämtas för tx:er som tas in i grafen.
   - **Zcashs källa:** Zelcores öppna Blockbook är den enda öppna utan nyckel som hittades (2026-11-09; Trezors

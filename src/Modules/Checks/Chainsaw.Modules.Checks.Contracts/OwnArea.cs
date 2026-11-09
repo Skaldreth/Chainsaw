@@ -152,10 +152,10 @@ public static class CheckRules
 
     /// <summary>Gives the member that stands for a transaction that is an actor of its own.</summary>
     /// <param name="txid">The transaction.</param>
-    /// <returns>For example <c>tx:4a5e…</c>.</returns>
+    /// <returns>For example <c>tx:4a5e…</c>, or <c>tx:litecoin:4a5e…</c> on another UTXO chain.</returns>
     public static string MemberOf(Chains.Contracts.Txid txid)
     {
         ArgumentNullException.ThrowIfNull(txid);
-        return TransactionMember + txid.Value;
+        return TransactionMember + txid.Stored;
     }
 }

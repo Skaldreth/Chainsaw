@@ -522,6 +522,8 @@ internal sealed class GraphBuilder
                     ({ } pending, { SpentBy: { } named }) when named.Txid != pending.Txid =>
                         new CoinSpend(SpendState.Spent, named, true),
                     ({ } pending, _) => new CoinSpend(SpendState.Spent, pending, true),
+                    // A source that could not say who spent it leaves the coin unknown, never unspent.
+                    (null, { IsUnknown: true }) => new CoinSpend(SpendState.Unknown, null, true),
                     (null, { } spend) => Asked(spend, answer!.MayBeOutdated),
                     _ => Known(output),
                 };

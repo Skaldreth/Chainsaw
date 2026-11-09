@@ -1216,7 +1216,7 @@ internal sealed class CheckService : ICheckService
             var valid = member.StartsWith(CheckRules.AddressMember, StringComparison.Ordinal)
                 ? CheckRules.AddressOf(member) is not null
                 : member.StartsWith(CheckRules.TransactionMember, StringComparison.Ordinal)
-                    && Txid.TryParse(member[CheckRules.TransactionMember.Length..], out _);
+                    && Txid.TryParseStored(member[CheckRules.TransactionMember.Length..], out _);
             if (!valid)
             {
                 throw new ArgumentException("En egen yta håller adresser och tx, inget annat.", parameter);

@@ -37,6 +37,21 @@ public sealed class ZcashPoolTests : IDisposable
     }
 
     [Fact]
+    public async Task Common_inputs_on_zcash_are_merged_into_one_wallet()
+    {
+        var spend = Tx(Chain.Zcash, "zec-consolidation", 3_549_500)
+            .In(ZcashPkh("wallet-a"), 300_000).In(ZcashPkh("wallet-b"), 200_000)
+            .Out(ZcashPkh("shop"), 499_000).Build();
+        _harness.Zcash.Add(spend);
+
+        var result = await _harness.Expand(ZcashPkh("wallet-a"));
+
+        var wallet = Assert.Single(result.Graph.Nodes, node => node.Kind == GraphNodeKind.Cluster);
+        Assert.Equal(Chain.Zcash, wallet.Chain);
+        Assert.Contains(ZcashPkh("wallet-b"), wallet.GraphAddresses);
+    }
+
+    [Fact]
     public async Task A_transaction_into_the_pool_keeps_its_own_node_with_the_pools_end()
     {
         var (_, shield) = Shielding();

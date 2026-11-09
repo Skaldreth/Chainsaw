@@ -75,7 +75,8 @@ internal static class ShieldedPoolEnds
     private static string IntoText(BitcoinTransaction transaction, ShieldedFlow flow) => string.Format(
         CultureInfo.InvariantCulture,
         "{0} ZEC gick in i Zcash skyddade pool ({1}) i tx {2}, enligt kedjans egna belopp (value balance). I poolen "
-            + "syns varken belopp eller ägare, så spåret tar slut här.",
+            + "syns varken belopp eller ägare, så spåret tar slut här. Spårningsmetoden ser poolen som tx:ens sista "
+            + "utgång, efter de genomskinliga, så med FIFO når det spårade poolen först när utgångarna före den är fyllda.",
         Coins(flow.IntoPool),
         Names(flow),
         transaction.Txid.Value);
