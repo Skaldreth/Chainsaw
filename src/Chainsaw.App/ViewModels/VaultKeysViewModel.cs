@@ -20,6 +20,9 @@ public sealed partial class VaultKeysViewModel : ObservableObject
     /// <summary>What the form says without a service or a key.</summary>
     public const string MissingText = "Skriv tjänsten och nyckeln.";
 
+    /// <summary>What the form says when the key is an address, as when the wrong thing was pasted.</summary>
+    public const string AddressText = "Det här är en adress, inte en API-nyckel. Klistra in nyckeln från tjänsten.";
+
     /// <summary>What a row says when nothing uses its key.</summary>
     public const string UnusedText = "Används inte av någon endpoint";
 
@@ -140,6 +143,12 @@ public sealed partial class VaultKeysViewModel : ObservableObject
                 return;
             }
 
+            if (IsAddress(secret))
+            {
+                Error = AddressText;
+                return;
+            }
+
             await Task.Run(() => _keys.Save(new ApiKey(service, string.Empty, secret))).ConfigureAwait(true);
             // The endpoints that need the key start asking at once, so that no one has to look for them.
             await _sources.EnableForKeyAsync(service).ConfigureAwait(true);
@@ -249,6 +258,15 @@ public sealed partial class VaultKeysViewModel : ObservableObject
     /// <returns><see langword="true"/> when they are the same.</returns>
     private static bool SameService(string? named, string service) =>
         string.Equals(named?.Trim(), service, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Tells whether what was written is a chain's address rather than a key: one with a checksum or a prefix that a
+    /// key does not have. Solana's are left out, since any key in Base58 of that length would read as one.
+    /// </summary>
+    /// <param name="secret">What was written.</param>
+    /// <returns><see langword="true"/> when it is an address.</returns>
+    internal static bool IsAddress(string secret) =>
+        ChainStartPoint.Recognise(secret) is { Kind: StartPointKind.Address, Chain: not SharedKernel.Chain.Solana };
 
     /// <summary>Gives a key's last characters behind dots, or only dots for a short key.</summary>
     /// <param name="secret">The key.</param>

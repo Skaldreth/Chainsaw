@@ -272,6 +272,20 @@ public sealed class SourcesKl2bTests
     }
 
     [Fact]
+    public async Task An_address_pasted_as_a_key_is_not_saved_and_says_so()
+    {
+        var page = Create();
+        await page.ShowKeysAsync();
+        page.Keys.OpenForm();
+
+        await page.Keys.SaveAsync(new TestEntry("0xeb931257765e313079f2db87a966d80ca5cf8ac6"));
+
+        Assert.Equal(VaultKeysViewModel.AddressText, page.Keys.Error);
+        Assert.Empty(_keys.Saved);
+        Assert.False(VaultKeysViewModel.IsAddress("9BG68EH6QDVNRVWUNSVUGJNIA38TMUFR6X"));
+    }
+
+    [Fact]
     public async Task A_key_without_a_service_or_in_a_locked_vault_is_not_saved_and_says_why()
     {
         var page = Create();
