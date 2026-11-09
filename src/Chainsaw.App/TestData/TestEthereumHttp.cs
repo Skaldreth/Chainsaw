@@ -6,20 +6,20 @@ using System.Text;
 using System.Text.Json.Nodes;
 using System.Web;
 using Chainsaw.Modules.Chains.Contracts;
-using Chainsaw.Modules.Chains.TestData;
 using Chainsaw.Modules.Network.Contracts;
 using Chainsaw.SharedKernel;
 
 namespace Chainsaw.App.TestData;
 
 /// <summary>
-/// Answers Blockscout's requests from the made-up Ethereum part (<see cref="TestEthereumChain"/>), in this process: the
-/// test case's Ethereum source is asked through this instead of through the exit, so nothing about the test case ever
-/// leaves the computer. A request for anything else than the made-up source's address is refused, never sent.
+/// Answers Blockscout's requests from a made-up part on a chain that Blockscout serves (Ethereum's
+/// <see cref="TestEthereumChain"/> or BSC's <see cref="TestBscChain"/>), in this process: the test case's source is
+/// asked through this instead of through the exit, so nothing about the test case ever leaves the computer. A request
+/// for anything else than the made-up source's address is refused, never sent.
 /// </summary>
 /// <param name="chain">The made-up part.</param>
 /// <param name="clock">The clock, for the response's times.</param>
-public sealed class TestEthereumHttp(TestEthereumChain chain, IClock clock) : IExitHttp
+public sealed class TestEthereumHttp(ITestBlockscoutChain chain, IClock clock) : IExitHttp
 {
     /// <summary>
     /// The first topic of an ERC-20 <c>Transfer</c> event: the Keccak-256 of <c>Transfer(address,address,uint256)</c>.
@@ -38,18 +38,12 @@ public sealed class TestEthereumHttp(TestEthereumChain chain, IClock clock) : IE
     /// <summary>The answer's status when it has something.</summary>
     private const string Found = "1";
 
-    /// <summary>USDT's symbol.</summary>
-    private const string UsdtSymbol = "USDT";
-
-    /// <summary>USDT's name.</summary>
-    private const string UsdtName = "Tether USD";
-
     /// <inheritdoc/>
     public Task<ExitResponse> SendAsync(ExitRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
         cancellationToken.ThrowIfCancellationRequested();
-        var root = TestDataEthereum.Address.AbsoluteUri;
+        var root = chain.Root.AbsoluteUri;
         if (!request.Uri.AbsoluteUri.StartsWith(root, StringComparison.Ordinal))
         {
             throw new ExitException(ExitError.RequestFailed);
@@ -74,13 +68,13 @@ public sealed class TestEthereumHttp(TestEthereumChain chain, IClock clock) : IE
     {
         if (path == NewestBlocks)
         {
-            return new JsonObject { ["items"] = new JsonArray(Block(TestEthereumChain.Tip)) };
+            return new JsonObject { ["items"] = new JsonArray(Block(chain.Newest)) };
         }
 
         if (path.StartsWith(BlockPart, StringComparison.Ordinal))
         {
             return long.TryParse(path[BlockPart.Length..], NumberStyles.None, CultureInfo.InvariantCulture,
-                out var height) && height is >= TestEthereumChain.FirstHeight and <= TestEthereumChain.Tip
+                out var height) && height >= chain.First && height <= chain.Newest
                 ? Block(height)
                 : null;
         }
@@ -96,19 +90,19 @@ public sealed class TestEthereumHttp(TestEthereumChain chain, IClock clock) : IE
             ("block", "eth_block_number") => new JsonObject
             {
                 ["jsonrpc"] = "2.0",
-                ["result"] = "0x" + TestEthereumChain.Tip.ToString("x", CultureInfo.InvariantCulture),
+                ["result"] = "0x" + chain.Newest.ToString("x", CultureInfo.InvariantCulture),
                 ["id"] = 1,
             },
-            ("transaction", "gettxinfo") => chain.Find(query["txhash"] ?? string.Empty) is { } transaction
+            ("transaction", "gettxinfo") => Find(query["txhash"] ?? string.Empty) is { } transaction
                 ? Ok(Info(transaction))
                 : NotFound("Transaction not found"),
-            ("token", "getToken") => IsUsdt(query["contractaddress"])
+            ("token", "getToken") => IsToken(query["contractaddress"])
                 ? Ok(new JsonObject
                 {
-                    ["contractAddress"] = TestEthereumChain.UsdtContract.Value,
-                    ["decimals"] = "6",
-                    ["symbol"] = UsdtSymbol,
-                    ["name"] = UsdtName,
+                    ["contractAddress"] = chain.Token.Contract.Value,
+                    ["decimals"] = Decimals,
+                    ["symbol"] = chain.Token.Symbol,
+                    ["name"] = chain.Token.Name,
                     ["type"] = "ERC-20",
                 })
                 : NotFound("Token not found"),
@@ -124,11 +118,11 @@ public sealed class TestEthereumHttp(TestEthereumChain chain, IClock clock) : IE
     {
         if (query["action"] == "txlistinternal" && query["txhash"] is { } hash)
         {
-            var calls = chain.Find(hash) is { } transaction ? CallEntries(transaction) : [];
+            var calls = Find(hash) is { } transaction ? CallEntries(transaction) : [];
             return List(calls);
         }
 
-        if (!EthereumAddress.TryParse(query["address"], out var address))
+        if (!EthereumAddress.TryParse(chain.Chain, query["address"], out var address))
         {
             return null;
         }
@@ -163,11 +157,20 @@ public sealed class TestEthereumHttp(TestEthereumChain chain, IClock clock) : IE
         };
     }
 
-    /// <summary>Says whether a contract is USDT's.</summary>
+    /// <summary>Gets the token's decimals, as text as the Etherscan-style API writes them.</summary>
+    private string Decimals => chain.Token.Decimals.ToString(CultureInfo.InvariantCulture);
+
+    /// <summary>Finds a transaction by its hash.</summary>
+    /// <param name="hash">The hash, in any case.</param>
+    /// <returns>The transaction, or <see langword="null"/>.</returns>
+    private TestEthereumTransaction? Find(string hash) => chain.Transactions.FirstOrDefault(
+        transaction => string.Equals(transaction.Hash, hash, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>Says whether a contract is the made-up part's token's.</summary>
     /// <param name="contract">The contract as asked.</param>
     /// <returns><see langword="true"/> when it is.</returns>
-    private static bool IsUsdt(string? contract) =>
-        EthereumAddress.TryParse(contract, out var address) && address == TestEthereumChain.UsdtContract;
+    private bool IsToken(string? contract) =>
+        EthereumAddress.TryParse(chain.Chain, contract, out var address) && address == chain.Token.Contract;
 
     /// <summary>Says whether a history's entry touches an address.</summary>
     /// <param name="entry">The entry.</param>
@@ -185,7 +188,7 @@ public sealed class TestEthereumHttp(TestEthereumChain chain, IClock clock) : IE
         + each.Calls.Aggregate(BigInteger.Zero, (calls, call) =>
             calls + (call.To == address ? call.Wei : 0) - (call.From == address ? call.Wei : 0)));
 
-    /// <summary>Writes the tokens an address holds after the made-up transactions: its USDT, when it has any.</summary>
+    /// <summary>Writes the tokens an address holds after the made-up transactions: its token, when it has any.</summary>
     /// <param name="address">The address.</param>
     /// <returns>The entries.</returns>
     private IEnumerable<JsonObject> TokensOf(EthereumAddress address)
@@ -201,10 +204,10 @@ public sealed class TestEthereumHttp(TestEthereumChain chain, IClock clock) : IE
         yield return new JsonObject
         {
             ["balance"] = usdt.ToString(CultureInfo.InvariantCulture),
-            ["contractAddress"] = TestEthereumChain.UsdtContract.Value,
-            ["decimals"] = "6",
-            ["name"] = UsdtName,
-            ["symbol"] = UsdtSymbol,
+            ["contractAddress"] = chain.Token.Contract.Value,
+            ["decimals"] = Decimals,
+            ["name"] = chain.Token.Name,
+            ["symbol"] = chain.Token.Symbol,
             ["type"] = "ERC-20",
         };
     }
@@ -212,18 +215,18 @@ public sealed class TestEthereumHttp(TestEthereumChain chain, IClock clock) : IE
     /// <summary>Writes a block, as <c>v2/blocks/:height</c> gives it.</summary>
     /// <param name="height">The block.</param>
     /// <returns>The answer.</returns>
-    private static JsonObject Block(long height) => new()
+    private JsonObject Block(long height) => new()
     {
-        ["hash"] = TestEthereumChain.BlockHash(height),
+        ["hash"] = chain.HashAt(height),
         ["height"] = height,
-        ["timestamp"] = TestEthereumChain.TimeOf(height).UtcDateTime.ToString(
+        ["timestamp"] = chain.TimeAt(height).UtcDateTime.ToString(
             "yyyy-MM-dd'T'HH:mm:ss.ffffff'Z'", CultureInfo.InvariantCulture),
     };
 
     /// <summary>Writes a transaction as <c>gettxinfo</c> gives it, with its log.</summary>
     /// <param name="transaction">The transaction.</param>
     /// <returns>The result.</returns>
-    private static JsonObject Info(TestEthereumTransaction transaction)
+    private JsonObject Info(TestEthereumTransaction transaction)
     {
         var logs = new JsonArray();
         for (var index = 0; index < transaction.Tokens.Count; index++)
@@ -231,7 +234,7 @@ public sealed class TestEthereumHttp(TestEthereumChain chain, IClock clock) : IE
             var token = transaction.Tokens[index];
             logs.Add(new JsonObject
             {
-                ["address"] = TestEthereumChain.UsdtContract.Value,
+                ["address"] = chain.Token.Contract.Value,
                 ["topics"] = new JsonArray(TransferTopic, Word(token.From), Word(token.To), null),
                 ["data"] = "0x" + Hex(token.Units),
                 ["index"] = Text(LogIndex(transaction, index)),
@@ -257,11 +260,11 @@ public sealed class TestEthereumHttp(TestEthereumChain chain, IClock clock) : IE
     /// <summary>Writes an entry of an address's list of transactions.</summary>
     /// <param name="transaction">The transaction.</param>
     /// <returns>The entry.</returns>
-    private static JsonObject Entry(TestEthereumTransaction transaction) => new()
+    private JsonObject Entry(TestEthereumTransaction transaction) => new()
     {
         ["hash"] = transaction.Hash,
         ["blockNumber"] = Text(transaction.Height),
-        ["blockHash"] = TestEthereumChain.BlockHash(transaction.Height),
+        ["blockHash"] = chain.HashAt(transaction.Height),
         ["timeStamp"] = Seconds(transaction.Height),
         ["from"] = transaction.From.Value,
         ["to"] = transaction.To.Value,
@@ -277,7 +280,7 @@ public sealed class TestEthereumHttp(TestEthereumChain chain, IClock clock) : IE
     /// <summary>Writes a transaction's internal transactions, as the internal lists give them.</summary>
     /// <param name="transaction">The transaction.</param>
     /// <returns>The entries.</returns>
-    private static IEnumerable<JsonObject> CallEntries(TestEthereumTransaction transaction) =>
+    private IEnumerable<JsonObject> CallEntries(TestEthereumTransaction transaction) =>
         transaction.Calls.Select((call, index) => new JsonObject
         {
             ["transactionHash"] = transaction.Hash,
@@ -295,20 +298,20 @@ public sealed class TestEthereumHttp(TestEthereumChain chain, IClock clock) : IE
     /// <summary>Writes a transaction's USDT movements, as an address's token list gives them.</summary>
     /// <param name="transaction">The transaction.</param>
     /// <returns>The entries.</returns>
-    private static IEnumerable<JsonObject> TokenEntries(TestEthereumTransaction transaction) =>
+    private IEnumerable<JsonObject> TokenEntries(TestEthereumTransaction transaction) =>
         transaction.Tokens.Select((token, index) => new JsonObject
         {
             ["hash"] = transaction.Hash,
             ["blockNumber"] = Text(transaction.Height),
-            ["blockHash"] = TestEthereumChain.BlockHash(transaction.Height),
+            ["blockHash"] = chain.HashAt(transaction.Height),
             ["timeStamp"] = Seconds(transaction.Height),
             ["from"] = token.From.Value,
             ["to"] = token.To.Value,
             ["value"] = token.Units.ToString(CultureInfo.InvariantCulture),
-            ["contractAddress"] = TestEthereumChain.UsdtContract.Value,
-            ["tokenSymbol"] = UsdtSymbol,
-            ["tokenDecimal"] = "6",
-            ["tokenName"] = UsdtName,
+            ["contractAddress"] = chain.Token.Contract.Value,
+            ["tokenSymbol"] = chain.Token.Symbol,
+            ["tokenDecimal"] = Decimals,
+            ["tokenName"] = chain.Token.Name,
             ["logIndex"] = Text(LogIndex(transaction, index)),
             ["transactionIndex"] = Text(transaction.Index),
         });
@@ -372,6 +375,6 @@ public sealed class TestEthereumHttp(TestEthereumChain chain, IClock clock) : IE
     /// <summary>Writes a block's time in seconds since 1970, as text.</summary>
     /// <param name="height">The block.</param>
     /// <returns>The text.</returns>
-    private static string Seconds(long height) => Text(TestEthereumChain.TimeOf(height).ToUnixTimeSeconds());
+    private string Seconds(long height) => Text(chain.TimeAt(height).ToUnixTimeSeconds());
 }
 #endif

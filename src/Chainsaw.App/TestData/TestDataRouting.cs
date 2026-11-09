@@ -17,7 +17,7 @@ namespace Chainsaw.App.TestData;
 /// </summary>
 /// <param name="real">The real source (Esplora through the exit).</param>
 /// <param name="testData">The made-up source, made the first time a test case asks.</param>
-public sealed class TestDataBitcoinRouter(IBitcoinSource real, Lazy<IBitcoinSource> testData) : IBitcoinSource
+public class TestDataBitcoinRouter(IBitcoinSource real, Lazy<IBitcoinSource> testData) : IBitcoinSource
 {
     /// <inheritdoc/>
     public BitcoinNetwork Network => real.Network;

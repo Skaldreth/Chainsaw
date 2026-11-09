@@ -1,5 +1,6 @@
 #if DEBUG
 using System.Buffers.Binary;
+using System.Globalization;
 using System.Numerics;
 
 namespace Chainsaw.App.TestData;
@@ -264,13 +265,24 @@ public sealed class TestChain
     public TestTransaction Coinbase(string label, long height, params TestOutput[] outputs) =>
         Add(new TestTransaction(label, height, [new TestInput(null, 0, null)], outputs));
 
-    /// <summary>Gives fresh money to an address, as a coinbase in a block of its own before the story.</summary>
+    /// <summary>
+    /// Gives fresh money to an address, as a coinbase in a block of its own before the story. An address funded more
+    /// than once gets its later coinbases labelled with their block too, so that the first keeps its label (and txid).
+    /// </summary>
     /// <param name="to">The address.</param>
     /// <param name="value">The amount in satoshi.</param>
     /// <param name="height">The block.</param>
     /// <returns>The coinbase, whose output 0 is the money.</returns>
-    public TestTransaction Fund(TestAddress to, long value, long height) =>
-        Coinbase("fund:" + to.Label, height, new TestOutput(to, value));
+    public TestTransaction Fund(TestAddress to, long value, long height)
+    {
+        var label = "fund:" + to.Label;
+        if (_byLabel.ContainsKey(label))
+        {
+            label += ":" + height.ToString(CultureInfo.InvariantCulture);
+        }
+
+        return Coinbase(label, height, new TestOutput(to, value));
+    }
 
     /// <summary>Starts a transaction that spends coins; finish it with <see cref="TestDraft.Done"/>.</summary>
     /// <param name="label">The scenario's name for it.</param>

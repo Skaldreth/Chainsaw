@@ -18,15 +18,18 @@ namespace Chainsaw.App.TestData;
 /// split whose parts meet, a possible PayJoin, a spend that is gone and replaced (with a change conclusion that rests on
 /// it and is held back), Sydbörsen's sweeps into a hot wallet without a label, two victims' money going the same way
 /// through the mixer to Sydbörsen, a run of alike amounts, and a payment to the swap service whose continuation on
-/// Ethereum is suggested. The user's own work is there too, so that its marks and history can be seen at once: a
-/// split, decided suggestions, an approved wallet, an edited comment, a label on a transaction, and a comment and an
-/// area in the trash. Everything is made up and nothing goes out: the chain, the rates, the sanction lists and the
+/// Ethereum is suggested; and the fifth round's patterns: a central mixer without a label, mixer after mixer with two
+/// branches through it, a split spread over four transactions, hops that pay a layering service's fee and a nested
+/// service at Nordbörsen. Besides Bitcoin, TRON and Ethereum, small parts on Litecoin, Zcash (with money into the
+/// shielded pool and out again), BSC and Solana each reach Sydbörsen there. The user's own work is there too, so that
+/// its marks and history can be seen at once: a split, decided suggestions, an approved wallet, an edited comment, a
+/// label on a transaction, and a comment and an area in the trash. Everything is made up and nothing goes out: the chain, the rates, the sanction lists and the
 /// open source are answered on this computer.
 /// </remarks>
 public static class TestStory
 {
     /// <summary>The story's version, in the journal and as the made-up labels' source version.</summary>
-    public const string Version = "6";
+    public const string Version = "7";
 
     /// <summary>The made-up open source the test case's labels come from.</summary>
     public const string LabelSource = "testdata (påhittad)";
@@ -76,7 +79,7 @@ public static class TestStory
             new ReorganisationStep(TestStoryChain.PeelHops[^1], actors.Exchange),
             new ReplacedStep(TestStoryChain.ReplacedSpend),
             .. Labels(actors),
-            .. Expansions(),
+            .. Expansions(actors),
 
             // After the expansions, so that the change conclusion of the reused deposit rests on the replaced spend;
             // the expansion of the spend that replaced it then holds that conclusion back by itself (sketch HB1a).
@@ -91,6 +94,7 @@ public static class TestStory
                 new ChainTransactionRef(Chain.Tron, TestTronChain.Id(TestTronChain.SwapPayout))),
             .. OnTron(),
             .. OnEthereum(),
+            .. OnOtherChains(),
             new WatchStep(actors.Consolidated, "Bedragarens andra plånbok", WatchDirection.In),
             new WatchCheckStep(),
             new ChecksStep(),
@@ -192,14 +196,41 @@ public static class TestStory
     ];
 
     /// <summary>
+    /// Gives the parts on Litecoin, Zcash, BSC and Solana (round 8b and 8c): on each a victim's payment to the scammer
+    /// is a start point, or the scammer's address, expanded until the money reaches Sydbörsen's deposit there, which is
+    /// labelled. On Zcash the scammer's money goes into the shielded pool and almost the same amount comes out half a
+    /// day later, which is expanded too, so that <c>shielded-pool v1</c> suggests it as the way out.
+    /// </summary>
+    /// <returns>The steps.</returns>
+    private static IEnumerable<ITestStep> OnOtherChains() =>
+    [
+        new LabelStep(TestLitecoinChain.Exchange, LabelKind.Exchange, "Sydbörsen (Litecoin)"),
+        new TransactionStartPointStep(TestLitecoinChain.TxidOf(TestLitecoinChain.VictimPayment)),
+        new TransactionExpandStep(TestLitecoinChain.TxidOf(TestLitecoinChain.VictimPayment)),
+        new TransactionExpandStep(TestLitecoinChain.TxidOf(TestLitecoinChain.ToMule)),
+        new LabelStep(TestZcashChain.Exchange, LabelKind.Exchange, "Sydbörsen (Zcash)"),
+        new TransactionStartPointStep(TestZcashChain.TxidOf(TestZcashChain.VictimPayment)),
+        new TransactionExpandStep(TestZcashChain.TxidOf(TestZcashChain.VictimPayment)),
+        new TransactionExpandStep(TestZcashChain.TxidOf(TestZcashChain.OutOfPool)),
+        new AccountLabelStep(TestBscChain.Exchange, LabelKind.Exchange, "Sydbörsen (BSC)"),
+        new AccountStartPointStep(TestBscChain.Scammer),
+        new AccountExpandStep(TestBscChain.Scammer),
+        new AccountLabelStep(TestSolanaChain.Exchange, LabelKind.Exchange, "Sydbörsen (Solana)"),
+        new AccountStartPointStep(TestSolanaChain.Scammer),
+        new AccountExpandStep(TestSolanaChain.Scammer),
+        new AccountExpandStep(TestSolanaChain.Mule),
+    ];
+
+    /// <summary>
     /// Gives the expansions made from the start: the money from the victim through the consolidation, the change, the
     /// distribution (which brings the mixer's payout, the CoinJoin and the hub's payment), the mixer's payout (on to an
     /// exchange and into a second mixer), the whole peel chain, the miner's reward with the shared transaction, the
     /// hops after the CoinJoin with the split and the parts that meet, the dust, the poisoning, and the customers'
     /// payments into Sydbörsen with the sweeps that empty them.
     /// </summary>
+    /// <param name="actors">The actors.</param>
     /// <returns>The steps.</returns>
-    private static IEnumerable<ITestStep> Expansions() =>
+    private static IEnumerable<ITestStep> Expansions(TestActors actors) =>
     [
         new ExpandStep(TestStoryChain.VictimPayment),
         new ExpandStep(TestStoryChain.Consolidation),
@@ -214,7 +245,30 @@ public static class TestStory
         new ExpandStep(TestStoryChain.Poisoning),
         .. TestStoryChain.SouthPayments.Select(payment => new ExpandStep(payment)),
         .. PatternExpansions(),
+        .. ObfuscationExpansions(actors),
         new ExpandStep(TestStoryChain.ReusedDeposit),
+    ];
+
+    /// <summary>
+    /// Gives the expansions of the fifth round's patterns (<see cref="TestStoryChain"/>, <c>Obfuscation</c>): the
+    /// central mixer's pool with its whole business, the chain's deposit into Blandaren and its two parts onward (which
+    /// bring the deposits into Virveln and the central mixer) and the central mixer's way out for it, the spread
+    /// split's payments (which bring the parts that meet), the layering row's hops, and the nested service with its
+    /// first trip to Nordbörsen (which brings Nordbörsen's sweep of the account).
+    /// </summary>
+    /// <param name="actors">The actors.</param>
+    /// <returns>The steps.</returns>
+    private static IEnumerable<ITestStep> ObfuscationExpansions(TestActors actors) =>
+    [
+        new AddressExpandStep(actors.Pool),
+        new ExpandStep(TestStoryChain.ChainDeposit),
+        new ExpandStep(TestStoryChain.ChainBranchAPayout),
+        new ExpandStep(TestStoryChain.ChainBranchBPayout),
+        new ExpandStep(TestStoryChain.ChainPoolPayout),
+        .. TestStoryChain.SpreadPayments.SkipLast(1).Select(payment => new ExpandStep(payment)),
+        .. TestStoryChain.FeeHops.SkipLast(1).Select(hop => new ExpandStep(hop)),
+        new AddressExpandStep(actors.NestedKiosk),
+        new ExpandStep(TestStoryChain.NestedTrips[0]),
     ];
 
     /// <summary>

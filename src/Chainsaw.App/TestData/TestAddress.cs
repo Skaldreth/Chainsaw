@@ -23,30 +23,33 @@ public sealed record TestAddress(string Label, BitcoinAddress? Address, string S
 
     /// <summary>Makes a P2WPKH address (<c>bc1q…</c>, the usual wallet today).</summary>
     /// <param name="label">The label.</param>
+    /// <param name="network">The network: Bitcoin's by default, or Litecoin's for the test case's part there.</param>
     /// <returns>The address.</returns>
-    public static TestAddress Wpkh(string label)
+    public static TestAddress Wpkh(string label, BitcoinNetwork network = BitcoinNetwork.Mainnet)
     {
         var hash = Hash(label).AsSpan(0, ShortHash);
-        return new(label, BitcoinAddress.FromWitness(0, hash, BitcoinNetwork.Mainnet), "0014" + Hex(hash));
+        return new(label, BitcoinAddress.FromWitness(0, hash, network), "0014" + Hex(hash));
     }
 
     /// <summary>Makes a P2PKH address (<c>1…</c>, the oldest kind with an address).</summary>
     /// <param name="label">The label.</param>
+    /// <param name="network">The network: Bitcoin's by default, or Litecoin's for the test case's part there.</param>
     /// <returns>The address.</returns>
-    public static TestAddress Pkh(string label)
+    public static TestAddress Pkh(string label, BitcoinNetwork network = BitcoinNetwork.Mainnet)
     {
         var hash = Hash(label).AsSpan(0, ShortHash);
-        var address = BitcoinAddress.FromHash(BitcoinScriptType.PayToPublicKeyHash, hash, BitcoinNetwork.Mainnet);
+        var address = BitcoinAddress.FromHash(BitcoinScriptType.PayToPublicKeyHash, hash, network);
         return new(label, address, "76a914" + Hex(hash) + "88ac");
     }
 
     /// <summary>Makes a P2WSH address (<c>bc1q…</c> with a 32-byte program, as services often use).</summary>
     /// <param name="label">The label.</param>
+    /// <param name="network">The network: Bitcoin's by default, or Litecoin's for the test case's part there.</param>
     /// <returns>The address.</returns>
-    public static TestAddress Wsh(string label)
+    public static TestAddress Wsh(string label, BitcoinNetwork network = BitcoinNetwork.Mainnet)
     {
         var hash = Hash(label);
-        return new(label, BitcoinAddress.FromWitness(0, hash, BitcoinNetwork.Mainnet), "0020" + Hex(hash));
+        return new(label, BitcoinAddress.FromWitness(0, hash, network), "0020" + Hex(hash));
     }
 
     /// <summary>

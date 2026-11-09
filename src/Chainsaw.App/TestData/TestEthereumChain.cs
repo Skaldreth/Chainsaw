@@ -44,7 +44,7 @@ public sealed record TestEthereumTransaction(
 /// made up, except USDT's contract, Uniswap's router and Tornado Cash's pool, which Chainsaw knows by their real
 /// address (<see cref="KnownTokens"/>, <see cref="KnownContracts"/>); no transaction is real.
 /// </summary>
-public sealed class TestEthereumChain
+public sealed class TestEthereumChain : ITestBlockscoutChain
 {
     /// <summary>The first block of the made-up part.</summary>
     public const long FirstHeight = 23_650_000;
@@ -123,6 +123,27 @@ public sealed class TestEthereumChain
     /// <returns>The hash.</returns>
     public static string HashOf(string label) => "0x" + Convert.ToHexStringLower(TestAddress.Hash(label));
 
+    /// <inheritdoc/>
+    Chain ITestBlockscoutChain.Chain => Chain.Ethereum;
+
+    /// <inheritdoc/>
+    Uri ITestBlockscoutChain.Root => Modules.Chains.TestData.TestDataEthereum.Address;
+
+    /// <inheritdoc/>
+    long ITestBlockscoutChain.First => FirstHeight;
+
+    /// <inheritdoc/>
+    long ITestBlockscoutChain.Newest => Tip;
+
+    /// <inheritdoc/>
+    TestBlockscoutToken ITestBlockscoutChain.Token { get; } = new(UsdtContract, 6, "USDT", "Tether USD");
+
+    /// <inheritdoc/>
+    string ITestBlockscoutChain.HashAt(long height) => BlockHash(height);
+
+    /// <inheritdoc/>
+    DateTimeOffset ITestBlockscoutChain.TimeAt(long height) => TimeOf(height);
+
     /// <summary>Finds a transaction by its hash.</summary>
     /// <param name="hash">The hash, in any case.</param>
     /// <returns>The transaction, or <see langword="null"/>.</returns>
@@ -146,17 +167,20 @@ public sealed class TestEthereumChain
     private static EthereumAddress Known(string name) =>
         KnownContracts.All.Single(contract => contract.Name == name).Address;
 
-    /// <summary>Makes a transaction, its place in the block counted from its label so that it never changes.</summary>
+    /// <summary>
+    /// Makes a transaction, its place in the block counted from its label so that it never changes; BSC's made-up part
+    /// (<see cref="TestBscChain"/>) makes its own the same way.
+    /// </summary>
     /// <param name="label">The label.</param>
     /// <param name="height">The block.</param>
     /// <param name="from">The signer.</param>
     /// <param name="to">The address it calls or pays.</param>
     /// <param name="value">The ether it sends, in wei.</param>
     /// <param name="gas">The gas it uses.</param>
-    /// <param name="tokens">The USDT it moves.</param>
+    /// <param name="tokens">The tokens it moves.</param>
     /// <param name="calls">The ether contracts send in it.</param>
     /// <returns>The transaction.</returns>
-    private static TestEthereumTransaction Make(
+    internal static TestEthereumTransaction Make(
         string label, long height, EthereumAddress from, EthereumAddress to, BigInteger value, long gas,
         IReadOnlyList<TestEthereumToken> tokens, IReadOnlyList<TestEthereumCall> calls) =>
         new(label, HashOf(label), height, TestAddress.Hash(label)[0] % 100, from, to, value, gas, tokens, calls);

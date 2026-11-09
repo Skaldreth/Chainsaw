@@ -134,9 +134,8 @@ byggt ur BACKLOG; det som skriver i ärendet granskas oberoende.
    centrala mixers, damm och adressförgiftning, jämna belopp och tidsmönster, och fynden under *Kontroller*.
    Omgång 5 (2026-11-09, DEV-LOG) byggde trolig mixer, mixer efter mixer med grenar, uppdelning över flera tx, hopp
    med avgift, tidsmönstret i svensk tid och nästlade tjänster. Kvar:
-   - **Testärendet** [direkt]: `/testdata` visar inte omgång 5:s mönster (en central mixer utan etikett, grenar, en
-     uppdelning över flera tx, hopp med avgift, en nästlad tjänst hos en börs) eller en betalning i jämna kronor
-     (`round-fiat v1`, med kurserna sparade i testärendet).
+   - **Testärendet** [direkt]: `/testdata` visar inte en betalning i jämna kronor (`round-fiat v1`, med kurserna
+     sparade i testärendet).
 5. **Attribution och kurser:** EU:s sanktionslista, öppna källor (efter licens), etiketter på tx, och fynden under
    *Attribution* och *Kurser*.
 6. **Säkerhet, ärenden och utgångar:** byggt 2026-11-08 (DEV-LOG, *Omgång 6*). Kvar, som behöver ritas först:
@@ -168,11 +167,8 @@ byggt ur BACKLOG; det som skriver i ärendet granskas oberoende.
    - [skiss] **Startpunktsnodens brickor (GR6c)** visar inte Litecoin och BSC.
    - [skiss] **Ett eget märke för Litecoin och BSC:** raden i *Nytt ärende* och *Väntar på källan* visar `Ł` och `B`
      som text, inte en ritad ikon som TRON:s.
-   - **Testärendet** (`/testdata`) har ingen Litecoin-, Zcash- eller BSC-källa än (som TRON:s `TestTronHttp`), så
-     Litecoin i grafen, Zcashs pooler och `shielded-pool v1` syns inte där.
 
    Solana, kvar:
-   - **Testärendet** (`/testdata`) har ingen Solana-källa än (som TRON:s `TestTronHttp`).
    - [skiss] **Ett eget märke för Solana:** raden i *Nytt ärende* och *Väntar på källan* visar `S` som text, som `B`
      för BSC; SOL har stålets färg på kortets baksida som ether.
    - [skiss] **Startpunktsnodens brickor (GR6c)** visar inte Solana.
