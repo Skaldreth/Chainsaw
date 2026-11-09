@@ -22,33 +22,51 @@ public sealed class GraphLayoutTests
         Assert.Equal(new GraphPoint((GraphSizes.NodeWidth + 300) / 2, 70), curve.Middle);
     }
 
-    /// <summary>On the free surface, a line backwards runs from the sender's left to the receiver's right.</summary>
+    /// <summary>
+    /// On the free surface, a line backwards still leaves at the sender's right side and reaches the receiver's left
+    /// side (right is outgoing, left is incoming), over the top of both.
+    /// </summary>
     [Fact]
-    public void BackwardLineOnFreeSurfaceRunsFromLeftSide()
+    public void BackwardLineOnFreeSurfaceKeepsThePorts()
     {
         var curve = EdgeCurve.Between(new GraphPoint(400, 0), new GraphPoint(0, 0), hopColumns: false);
 
-        Assert.Equal(400, curve.Start.X);
-        Assert.Equal(GraphSizes.NodeWidth, curve.End.X);
+        Assert.Equal(new GraphPoint(400 + GraphSizes.NodeWidth, 20), curve.Start);
+        Assert.Equal(new GraphPoint(0, 20), curve.End);
+        Assert.True(curve.Control1.X > curve.Start.X && curve.Control2.X < curve.End.X);
+        Assert.True(curve.Middle.Y < 0);
         Assert.False(curve.IsArc);
     }
 
-    /// <summary>In the hop columns, money that turns back is drawn as an arc over both nodes (sketch GR4).</summary>
+    /// <summary>
+    /// In the hop columns, money that turns back is an arc over both nodes (sketch GR4), out from the right side and
+    /// in at the left.
+    /// </summary>
     [Fact]
     public void MoneyTurningBackInColumnsIsAnArcOverTheTop()
     {
         var curve = EdgeCurve.Between(new GraphPoint(316, 100), new GraphPoint(16, 200), hopColumns: true);
 
         Assert.True(curve.IsArc);
-        Assert.Equal(new GraphPoint(316 + (GraphSizes.NodeWidth / 2), 100), curve.Start);
+        Assert.Equal(new GraphPoint(316 + GraphSizes.NodeWidth, 120), curve.Start);
+        Assert.Equal(new GraphPoint(16, 220), curve.End);
         Assert.True(curve.Control1.Y < 100 && curve.Control2.Y < 100);
         Assert.True(curve.Middle.Y < 100);
     }
 
-    /// <summary>Two nodes in the same column are joined by an arc too, never by a line through them.</summary>
+    /// <summary>
+    /// Two nodes in the same column are joined by an arc, never by a line through them, and it too leaves at the right
+    /// side and comes in at the left.
+    /// </summary>
     [Fact]
-    public void SameColumnIsAnArc() =>
-        Assert.True(EdgeCurve.Between(new GraphPoint(16, 36), new GraphPoint(16, 164), hopColumns: true).IsArc);
+    public void SameColumnIsAnArcFromRightToLeft()
+    {
+        var curve = EdgeCurve.Between(new GraphPoint(16, 36), new GraphPoint(16, 164), hopColumns: true);
+
+        Assert.True(curve.IsArc);
+        Assert.Equal(16 + GraphSizes.NodeWidth, curve.Start.X);
+        Assert.Equal(16, curve.End.X);
+    }
 
     /// <summary>The distance to a curve is about zero on it and large far from it; the bounds hold the curve.</summary>
     [Fact]
@@ -318,20 +336,20 @@ public sealed class GraphGestureTests
     }
 
     /// <summary>
-    /// Two nodes in one column are joined by a loop out to the right, outside both nodes, in either layout
-    /// (regression: the line went straight through the upper node).
+    /// Two nodes in one column are joined by a line that leaves the upper node's right side and reaches the lower's
+    /// left side over the top, in either layout, never straight through the upper node.
     /// </summary>
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public void SameColumnLoopsOutToTheRight(bool hopColumns)
+    public void SameColumnGoesOverTheTopFromRightToLeft(bool hopColumns)
     {
         var curve = EdgeCurve.Between(new GraphPoint(16, 36), new GraphPoint(16, 228), hopColumns);
         var right = 16 + GraphSizes.NodeWidth;
 
-        Assert.True(curve.Control1.X > right && curve.Control2.X > right);
         Assert.Equal(right, curve.Start.X);
-        Assert.Equal(right, curve.End.X);
-        Assert.True(curve.Middle.X > right);
+        Assert.Equal(16, curve.End.X);
+        Assert.True(curve.Control1.X > right && curve.Control2.X < 16);
+        Assert.True(curve.Middle.Y < 36);
     }
 }

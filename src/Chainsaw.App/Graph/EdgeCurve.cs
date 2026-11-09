@@ -1,15 +1,12 @@
 namespace Chainsaw.App.Graph;
 
 /// <summary>
-/// A line between two nodes as a cubic Bézier curve (sketch GR4): forward from the sender's right side to the
-/// receiver's left side, backward on the free surface from the left side to the right side, in the hop columns
-/// money that turns back as an arc over the top, and between two nodes in one column a loop out to the right.
+/// A line between two nodes as a cubic Bézier curve (sketch GR4). A line always leaves its sender at the out port on
+/// the right side and reaches its receiver at the in port on the left side (the user's principle 2026-11-09: right is
+/// outgoing, left is incoming), whichever way the nodes stand. Forward it is a plain curve; money that turns back, or
+/// runs between two nodes in one column, swings out to the right of the sender, over the top of both nodes and into
+/// the receiver from the left.
 /// </summary>
-/// <param name="Start">Where the line leaves the sender.</param>
-/// <param name="Control1">The first control point.</param>
-/// <param name="Control2">The second control point.</param>
-/// <param name="End">Where the line reaches the receiver.</param>
-/// <param name="IsArc">Whether the line is drawn as an arc over the top.</param>
 public sealed record EdgeCurve(GraphPoint Start, GraphPoint Control1, GraphPoint Control2, GraphPoint End, bool IsArc)
 {
     /// <summary>The least pull of a curve's control points, so that a short line still bends.</summary>
@@ -22,10 +19,10 @@ public sealed record EdgeCurve(GraphPoint Start, GraphPoint Control1, GraphPoint
     private const double ArcLiftPerSpan = 0.12;
 
     /// <summary>
-    /// How far a loop between two nodes in one column reaches out to the right: within the gap to the next column, so
-    /// that it never runs behind that column's nodes.
+    /// How far a line that turns back reaches out sideways from its ports: within the gap to the next column, so that
+    /// it never runs behind that column's nodes.
     /// </summary>
-    private const double SideLoop = (GraphSizes.LaneSpacing - GraphSizes.NodeWidth) * 0.8;
+    private const double TurnReach = (GraphSizes.LaneSpacing - GraphSizes.NodeWidth) * 0.8;
 
     /// <summary>How many straight pieces a curve is cut into when it is measured.</summary>
     private const int Pieces = 24;
@@ -65,44 +62,22 @@ public sealed record EdgeCurve(GraphPoint Start, GraphPoint Control1, GraphPoint
     public static EdgeCurve Between(GraphRect from, GraphRect to, bool hopColumns)
     {
         const double half = GraphSizes.NodeHeight / 2;
-        if (Math.Abs(to.X - from.X) < SameColumn)
+        var outPort = new GraphPoint(from.Right, from.Y + half);
+        var inPort = new GraphPoint(to.X, to.Y + half);
+        if (to.X - from.X >= SameColumn)
         {
-            // In one column: a loop out to the right, from side to side, never a line through the nodes between.
-            var reach = Math.Max(from.Right, to.Right) + SideLoop;
-            return new EdgeCurve(
-                new GraphPoint(from.Right, from.Y + half),
-                new GraphPoint(reach, from.Y + half),
-                new GraphPoint(reach, to.Y + half),
-                new GraphPoint(to.Right, to.Y + half),
-                IsArc: true);
+            return Curve(outPort, inPort, Math.Max(MinimumPull, (inPort.X - outPort.X) / 2));
         }
 
-        if (!hopColumns && to.X < from.X)
-        {
-            // Backward on the free surface: from the sender's left side to the receiver's right side.
-            var (x1, x2) = (from.X, to.Right);
-            var pull = Math.Max(MinimumPull, (x1 - x2) / 2);
-            return Curve(new GraphPoint(x1, from.Y + half), new GraphPoint(x2, to.Y + half), -pull);
-        }
-
-        if (to.X < from.X)
-        {
-            // Back in the hops: an arc over the top, from top centre to top centre.
-            var (x1, x2) = (from.Centre.X, to.Centre.X);
-            var lift = Math.Min(from.Y, to.Y) - ArcLift - (Math.Abs(x1 - x2) * ArcLiftPerSpan);
-            return new EdgeCurve(
-                new GraphPoint(x1, from.Y),
-                new GraphPoint(x1, lift),
-                new GraphPoint(x2, lift),
-                new GraphPoint(x2, to.Y),
-                IsArc: true);
-        }
-
-        var (start, end) = (from.Right, to.X);
-        return Curve(
-            new GraphPoint(start, from.Y + half),
-            new GraphPoint(end, to.Y + half),
-            Math.Max(MinimumPull, (end - start) / 2));
+        // Back, or within one column: out to the right, over the top of both nodes, and in from the left. In the hop
+        // columns it is an arc that the routing leaves alone; on the free surface the routing may still bend it.
+        var lift = Math.Min(from.Y, to.Y) - ArcLift - (Math.Abs(outPort.X - inPort.X) * ArcLiftPerSpan);
+        return new EdgeCurve(
+            outPort,
+            new GraphPoint(outPort.X + TurnReach, lift),
+            new GraphPoint(inPort.X - TurnReach, lift),
+            inPort,
+            IsArc: hopColumns);
     }
 
     /// <summary>
