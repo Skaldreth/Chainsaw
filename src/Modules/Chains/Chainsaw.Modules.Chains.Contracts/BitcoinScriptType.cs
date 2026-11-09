@@ -45,6 +45,18 @@ public enum BitcoinScriptType
 
     /// <summary>OP_RETURN: data written on the chain; it can never be spent and has no address.</summary>
     OpReturn,
+
+    /// <summary>
+    /// A peg-in to Litecoin's MWEB (MimbleWimble Extension Blocks), the shielded part: witness version 9 and 32 bytes
+    /// (<c>ltc1f…</c>). The coins move into the extension block, where amounts and owners are hidden; the trail ends.
+    /// </summary>
+    MwebPegIn,
+
+    /// <summary>
+    /// Litecoin's extension block's own address (the HogAddr): witness version 8 and 32 bytes (<c>ltc1g…</c>), held by
+    /// each block's integration transaction (HogEx), which takes in the peg-ins and pays the peg-outs.
+    /// </summary>
+    MwebHogAddress,
 }
 
 /// <summary>The short names of the script types, as they are written in the field.</summary>
@@ -64,6 +76,9 @@ public static class BitcoinScriptTypeNames
         BitcoinScriptType.WitnessUnknown => "Witness",
         BitcoinScriptType.Multisig => "Multisig",
         BitcoinScriptType.OpReturn => "OP_RETURN",
+        BitcoinScriptType.MwebPegIn => "MWEB peg-in",
+        BitcoinScriptType.MwebHogAddress => "MWEB HogAddr",
+
         _ => "Nonstandard",
     };
 }

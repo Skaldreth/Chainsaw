@@ -14,8 +14,12 @@ namespace Chainsaw.Modules.Chains;
 /// <param name="network">The network the addresses belong to.</param>
 internal sealed class EsploraParser(BitcoinNetwork network)
 {
-    /// <summary>The most satoshi there can ever be: 21 million bitcoin.</summary>
-    private const long MaximumSatoshi = 21_000_000 * Satoshi.PerBitcoin;
+    /// <summary>
+    /// The most of the chain's smallest unit there can ever be: 21 million bitcoin, or 84 million litecoin (both
+    /// counted in units of 10⁻⁸).
+    /// </summary>
+    private readonly long _maximumUnits =
+        (network == BitcoinNetwork.Litecoin ? 84_000_000 : 21_000_000) * Satoshi.PerBitcoin;
 
     /// <summary>The weight units per byte outside the witness.</summary>
     private const int WitnessScaleFactor = 4;
@@ -257,10 +261,10 @@ internal sealed class EsploraParser(BitcoinNetwork network)
     /// <param name="outputs">The outputs.</param>
     /// <param name="fee">The fee the source reported.</param>
     /// <param name="isCoinbase">Whether the transaction is a coinbase.</param>
-    private static void CheckFee(List<BitcoinInput> inputs, List<BitcoinOutput> outputs, Satoshi fee, bool isCoinbase)
+    private void CheckFee(List<BitcoinInput> inputs, List<BitcoinOutput> outputs, Satoshi fee, bool isCoinbase)
     {
         var totalOut = Total(outputs.Select(output => output.Amount));
-        if (totalOut.Value > MaximumSatoshi)
+        if (totalOut.Value > _maximumUnits)
         {
             throw new EsploraFormatException("The outputs exceed Bitcoin's supply.");
         }
@@ -276,7 +280,7 @@ internal sealed class EsploraParser(BitcoinNetwork network)
         }
 
         var totalIn = Total(inputs.Select(input => input.Amount!.Value));
-        if (totalIn.Value > MaximumSatoshi || totalIn - totalOut != fee)
+        if (totalIn.Value > _maximumUnits || totalIn - totalOut != fee)
         {
             throw new EsploraFormatException("The fee is not the inputs minus the outputs.");
         }
@@ -285,13 +289,13 @@ internal sealed class EsploraParser(BitcoinNetwork network)
     /// <summary>Adds amounts, refusing a sum that cannot be on the chain instead of overflowing.</summary>
     /// <param name="amounts">The amounts, each within Bitcoin's supply.</param>
     /// <returns>The sum.</returns>
-    private static Satoshi Total(IEnumerable<Satoshi> amounts)
+    private Satoshi Total(IEnumerable<Satoshi> amounts)
     {
         var total = Satoshi.Zero;
         foreach (var amount in amounts)
         {
             total += amount;
-            if (total.Value > MaximumSatoshi)
+            if (total.Value > _maximumUnits)
             {
                 throw new EsploraFormatException("The amounts exceed Bitcoin's supply.");
             }
@@ -383,7 +387,7 @@ internal sealed class EsploraParser(BitcoinNetwork network)
     /// <param name="address">The address.</param>
     /// <returns><see langword="true"/> when it is that address.</returns>
     private static bool SameAddress(string? text, BitcoinAddress address) =>
-        BitcoinAddress.TryParse(text, out var read)
+        BitcoinAddress.TryParse(address.Chain, text, out var read)
         && string.Equals(read.Value, address.Value, StringComparison.Ordinal);
 
     /// <summary>Reads a transaction's status: its block when it is confirmed.</summary>
@@ -543,16 +547,16 @@ internal sealed class EsploraParser(BitcoinNetwork network)
             : throw new EsploraFormatException($"The property {name} is out of range.");
     }
 
-    /// <summary>Reads an amount in satoshi, within Bitcoin's supply. Esplora writes amounts as whole satoshi.</summary>
+    /// <summary>Reads an amount in satoshi, within the chain's supply. Esplora writes amounts as whole units.</summary>
     /// <param name="holder">The object.</param>
     /// <param name="name">The property.</param>
     /// <returns>The amount.</returns>
-    private static long Amount(JsonElement holder, string name)
+    private long Amount(JsonElement holder, string name)
     {
         var amount = NonNegative(holder, name);
-        return amount <= MaximumSatoshi
+        return amount <= _maximumUnits
             ? amount
-            : throw new EsploraFormatException($"The amount {name} exceeds Bitcoin's supply.");
+            : throw new EsploraFormatException($"The amount {name} exceeds the chain's supply.");
     }
 
     /// <summary>Reads a Unix time in seconds.</summary>

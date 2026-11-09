@@ -7,8 +7,9 @@ using Chainsaw.SharedKernel;
 namespace Chainsaw.Modules.Chains;
 
 /// <summary>
-/// Esplora, the API of mempool.space and Blockstream that can also be run in-house, as a sort of API for Bitcoin. The
-/// height is <c>blocks/tip/height</c> and a block's hash <c>block-height/:height</c>; a key goes as a bearer token.
+/// Esplora, the API of mempool.space and Blockstream that can also be run in-house, as a sort of API for Bitcoin, and
+/// for Litecoin (litecoinspace.org runs the same software). The height is <c>blocks/tip/height</c> and a block's hash
+/// <c>block-height/:height</c>; a key goes as a bearer token. One sort per network, each with its own defaults.
 /// </summary>
 internal sealed class EsploraApi : ISourceApi
 {
@@ -21,20 +22,26 @@ internal sealed class EsploraApi : ISourceApi
     {
         [BitcoinSourceOptions.MempoolSpace] = (Guid.Parse("6d0a2f0e-7e1b-4c55-9d0b-8b1f2c4a0001"), "mempool.space"),
         [BitcoinSourceOptions.Blockstream] = (Guid.Parse("6d0a2f0e-7e1b-4c55-9d0b-8b1f2c4a0002"), "Blockstream"),
+        [BitcoinSourceOptions.LitecoinSpace] = (Guid.Parse("6d0a2f0e-7e1b-4c55-9d0b-8b1f2c4a0201"), "litecoinspace.org"),
     };
 
-    /// <summary>Creates the sort with Bitcoin's default endpoints from the options.</summary>
-    /// <param name="options">The Bitcoin source's settings.</param>
+    /// <summary>The chain the endpoints answer for.</summary>
+    private readonly Chain _chain;
+
+    /// <summary>Creates the sort with the network's default endpoints from the options.</summary>
+    /// <param name="options">The source's settings: Bitcoin's, or Litecoin's.</param>
     /// <exception cref="ArgumentException">A default endpoint is not plain https.</exception>
     public EsploraApi(BitcoinSourceOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
+        _chain = options.Network.ChainOf();
+        Info = new SourceApiInfo(Code, "Esplora", _chain);
         Defaults = [.. options.DefaultEndpoints.Select(Default)];
         ChainName = RawResponseStore.NameOf(options.Network);
     }
 
     /// <inheritdoc/>
-    public SourceApiInfo Info { get; } = new(Code, "Esplora", Chain.Bitcoin);
+    public SourceApiInfo Info { get; }
 
     /// <inheritdoc/>
     public IReadOnlyList<SourceEndpoint> Defaults { get; }
@@ -81,7 +88,7 @@ internal sealed class EsploraApi : ISourceApi
     /// <param name="address">The address.</param>
     /// <returns>The endpoint, switched on.</returns>
     /// <exception cref="ArgumentException">The address is not plain https.</exception>
-    private static SourceEndpoint Default(Uri address)
+    private SourceEndpoint Default(Uri address)
     {
         ArgumentNullException.ThrowIfNull(address);
         if (!SourceAddress.TryRead(address.OriginalString, out var checkedAddress, out _))
@@ -93,7 +100,7 @@ internal sealed class EsploraApi : ISourceApi
         var (id, name) = Known.TryGetValue(checkedAddress!, out var known)
             ? known
             : (StableId(checkedAddress!), SourceAddress.NameOf(checkedAddress!));
-        return new SourceEndpoint(id, Chain.Bitcoin, name, checkedAddress!, Code, null, Enabled: true);
+        return new SourceEndpoint(id, _chain, name, checkedAddress!, Code, null, Enabled: true);
     }
 
     /// <summary>Gives an address that is not one of the known defaults an id that is the same every start.</summary>

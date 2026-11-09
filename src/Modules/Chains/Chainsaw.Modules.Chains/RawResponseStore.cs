@@ -30,10 +30,15 @@ internal sealed class RawResponseStore(TimeZoneInfo timeZone, string chainName)
     {
     }
 
-    /// <summary>Gives a Bitcoin network's name in the tables.</summary>
+    /// <summary>Gives a UTXO network's name in the tables: Bitcoin's networks, or Litecoin's.</summary>
     /// <param name="network">The network.</param>
     /// <returns>For example <c>bitcoin-mainnet</c>.</returns>
-    public static string NameOf(BitcoinNetwork network) => "bitcoin-" + network.ToString().ToLowerInvariant();
+    public static string NameOf(BitcoinNetwork network) => network == BitcoinNetwork.Litecoin
+        ? LitecoinChainName
+        : "bitcoin-" + network.ToString().ToLowerInvariant();
+
+    /// <summary>Litecoin's main network in the tables.</summary>
+    public const string LitecoinChainName = "litecoin-mainnet";
 
     /// <summary>Gets the chain's name in the tables, for example <c>bitcoin-mainnet</c>.</summary>
     public string ChainName { get; } = chainName;

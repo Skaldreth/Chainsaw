@@ -12,7 +12,7 @@ namespace Chainsaw.Modules.Chains;
 /// through <see cref="IExitHttp"/>. Every response is sealed in the case before it is used; an answer that cannot
 /// have changed is taken from the case without asking; without an exit the case answers and says what is missing.
 /// </summary>
-internal sealed class EsploraBitcoinSource : IBitcoinSource
+internal class EsploraBitcoinSource : IBitcoinSource
 {
     /// <summary>
     /// How old the newest known height may be before a lookup that depends on depth asks for a new one.
@@ -80,7 +80,8 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
         }
 
         _lookups = new SourceLookups(
-            Chain.Bitcoin, "Bitcoin", operators, sources, _store, options.SafeConfirmations,
+            options.Network.ChainOf(), options.Network.ChainOf().ToString(), operators, sources, _store,
+            options.SafeConfirmations,
             async (_, @case, cancellationToken) => await RefreshHeightAsync(@case, cancellationToken)
                 .ConfigureAwait(false));
     }
@@ -103,7 +104,7 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
         if (address.Network != Network)
         {
             return Task.FromResult(SourceLookups.Refused<BitcoinAddressPage>(
-                "Adressen hör till ett annat Bitcoin-nät än källan. Inget skickades."));
+                "Adressen hör till en annan kedja eller ett annat nät än källan. Inget skickades."));
         }
 
         var segment = Uri.EscapeDataString(address.Value);
@@ -183,7 +184,7 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
         if (address.Network != Network)
         {
             return Task.FromResult(SourceLookups.Refused<BitcoinAddressSummary>(
-                "Adressen hör till ett annat Bitcoin-nät än källan. Inget skickades."));
+                "Adressen hör till en annan kedja eller ett annat nät än källan. Inget skickades."));
         }
 
         var query = new LookupQuery<BitcoinAddressSummary>(
@@ -387,7 +388,7 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
             .Select(each => new BlockAnswer(each.Sighting, each.EndpointId, IsGone: false))
             .Concat(gone);
         return BlockChangeRule.Compare(answers, _store, reader) is { } change
-            ? new BlockChange(txid, change.Kind, change.Before, change.Now)
+            ? new BlockChange(txid, change.Kind, change.Before, change.Now) { Chain = Network.ChainOf() }
             : null;
     }
 

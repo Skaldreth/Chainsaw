@@ -38,7 +38,13 @@ internal sealed class EthereumHarness : IDisposable
     private readonly string _directory =
         Path.Combine(Path.GetTempPath(), "chainsaw-ethereum-" + Guid.NewGuid().ToString("N"));
 
-    public EthereumHarness(int pageSize = 100)
+    /// <summary>Creates the harness.</summary>
+    /// <param name="pageSize">The page size of a history.</param>
+    /// <param name="bsc">
+    /// Whether the fake Blockscout answers for BSC instead of Ethereum: BSC's source has it as its only endpoint, and
+    /// Ethereum's keeps its default (which is never answered).
+    /// </param>
+    public EthereumHarness(int pageSize = 100, bool bsc = false)
     {
         Http = new FakeExitHttp(Clock);
         var services = new ServiceCollection();
@@ -56,7 +62,8 @@ internal sealed class EthereumHarness : IDisposable
         services.AddChainsModule(
             new BitcoinSourceOptions { EsploraBaseUri = new Uri(Fixtures.Base) },
             options => options.Delay = Clock.Delay,
-            new EthereumSourceOptions { DefaultEndpoints = [new Uri(Base)], PageSize = pageSize });
+            bsc ? null : new EthereumSourceOptions { DefaultEndpoints = [new Uri(Base)], PageSize = pageSize },
+            bsc: bsc ? new BscSourceOptions { DefaultEndpoints = [new Uri(Base)], PageSize = pageSize } : null);
         _provider = services.BuildServiceProvider();
         Case = _provider.GetRequiredService<ICaseStore>().Create(SourceHarness.CaseNumber);
         Source = _provider.GetRequiredService<IEthereumSource>();
@@ -71,6 +78,9 @@ internal sealed class EthereumHarness : IDisposable
     public ICase Case { get; }
 
     public IEthereumSource Source { get; }
+
+    /// <summary>Gets BSC's source.</summary>
+    public IBscSource Bsc => _provider.GetRequiredService<IBscSource>();
 
     public IChainSources Sources => _provider.GetRequiredService<IChainSources>();
 
