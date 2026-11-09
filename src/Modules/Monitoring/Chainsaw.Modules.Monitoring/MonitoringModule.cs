@@ -1,4 +1,5 @@
 using Chainsaw.Modules.Cases.Contracts;
+using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Monitoring.Contracts;
 using Chainsaw.Modules.Security.Contracts;
 using Chainsaw.SharedKernel;
@@ -29,6 +30,12 @@ public static class MonitoringModule
         services.AddSingleton<ICaseSchemaContributor, MonitoringSchema>();
         services.TryAddSingleton<IWatchCheck, WatchCheck>();
         services.TryAddSingleton<IWatchGate, MonitoringGate>();
+        services.TryAddSingleton(provider => new WatchSources(
+            provider.GetRequiredService<IBitcoinSource>(),
+            provider.GetRequiredService<IEthereumSource>(),
+            provider.GetService<ITronSource>(),
+            provider.GetService<ILitecoinSource>(),
+            provider.GetService<IBscSource>()));
         services.TryAddSingleton<IWatchFeeds, WatchFeeds>();
         services.AddSingleton<MonitoringService>();
         services.AddSingleton<IMonitoringService>(provider => provider.GetRequiredService<MonitoringService>());

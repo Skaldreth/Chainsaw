@@ -1,4 +1,5 @@
 using Chainsaw.Modules.Clustering.Contracts;
+using Chainsaw.Modules.Tracing.Contracts;
 using Chainsaw.SharedKernel;
 
 namespace Chainsaw.Modules.Checks.Contracts;
@@ -36,4 +37,11 @@ public static class CheckAnalysisNames
     /// addresses as the user's judgement (<c>user v1</c> in Clustering), and taking the approval back undoes that.
     /// </summary>
     public const string Wallets = "wallet-proposals";
+
+    /// <summary>
+    /// The likely continuations on another chain (<c>cross-chain</c>): approving a candidate links the money into the
+    /// bridge or swap to the candidate's transaction (<see cref="ICrossChainLinks"/>), and taking the approval back
+    /// takes that link back.
+    /// </summary>
+    public const string CrossChain = "cross-chain";
 }

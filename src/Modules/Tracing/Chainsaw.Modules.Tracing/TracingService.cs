@@ -15,9 +15,6 @@ namespace Chainsaw.Modules.Tracing;
 /// </summary>
 internal sealed class TracingService : ITracingService
 {
-    /// <summary>The longest reason the user may give.</summary>
-    private const int MaximumReasonLength = 1_000;
-
     /// <summary>
     /// How many lookups of where coins went are asked at the same time. The source's own pace per endpoint still
     /// decides when each request leaves (rate limits are always respected); asking a few at once only keeps one
@@ -49,6 +46,9 @@ internal sealed class TracingService : ITracingService
     /// <summary>TRON's facts, read for the graph, or <see langword="null"/> when no TRON source is registered.</summary>
     private readonly EthereumReader? _tron;
 
+    /// <summary>BSC's facts, read for the graph, or <see langword="null"/> when no BSC source is registered.</summary>
+    private readonly EthereumReader? _bsc;
+
     /// <summary>The clock.</summary>
     private readonly IClock _clock;
 
@@ -64,6 +64,9 @@ internal sealed class TracingService : ITracingService
     /// <param name="tron">
     /// TRON's facts, or <see langword="null"/> where TRON is not registered (an expansion on TRON is then refused).
     /// </param>
+    /// <param name="bsc">
+    /// BSC's facts, or <see langword="null"/> where BSC is not registered (an expansion on BSC is then refused).
+    /// </param>
     /// <exception cref="ArgumentException">
     /// The methods are not registered properly (see <see cref="TracingMethods"/>).
     /// </exception>
@@ -74,7 +77,8 @@ internal sealed class TracingService : ITracingService
         IEnumerable<ITrailEndClassifier> classifiers,
         IEnumerable<ITracingMethod> methods,
         IClock clock,
-        ITronSource? tron = null)
+        ITronSource? tron = null,
+        IBscSource? bsc = null)
     {
         _source = source;
         _clustering = clustering;
@@ -84,6 +88,7 @@ internal sealed class TracingService : ITracingService
         _accountMethods = AccountMethodsFor(all, out _accountProblem);
         _ethereum = new EthereumReader(ethereum);
         _tron = tron is null ? null : new EthereumReader(tron);
+        _bsc = bsc is null ? null : new EthereumReader(bsc);
         _clock = clock;
     }
 
@@ -212,23 +217,7 @@ internal sealed class TracingService : ITracingService
             throw new ArgumentException("A link to another chain leads off Bitcoin.", nameof(to));
         }
 
-        return @case.Write(transaction =>
-        {
-            // One coin continues in one place; another link is made after the first is taken back, so that the
-            // coin's amount is never on two lines at once.
-            if (GraphStateStore.Read(transaction).Links.Any(link => link.From == from))
-            {
-                throw new ArgumentException(
-                    "The coin already continues on another chain; take that link back first.", nameof(from));
-            }
-
-            var journal = transaction.AppendJournal(new JournalDraft(
-                TracingJournalKinds.CrossChainLinked,
-                string.Format(CultureInfo.InvariantCulture, "Fortsätter på annan kedja: {0} → {1}", from, to),
-                JsonSerializer.Serialize(
-                    new { from = from.ToString(), chain = to.Chain.ToString(), to = to.Id, reason })));
-            return GraphStateStore.SealLink(transaction, from, to, reason, journal);
-        });
+        return @case.Write(transaction => CrossChainLinks.SealCoin(transaction, from, to, reason, null));
     }
 
     /// <inheritdoc/>
@@ -243,23 +232,7 @@ internal sealed class TracingService : ITracingService
             throw new ArgumentException("A link to another chain leads off the movement's chain.", nameof(to));
         }
 
-        return @case.Write(transaction =>
-        {
-            if (GraphStateStore.Read(transaction).Links.Any(link => link.FromTransfer == from))
-            {
-                throw new ArgumentException(
-                    "The movement already continues on another chain; take that link back first.", nameof(from));
-            }
-
-            var text = string.Create(
-                CultureInfo.InvariantCulture,
-                $"{from.Kind.ToString().ToLowerInvariant()}:{from.Transaction.Value}#{from.Position}");
-            var journal = transaction.AppendJournal(new JournalDraft(
-                TracingJournalKinds.CrossChainLinked,
-                string.Format(CultureInfo.InvariantCulture, "Fortsätter på annan kedja: {0} → {1}", text, to),
-                JsonSerializer.Serialize(new { from = text, chain = to.Chain.ToString(), to = to.Id, reason })));
-            return GraphStateStore.SealLink(transaction, from, to, reason, journal);
-        });
+        return @case.Write(transaction => CrossChainLinks.SealMovement(transaction, from, to, reason, null));
     }
 
     /// <inheritdoc/>
@@ -283,15 +256,15 @@ internal sealed class TracingService : ITracingService
                 return false;
             }
 
-            var journal = transaction.AppendJournal(new JournalDraft(
-                TracingJournalKinds.CrossChainUnlinked,
-                string.Format(
-                    CultureInfo.InvariantCulture,
-                    "Länken till annan kedja togs tillbaka: {0} → {1}",
-                    stored.FromText,
-                    stored.To),
-                JsonSerializer.Serialize(new { link = stored.Sequence, reason })));
-            GraphStateStore.SealUnlink(transaction, stored, reason, journal);
+            if (stored.Origin is not null)
+            {
+                // Taken back alone, the approval would stand without its link; the checks take both back together.
+                throw new ArgumentException(
+                    "A link an approved suggestion made is taken back with its approval, in the checks.",
+                    nameof(link));
+            }
+
+            CrossChainLinks.Unlink(transaction, stored, reason);
             return true;
         });
     }
@@ -309,11 +282,18 @@ internal sealed class TracingService : ITracingService
         ArgumentNullException.ThrowIfNull(@case);
         ArgumentNullException.ThrowIfNull(swap);
         reason = OptionalReason(reason);
-        // Only a swap the case's own Ethereum facts show, for that account in that transaction, is chosen for, so that
-        // no choice is sealed about something the case does not hold. Only Ethereum's part is read, not the graph.
-        // The labels are asked as when the graph is built, so that a swap a label refuses is not chosen for either.
+        // Only a swap the case's own facts on the swap's chain (Ethereum or BSC) show, for that account in that
+        // transaction, is chosen for, so that no choice is sealed about something the case does not hold. Only that
+        // chain's part is read, not the graph. The labels are asked as when the graph is built, so that a swap a label
+        // refuses is not chosen for either.
+        if (!swap.Account.Chain.IsEvm())
+        {
+            throw new ArgumentException("The swap is not in the case's graph.", nameof(swap));
+        }
+
         var state = @case.Read(GraphStateStore.Read);
-        var facts = _ethereum.ReadAsync(@case, state, CancellationToken.None).GetAwaiter().GetResult();
+        var facts = ReaderFor(swap.Account.Chain).ReadAsync(@case, state, CancellationToken.None)
+            .GetAwaiter().GetResult();
         var ends = AccountEnds(@case, new GraphData(
             state, new Dictionary<Txid, GraphTransaction>(), new Dictionary<Txid, OutputSpendsAnswer>(), [])
         {
@@ -321,7 +301,7 @@ internal sealed class TracingService : ITracingService
         });
         var swaps = facts.ReadSwaps(address => GraphBuilder.SwapEndpoint(
             account => ends.GetValueOrDefault(account) ?? [], address)).Swaps;
-        if (swap.Account.Chain != Chain.Ethereum || !swaps.Contains(swap))
+        if (!swaps.Contains(swap))
         {
             throw new ArgumentException("The swap is not in the case's graph.", nameof(swap));
         }
@@ -842,6 +822,7 @@ internal sealed class TracingService : ITracingService
     {
         Chain.Ethereum => _ethereum,
         Chain.Tron when _tron is not null => _tron,
+        Chain.Bsc when _bsc is not null => _bsc,
         _ => throw new ArgumentException($"No source for {chain} is registered.", nameof(chain)),
     };
 
@@ -1193,7 +1174,7 @@ internal sealed class TracingService : ITracingService
 
     /// <summary>
     /// Reads every account chain's facts the graph's state holds, from the case only, and joins them: Ethereum's, and
-    /// TRON's when its source is registered.
+    /// TRON's and BSC's when their sources are registered.
     /// </summary>
     /// <param name="case">The open case.</param>
     /// <param name="state">The graph's state.</param>
@@ -1203,9 +1184,12 @@ internal sealed class TracingService : ITracingService
         ICase @case, GraphState state, CancellationToken cancellationToken)
     {
         var data = await _ethereum.ReadAsync(@case, state, cancellationToken).ConfigureAwait(false);
-        return _tron is null
-            ? data
-            : data.Merge(await _tron.ReadAsync(@case, state, cancellationToken).ConfigureAwait(false));
+        foreach (var other in new[] { _tron, _bsc }.OfType<EthereumReader>())
+        {
+            data = data.Merge(await other.ReadAsync(@case, state, cancellationToken).ConfigureAwait(false));
+        }
+
+        return data;
     }
 
     /// <summary>Builds the graph with the clusters and the ends of the trail.</summary>
@@ -1323,13 +1307,7 @@ internal sealed class TracingService : ITracingService
     /// <summary>Checks a reason the user gives; it may be empty (the user's decision 2026-11-07).</summary>
     /// <param name="reason">The reason.</param>
     /// <exception cref="ArgumentException">It is too long.</exception>
-    private static void CheckReason(string reason)
-    {
-        if (reason is null || reason.Length > MaximumReasonLength)
-        {
-            throw new ArgumentException("A reason is at most 1 000 characters.", nameof(reason));
-        }
-    }
+    private static void CheckReason(string reason) => CrossChainLinks.CheckReason(reason);
 
     /// <summary>
     /// Joins an answer's notes (a transaction that left its block, one that could not be checked against its bytes)

@@ -46,6 +46,12 @@ public sealed record CheckFinding(
     public string Key { get; } = string.IsNullOrWhiteSpace(Key)
         ? throw new ArgumentException("A finding has a key.", nameof(Key))
         : Key;
+
+    /// <summary>
+    /// Gets the payment the suggestion starts from when it crosses chains (<c>cross-chain</c>): the money into a bridge
+    /// or a swap, on any chain, with its block; <see langword="null"/> otherwise.
+    /// </summary>
+    public ChainMovement? Departure { get; init; }
 }
 
 /// <summary>A transaction a finding rests on, with its block, so that it can be checked against the chain.</summary>
@@ -68,11 +74,20 @@ public sealed record CheckBasis(Txid Txid, BlockReference? Block)
 /// <em>Mixers är vanliga</em>), approved or dismissed by the user on its own.
 /// </summary>
 /// <param name="Key">What the candidate is, stable within the finding, for example its coin.</param>
-/// <param name="Address">The candidate's address.</param>
-/// <param name="Txid">The transaction it came in.</param>
-/// <param name="Output">The output's index.</param>
-/// <param name="Amount">The amount.</param>
+/// <param name="Address">
+/// The candidate's address on Bitcoin, or <see langword="null"/> when it is on another chain (<see cref="Arrival"/>).
+/// </param>
+/// <param name="Txid">The Bitcoin transaction it came in, or <see langword="null"/> on another chain.</param>
+/// <param name="Output">The output's index on Bitcoin; 0 on another chain.</param>
+/// <param name="Amount">The amount in satoshi, or <see langword="null"/> on another chain.</param>
 /// <param name="Score">How likely the analysis finds it, from 0 to 1, rounded to two decimals.</param>
 /// <param name="Reason">Why, in plain Swedish.</param>
 public sealed record CheckCandidate(
-    string Key, BitcoinAddress Address, Txid Txid, int Output, Satoshi Amount, double Score, string Reason);
+    string Key, BitcoinAddress? Address, Txid? Txid, int Output, Satoshi? Amount, double Score, string Reason)
+{
+    /// <summary>
+    /// Gets the payment on any chain the candidate is, for a suggestion that crosses chains (<c>cross-chain</c>): the
+    /// transaction, the recipient and the amount in its asset; <see langword="null"/> for a candidate on Bitcoin alone.
+    /// </summary>
+    public ChainMovement? Arrival { get; init; }
+}

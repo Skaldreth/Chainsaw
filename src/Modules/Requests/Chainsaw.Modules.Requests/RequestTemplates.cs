@@ -117,7 +117,7 @@ internal static class RequestTemplates
         blocks.Add(RequestBlock.Table(
             [words.AddressColumn, words.ChainColumn, words.KindColumn],
             [.. draft.Target.Addresses.Select(address => (IReadOnlyList<string>)
-                [address.Value, address.Chain.ToString(), words.KindName(draft.Target.Kind)])],
+                [address.Value, address.Chain.DisplayName(), words.KindName(draft.Target.Kind)])],
             0));
         blocks.Add(new RequestBlock(RequestBlockKind.Note, words.AssessmentNote));
         AddDeposits(blocks, draft, words);
@@ -144,7 +144,7 @@ internal static class RequestTemplates
         blocks.Add(RequestBlock.Table(
             [words.AddressColumn, words.ChainColumn, words.TokenColumn, words.LeftColumn],
             [.. draft.Target.Addresses.Select(address => (IReadOnlyList<string>)
-                [address.Value, address.Chain.ToString(), Token(holding.Left.Asset), Amount(holding.Left, words)])],
+                [address.Value, address.Chain.DisplayName(), Token(holding.Left.Asset), Amount(holding.Left, words)])],
             0));
         blocks.Add(new RequestBlock(RequestBlockKind.Note, words.LeftNote));
         if (draft.Deposits.Count > 0)

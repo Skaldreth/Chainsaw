@@ -29,6 +29,12 @@ internal static class GraphStateStore
     /// <summary>The kind of a start point or expansion at a TRON transaction.</summary>
     public const string TronTransactionKind = "tron-transaction";
 
+    /// <summary>The kind of a start point or expansion at an address on BSC.</summary>
+    public const string BscAddressKind = "bsc-address";
+
+    /// <summary>The kind of a start point or expansion at a transaction on BSC.</summary>
+    public const string BscTransactionKind = "bsc-transaction";
+
     /// <summary>The action of a sealed record that links a coin to another chain.</summary>
     public const string LinkAction = "link";
 
@@ -307,15 +313,24 @@ internal static class GraphStateStore
     /// <param name="to">The other chain's transaction.</param>
     /// <param name="reason">Why.</param>
     /// <param name="journal">The journal entry that records it.</param>
+    /// <param name="origin">The approved suggestion it comes from, or <see langword="null"/> when made by hand.</param>
     /// <returns>The link.</returns>
     public static CrossChainLink SealLink(
-        ICaseTransaction transaction, Outpoint from, ChainTransactionRef to, string reason, JournalEntry journal)
+        ICaseTransaction transaction,
+        Outpoint from,
+        ChainTransactionRef to,
+        string reason,
+        JournalEntry journal,
+        CrossChainOrigin? origin = null)
     {
         var record = transaction.AppendSealed(
             TracingSchema.CrossChainChain,
             [LinkAction, null, from.Txid.Value, (long)from.Index, to.Chain.ToString(), to.Id, reason,
-                journal.Sequence, Text(journal.Utc)]);
-        return new CrossChainLink(record.Sequence, from, to, reason, journal.Sequence, journal.Utc);
+                journal.Sequence, Text(journal.Utc), origin?.ToString()]);
+        return new CrossChainLink(record.Sequence, from, to, reason, journal.Sequence, journal.Utc)
+        {
+            Origin = origin,
+        };
     }
 
     /// <summary>
@@ -328,25 +343,39 @@ internal static class GraphStateStore
     /// <param name="to">The other chain's transaction.</param>
     /// <param name="reason">Why.</param>
     /// <param name="journal">The journal entry that records it.</param>
+    /// <param name="origin">The approved suggestion it comes from, or <see langword="null"/> when made by hand.</param>
     /// <returns>The link.</returns>
     public static CrossChainLink SealLink(
-        ICaseTransaction transaction, AccountSeed from, ChainTransactionRef to, string reason, JournalEntry journal)
+        ICaseTransaction transaction,
+        AccountSeed from,
+        ChainTransactionRef to,
+        string reason,
+        JournalEntry journal,
+        CrossChainOrigin? origin = null)
     {
         var record = transaction.AppendSealed(
             TracingSchema.CrossChainChain,
             [LinkAction, null, MovementText(from), from.Position, to.Chain.ToString(), to.Id, reason,
-                journal.Sequence, Text(journal.Utc)]);
+                journal.Sequence, Text(journal.Utc), origin?.ToString()]);
         return new CrossChainLink(record.Sequence, null, to, reason, journal.Sequence, journal.Utc)
         {
             FromTransfer = from,
+            Origin = origin,
         };
     }
 
-    /// <summary>Writes an Ethereum movement's kind and transaction as the link's record stores them.</summary>
+    /// <summary>
+    /// Writes an account movement's kind and transaction as the link's record stores them. Ethereum's hash begins
+    /// with <c>0x</c> and TRON's does not; BSC's is written as Ethereum's, so it carries its chain before it.
+    /// </summary>
     /// <param name="from">The movement.</param>
-    /// <returns>For example <c>token:0x…</c>.</returns>
+    /// <returns>For example <c>token:0x…</c>, or <c>token:bsc:0x…</c> on BSC.</returns>
     private static string MovementText(AccountSeed from) =>
-        from.Kind.ToString().ToLowerInvariant() + ":" + from.Transaction.Value;
+        from.Kind.ToString().ToLowerInvariant() + ":"
+        + (from.Transaction.Chain == Chain.Bsc ? BscMovementPrefix : string.Empty) + from.Transaction.Value;
+
+    /// <summary>What a stored movement's hash on BSC begins with.</summary>
+    private const string BscMovementPrefix = "bsc:";
 
     /// <summary>Reads where a stored link's money left: a coin, or an Ethereum movement.</summary>
     /// <param name="text">The stored txid or movement.</param>
@@ -361,12 +390,22 @@ internal static class GraphStateStore
         }
 
         var kind = Enum.Parse<EthereumTransferKind>(text[..colon], ignoreCase: true);
-        // Ethereum's hashes begin with 0x and TRON's do not, so the stored text says its chain.
+        // Ethereum's hashes begin with 0x and TRON's do not, and BSC's carry their chain, so the text says its chain.
         var hash = text[(colon + 1)..];
-        return (null, new AccountSeed(
-            EthereumTxHash.TryParse(hash, out var ethereum) ? ethereum : EthereumTxHash.Parse(Chain.Tron, hash),
-            kind,
-            index));
+        return (null, new AccountSeed(MovementHash(hash), kind, index));
+    }
+
+    /// <summary>Reads a stored movement's transaction on its chain.</summary>
+    /// <param name="hash">The stored hash, after the kind.</param>
+    /// <returns>The transaction.</returns>
+    private static EthereumTxHash MovementHash(string hash)
+    {
+        if (hash.StartsWith(BscMovementPrefix, StringComparison.Ordinal))
+        {
+            return EthereumTxHash.Parse(Chain.Bsc, hash[BscMovementPrefix.Length..]);
+        }
+
+        return EthereumTxHash.TryParse(hash, out var ethereum) ? ethereum : EthereumTxHash.Parse(Chain.Tron, hash);
     }
 
     /// <summary>
@@ -385,7 +424,8 @@ internal static class GraphStateStore
             [UnlinkAction, link.Sequence,
                 link.From is { } coin ? coin.Txid.Value : MovementText(link.FromTransfer!),
                 link.From is { } output ? output.Index : link.FromTransfer!.Position,
-                link.To.Chain.ToString(), link.To.Id, reason ?? string.Empty, journal.Sequence, Text(journal.Utc)]);
+                link.To.Chain.ToString(), link.To.Id, reason ?? string.Empty, journal.Sequence, Text(journal.Utc),
+                null]);
     }
 
     /// <summary>Reads the start points.</summary>
@@ -403,10 +443,10 @@ internal static class GraphStateStore
             startPoints.Add(kind switch
             {
                 AddressKind => TraceStartPoint.ForAddress(BitcoinAddress.Parse(subject)),
-                EthereumAddressKind or TronAddressKind => TraceStartPoint.ForEthereumAddress(
+                EthereumAddressKind or TronAddressKind or BscAddressKind => TraceStartPoint.ForEthereumAddress(
                     EthereumAddress.Parse(AccountChainOf(kind)!.Value, subject)),
-                EthereumTransactionKind or TronTransactionKind => TraceStartPoint.ForEthereumTransaction(
-                    EthereumTxHash.Parse(AccountChainOf(kind)!.Value, subject)),
+                EthereumTransactionKind or TronTransactionKind or BscTransactionKind =>
+                    TraceStartPoint.ForEthereumTransaction(EthereumTxHash.Parse(AccountChainOf(kind)!.Value, subject)),
                 _ => TraceStartPoint.ForTransaction(Txid.Parse(subject)),
             });
         }
@@ -443,16 +483,17 @@ internal static class GraphStateStore
             {
                 AddressKind => new Expansion(
                     BitcoinAddress.Parse(subject), null, [.. transactions.Select(Txid.Parse)], complete, utc),
-                EthereumAddressKind or TronAddressKind => new Expansion(null, null, [], complete, utc)
+                EthereumAddressKind or TronAddressKind or BscAddressKind => new Expansion(null, null, [], complete, utc)
                 {
                     EthereumAddress = EthereumAddress.Parse(AccountChainOf(kind)!.Value, subject),
                     EthereumTransactions = AccountHashes(kind, transactions),
                 },
-                EthereumTransactionKind or TronTransactionKind => new Expansion(null, null, [], complete, utc)
-                {
-                    EthereumTransaction = EthereumTxHash.Parse(AccountChainOf(kind)!.Value, subject),
-                    EthereumTransactions = AccountHashes(kind, transactions),
-                },
+                EthereumTransactionKind or TronTransactionKind or BscTransactionKind =>
+                    new Expansion(null, null, [], complete, utc)
+                    {
+                        EthereumTransaction = EthereumTxHash.Parse(AccountChainOf(kind)!.Value, subject),
+                        EthereumTransactions = AccountHashes(kind, transactions),
+                    },
                 _ => new Expansion(null, Txid.Parse(subject), [.. transactions.Select(Txid.Parse)], complete, utc),
             }) with
             {
@@ -478,7 +519,7 @@ internal static class GraphStateStore
     {
         using var command = reader.CreateCommand("""
             SELECT sequence, action, link_sequence, from_txid, from_output, to_chain, to_id, reason, journal_sequence,
-                   recorded_utc
+                   recorded_utc, origin
             FROM tracing_cross_chain ORDER BY sequence
             """);
         using var rows = command.ExecuteReader();
@@ -504,6 +545,7 @@ internal static class GraphStateStore
                 Time(rows, 9))
             {
                 FromTransfer = movement,
+                Origin = CrossChainOrigin.Parse(rows.IsDBNull(10) ? null : rows.GetString(10)),
             });
         }
 
@@ -577,6 +619,8 @@ internal static class GraphStateStore
         (Chain.Ethereum, false) => EthereumTransactionKind,
         (Chain.Tron, true) => TronAddressKind,
         (Chain.Tron, false) => TronTransactionKind,
+        (Chain.Bsc, true) => BscAddressKind,
+        (Chain.Bsc, false) => BscTransactionKind,
         _ => throw new ArgumentException("Not an account chain Chainsaw reads.", nameof(chain)),
     };
 
@@ -587,6 +631,7 @@ internal static class GraphStateStore
     {
         EthereumAddressKind or EthereumTransactionKind => Chain.Ethereum,
         TronAddressKind or TronTransactionKind => Chain.Tron,
+        BscAddressKind or BscTransactionKind => Chain.Bsc,
         _ => null,
     };
 

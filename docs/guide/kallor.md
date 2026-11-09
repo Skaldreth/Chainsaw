@@ -52,6 +52,7 @@ missa det nyaste blocket. Se [Bevakning](bevakning.md).
 Kör du en egen Esplora på det egna nätet (till exempel `https://esplora.lan`) kan du lägga till den och märka den som
 **lokal**. Bara en endpoint som du själv märkt som lokal får ha en adress på datorn eller ett privat nät, och det gäller
 fortfarande bara https. Uppslagen till den lämnar aldrig det egna nätet; allt annat går som förut genom utgången.
+En egen **Bitcoin Core** kan också läggas till, bara som lokal; se [Egen nod](egen-nod.md).
 
 ## Varför det är byggt så
 

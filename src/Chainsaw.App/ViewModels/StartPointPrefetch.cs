@@ -55,6 +55,12 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
     /// <summary>TRON's source, or <see langword="null"/> where it is not registered.</summary>
     private readonly ITronSource? _tron;
 
+    /// <summary>Litecoin's source, or <see langword="null"/> where it is not registered.</summary>
+    private readonly ILitecoinSource? _litecoin;
+
+    /// <summary>BSC's source, or <see langword="null"/> where it is not registered.</summary>
+    private readonly IBscSource? _bsc;
+
     /// <summary>The imported sanction lists.</summary>
     private readonly ISanctionLists _sanctions;
 
@@ -78,6 +84,8 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
     /// <param name="sanctions">The imported sanction lists.</param>
     /// <param name="clock">The clock.</param>
     /// <param name="tron">TRON's source, or <see langword="null"/> where it is not registered.</param>
+    /// <param name="litecoin">Litecoin's source, or <see langword="null"/> where it is not registered.</param>
+    /// <param name="bsc">BSC's source, or <see langword="null"/> where it is not registered.</param>
     public StartPointPrefetch(
         IMemoryCases memory,
         IResponseTransfer transfer,
@@ -85,13 +93,17 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
         IEthereumSource ethereum,
         ISanctionLists sanctions,
         IClock clock,
-        ITronSource? tron = null)
+        ITronSource? tron = null,
+        ILitecoinSource? litecoin = null,
+        IBscSource? bsc = null)
     {
         _memory = memory;
         _transfer = transfer;
         _bitcoin = bitcoin;
         _ethereum = ethereum;
         _tron = tron;
+        _litecoin = litecoin;
+        _bsc = bsc;
         _sanctions = sanctions;
         _clock = clock;
     }
@@ -117,7 +129,7 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
             // so that a sanction is never left out in silence.
             return StartPointPreview.Failure(SanctionUnreadText);
         }
-        if (!startPoint.IsSupported)
+        if (!startPoint.CanFetch)
         {
             return StartPointPreview.Only(PreviewState.NotBuilt, sanction);
         }
@@ -282,9 +294,14 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
     private Task<StartPointPreview> FetchAsync(
         IMemoryCase memory, ChainStartPoint startPoint, CancellationToken cancellationToken)
     {
-        if (startPoint.Chain is Chain.Ethereum or Chain.Tron)
+        if (startPoint.Chain is Chain.Ethereum or Chain.Tron or Chain.Bsc)
         {
-            IAccountSource? source = startPoint.Chain == Chain.Ethereum ? _ethereum : _tron;
+            IAccountSource? source = startPoint.Chain switch
+            {
+                Chain.Ethereum => _ethereum,
+                Chain.Tron => _tron,
+                _ => _bsc,
+            };
             if (source is null)
             {
                 // Where no source for the chain is registered, nothing is asked, and the row says so honestly.
@@ -299,43 +316,74 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
             return startPoint.AccountTransaction is { } hash
                 ? EthereumTransactionAsync(source, memory, hash, cancellationToken)
                 : Task.FromResult(StartPointPreview.Only(PreviewState.NotRecognised));
+        }
 
+        if (startPoint.Chain == Chain.Litecoin)
+        {
+            return LitecoinAsync(memory, startPoint, cancellationToken);
         }
 
         return startPoint.Bitcoin switch
         {
-            { Address: { } address } => BitcoinAddressAsync(memory, address, cancellationToken),
-            { Txid: { } txid } => BitcoinTransactionAsync(memory, txid, cancellationToken),
+            { Address: { } address } => BitcoinAddressAsync(_bitcoin, memory, address, cancellationToken),
+            { Txid: { } txid } => BitcoinTransactionAsync(_bitcoin, memory, txid, cancellationToken),
             _ => Task.FromResult(StartPointPreview.Only(PreviewState.NotRecognised)),
         };
     }
 
     /// <summary>
-    /// A Bitcoin address: the balance and number of transactions from the address's summary, the first and last
-    /// activity from its newest page of transactions (the first only when the page holds every confirmed one), and
-    /// the chain's newest block when it was fetched.
+    /// A Litecoin start point, looked up as a Bitcoin one through Litecoin's own source: an address's balance and
+    /// activity, or a transaction's outputs and block, in LTC.
     /// </summary>
+    /// <param name="memory">The case in memory.</param>
+    /// <param name="startPoint">The start point on Litecoin.</param>
+    /// <param name="cancellationToken">Stops the lookup.</param>
+    /// <returns>What to show.</returns>
+    private Task<StartPointPreview> LitecoinAsync(
+        IMemoryCase memory, ChainStartPoint startPoint, CancellationToken cancellationToken)
+    {
+        if (_litecoin is null)
+        {
+            return Task.FromResult(StartPointPreview.Only(PreviewState.NotBuilt));
+        }
+
+        if (startPoint.UtxoAddress is { } address)
+        {
+            return BitcoinAddressAsync(_litecoin, memory, address, cancellationToken);
+        }
+
+        return Txid.TryParse(startPoint.Value, out var txid)
+            ? BitcoinTransactionAsync(_litecoin, memory, txid, cancellationToken)
+            : Task.FromResult(StartPointPreview.Only(PreviewState.NotRecognised));
+    }
+
+    /// <summary>
+    /// An address on a UTXO chain (Bitcoin or Litecoin): the balance and number of transactions from the address's
+    /// summary, the first and last activity from its newest page of transactions (the first only when the page holds
+    /// every confirmed one), and the chain's newest block when it was fetched.
+    /// </summary>
+    /// <param name="source">The chain's source.</param>
     /// <param name="memory">The case in memory.</param>
     /// <param name="address">The address.</param>
     /// <param name="cancellationToken">Stops the lookup.</param>
     /// <returns>What to show.</returns>
     private async Task<StartPointPreview> BitcoinAddressAsync(
-        IMemoryCase memory, BitcoinAddress address, CancellationToken cancellationToken)
+        IBitcoinSource source, IMemoryCase memory, BitcoinAddress address, CancellationToken cancellationToken)
     {
-        var tip = await _bitcoin.GetTipAsync(memory, cancellationToken).ConfigureAwait(false);
-        var summary = await _bitcoin.GetAddressSummaryAsync(memory, address, cancellationToken).ConfigureAwait(false);
+        var tip = await source.GetTipAsync(memory, cancellationToken).ConfigureAwait(false);
+        var summary = await source.GetAddressSummaryAsync(memory, address, cancellationToken).ConfigureAwait(false);
         if (Unanswered(summary) is { } failed)
         {
             return failed;
         }
 
-        var page = await _bitcoin.GetAddressTransactionsAsync(memory, address, null, cancellationToken)
+        var page = await source.GetAddressTransactionsAsync(memory, address, null, cancellationToken)
             .ConfigureAwait(false);
         var stats = summary.Value!;
         var balance = stats.Confirmed.Funded - stats.Confirmed.Spent + stats.Mempool.Funded - stats.Mempool.Spent;
         var facts = new List<PreviewFact>
         {
-            new(AmountText.Number(balance.ToAmount()), " " + Asset.Bitcoin.Symbol),
+            new(AmountText.Number(balance.ToAmount()), " " + CoinOf(source).Symbol),
             new(Count(stats.TransactionCount), " tx"),
         };
         var blocks = page.Value?.Transactions.Select(tx => tx.Block).OfType<BlockReference>().ToList() ?? [];
@@ -354,18 +402,19 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
     }
 
     /// <summary>
-    /// A Bitcoin transaction: what its outputs pay, how many inputs and outputs it has, its block's date, height and
-    /// hash, and the chain's newest block when it was fetched.
+    /// A transaction on a UTXO chain (Bitcoin or Litecoin): what its outputs pay, how many inputs and outputs it has,
+    /// its block's date, height and hash, and the chain's newest block when it was fetched.
     /// </summary>
+    /// <param name="source">The chain's source.</param>
     /// <param name="memory">The case in memory.</param>
     /// <param name="txid">The transaction.</param>
     /// <param name="cancellationToken">Stops the lookup.</param>
     /// <returns>What to show.</returns>
     private async Task<StartPointPreview> BitcoinTransactionAsync(
-        IMemoryCase memory, Txid txid, CancellationToken cancellationToken)
+        IBitcoinSource source, IMemoryCase memory, Txid txid, CancellationToken cancellationToken)
     {
-        var tip = await _bitcoin.GetTipAsync(memory, cancellationToken).ConfigureAwait(false);
-        var lookup = await _bitcoin.GetTransactionAsync(memory, txid, LookupMode.AsNeeded, cancellationToken)
+        var tip = await source.GetTipAsync(memory, cancellationToken).ConfigureAwait(false);
+        var lookup = await source.GetTransactionAsync(memory, txid, LookupMode.AsNeeded, cancellationToken)
             .ConfigureAwait(false);
         if (Unanswered(lookup) is { } failed)
         {
@@ -376,7 +425,7 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
         var paid = tx.Outputs.Aggregate(Satoshi.Zero, (sum, output) => sum + output.Amount);
         var facts = new List<PreviewFact>
         {
-            new(AmountText.Number(paid.ToAmount()), " " + Asset.Bitcoin.Symbol),
+            new(AmountText.Number(paid.ToAmount()), " " + CoinOf(source).Symbol),
             new(Count(tx.Inputs.Count), " in"),
             new(Count(tx.Outputs.Count), " ut"),
             tx.Block is { } block ? new(Day(block.Time), string.Empty) : new("Obekräftad", string.Empty),
@@ -601,6 +650,11 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
     /// <returns>The text.</returns>
     private static string Count(long count) => count.ToString("N0", Swedish);
 
+    /// <summary>Gives the coin a UTXO source counts in: bitcoin, or litecoin.</summary>
+    /// <param name="source">The source.</param>
+    /// <returns>The coin.</returns>
+    private static Asset CoinOf(IBitcoinSource source) => source.Network.ChainOf().NativeAsset();
+
     /// <summary>
     /// Finds a Bitcoin or Ethereum address on the imported sanction list (on the computer; nothing is sent) and says
     /// which entry names it and from which list, for the tooltip of the tag <em>Sanktionerad</em>. An Ethereum address
@@ -617,17 +671,15 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
         try
         {
             // The same hits the case is labelled with when it is created (IAttributionService.CheckSanctions).
-            if (startPoint.Bitcoin?.Address is { } bitcoin)
+            if ((startPoint.Bitcoin?.Address ?? startPoint.UtxoAddress) is { } utxo)
             {
-                matches = _sanctions.FindAll(bitcoin);
-                onChain = currency => currency == SanctionCurrency.Bitcoin;
+                matches = _sanctions.FindAll(utxo);
+                onChain = currency => SanctionCurrency.On(utxo.Chain, currency);
             }
             else if (startPoint.EthereumAccount is { } ethereum)
             {
                 matches = _sanctions.FindAll(ethereum);
-                onChain = ethereum.Chain == Chain.Tron
-                    ? SanctionCurrency.OnTron.Contains
-                    : SanctionCurrency.OnEthereum.Contains;
+                onChain = currency => SanctionCurrency.On(ethereum.Chain, currency);
             }
             else
             {
@@ -651,6 +703,7 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
         }
 
         var listedAs = hit.Currency is SanctionCurrency.Bitcoin or SanctionCurrency.Ether or SanctionCurrency.Tronix
+            or SanctionCurrency.Litecoin or SanctionCurrency.Bsc
             ? string.Empty
             : $" (listad som {hit.Currency})";
         var what = hit.IsUncertain ? StartPointPreview.PossibleSanctionText : "Sanktionerad enligt";

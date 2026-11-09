@@ -37,6 +37,9 @@ internal static class RawTransactionReader
     /// <summary>The previous txid of a coinbase input: 32 zero bytes.</summary>
     private static readonly string CoinbaseTxid = new('0', 64);
 
+    /// <summary>The bit of the flag after the marker that says a Litecoin transaction carries MWEB data.</summary>
+    private const byte MwebFlag = 0x08;
+
     /// <summary>The most bytes a transaction may have (a block's weight limit divided by the witness factor).</summary>
     private const int MaximumBytes = 4_000_000;
 
@@ -70,6 +73,13 @@ internal static class RawTransactionReader
         var version = reader.Int32();
         var afterVersion = reader.Position;
         var hasWitness = reader.Remaining >= 2 && bytes[reader.Position] == 0 && bytes[reader.Position + 1] == 1;
+        if (reader.Remaining >= 2 && bytes[reader.Position] == 0 && (bytes[reader.Position + 1] & MwebFlag) != 0)
+        {
+            // A flag beyond the witness's: on Litecoin the extension block's (MWEB) data, as in each block's HogEx.
+            throw new EsploraFormatException(
+                "The transaction's flag (0x08) says it carries data Chainsaw does not read; its bytes are not checked.");
+        }
+
         if (hasWitness)
         {
             reader.Skip(2);

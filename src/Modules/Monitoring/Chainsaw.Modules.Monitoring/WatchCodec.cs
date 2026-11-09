@@ -51,7 +51,7 @@ internal static class WatchCodec
         var text = JsonSerializer.Deserialize<FilterText>(json) ?? throw Broken();
         var chain = Enum.Parse<Chain>(text.Chain);
         var asset = text.Asset is { } stored ? AssetOf(stored) : null;
-        var counted = asset ?? (chain == Chain.Bitcoin ? Asset.Bitcoin : null);
+        var counted = asset ?? (chain.Model() == LedgerModel.Utxo ? chain.NativeAsset() : null);
         AssetAmount? minimum = text.Minimum is { } units && counted is not null
             ? new AssetAmount(counted, BigInteger.Parse(units, CultureInfo.InvariantCulture))
             : null;
@@ -136,12 +136,7 @@ internal static class WatchCodec
             return Asset.Token(chain, text.Contract ?? throw Broken(), text.Symbol, text.Decimals);
         }
 
-        return chain switch
-        {
-            Chain.Bitcoin => Asset.Bitcoin,
-            Chain.Ethereum => Asset.Ether,
-            _ => Asset.Tronix,
-        };
+        return chain.NativeAsset();
     }
 
     /// <summary>Gives the error for a record that cannot be read.</summary>

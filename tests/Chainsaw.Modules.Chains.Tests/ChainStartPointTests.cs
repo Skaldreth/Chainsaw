@@ -101,4 +101,58 @@ public sealed class ChainStartPointTests
         Assert.Equal(StartPointKind.Unknown,
             ChainStartPoint.Recognise(Chain.Ethereum, "0x5AAeb6053F3E94C9b9A09f33669435E7Ef1BeAed").Kind);
     }
+
+    [Fact]
+    public void A_litecoin_address_is_recognised_and_fetched_but_not_traced()
+    {
+        var address = BitcoinAddress.FromWitness(0, Enumerable.Repeat((byte)0x33, 20).ToArray(), BitcoinNetwork.Litecoin);
+
+        var litecoin = ChainStartPoint.Recognise(address.Value);
+
+        Assert.Equal((Chain.Litecoin, StartPointKind.Address), (litecoin.Chain, litecoin.Kind));
+        Assert.False(litecoin.IsSupported);
+        Assert.True(litecoin.CanFetch);
+        Assert.Equal(address, litecoin.UtxoAddress);
+        Assert.Null(litecoin.Bitcoin);
+    }
+
+    [Fact]
+    public void A_bsc_value_is_recognised_only_with_its_chain()
+    {
+        var text = "0x" + new string('A', 40);
+
+        var bare = ChainStartPoint.Recognise(text);
+        var bsc = ChainStartPoint.Recognise(Chain.Bsc, text);
+        var hash = ChainStartPoint.Recognise(Chain.Bsc, "0x" + new string('b', 64));
+
+        Assert.Equal(Chain.Ethereum, bare.Chain);
+        Assert.Equal((Chain.Bsc, StartPointKind.Address, true), (bsc.Chain, bsc.Kind, bsc.IsSupported));
+        Assert.Equal(Chain.Bsc, bsc.EthereumAccount!.Chain);
+        Assert.Equal((Chain.Bsc, StartPointKind.Transaction), (hash.Chain, hash.Kind));
+        Assert.Equal(Chain.Bsc, hash.AccountTransaction!.Chain);
+    }
+
+    [Fact]
+    public void A_bare_hash_named_litecoin_is_a_litecoin_transaction()
+    {
+        var litecoin = ChainStartPoint.Recognise(Chain.Litecoin, new string('C', 64));
+
+        Assert.Equal((Chain.Litecoin, StartPointKind.Transaction), (litecoin.Chain, litecoin.Kind));
+        Assert.Equal(new string('c', 64), litecoin.Value);
+    }
+
+    [Fact]
+    public void An_mweb_address_is_litecoin_where_the_trail_ends_and_nothing_is_fetched()
+    {
+        var mweb = "ltcmweb1" + new string('q', 112);
+
+        var start = ChainStartPoint.Recognise(mweb);
+
+        Assert.Equal((Chain.Litecoin, StartPointKind.Address), (start.Chain, start.Kind));
+        Assert.True(start.IsShielded);
+        Assert.False(start.CanFetch);
+        Assert.False(start.IsSupported);
+        Assert.Null(start.UtxoAddress);
+        Assert.False(ChainStartPoint.Recognise("ltcmweb1" + new string('b', 112)).IsShielded);
+    }
 }

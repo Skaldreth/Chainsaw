@@ -36,9 +36,7 @@ internal static class TipLookup
 {
     /// <summary>Looks a tip's transaction up and runs the watch's check on the answer.</summary>
     /// <param name="check">The check.</param>
-    /// <param name="bitcoin">Bitcoin's source.</param>
-    /// <param name="ethereum">Ethereum's source.</param>
-    /// <param name="tron">TRON's source, or <see langword="null"/> where it is not registered.</param>
+    /// <param name="sources">The chains' sources.</param>
     /// <param name="case">The open case the answer is sealed in.</param>
     /// <param name="tip">The tip.</param>
     /// <param name="addresses">The watch's addresses now.</param>
@@ -48,9 +46,7 @@ internal static class TipLookup
     /// <returns>What was found.</returns>
     public static async Task<TipFinding> ReadAsync(
         IWatchCheck check,
-        IBitcoinSource bitcoin,
-        IEthereumSource ethereum,
-        ITronSource? tron,
+        WatchSources sources,
         ICase @case,
         WatchTip tip,
         IReadOnlySet<ChainAddress> addresses,
@@ -58,16 +54,17 @@ internal static class TipLookup
         long after,
         CancellationToken cancellationToken)
     {
-        IAccountSource? account = tip.Chain switch
+        var account = sources.Account(tip.Chain);
+        var utxo = sources.Utxo(tip.Chain);
+        if (account is null && utxo is null)
         {
-            Chain.Ethereum => ethereum,
-            Chain.Tron => tron,
-            _ => null,
-        };
+            return new TipFinding(TipVerdict.Wait, null, [], "Kedjans källa finns inte här.");
+        }
+
         var (status, transaction, origins, problem, complete) = account is not null
             ? await EthereumAsync(account, @case, tip.Match, false, cancellationToken).ConfigureAwait(false)
-            : await BitcoinAsync(bitcoin, @case, tip.Match.Transaction, cancellationToken).ConfigureAwait(false);
-        if (tron is not null && IsDoubted(tip, status, transaction)
+            : await BitcoinAsync(utxo!, @case, tip.Match.Transaction, cancellationToken).ConfigureAwait(false);
+        if (sources.Tron is { } tron && IsDoubted(tip, status, transaction)
             && Find(check, tip, transaction!, addresses, filter, after) is null)
         {
             // A final answer without a known token's event the watch saw is doubted, never taken as the chain's word:
@@ -114,7 +111,7 @@ internal static class TipLookup
     /// <param name="transaction">The answer.</param>
     /// <returns><see langword="true"/> when it may be doubted.</returns>
     private static bool IsDoubted(WatchTip tip, LookupStatus status, WatchTransaction? transaction) =>
-        tip.Chain == Chain.Tron && KnownTokens.IssuerOf(tip.Match.Amount.Asset) is not null
+        tip.Chain == Chain.Tron && KnownTokens.IsKnown(tip.Match.Amount.Asset)
         && status is LookupStatus.Fetched or LookupStatus.FromCase && transaction?.Block is not null;
 
     /// <summary>Runs the watch's check on an answer and finds the tip's hit in it.</summary>
@@ -134,8 +131,8 @@ internal static class TipLookup
             .FirstOrDefault(each => each.Block.Height > after && WatchSchedule.Key(tip.WatchId, each) == key);
     }
 
-    /// <summary>Looks a Bitcoin transaction up.</summary>
-    /// <param name="source">Bitcoin's source.</param>
+    /// <summary>Looks a transaction on a UTXO chain up.</summary>
+    /// <param name="source">The chain's source: Bitcoin's or Litecoin's.</param>
     /// <param name="case">The open case.</param>
     /// <param name="id">The txid as the tip gave it.</param>
     /// <param name="cancellationToken">Stops the lookup.</param>
@@ -150,7 +147,7 @@ internal static class TipLookup
 
         var lookup = await source.GetTransactionAsync(@case, txid, LookupMode.InStep, cancellationToken)
             .ConfigureAwait(false);
-        var transaction = lookup.Value is { } value ? BitcoinCaseFeed.Of(value) : null;
+        var transaction = lookup.Value is { } value ? BitcoinCaseFeed.Of(value, source.Network.ChainOf()) : null;
         return (lookup.Status, transaction, Sequences(lookup.Origins), lookup.Problem, true);
     }
 
@@ -197,7 +194,7 @@ internal static class TipLookup
 
         var asset = match.Amount.Asset;
         var countedWhole = source.Chain == Chain.Tron && value.Outcome != EthereumOutcome.Pending
-            && (asset.Kind == AssetKind.Native || KnownTokens.IssuerOf(asset) is not null);
+            && (asset.Kind == AssetKind.Native || KnownTokens.IsKnown(asset));
         return (lookup.Status, transaction, Sequences(lookup.Origins), lookup.Problem,
             value.IsComplete || countedWhole);
 

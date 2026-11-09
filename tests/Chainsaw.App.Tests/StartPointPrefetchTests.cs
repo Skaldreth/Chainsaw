@@ -399,6 +399,33 @@ public sealed class StartPointPrefetchTests
     private StartPointPrefetch Prefetch() =>
         new(_memory, _transfer, _bitcoin, _ethereum, _sanctions, new FixedClock());
 
+    [Fact]
+    public async Task A_litecoin_address_is_fetched_through_litecoins_source_in_ltc()
+    {
+        var litecoin = new FakeLitecoin();
+        var prefetch = new StartPointPrefetch(
+            _memory, _transfer, _bitcoin, _ethereum, _sanctions, new FixedClock(), litecoin: litecoin);
+        var address = BitcoinAddress.FromWitness(
+            0, Enumerable.Repeat((byte)0x33, 20).ToArray(), BitcoinNetwork.Litecoin).Value;
+
+        var preview = await prefetch.PreviewAsync(StartPointText.Parse(address), mayFetch: true);
+
+        Assert.Equal(PreviewState.Fetched, preview.State);
+        Assert.Equal(" LTC", preview.Facts[0].Unit);
+        Assert.Equal(["tip", "summary", "page"], litecoin.Calls);
+        Assert.Empty(_bitcoin.Calls);
+    }
+
+    [Fact]
+    public async Task A_bsc_start_point_without_bscs_source_is_not_built_and_nothing_is_asked()
+    {
+        var preview = await Prefetch().PreviewAsync(
+            StartPointText.Parse("bsc:" + Samples.Ethereum), mayFetch: true);
+
+        Assert.Equal(PreviewState.NotBuilt, preview.State);
+        Assert.Empty(_ethereum.Calls);
+    }
+
     private static async Task WaitUntil(Func<bool> condition)
     {
         for (var tries = 0; tries < 300 && !condition(); tries++)
@@ -575,7 +602,7 @@ public sealed class StartPointPrefetchTests
     }
 
     /// <summary>A Bitcoin source that answers from made-up values and seals one response per lookup.</summary>
-    private sealed class FakeBitcoin : IBitcoinSource
+    private class FakeBitcoin : IBitcoinSource
     {
         public static readonly BlockHash Hash = BlockHash.Parse(new string('0', 60) + "3f1a");
 
@@ -589,7 +616,7 @@ public sealed class StartPointPrefetchTests
 
         public int Asked { get; private set; }
 
-        public BitcoinNetwork Network => BitcoinNetwork.Mainnet;
+        public virtual BitcoinNetwork Network => BitcoinNetwork.Mainnet;
 
         public Task<BitcoinLookup<BitcoinAddressSummary>> GetAddressSummaryAsync(
             ICase @case, BitcoinAddress address, CancellationToken cancellationToken = default)
@@ -725,6 +752,12 @@ public sealed class StartPointPrefetchTests
     }
 
     /// <summary>An Ethereum source that answers from made-up values and seals one response per lookup.</summary>
+
+    /// <summary>Litecoin's source, answering as Bitcoin's fake on Litecoin's network.</summary>
+    private sealed class FakeLitecoin : FakeBitcoin, ILitecoinSource
+    {
+        public override BitcoinNetwork Network => BitcoinNetwork.Litecoin;
+    }
 
     private sealed class FakeEthereum : IEthereumSource
     {

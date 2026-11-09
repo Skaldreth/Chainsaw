@@ -520,6 +520,8 @@ public sealed partial class CommandSearchViewModel : ObservableObject
     {
         Chain.Bitcoin => "₿ " + CaseTexts.ChainName(chain),
         Chain.Ethereum => "Ξ " + CaseTexts.ChainName(chain),
+        Chain.Litecoin => "Ł " + CaseTexts.ChainName(chain),
+
         _ => CaseTexts.ChainName(chain),
     };
 

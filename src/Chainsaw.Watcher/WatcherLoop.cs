@@ -300,9 +300,7 @@ internal sealed class WatcherLoop
 
         state.NextHeight = now + HeightPoll;
         var mark = scratch.Mark();
-        var height = await WatchSchedule.HeightAsync(
-                _parts.Bitcoin, _parts.Ethereum, scratch, chain, cancellationToken, _parts.Tron)
-            .ConfigureAwait(false);
+        var height = await _parts.Feeds.GetHeightAsync(scratch, chain, cancellationToken).ConfigureAwait(false);
         state.HeightFailed = height is null;
         if (height is not { } tip)
         {
@@ -517,7 +515,7 @@ internal sealed class WatcherLoop
     /// <returns>Its name, or <see langword="null"/>.</returns>
     private static string? InStep(ChainSourcesView view) => view.Endpoints
         .FirstOrDefault(each => each.Endpoint.Enabled && !each.FailedSince
-            && each.Probe is { Outcome: ProbeOutcome.Answered } probe && (probe.BlocksBehind ?? 0) == 0)
+            && each.Probe is { IsInStep: true })
         ?.Endpoint.Name;
 
     /// <summary>Reads the plan again when Chainsaw has written it since.</summary>
@@ -670,9 +668,6 @@ internal sealed class WatcherLoop
 /// <param name="Check">The check, the same as in the open Chainsaw.</param>
 /// <param name="Feeds">The feeds, the same as in the open Chainsaw.</param>
 /// <param name="Sources">The chains' endpoints.</param>
-/// <param name="Bitcoin">Bitcoin's source.</param>
-/// <param name="Ethereum">Ethereum's source.</param>
-/// <param name="Tron">TRON's source, or <see langword="null"/> where it is not registered.</param>
 /// <param name="Transfer">Reads the responses out of the case in memory.</param>
 /// <param name="Alerts">Says that a watch has hit.</param>
 /// <param name="Clock">The clock.</param>
@@ -689,12 +684,9 @@ internal sealed record WatcherParts(
     IWatchCheck Check,
     IWatchFeeds Feeds,
     IChainSources Sources,
-    IBitcoinSource Bitcoin,
-    IEthereumSource Ethereum,
     IResponseTransfer Transfer,
     IAlerts Alerts,
-    IClock Clock,
-    ITronSource? Tron = null)
+    IClock Clock)
 {
     /// <summary>Gets the connection to the exit allowed in the background, or <see langword="null"/>.</summary>
     public IExitConnection? Exit { get; init; }

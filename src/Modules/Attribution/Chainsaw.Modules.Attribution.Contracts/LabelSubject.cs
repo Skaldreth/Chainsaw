@@ -37,7 +37,10 @@ public sealed record LabelSubject
         Target = address.ToChainAddress();
     }
 
-    /// <summary>Creates a subject on an account alone, on Ethereum or TRON.</summary>
+    /// <summary>What the stored form of a subject on BSC begins with (<see cref="Stored"/>).</summary>
+    public const string BscPrefix = "bsc:";
+
+    /// <summary>Creates a subject on an account alone, on Ethereum, BSC or TRON.</summary>
     /// <param name="account">The checked account.</param>
     private LabelSubject(EthereumAddress account)
     {
@@ -55,6 +58,12 @@ public sealed record LabelSubject
     /// the Base58Check form.
     /// </summary>
     public ChainAddress Target { get; }
+
+    /// <summary>
+    /// Gets the subject as a label stores it, whose form says its chain: the address as <see cref="Target"/> gives
+    /// it, and on BSC, whose addresses are written as Ethereum's, the same with <see cref="BscPrefix"/> before it.
+    /// </summary>
+    public string Stored => Target.Chain == Chain.Bsc ? BscPrefix + Target.Value : Target.Value;
 
     /// <summary>
     /// Gets the Bitcoin address, or <see langword="null"/> when the subject is on another chain. A cluster is always
@@ -90,9 +99,11 @@ public sealed record LabelSubject
         ArgumentNullException.ThrowIfNull(address);
         return address.Chain switch
         {
-            Chain.Bitcoin when BitcoinAddress.TryParse(address.Value, out var bitcoin) => ForAddress(bitcoin),
-            Chain.Ethereum or Chain.Tron when EthereumAddress.TryParse(address.Chain, address.Value, out var account) =>
-                new(account),
+            Chain.Bitcoin or Chain.Litecoin when BitcoinAddress.TryParse(address.Chain, address.Value, out var utxo) =>
+                ForAddress(utxo),
+            Chain.Ethereum or Chain.Tron or Chain.Bsc
+                when EthereumAddress.TryParse(address.Chain, address.Value, out var account) => new(account),
+
             _ => throw new ArgumentException("The address is not valid on its chain.", nameof(address)),
 
         };

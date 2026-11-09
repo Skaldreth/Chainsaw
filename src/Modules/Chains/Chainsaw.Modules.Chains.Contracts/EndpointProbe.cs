@@ -46,4 +46,20 @@ public sealed record EndpointProbe(
     /// <see cref="ProbeOutcome.Behind"/>.
     /// </summary>
     public long? BlocksBehind { get; init; }
+
+    /// <summary>
+    /// Gets whether its height was measured against no endpoint asked through the exit: the user's own node tried in a
+    /// round when the exit allowed no lookups (it never leaves the own network, so it is tried all the same). Its
+    /// height is then the own node's word alone, and a node that has fallen behind the chain would look in step with
+    /// itself; until a round with the exit has measured it, it answers lookups but is never <see cref="IsInStep"/>,
+    /// so that the monitoring never counts from it.
+    /// </summary>
+    public bool Unreferenced { get; init; }
+
+    /// <summary>
+    /// Gets whether it is known to be in step with the chain: it answered with the highest height of its round, not
+    /// even one block behind, measured against the endpoints asked through the exit. The monitoring asks only such an
+    /// endpoint (<see cref="LookupMode.InStep"/>).
+    /// </summary>
+    public bool IsInStep => Outcome == ProbeOutcome.Answered && (BlocksBehind ?? 0) == 0 && !Unreferenced;
 }

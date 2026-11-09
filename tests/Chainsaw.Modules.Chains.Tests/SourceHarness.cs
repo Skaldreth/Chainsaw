@@ -16,6 +16,9 @@ internal sealed class SourceHarness : IDisposable
 {
     public const string CaseNumber = "2026-0042";
 
+    /// <summary>The fake Esplora for Litecoin, answered from the fixtures in <c>Litecoin/</c>.</summary>
+    public const string LitecoinBase = "https://litecoin.test/api/";
+
     private readonly ServiceProvider _provider;
 
     private readonly string _directory =
@@ -41,7 +44,8 @@ internal sealed class SourceHarness : IDisposable
         services.AddChainsModule(
             // The recorded blocks were mined at regtest's ease, beyond mainnet's work limit.
             new BitcoinSourceOptions { EsploraBaseUri = new Uri(Fixtures.Base), CheckWorkLimit = false },
-            options => options.Delay = Clock.Delay);
+            options => options.Delay = Clock.Delay,
+            litecoin: BitcoinSourceOptions.ForLitecoin() with { DefaultEndpoints = [new Uri(LitecoinBase)] });
         _provider = services.BuildServiceProvider();
         Case = _provider.GetRequiredService<ICaseStore>().Create(CaseNumber);
         Source = _provider.GetRequiredService<IBitcoinSource>();
@@ -59,6 +63,9 @@ internal sealed class SourceHarness : IDisposable
     public ICase Case { get; }
 
     public IBitcoinSource Source { get; }
+
+    /// <summary>Gets Litecoin's source.</summary>
+    public ILitecoinSource Litecoin => _provider.GetRequiredService<ILitecoinSource>();
 
     public CaseVerification Verify() => _provider.GetRequiredService<ICaseVerifier>().Verify(Case);
 
@@ -144,7 +151,8 @@ internal sealed class SourceHarness : IDisposable
             rows.Add(new RawRow(
                 row.GetInt64(0), row.GetString(1), row.GetString(2), row.GetString(3), row.GetString(4),
                 row.GetString(5), row.GetInt64(6), row.IsDBNull(7) ? null : row.GetString(7), row.GetString(8),
-                row.GetString(9), row.GetString(10), row.GetString(11), row.GetString(12), row.GetString(13),
+                row.GetString(9), row.GetString(10), row.GetString(11),
+                row.IsDBNull(12) ? string.Empty : row.GetString(12), row.GetString(13),
                 row.GetFieldValue<byte[]>(14), row.GetFieldValue<byte[]>(15), row.GetFieldValue<byte[]>(16)));
         }
 

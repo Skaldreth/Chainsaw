@@ -190,7 +190,7 @@ internal sealed class LabelLibrary(IPurposeKeys keys, AttributionOptions options
                 string.Format(CultureInfo.InvariantCulture, "{0} etiketter från andra ärenden", incoming.Count),
                 JsonSerializer.Serialize(incoming.Select(label => new
                 {
-                    subject = label.Subject.Target.Value,
+                    subject = label.Subject.Stored,
                     subjectKind = label.Subject.Kind.ToString(),
                     kind = label.Kind.ToString(),
                     name = label.Name,
@@ -522,7 +522,7 @@ internal sealed class LabelLibrary(IPurposeKeys keys, AttributionOptions options
         {
             OriginId = label.Origin.OriginId,
             SubjectKind = label.Subject.Kind,
-            Subject = label.Subject.Target.Value,
+            Subject = label.Subject.Stored,
             Kind = label.Kind,
             Name = label.Name,
             Source = label.Origin.OriginalSource,

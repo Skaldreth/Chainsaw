@@ -108,6 +108,12 @@ public enum GuideTopic
     /// replaced it (sketch GR9a).
     /// </summary>
     GoneTransaction,
+
+    /// <summary>
+    /// <em>Fortsättningen på en annan kedja</em>: where money into a bridge or a swap continues, linked by hand or
+    /// suggested by <c>cross-chain v1</c>.
+    /// </summary>
+    CrossChain,
 }
 
 /// <summary>Reads <see cref="GuideTopic"/>.</summary>
@@ -159,6 +165,7 @@ public static class GuideTopics
         GuideTopic.Patterns => "monster",
         GuideTopic.Anchors => "ankaret",
         GuideTopic.GoneTransaction => "ersatt-tx",
+        GuideTopic.CrossChain => "annan-kedja",
         _ => "utxo-modellen",
     };
 
@@ -199,6 +206,7 @@ public static class GuideTopics
         GuideTopic.Patterns => "Mönster",
         GuideTopic.Anchors => "Ankaret och flera datorer",
         GuideTopic.GoneTransaction => "En tx som inte finns längre",
+        GuideTopic.CrossChain => "Fortsättningen på en annan kedja",
         _ => "UTXO-modellen",
     };
 

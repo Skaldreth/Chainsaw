@@ -78,6 +78,17 @@ på grafikkortet** bakom samma `GraphCanvas`, så att inget annat ändras. *Vän
 19. **Det en kollega har lagt till** i ett delat ärende efter den här datorns ankare godtas som äkta och visas inte som
     tillagt någon annanstans. Ska raderna efter det egna ankaret märkas?
 
+**Från Litecoin och BSC 2026-11-09** (DEV-LOG, *Omgång 8b*):
+20. **BSC:s källa:** det finns ingen öppen Blockscout för BSC (Blockscouts egen lista har ingen för kedja 56), BscScans
+    API har gått upp i Etherscans, som för BSC kräver en **betald** nyckel och tar den i adressen, och BSC:s öppna
+    JSON-RPC-noder har ingen historik per adress (allt prövat 2026-11-09). *Nu:* BSC har ingen endpoint från början;
+    användaren lägger till en egen eller köpt Blockscout för BSC under *Källor*, med nyckeln i valvet. Ska Chainsaw
+    tala Etherscans API (v2, `chainid=56`) med en betald nyckel? Det kräver att nyckeln kan skickas i adressen men
+    förseglas utan den (BACKLOG, *Etherscan med API-nyckel*).
+21. **USDT och USDC på BSC** är Binances bryggade tokens (*Binance-Peg*), inte Tethers och Circles egna. *Nu:* de känns
+    igen på kontraktet, har **inte** snöflingan *Kan frysas* (inget känt sätt att frysa dem), och kursen tas från
+    Bitstamps marknad för den token de står för (USDT, USDC). Stämmer det med hur kryptospåraren ser på dem?
+
 **Äldre, där sessionen valt det säkraste:**
 - **Återkallade återställningsnycklar** (etapp 9):
   - När nyckeln byts ligger den gamla nyckelns kuvert kvar. Det tas bort först när nyckeln återkallas med en rad
@@ -119,9 +130,6 @@ Inget sedan etapp 1 är provat på Windows. Användaren provar efter `docs/TESTE
   - **Ethereum** [etapp]: GR9a ritar en borta Ethereum-tx, men kontomodellens spårning räknar fortfarande med den.
   - **En obekräftad tx som aldrig låg i ett block** och försvinner ur mempool räknas inte som borta, eftersom
     regeln (`BlockChangeRule`) jämför med det första svaret i ett block [etapp].
-  - **Testärendet** (`/testdata`) har ingen tx som försvinner med en ersättare: testkedjan behöver svara `404` på
-    tx:en och `/tx/:txid/outspends` på tx:erna mynten kom ur [direkt].
-- **Ångra en godkänd plånbok** (PL1b, vald): Ctrl+Z och *Ångra* i KF2b-panelen bekräftas i grafen.
 - **Sökningen:** en etikett från ett annat ärende kan inte säga vilket, eftersom ursprunget saknar ärendenumret
   [etapp].
 - **Begäran:** kontaktvägar till börserna (katalogen är tom tills en väg kan kontrolleras mot sin källa, med källa
@@ -156,8 +164,24 @@ byggt ur BACKLOG; det som skriver i ärendet granskas oberoende.
    - [skiss] **Ta tillbaka en egen yta i Historik** (KF1b, Z): samma rad och formulär som för en etikett.
    - Resterna i BACKLOG under Exponering, Begäran, Låsskärmen, Historik, Testärendet och *Vyerna efter 1.0* står kvar
      där, med varför.
-8. **TRON med USDT** är byggt (omgång 8, DEV-LOG, resterna i BACKLOG under *TRON efter omgång 8*); kvar **Litecoin**,
-   **BSC**, **Solana** och den genomskinliga delen av **Zcash**. TRON:s ytor som väntar:
+8. **TRON med USDT** är byggt (omgång 8, DEV-LOG, resterna i BACKLOG under *TRON efter omgång 8*), och **Litecoin** och
+   **BSC** (omgång 8b, DEV-LOG); kvar **Solana** och den genomskinliga delen av **Zcash**. Litecoin och BSC, kvar:
+   - **Litecoin i grafen:** grafens UTXO-del (`UtxoGraph`, `TraceCalculator`, `GraphStateStore`, `TracingService`
+     med en källa) räknar i bitcoin och lagrar Bitcoins txid utan kedja. En Litecoin-startpunkt hämtas i förväg och
+     kan bevakas men läggs inte i grafen. Att bära kedjan i UTXO-delen (en källa per kedja, `litecoin-address` och
+     `litecoin-transaction` i grafens läge, belopp i LTC, klustring och kontroller per kedja) är en egen omgång;
+     `MwebTrailEnds` (MWEB som *skyddad pool*) är redan registrerad och tar då över.
+   - **MWEB:s troliga utgångar:** peg-outs ur blockens HogEx som matchar en peg-in på belopp minus avgift och tid, som
+     streckade kandidater (CLAUDE.md, *Privacy coins*).
+   - [skiss] **Välja kedja för en `0x`-adress:** en BSC-adress skrivs som Ethereums, så i *Nytt ärende*, i formuläret
+     *Bevaka* och i kommandoraden blir `0x…` Ethereum om inte `bsc:` står före. En väljare (Ethereum, BSC) vid raden
+     eller fältet när texten passar båda.
+   - [skiss] **Startpunktsnodens brickor (GR6c)** visar inte Litecoin och BSC.
+   - [skiss] **Ett eget märke för Litecoin och BSC:** raden i *Nytt ärende* och *Väntar på källan* visar `Ł` och `B`
+     som text, inte en ritad ikon som TRON:s.
+   - **Testärendet** (`/testdata`) har ingen Litecoin- eller BSC-källa än (som TRON:s `TestTronHttp`).
+
+   TRON:s ytor som väntar:
    - [skiss] **Fryst:** Tethers kontrakt på TRON har en svartlista (`isBlackListed`); en adress som står där kunde få
      en markering *Fryst* bredvid snöflingan *Kan frysas*, med när den lästes och ur vilket svar. Hur den skiljer sig
      från snöflingan (som bara säger att utgivaren *kan* frysa) och hur ofta den frågas skissas först.
@@ -167,8 +191,9 @@ byggt ur BACKLOG; det som skriver i ärendet granskas oberoende.
      *Väntar på källan* visar `T` för TRON; en egen ton och ett eget märke skissas om det behövs.
    - [skiss] **TRX:s avgift i inspektören:** TRON bränner TRX för energi och bandbredd (ofta noll med låst TRX);
      inspektören visar avgiften som på Ethereum, men skillnaden mellan energi och bandbredd syns inte.
-9. **Egen nod och eget index** och hitta fortsättningen på en annan kedja själv. Mönsterigenkänningen som analys
-   (`pattern v1`, princip 5) är byggd 2026-11-09 (DEV-LOG); dess ytor väntar:
+9. **Egen nod och eget index**. Mönsterigenkänningen som analys (`pattern v1`, princip 5) är byggd 2026-11-09
+   (DEV-LOG), och att hitta fortsättningen på en annan kedja själv är byggt som `cross-chain v1` (2026-11-09, DEV-LOG;
+   resterna i BACKLOG under *Cross-chain, efter `cross-chain v1`*). Ytor som väntar:
    - [skiss] **Mönstrets utseende:** kontrollerna `pattern` ritas i dag som förvirring (sand med mixerns ikon), som
      inte passar *samma insamling* och *samma väg*. En egen ikon och ton för mönster (och om de ska ha en egen rad i
      menyn *Områden i grafen*) skissas.
@@ -181,13 +206,16 @@ byggt ur BACKLOG; det som skriver i ärendet granskas oberoende.
      rapporten (RP1b) som en egen del.
    - **Testärendet** (`/testdata`) visar inget mönster än [direkt]: två offers pengar som går samma väg genom en mixer
      till Sydbörsen och en rad likadana belopp läggs in i berättelsen (`TestStoryChain`).
+   - [skiss] **Fortsättningen på annan kedja i grafen:** en betalning in till en brygga ritar inte sitt förslags
+     kandidater på den andra kedjan (de finns bara i KF2b-panelen), och ett förslag vars betalning in är på Ethereum
+     eller TRON har inget område i grafen, eftersom områdena bara ritas kring Bitcoin-adresser. Hur kandidaterna på
+     den andra kedjan visas vid den lila noden (streckade linjer till noder som inte finns i grafen än) skissas först.
+   - [skiss] **Flödesbilden i KF2b för två tillgångar:** bilden visar banden och beloppen, men ingen avgift i procent
+     (värdet jämförs med kurserna, och skälet säger avgiften); en bild med båda tillgångarna och kronorna skissas.
 
 **Ur omgång 4, ytorna KV1a, HB1a, BU1a, DM1a, HP1a och TJ1b** (byggda 2026-11-08, rester):
-- **Testärendet** (`/testdata`) visar inte de nya kontrollerna och ytorna än [direkt]: damm, en adressförgiftning
-  (en look-alike till Sydbörsen), ett svep till Sydbörsens hot wallet (för *Som etikett …*), en rad med många hopp
-  (fem hopp med en in och en ut, med ett uppehåll på några dygn), en uppdelning med delar som möts och en möjlig
-  PayJoin behöver läggas in i berättelsen (`TestStoryChain`) med stegen som hämtar dem. En slutsats som hålls tillbaka
-  kräver en obekräftad tx som ersätts, som testkedjan inte kan visa än.
+- **Testärendet** (`/testdata`): en slutsats som hålls tillbaka (HB1a) kräver en obekräftad tx som ersätts; testkedjan
+  har en ersatt tx (RBF) men bara bekräftade, så HB1a syns inte där än [direkt].
 - **Förhandsvisningen av ett tillbakadragande** (KV1a) räknar på det som är sparat: det v1 slår ihop i tx som v1
   aldrig kört syns först efter nästa körning. Raden längst ner säger när, men inte vem (det står i journalen).
 - **Dammets linjer** (DM1a) är inte hårfina och prickade och har kvar beloppet; noderna tonas ned och förgiftningens
@@ -204,9 +232,13 @@ byggt ur BACKLOG; det som skriver i ärendet granskas oberoende.
 - **En träff som bytt block** (omorganisation, `WatchHit.MovedFrom`, journalraden `monitoring.hit.moved`): träffen
   vilar nu på sitt nya block, men listan i Bevakning och vaktlinjen säger det inte. Förslag: GR9a:s runda märke med
   förut och nu.
-- **Kontrollerad mot blocket** (`IBitcoinSource.VerifyInBlockAsync`, `BitcoinTransaction.InBlock`: *bara källans svar* eller *bekräftad av en annan endpoint*): beviset
+- **Kontrollerad mot blocket** (`IBitcoinSource.VerifyInBlockAsync`, `BitcoinTransaction.InBlock`: *bara källans svar*, *bekräftad av en annan endpoint* eller *bekräftad av den egna noden*): beviset
   finns men inget anropar det; var det visas i inspektören (som *kontrollerad mot bytes*) och om det körs när tx:en
   visas eller i bakgrunden skissas.
+- **Den egna Bitcoin Core i sidan Källor** (2026-11-09): användarnamnet och lösenordet är i dag en nyckel i valvet
+  skriven `användare:lösenord`, vald i *Lägg till endpoint …* som andra nycklar; ett eget fält för nodens uppgifter (och
+  kakfilen) skissas om det behövs. En egen nod som provats utan utgång (`EndpointProbe.Unreferenced`) syns bara i
+  pricken och dess verktygstips; en egen markering (*inte jämförd med kedjan*) skissas.
 - **Pengar ut ur en CoinJoin som *högst …*** (BACKLOG, *Bevakning*): markeringen och den streckade formen i listan.
 
 **Ur omgång 5 (attribution och kurser), väntar på en yta** [skiss]:

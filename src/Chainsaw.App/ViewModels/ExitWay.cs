@@ -200,7 +200,7 @@ public sealed class ExitWay
     /// <summary>Gives a chain's name as the status line writes it.</summary>
     /// <param name="chain">The chain.</param>
     /// <returns>For example <c>Bitcoin</c> or <c>TRON</c>.</returns>
-    private static string ChainName(Chain chain) => chain == Chain.Tron ? "TRON" : chain.ToString();
+    private static string ChainName(Chain chain) => CaseTexts.ChainName(chain);
 
     /// <summary>Reads whether a chain's sources are off, and whether its lookups wait for a source.</summary>
     /// <param name="sources">The chains' endpoints.</param>

@@ -12,50 +12,110 @@ namespace Chainsaw.Modules.Chains;
 /// response is sealed in the case before it is used, what rests on a final block (64 deep) is taken from the case
 /// without asking, and without an exit the case answers and says what is missing.
 /// </summary>
-internal sealed class BlockscoutEthereumSource : IEthereumSource
+/// <param name="operators">The operator profile.</param>
+/// <param name="clock">The clock.</param>
+/// <param name="options">The settings.</param>
+/// <param name="timeZone">The time zone local times are recorded in.</param>
+/// <param name="sources">
+/// The chains' endpoints, of which Ethereum's are asked, each the only way it may be: through the exit, or straight to
+/// the user's own node.
+/// </param>
+internal sealed class BlockscoutEthereumSource(
+    IOperatorProfileStore operators, IClock clock, EthereumSourceOptions options, TimeZoneInfo timeZone,
+    ChainSources sources)
+    : BlockscoutSource(
+        new BlockscoutChain(Chain.Ethereum, ChainName, "Ethereum", Settings(options).SafeConfirmations,
+            Settings(options).PageSize),
+        operators, clock, timeZone, sources), IEthereumSource
 {
     /// <summary>The chain and network in the sealed table.</summary>
     public const string ChainName = "ethereum-mainnet";
 
+    /// <summary>Checks that the settings are given.</summary>
+    /// <param name="options">The settings.</param>
+    /// <returns>The same settings.</returns>
+    private static EthereumSourceOptions Settings(EthereumSourceOptions options) =>
+        options ?? throw new ArgumentNullException(nameof(options));
+}
+
+/// <summary>
+/// What a Blockscout source needs to know of its chain: the chain, its name in the sealed table and as the user reads
+/// it, how deep a block must be before it is final, and how many entries a page of a history asks for.
+/// </summary>
+/// <param name="Chain">The chain: Ethereum or BSC, whose Blockscout answers alike.</param>
+/// <param name="ChainName">The chain and network in the sealed table, for example <c>ethereum-mainnet</c>.</param>
+/// <param name="DisplayName">The chain as the user reads it, for example <c>Ethereum</c>.</param>
+/// <param name="SafeConfirmations">How many blocks deep a block must be before what rests on it is final.</param>
+/// <param name="PageSize">How many entries a page of an address's history asks for.</param>
+internal sealed record BlockscoutChain(
+    Chain Chain, string ChainName, string DisplayName, int SafeConfirmations, int PageSize);
+
+/// <summary>
+/// An account chain on Ethereum's virtual machine (Ethereum and BSC) from Blockscout's API, asked only through
+/// <see cref="IExitHttp"/> by <see cref="SourceLookups"/>: every response is sealed in the case before it is used,
+/// what rests on a final block is taken from the case without asking, and without an exit the case answers and says
+/// what is missing. The chain's own coin (ether, BNB) is counted in wei, and its addresses and transactions are named
+/// on the chain, so that the same 20 bytes on Ethereum and on BSC are never one actor.
+/// </summary>
+internal abstract class BlockscoutSource : IAccountSource
+{
     /// <summary>How old the newest known height may be before a lookup that depends on depth asks again.</summary>
     private static readonly TimeSpan TipFreshness = TimeSpan.FromMinutes(1);
 
     /// <summary>The time now, to decide whether the known height is fresh.</summary>
     private readonly IClock _clock;
 
-    /// <summary>The settings.</summary>
-    private readonly EthereumSourceOptions _options;
+    /// <summary>The chain and its settings.</summary>
+    private readonly BlockscoutChain _chain;
 
     /// <summary>Answers the lookups through the endpoints and the case.</summary>
     private readonly SourceLookups _lookups;
 
     /// <summary>Creates the source.</summary>
+    /// <param name="chain">The chain and its settings.</param>
     /// <param name="operators">The operator profile.</param>
     /// <param name="clock">The clock.</param>
-    /// <param name="options">The settings.</param>
     /// <param name="timeZone">The time zone local times are recorded in.</param>
     /// <param name="sources">
-    /// The chains' endpoints, of which Ethereum's are asked, each the only way it may be: through the exit, or straight
-    /// to the user's own node.
+    /// The chains' endpoints, of which the chain's are asked, each the only way it may be: through the exit, or
+    /// straight to the user's own node.
     /// </param>
-    /// <exception cref="ArgumentException">The depth or the page size is less than 1.</exception>
-    public BlockscoutEthereumSource(
-        IOperatorProfileStore operators, IClock clock, EthereumSourceOptions options,
-        TimeZoneInfo timeZone, ChainSources sources)
+    /// <exception cref="ArgumentException">The chain is not on Ethereum's machine, or the page size is less than 1.
+    /// </exception>
+    protected BlockscoutSource(
+        BlockscoutChain chain, IOperatorProfileStore operators, IClock clock, TimeZoneInfo timeZone,
+        ChainSources sources)
     {
-        ArgumentNullException.ThrowIfNull(options);
-        if (options.PageSize < 1)
+        ArgumentNullException.ThrowIfNull(chain);
+        if (chain.PageSize < 1)
         {
-            throw new ArgumentException("A page has at least one entry.", nameof(options));
+            throw new ArgumentException("A page has at least one entry.", nameof(chain));
+        }
+
+        if (!chain.Chain.IsEvm())
+        {
+            throw new ArgumentException("Blockscout answers only for a chain on Ethereum's machine.", nameof(chain));
         }
 
         _clock = clock;
-        _options = options;
+        _chain = chain;
         _lookups = new SourceLookups(
-            Chain.Ethereum, "Ethereum", operators, sources, new RawResponseStore(timeZone, ChainName),
-            options.SafeConfirmations,
+            chain.Chain, chain.DisplayName, operators, sources, new RawResponseStore(timeZone, chain.ChainName),
+            chain.SafeConfirmations,
             async (_, @case, cancellationToken) => await RefreshHeightAsync(@case, cancellationToken)
                 .ConfigureAwait(false));
+    }
+
+    /// <inheritdoc/>
+    public Chain Chain => _chain.Chain;
+
+    /// <summary>Gives where a page that goes back from a block starts: Blockscout pages by block.</summary>
+    /// <param name="block">The block.</param>
+    /// <returns>The block's number.</returns>
+    public long PageStartOf(EthereumBlockReference block)
+    {
+        ArgumentNullException.ThrowIfNull(block);
+        return block.Height;
     }
 
     /// <inheritdoc/>
@@ -65,6 +125,7 @@ internal sealed class BlockscoutEthereumSource : IEthereumSource
     {
         ArgumentNullException.ThrowIfNull(@case);
         ArgumentNullException.ThrowIfNull(address);
+        ThrowIfOtherChain(address.Chain, nameof(address));
         if (!Enum.IsDefined(history))
         {
             throw new ArgumentOutOfRangeException(nameof(history), history, "Unknown history.");
@@ -84,12 +145,12 @@ internal sealed class BlockscoutEthereumSource : IEthereumSource
         var below = atOrBelow?.ToString(CultureInfo.InvariantCulture);
         // The page size is part of the subject, so that a page read with another size is never taken for a full one.
         var subject = string.Create(CultureInfo.InvariantCulture,
-            $"{address.Value}/{below ?? "newest"}/{_options.PageSize}");
+            $"{address.Value}/{below ?? "newest"}/{_chain.PageSize}");
         var path = string.Create(CultureInfo.InvariantCulture,
-            $"?module=account&action={action}&address={address.Value}&sort=desc&page=1&offset={_options.PageSize}")
+            $"?module=account&action={action}&address={address.Value}&sort=desc&page=1&offset={_chain.PageSize}")
             + (below is null ? string.Empty : "&endblock=" + below);
         EthereumAddressPage Parse(byte[] body) =>
-            BlockscoutParser.ParseHistory(body, address, history, atOrBelow, _options.PageSize);
+            BlockscoutParser.ParseHistory(body, address, history, atOrBelow, _chain.PageSize);
         var query = new LookupQuery<EthereumAddressPage>(
             kind,
             subject,
@@ -107,6 +168,7 @@ internal sealed class BlockscoutEthereumSource : IEthereumSource
     {
         ArgumentNullException.ThrowIfNull(@case);
         ArgumentNullException.ThrowIfNull(hash);
+        ThrowIfOtherChain(hash.Chain, nameof(hash));
         var info = await _lookups.LookupAsync(@case, TransactionQuery(hash), mode, cancellationToken)
             .ConfigureAwait(false);
         if (info.Value is not { } transaction)
@@ -232,6 +294,7 @@ internal sealed class BlockscoutEthereumSource : IEthereumSource
     {
         ArgumentNullException.ThrowIfNull(@case);
         ArgumentNullException.ThrowIfNull(address);
+        ThrowIfOtherChain(address.Chain, nameof(address));
         var ether = await _lookups.LookupAsync(@case, BalanceQuery(address), LookupMode.AsNeeded, cancellationToken)
             .ConfigureAwait(false);
         if (ether.Value is not { } wei)
@@ -242,7 +305,8 @@ internal sealed class BlockscoutEthereumSource : IEthereumSource
         var tokens = await _lookups.LookupAsync(
             @case, TokenBalancesQuery(address), LookupMode.AsNeeded, cancellationToken).ConfigureAwait(false);
         var origins = SourceLookups.Ordered(ether.Origins.Concat(tokens.Origins));
-        var balance = new EthereumBalance(address, new AssetAmount(Asset.Ether, wei.Wei), tokens.Value?.Tokens ?? [])
+        var balance = new EthereumBalance(
+            address, new AssetAmount(Chain.NativeAsset(), wei.Wei), tokens.Value?.Tokens ?? [])
         {
             Skipped = tokens.Value?.Skipped ?? 0,
             IsComplete = tokens.Value is { IsIncomplete: false },
@@ -278,7 +342,9 @@ internal sealed class BlockscoutEthereumSource : IEthereumSource
         ArgumentNullException.ThrowIfNull(@case);
         return Task.Run<IReadOnlyList<BlockChange>>(
             () => @case.Read(reader => _lookups.Store.SubjectsAskedAgain(reader, EthereumResponseKinds.Transaction)
-                .Select(subject => EthereumTxHash.TryParse(subject, out var hash) ? BlockChangeOf(reader, hash) : null)
+                .Select(subject => EthereumTxHash.TryParse(Chain, subject, out var hash)
+                    ? BlockChangeOf(reader, hash)
+                    : null)
                 .OfType<BlockChange>()
                 .ToList()),
             cancellationToken);
@@ -303,7 +369,7 @@ internal sealed class BlockscoutEthereumSource : IEthereumSource
             .Where(response => SaysNotFound(response, hash))
             .Select(response => Answer(response.Origin, null, null, true));
         return BlockChangeRule.Compare(seen.Concat(gone), store, reader) is { } change
-            ? new BlockChange(hash.Value, change.Kind, change.Before, change.Now) { Chain = Chain.Ethereum }
+            ? new BlockChange(hash.Value, change.Kind, change.Before, change.Now) { Chain = Chain }
             : null;
     }
 
@@ -385,17 +451,29 @@ internal sealed class BlockscoutEthereumSource : IEthereumSource
         EthereumResponseKinds.TokenBalances,
         address.Value,
         "?module=account&action=tokenlist&address=" + address.Value,
-        BlockscoutParser.ParseTokenBalances,
+        body => BlockscoutParser.ParseTokenBalances(body, Chain),
         _ => ResponseIndex.None,
         _ => null);
 
     /// <summary>Gives a token Chainsaw knows by its contract, without asking the source.</summary>
     /// <param name="contract">The contract.</param>
-    /// <returns>USDT or USDC, or <see langword="null"/>.</returns>
+    /// <returns>USDT or USDC on the contract's chain, or <see langword="null"/>.</returns>
     private static Asset? Known(EthereumAddress contract)
     {
-        var asset = KnownTokens.Canonical(Asset.Token(Chain.Ethereum, contract.Value, "token", 0));
-        return KnownTokens.IssuerOf(asset) is null ? null : asset;
+        var asset = KnownTokens.Canonical(Asset.Token(contract.Chain, contract.Value, "token", 0));
+        return KnownTokens.IsKnown(asset) ? asset : null;
+    }
+
+    /// <summary>Refuses an address or a transaction on another chain than the source's.</summary>
+    /// <param name="chain">The chain it is on.</param>
+    /// <param name="name">The argument's name.</param>
+    /// <exception cref="ArgumentException">It is on another chain.</exception>
+    private void ThrowIfOtherChain(Chain chain, string name)
+    {
+        if (chain != Chain)
+        {
+            throw new ArgumentException($"The source answers for {Chain}, not {chain}.", name);
+        }
     }
 
     /// <summary>
@@ -411,25 +489,26 @@ internal sealed class BlockscoutEthereumSource : IEthereumSource
         TransactionInfo info, IReadOnlyList<InternalCall> calls, IReadOnlyDictionary<EthereumAddress, Asset> tokens,
         EthereumBlockReference? block)
     {
+        var coin = info.Hash.Chain.NativeAsset();
         var transfers = new List<EthereumTransfer>();
         if (info.Outcome != EthereumOutcome.Failed && !info.Value.IsZero && info.Receiver is { } receiver)
         {
             // While pending this is only what the transaction would send; the lookup says it is unconfirmed.
             transfers.Add(new EthereumTransfer(info.Hash, EthereumTransferKind.Native, info.From, receiver,
-                new AssetAmount(Asset.Ether, info.Value), 0, block));
+                new AssetAmount(coin, info.Value), 0, block));
         }
 
         if (info.Outcome == EthereumOutcome.Succeeded)
         {
             transfers.AddRange(calls.Select(call => new EthereumTransfer(info.Hash, EthereumTransferKind.Internal,
-                call.From, call.To, new AssetAmount(Asset.Ether, call.Value), call.Position, block)));
+                call.From, call.To, new AssetAmount(coin, call.Value), call.Position, block)));
             transfers.AddRange(info.Tokens.Where(log => tokens.ContainsKey(log.Contract)).Select(log =>
                 new EthereumTransfer(info.Hash, EthereumTransferKind.Token, log.From, log.To,
                     new AssetAmount(tokens[log.Contract], log.Units), log.Position, block)));
         }
 
-        return new EthereumTransaction(info.Hash, block, info.From, info.To, new AssetAmount(Asset.Ether, info.Value),
-            new AssetAmount(Asset.Ether, info.Fee), info.Outcome, transfers);
+        return new EthereumTransaction(info.Hash, block, info.From, info.To, new AssetAmount(coin, info.Value),
+            new AssetAmount(coin, info.Fee), info.Outcome, transfers);
     }
 
     /// <summary>The lookup of a transaction, which cannot change once its block is final.</summary>

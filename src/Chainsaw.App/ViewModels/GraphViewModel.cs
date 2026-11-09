@@ -181,6 +181,7 @@ public sealed partial class GraphViewModel : ObservableObject
         Checks.ShowWanted += (_, nodes) => ShowNodesWanted?.Invoke(this, nodes);
         Checks.ToastWanted += (_, toast) => ToastWanted?.Invoke(this, toast);
         Checks.ClustersChanged += (_, _) => _ = RefreshAsync();
+        Checks.WalletUndoWanted += (_, undo) => ShowWalletUndo(undo);
         Comments = new CommentsViewModel(session, comments ?? NoGraphComments.Instance, trash);
         WireComments();
         WireTidy();
@@ -771,6 +772,7 @@ public sealed partial class GraphViewModel : ObservableObject
         SelectedNode = node?.Key;
         SelectedEdge = edge?.Key;
         IsLegendOpen = false;
+        LetGoOfWalletUndo();
         _choosing = true;
         try
         {

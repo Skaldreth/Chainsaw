@@ -9,8 +9,8 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 namespace Chainsaw.Modules.Chains;
 
 /// <summary>
-/// Registers the module Chains: one contract per kind of chain, and the sources behind it (Esplora for Bitcoin,
-/// Blockscout for Ethereum, TronGrid for TRON).
+/// Registers the module Chains: one contract per kind of chain, and the sources behind it (Esplora, and the user's own
+/// Bitcoin Core, for Bitcoin, Esplora for Litecoin, Blockscout for Ethereum and BSC, TronGrid for TRON).
 /// </summary>
 /// <remarks>
 /// The module needs the Network module's <c>IExitHttp</c> (its only way out to the sources), and its
@@ -36,17 +36,24 @@ public static class ChainsModule
     /// <param name="tron">
     /// The TRON source's settings; by default TronGrid as TRON's endpoint until the user changes it.
     /// </param>
+    /// <param name="litecoin">
+    /// The Litecoin source's settings; by default litecoinspace.org as Litecoin's endpoint until the user changes it
+    /// (<see cref="BitcoinSourceOptions.ForLitecoin"/>). Their network must be Litecoin's.
+    /// </param>
+    /// <param name="bsc">The BSC source's settings; by default no endpoint until the user adds one.</param>
     /// <returns>The same container, so that the registrations can be chained.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="services"/> is null.</exception>
     public static IServiceCollection AddChainsModule(
         this IServiceCollection services, BitcoinSourceOptions? options = null,
         Action<ChainSourcesOptions>? sources = null, EthereumSourceOptions? ethereum = null,
-        TronSourceOptions? tron = null)
+        TronSourceOptions? tron = null, BitcoinSourceOptions? litecoin = null, BscSourceOptions? bsc = null)
     {
         ArgumentNullException.ThrowIfNull(services);
         var settings = options ?? new BitcoinSourceOptions();
         var ethereumSettings = ethereum ?? new EthereumSourceOptions();
         var tronSettings = tron ?? new TronSourceOptions();
+        var litecoinSettings = litecoin ?? BitcoinSourceOptions.ForLitecoin();
+        var bscSettings = bsc ?? new BscSourceOptions();
         var sourcesOptions = new ChainSourcesOptions();
         sources?.Invoke(sourcesOptions);
         services.TryAddSingleton<IClock, SystemClock>();
@@ -54,10 +61,13 @@ public static class ChainsModule
         services.AddSingleton<IResponseTransfer, ResponseTransfer>();
         services.AddSingleton<ICaseHeights>(new CaseHeights(settings));
 
-        // Each sort of API is registered here; another chain (Ethereum, TRON) only adds its own.
+        // Each sort of API is registered here, once per chain it is spoken for; another chain only adds its own.
         services.AddSingleton<ISourceApi>(new EsploraApi(settings));
+        services.AddSingleton<ISourceApi>(new BitcoinCoreApi(settings));
         services.AddSingleton<ISourceApi>(new BlockscoutApi(ethereumSettings));
         services.AddSingleton<ISourceApi>(new TronGridApi(tronSettings));
+        services.AddSingleton<ISourceApi>(new EsploraApi(litecoinSettings));
+        services.AddSingleton<ISourceApi>(new BlockscoutApi(bscSettings));
         services.AddSingleton(provider => new ChainSources(
             provider.GetServices<ISourceApi>(),
             provider.GetRequiredService<IExitHttp>(),
@@ -92,6 +102,18 @@ public static class ChainsModule
             provider.GetRequiredService<IOperatorProfileStore>(),
             provider.GetRequiredService<IClock>(),
             tronSettings,
+            TimeZoneInfo.Local,
+            provider.GetRequiredService<ChainSources>()));
+        services.AddSingleton<ILitecoinSource>(provider => new EsploraLitecoinSource(
+            provider.GetRequiredService<ChainSources>(),
+            provider.GetRequiredService<IOperatorProfileStore>(),
+            provider.GetRequiredService<IClock>(),
+            litecoinSettings,
+            TimeZoneInfo.Local));
+        services.AddSingleton<IBscSource>(provider => new BlockscoutBscSource(
+            provider.GetRequiredService<IOperatorProfileStore>(),
+            provider.GetRequiredService<IClock>(),
+            bscSettings,
             TimeZoneInfo.Local,
             provider.GetRequiredService<ChainSources>()));
         return services;

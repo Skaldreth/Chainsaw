@@ -43,13 +43,18 @@ internal static class BlockHeaderReader
     /// The network, whose easiest target the header's must not be easier than, or <see langword="null"/> to check only
     /// the header's own target.
     /// </param>
+    /// <param name="workIsDoubleSha256">
+    /// Whether the chain's work is the header's double SHA-256, the hash that names the block, as on Bitcoin. On
+    /// Litecoin the work is scrypt over the header, which Chainsaw does not compute; there only that the header hashes
+    /// to the block is checked, not its work.
+    /// </param>
     /// <returns>The header.</returns>
     /// <exception cref="EsploraFormatException">
     /// It is not an 80-byte header, it is another block, it does not meet its own target, or its target is easier than
     /// the network allows.
     /// </exception>
     public static BlockHeader ParseHex(
-        ReadOnlySpan<byte> body, BlockHash expected, BitcoinNetwork? network = null)
+        ReadOnlySpan<byte> body, BlockHash expected, BitcoinNetwork? network = null, bool workIsDoubleSha256 = true)
     {
         var bytes = RawTransactionReader.HexBytes(body);
         if (bytes.Length != HeaderSize)
@@ -64,12 +69,12 @@ internal static class BlockHeaderReader
         }
 
         var bits = BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(72, 4));
-        if (!MeetsTarget(hash, bits))
+        if (workIsDoubleSha256 && !MeetsTarget(hash, bits))
         {
             throw new EsploraFormatException("The header does not meet the target its bits name.");
         }
 
-        if (network is { } limited && !WithinLimit(bits, limited))
+        if (workIsDoubleSha256 && network is { } limited && !WithinLimit(bits, limited))
         {
             throw new EsploraFormatException("The header's target is easier than the network allows.");
         }

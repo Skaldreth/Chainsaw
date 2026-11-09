@@ -65,7 +65,8 @@ public enum InBlockCheck
     /// <summary>
     /// The source's merkle proof leads from the transaction's own bytes to the merkle root in the block's own header,
     /// and the proof's depth fits the block's transactions; but the block itself rests only on that source's answer:
-    /// the header's work is only checked against the network's easiest target, which anyone can meet.
+    /// the header's work is only checked against the network's easiest target, which anyone can meet. On Litecoin the
+    /// header hashes to the block; its work (scrypt) is not checked at all.
     /// </summary>
     SourceOnly,
 
@@ -74,4 +75,13 @@ public enum InBlockCheck
     /// height, so the block is not one source's alone.
     /// </summary>
     ConfirmedElsewhere,
+
+    /// <summary>
+    /// As <see cref="SourceOnly"/>, and the user's own Bitcoin Core (an endpoint marked local that speaks its RPC) has
+    /// the same block hash at that height in its chain; another local endpoint (an electrs) that does is
+    /// <see cref="ConfirmedElsewhere"/>, said by name as a local endpoint. The node has checked every block's work
+    /// itself, so the header the merkle proof leads to is in the chain it holds; the proof itself may have come
+    /// from another source, since it is checked against that header and not taken on its word.
+    /// </summary>
+    ConfirmedByOwnNode,
 }

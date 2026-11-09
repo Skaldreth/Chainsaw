@@ -369,7 +369,7 @@ internal static class ReportTemplate
     /// <param name="amount">The amount.</param>
     /// <returns>The text.</returns>
     private static string StepAmount(AssetAmount amount) => amount.Asset.Contract is { } contract
-        ? $"{Amount(amount)} ({amount.Asset.Chain} {contract})"
+        ? $"{Amount(amount)} ({amount.Asset.Chain.DisplayName()} {contract})"
         : Amount(amount);
 
     /// <summary>Writes amounts of several assets, one after the other.</summary>

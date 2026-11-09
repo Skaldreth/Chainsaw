@@ -33,6 +33,7 @@ internal sealed class CaseHarness : IDisposable
         services.AddSingleton<IBitcoinSource>(Source);
         services.AddSingleton<IEthereumSource>(Ethereum);
         services.AddSingleton<ITronSource>(Tron);
+        services.AddSingleton<IBscSource>(Bsc);
         services.AddCasesModule(options =>
         {
             options.Directory = _directory;
@@ -70,6 +71,8 @@ internal sealed class CaseHarness : IDisposable
 
     public FakeTronSource Tron { get; } = new();
 
+    public FakeBscSource Bsc { get; } = new();
+
     public FakeLabels Labels { get; } = new();
 
     public ICaseStore Store { get; }
@@ -79,6 +82,9 @@ internal sealed class CaseHarness : IDisposable
     public ITracingService Service { get; }
 
     public IGraphCommentService Comments => _provider.GetRequiredService<IGraphCommentService>();
+
+    /// <summary>Gets where an approved suggestion's links to other chains are sealed.</summary>
+    public ICrossChainLinks Links => _provider.GetRequiredService<ICrossChainLinks>();
 
     public Task<TraceGraph> Load() => Service.LoadAsync(Case);
 

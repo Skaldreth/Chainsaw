@@ -32,7 +32,9 @@ public interface ICheckService
     /// Seals the user's decision about a suggestion or one of its candidates, with a line in the journal. The latest
     /// decision about the same subject counts; the earlier ones stay sealed. Approving a wallet
     /// (<see cref="CheckAnalysisNames.Wallets"/>) also merges its addresses in the clustering as the user's judgement,
-    /// and taking that approval back undoes the merge, in the same transaction.
+    /// and taking that approval back undoes the merge, in the same transaction. Approving a continuation on another
+    /// chain (<see cref="CheckAnalysisNames.CrossChain"/>) links the money to it, and taking that back takes the link
+    /// back, in the same transaction.
     /// </summary>
     /// <param name="case">The open case.</param>
     /// <param name="request">The decision.</param>
@@ -68,6 +70,18 @@ public interface ICheckService
     /// </returns>
     /// <exception cref="ArgumentException">The reason is too long.</exception>
     int TakeBackMerges(ICase @case, IReadOnlyCollection<long> mergeSequences, string? reason);
+
+    /// <summary>
+    /// Takes back a link to another chain that an approved suggestion made (<see cref="CrossChainLink.Origin"/>) by
+    /// taking the approval back, in one transaction, so that the suggestion waits again and the panel and the graph say
+    /// the same.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="link">The link.</param>
+    /// <param name="reason">Why, or <see langword="null"/>; the reason is optional.</param>
+    /// <returns><see langword="true"/> when the link was in force and is now taken back.</returns>
+    /// <exception cref="ArgumentException">The link was made by hand, or the reason is too long.</exception>
+    bool TakeBackLink(ICase @case, CrossChainLink link, string? reason);
 
     /// <summary>Reads the own areas in force, oldest first.</summary>
     /// <param name="case">The open case.</param>

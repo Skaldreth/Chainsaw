@@ -70,6 +70,9 @@ en egen aktör i mitten, eftersom ingen vet vems pengar som gick vart. Fyra regl
   plånbok kan det visa sig att den för vidare i stora belopp (och träffen försvinner, om inget offer är märkt), eller
   att den betalar ut till många (och blir en knutpunkt). Märk offren och startpunkterna, så står en träff som bygger
   på dem kvar.
+- **En börs plånbok vars utbetalningar inte är hämtade** ser ut precis som en bedragares insamling. När utbetalningarna
+  hämtas kan träffen försvinna (plånboken betalar ut till många och blir en knutpunkt), eller få raden om att det kan
+  vara en börs utan etikett (den för vidare i klump och ett offer finns bland avsändarna).
 - **Likadana belopp och samma insamling kan gälla samma pengar:** en bedragare som delar upp insamlade pengar i lika
   delar till en börs ger båda träffarna; de beskriver olika sidor av samma flöde.
 - **En mixer utan etikett** är en spricka: Chainsaw vet inte att mynten byts där, så samma väg och rundgången kan följa

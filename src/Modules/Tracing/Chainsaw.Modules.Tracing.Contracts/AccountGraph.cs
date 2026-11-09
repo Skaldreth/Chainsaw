@@ -200,7 +200,7 @@ public sealed record AccountSeed(EthereumTxHash Transaction, EthereumTransferKin
     {
         ArgumentNullException.ThrowIfNull(transfer);
         return transfer.Movement == Kind && transfer.Position == Position
-            && transfer.Transaction.Chain == Chain.Ethereum && transfer.Transaction.Id == Transaction.Value;
+            && transfer.Transaction.Chain == Transaction.Chain && transfer.Transaction.Id == Transaction.Value;
     }
 }
 
