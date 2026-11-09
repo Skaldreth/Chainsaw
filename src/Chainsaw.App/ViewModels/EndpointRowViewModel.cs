@@ -55,6 +55,22 @@ public enum EndpointNote
     Failed,
 }
 
+/// <summary>The state of an endpoint's API key, as its row says it (sketch NY2a).</summary>
+public enum EndpointKey
+{
+    /// <summary>The endpoint sends no key.</summary>
+    None,
+
+    /// <summary>It needs a key, and the vault has none.</summary>
+    Missing,
+
+    /// <summary>The vault has its key, and the source has not refused it.</summary>
+    Saved,
+
+    /// <summary>The source refused the key.</summary>
+    Refused,
+}
+
 /// <summary>
 /// An endpoint on the page Källor (sketch KL2b): the dot, the name, ★ for the one used, the house for the user's own
 /// node, the mark for one behind, waiting or failing, the time of the latest probe, the height and the hash it
@@ -148,6 +164,80 @@ public sealed partial class EndpointRowViewModel(Guid id) : ObservableObject
     /// </summary>
     [ObservableProperty]
     public partial bool IsLocal { get; private set; }
+
+    /// <summary>Gets the vault's name for the endpoint's key, such as <c>Etherscan</c>, or nothing.</summary>
+    public string KeyService { get; private set; } = string.Empty;
+
+    /// <summary>Gets the state of the endpoint's key (sketch NY2a).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsKeyMissing), nameof(IsKeySaved), nameof(IsKeyRefused), nameof(IsKeyFieldOpen),
+        nameof(HasKeyLine))]
+    public partial EndpointKey Key { get; private set; }
+
+    /// <summary>Gets whether the endpoint needs a key that the vault does not have.</summary>
+    public bool IsKeyMissing => Key == EndpointKey.Missing;
+
+    /// <summary>Gets whether the key is saved and not refused.</summary>
+    public bool IsKeySaved => Key == EndpointKey.Saved;
+
+    /// <summary>Gets whether the source refused the key.</summary>
+    public bool IsKeyRefused => Key == EndpointKey.Refused;
+
+    /// <summary>Gets whether the row says something of the key: that it is missing, or refused.</summary>
+    public bool HasKeyLine => Key is EndpointKey.Missing or EndpointKey.Refused;
+
+    /// <summary>Gets the key's last characters behind dots, such as <c>••••FR61</c>, or nothing.</summary>
+    [ObservableProperty]
+    public partial string KeyTail { get; private set; } = string.Empty;
+
+    /// <summary>Gets what the row says of the key: where to get it, or what the source answered.</summary>
+    [ObservableProperty]
+    public partial string KeyText { get; private set; } = string.Empty;
+
+    /// <summary>Gets or sets whether the user asked to change a saved key, which opens the field.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsKeyFieldOpen))]
+    public partial bool IsChangingKey { get; set; }
+
+    /// <summary>Gets whether the field for a key stands open: the key is missing or refused, or being changed.</summary>
+    public bool IsKeyFieldOpen => Key is EndpointKey.Missing or EndpointKey.Refused || IsChangingKey;
+
+    /// <summary>Gets why the written key was not saved, or nothing.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasKeyError))]
+    public partial string KeyError { get; set; } = string.Empty;
+
+    /// <summary>Gets whether a written key was not saved.</summary>
+    public bool HasKeyError => KeyError.Length > 0;
+
+    /// <summary>
+    /// Shows the endpoint's key: missing, saved with its last characters, or refused with the source's words.
+    /// </summary>
+    /// <param name="service">The vault's name for the key, or <see langword="null"/> when it sends none.</param>
+    /// <param name="secret">The key from the vault, or <see langword="null"/> when there is none.</param>
+    /// <param name="refused">What the source answered when it refused the key, or <see langword="null"/>.</param>
+    public void ShowKey(string? service, string? secret, string? refused)
+    {
+        KeyService = service ?? string.Empty;
+        Key = (service, secret, refused) switch
+        {
+            (null, _, _) => EndpointKey.None,
+            (_, null, _) => EndpointKey.Missing,
+            (_, _, not null) => EndpointKey.Refused,
+            _ => EndpointKey.Saved,
+        };
+        KeyTail = secret is null ? string.Empty : ApiKeyText.Tail(secret);
+        KeyText = Key switch
+        {
+            EndpointKey.Missing => ApiKeyText.WhereToGet(KeyService),
+            EndpointKey.Refused => $"{Name} godtar inte nyckeln · ”{refused}”",
+            _ => string.Empty,
+        };
+        if (Key != EndpointKey.Saved)
+        {
+            IsChangingKey = false;
+        }
+    }
 
     /// <summary>Gets whether it sends an API key from the vault, shown as a key on a row switched off.</summary>
     [ObservableProperty]

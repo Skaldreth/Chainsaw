@@ -34,8 +34,7 @@ internal sealed class SourceLookups
     /// <param name="said">What the source answered.</param>
     /// <returns>The text for the user.</returns>
     internal static string KeyRefusedText(string said) =>
-        $"Källan godtar inte API-nyckeln (den svarade: {said}). Kontrollera nyckeln under Inställningar › Källor › "
-        + "Nycklar.";
+        $"{SourceKeyTexts.KeyRefusedLead} (den svarade: {said}).";
 
     /// <summary>The HTTP status of a source that is asked too fast.</summary>
     private const int TooManyRequestsStatus = 429;
@@ -369,6 +368,12 @@ internal sealed class SourceLookups
                 // and it is not paused for the questions it can answer.
                 _sources.Answered(_chain, endpoint.Id);
             }
+            else if (outcome == Outcome.KeyRefused)
+            {
+                // The key is wrong, not the source: it is said on the endpoint's row until the key is changed.
+                _sources.KeyRefused(_chain, endpoint.Id, interpretProblem!);
+                interpretProblem = KeyRefusedText(interpretProblem!);
+            }
             else
             {
                 _sources.Failed(_chain, endpoint.Id);
@@ -597,7 +602,7 @@ internal sealed class SourceLookups
         }
         catch (SourceKeyRefusedException refused)
         {
-            return (null, KeyRefusedText(refused.Said), Outcome.Failed);
+            return (null, refused.Said, Outcome.KeyRefused);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -840,6 +845,9 @@ internal enum Outcome
 
     /// <summary>It failed, or its answer cannot be used.</summary>
     Failed,
+
+    /// <summary>It refused the API key: the problem is the source's own words.</summary>
+    KeyRefused,
 }
 
 /// <summary>

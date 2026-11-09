@@ -22,6 +22,12 @@ public sealed record EndpointView(SourceEndpoint Endpoint, EndpointProbe? Probe,
     /// refused until the user trusts the new one; never for an endpoint without a pin.
     /// </summary>
     public bool CertificateRefused { get; init; }
+
+    /// <summary>
+    /// Gets what the source answered when it last refused the endpoint's API key (Etherscan: <c>Invalid API Key</c>),
+    /// in its own words, or <see langword="null"/>; it is forgotten when the key is changed or the source answers.
+    /// </summary>
+    public string? KeyRefused { get; init; }
 }
 
 /// <summary>A chain's sources: its mode, its endpoints in the user's order and when they were last tried.</summary>

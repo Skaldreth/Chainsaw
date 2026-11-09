@@ -6303,3 +6303,16 @@ insättning i en borta tx i Begäran, Flöde).
   kedja bara läste sin egen lista. `sources.json` minns nu vilka inbyggda endpoints varje kedja erbjudits
   (`Offered`), så att en ny inbyggd endpoint kommer in en gång och en borttagen inte kommer tillbaka; en fil från
   före listan får bara de inbyggda som behöver en nyckel.
+
+## NY2a (2026-11-09): nyckeln på källans rad
+
+- Användarens kritik: nyckeln och källan på två ställen var krångligt, och en fel nyckel syntes bara som *gick inte
+  att tolka*. Sidan *Nycklar* (NY1a) är borttagen; nyckeln står på endpointens rad i alla tre lägen (används,
+  reserv, avstängd) med lägena saknas, sparad och avvisad (`EndpointKey`).
+- Chains: en källa som avvisar nyckeln (`SourceKeyRefusedException`, Etherscans `Missing/Invalid API Key`) noteras
+  per endpoint (`ChainSources.KeyRefused`, `EndpointView.KeyRefused`) med källans egna ord, och glöms när nyckeln
+  byts eller källan svarar. Uppslagens problem börjar med `SourceKeyTexts.KeyRefusedLead`.
+- Grafens toast för en expansion där en källa avvisat nyckeln säger bara det, med *Byt nyckel …* som öppnar Källor
+  vid kedjan (`SourcesViewModel.OpenRefusedKey`).
+- Var nyckeln skaffas står i en liten tabell (`ApiKeyText`), i dag bara Etherscan.
+- Kvar (BACKLOG): en gul prick på kedjan i listan när en källa behöver en nyckel (NY2b:s idé).

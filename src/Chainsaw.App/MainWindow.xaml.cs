@@ -124,6 +124,9 @@ public partial class MainWindow : Window
         Toasts.Attach(toaster);
         CrashGuard.Toaster = toaster;
         graph.ToastWanted += (_, request) => toaster.Show(request);
+
+        // The toast's Byt nyckel … opens the refused key's row at Källor (sketch NY2a).
+        graph.ChangeKeyWanted += (_, _) => shell.Settings.Sources?.OpenRefusedKey();
         gate.PropertyChanged += (_, _) =>
         {
             // Nothing stands over the lock screen: a toast may name an address or a case.

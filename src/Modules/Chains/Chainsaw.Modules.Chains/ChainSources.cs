@@ -121,6 +121,9 @@ internal sealed class ChainSources : IChainSources
     /// </summary>
     private readonly HashSet<(Guid Id, string Pin)> _refused = [];
 
+    /// <summary>What a source last answered when it refused an endpoint's API key, by endpoint.</summary>
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, string> _refusedKeys = new();
+
     /// <summary>Creates the sources from the file, with each chain's defaults where the file says nothing.</summary>
     /// <param name="apis">The sorts of API Chainsaw speaks.</param>
     /// <param name="http">The only way out.</param>
@@ -205,6 +208,7 @@ internal sealed class ChainSources : IChainSources
             {
                 WaitUntil = Pacer.WaitUntil(endpoint.Id),
                 CertificateRefused = endpoint.Pin is { } pin && _refused.Contains((endpoint.Id, pin.Fingerprint)),
+                KeyRefused = _refusedKeys.GetValueOrDefault(endpoint.Id),
             }).ToList();
             var now = _clock.UtcNow;
             var waiting = state.Waits.Where(until => until > now).DefaultIfEmpty().Max();
@@ -473,7 +477,28 @@ internal sealed class ChainSources : IChainSources
     /// forgotten.</summary>
     /// <param name="chain">The chain.</param>
     /// <param name="id">The endpoint.</param>
-    public void Answered(Chain chain, Guid id) => Note(chain, id, failed: false);
+    public void Answered(Chain chain, Guid id)
+    {
+        Note(chain, id, failed: false);
+        if (_refusedKeys.TryRemove(id, out _))
+        {
+            Tell(chain);
+        }
+    }
+
+    /// <summary>
+    /// Notes that a source refused an endpoint's API key, in its own words, so that the endpoint's row says so and the
+    /// others are asked first until the key is changed.
+    /// </summary>
+    /// <param name="chain">The chain.</param>
+    /// <param name="id">The endpoint.</param>
+    /// <param name="said">What the source answered.</param>
+    public void KeyRefused(Chain chain, Guid id, string said)
+    {
+        Note(chain, id, failed: true);
+        _refusedKeys[id] = said;
+        Tell(chain);
+    }
 
     /// <summary>
     /// Gets whether an endpoint's <em>not found</em> can be believed: it has not failed a lookup since it was tried,
@@ -556,6 +581,18 @@ internal sealed class ChainSources : IChainSources
     public Task EnableForKeyAsync(string service)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(service);
+        foreach (var chain in Chains)
+        {
+            // A new key is tried afresh: what the source said of the old one no longer holds.
+            var forgotten = Get(chain).Endpoints
+                .Where(view => string.Equals(view.Endpoint.ApiKey, service.Trim(), StringComparison.OrdinalIgnoreCase))
+                .Count(view => _refusedKeys.TryRemove(view.Endpoint.Id, out _));
+            if (forgotten > 0)
+            {
+                Tell(chain);
+            }
+        }
+
         bool Needs(SourceEndpoint endpoint) => !endpoint.Enabled
             && string.Equals(endpoint.ApiKey, service.Trim(), StringComparison.OrdinalIgnoreCase);
         var chains = Chains.Where(chain => Get(chain).Endpoints.Any(view => Needs(view.Endpoint))).ToList();
@@ -1166,6 +1203,11 @@ internal sealed class ChainSources : IChainSources
         {
             return ((read(response.Body.Span), response.Duration), null);
         }
+        catch (SourceKeyRefusedException refused)
+        {
+            _refusedKeys[endpoint.Id] = refused.Said;
+            return (null, SourceLookups.KeyRefusedText(refused.Said));
+        }
         catch (FormatException)
         {
             return (null, "Svaret gick inte att läsa som kedjans svar.");
@@ -1324,6 +1366,11 @@ internal sealed class ChainSources : IChainSources
             foreach (var probe in probes.Where(probe => !IsWait(probe)))
             {
                 state.FailedSince.Remove(probe.EndpointId);
+                if (probe.Outcome == ProbeOutcome.Answered)
+                {
+                    _refusedKeys.TryRemove(probe.EndpointId, out _);
+                }
+
             }
 
             state.ProbedAt = _clock.UtcNow;

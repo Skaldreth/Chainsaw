@@ -2451,8 +2451,12 @@ Grafen för Ethereum är inte byggd än; det som går att prova är källan, sta
 
 ## Ethereum med Etherscan (E1, 2026-11-09)
 
-- Inställningar › Källor › *Nycklar* (NY1a): *Lägg till nyckel …* med tjänsten *Etherscan* och nyckeln; raden visar
-  bara de fyra sista tecknen, och *Byt …* och kryss syns på hovring.
+- Inställningar › Källor › Ethereum (NY2a): raden Etherscan säger *Etherscan behöver en gratis nyckel* med fältet
+  öppet. Klistra in nyckeln och tryck Enter: källan slås på, provas och raden visar ••••ABCD med *Byt …* och
+  *Ta bort*. Sidan *Nycklar* finns inte längre.
+- Spara en fel nyckel: raden blir röd med Etherscans ord (*Invalid API Key*) och fältet står öppet. En expansion
+  i grafen ger toasten *En källa godtar inte API-nyckeln* med *Byt nyckel …*, som öppnar Källor vid raden.
+- Klistra in en adress som nyckel: fältet säger att det är en adress och sparar inget.
 - Lägg Etherscan-nyckeln under *Nycklar*: endpointen *Etherscan* under Inställningar › Källor › Ethereum slås på av
   sig själv. En nyckel som redan låg i valvet slår på den vid nästa upplåsning. *Prova alla nu* ska ge höjd och hash
   för Etherscan.

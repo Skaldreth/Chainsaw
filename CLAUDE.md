@@ -607,9 +607,10 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
     anslutna raden har färg, *används inte* och strömknappen), **KL3b** (den egna nodens certifikat: en nål på raden
     öppnar en ruta med fingeravtrycket som rutnät, och vid byte står de två bredvid varandra) och **TJ1b** (en trolig
     tjänst blir en etikett i en ruta vid noden, med sorterna som ikoner, och noden byter utseende medan man väljer).
-  - **NY1a** (vald 2026-11-09): API-nycklarna är en egen rad *Nycklar* under kedjorna på sidan Källor, med en rad per
-    nyckel i valvet (tjänsten, vilka endpoints som använder den, hur den skickas och de fyra sista tecknen) och
-    *Lägg till nyckel …*.
+  - **NY2a** (vald och byggd 2026-11-09, ersätter NY1a: två ställen var för krångligt): nyckeln står på källans
+    egen rad. Utan nyckel står fältet öppet med var nyckeln skaffas; en nyckel som källan avvisar gör raden röd med
+    källans egna ord och fältet öppet; en godtagen visar de fyra sista tecknen med *Byt …* och *Ta bort*. Sidan
+    *Nycklar* finns inte. I grafen säger en toast bara att nyckeln inte godtas, med *Byt nyckel …* som öppnar raden.
   - **KE1, en blandning av KE1a och KE1b** (användarens beslut 2026-11-09): ett kluster på Ethereum börjar som en
     fyrkantig nod som en kortlek (KE1b), och ett klick fäller ut det till området bakom adresserna (KE1a), där varje
     adress är en egen nod. `deposit-sweep v1` slår ihop av sig själv; `gas-funding v1` är ett förslag i KF2b.
@@ -705,7 +706,7 @@ Canvas: https://claude.ai/artifact/LVMLEqgJteM68jjc7vuq1h. **Den är uppdelad i 
 | **Grafen** | GR1a, GR1b; GR2a, GR2b; GR3b, GR4; GR5 (startpunkten och namnen), IN1a, IN1b (inspektörens formulär); AN1a, AN1b (ta tillbaka och ångra); TK1a, TK1b (tokens och Kan frysas); TL1a, TL1b (tidslinjen under grafen); EX1a, EX1b (det som hölls tillbaka vid en expansion); EX2a, EX2b (filtren och var de utplockade hamnar); GR6a, GR6b, GR6c (tom graf med guidenoder); IN2a, IN2b (inspektören med ikoner); KN1a, KN1b (kommentarsnoden); GR7a, GR7b (bildspråkets ruta); GR8a, GR8b (ärenden i högar i startvyn); IN5a, IN5b (inspektören under grafen, i skissernas stil); IN3a–d (innehavet), SN1a, SN1b (sonarn) | Allt valt är byggt. GR4 godkänd, förlagan för grafen; GR5 variant A, IN1a, AN1b och TK1a valda; TL1a vald; EX1a och EX1b båda, som två lägen, med filter och samlingsnoden; EX2b vald, med dimmad bakgrund; GR6c vald och byggd; IN2b vald (ikonlisten vid noden), med formulären vid noden som i IN1b; KN1a vald; GR7a vald; GR8a vald, med grafens stöt och centrering; IN5a vald och byggd 2026-11-08 |
 | **Utgångar** | UT1a (i titelraden), UT1b (undermeny i pillret); UT2a, UT2b (lättare att läsa) | UT2b vald och byggd (ersätter UT1a), sedan UT3b och UT4a i Inställningar |
 | **Guiden** | GD1a (vy), GD1b (panel bredvid arbetet) | GD1b vald och byggd (etapp 18) |
-| **Inställningar** | ST1a (dialog som i Gawk), ST1b (vy); KL1a, KL1b (källornas endpoints); KL2a, KL2b; KL3a, KL3b (den egna nodens certifikat); NY1a, NY1b (API-nycklarna i valvet) | ST1a vald och byggd (etapp 19); KL1a vald, ersatt av KL2b (vald 2026-11-08 utan linjerna vid raderna och byggd, med Chainabuse under *Etiketter*); KL3b vald och byggd; NY1a vald 2026-11-09 |
+| **Inställningar** | ST1a (dialog som i Gawk), ST1b (vy); KL1a, KL1b (källornas endpoints); KL2a, KL2b; KL3a, KL3b (den egna nodens certifikat); NY1a, NY1b (API-nycklarna i valvet); NY2a, NY2b (nyckeln på källans rad) | ST1a vald och byggd (etapp 19); KL1a vald, ersatt av KL2b (vald 2026-11-08 utan linjerna vid raderna och byggd, med Chainabuse under *Etiketter*); KL3b vald och byggd; NY1a vald 2026-11-09, ersatt av NY2a (vald och byggd samma dag) |
 | **Bevakning** | BV1a (lista med formulär), BV1b (tidslinje med händelser); BV2a (vaktlinje), BV2b (båge vid porten); BV3a, BV3b (Bevaka, enklare och vid noden) | BV1a och BV2a valda och byggda, med animerade ringar vid träff; BV3a vald och byggd |
 | **Begäran** | BG1a (i inspektören), BG1b (vyn Begäran); export till Markdown | BG1b vald och byggd |
 | **Soptunnan** | SO1a, SO1b (släppytan, varningen och vyn); SO2a, SO2b (vyn omgjord: kort per slängning eller lista och bild, tomt läge med nersänkt ikon) | SO1a vald och byggd; SO2a vald och byggd 2026-11-08 (vyn) |

@@ -182,7 +182,6 @@ public sealed partial class SourcesViewModel : ObservableObject
         Suppliers = providers is null || switches is null
             ? []
             : [.. providers.Providers.Select(info => new AttributionSupplierViewModel(info, switches, keys))];
-        Keys = new VaultKeysViewModel(keys, sources, providers?.Providers);
         vault.StateChanged += (_, _) => ui.Post(ShowSupplierStates);
         sources.Changed += (_, chain) => ui.Post(() => ShowChain(chain));
         sources.CertificateRefused += (_, endpoint) => ui.Post(() => SayRefused(endpoint));
@@ -234,19 +233,11 @@ public sealed partial class SourcesViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(IsSupplierShown), nameof(IsChainShown))]
     public partial AttributionSupplierViewModel? Supplier { get; private set; }
 
-    /// <summary>Gets the page of the vault's API keys, under the chains (sketch NY1a).</summary>
-    public VaultKeysViewModel Keys { get; }
-
-    /// <summary>Gets whether the keys are shown to the right, instead of a chain or a supplier.</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsChainShown))]
-    public partial bool IsKeysShown { get; private set; }
-
     /// <summary>Gets whether a supplier of attribution is shown to the right.</summary>
     public bool IsSupplierShown => Supplier is not null;
 
     /// <summary>Gets whether a chain is shown to the right.</summary>
-    public bool IsChainShown => Supplier is null && !IsKeysShown;
+    public bool IsChainShown => Supplier is null;
 
     /// <summary>Gets the endpoint in use, shown as the raised card, or <see langword="null"/>.</summary>
     [ObservableProperty]
@@ -431,7 +422,6 @@ public sealed partial class SourcesViewModel : ObservableObject
         }
 
         Supplier = null;
-        HideKeys();
         Chip = chip;
         Rows.Clear();
         IsDisabledOpen = false;
@@ -612,38 +602,7 @@ public sealed partial class SourcesViewModel : ObservableObject
         }
 
         supplier.ShowState();
-        HideKeys();
         Supplier = supplier;
-    }
-
-    /// <summary>Shows the vault's API keys to the right (sketch NY1a), read again from the vault.</summary>
-    /// <returns>A task that completes when the keys are shown.</returns>
-    [RelayCommand]
-    public async Task ShowKeysAsync()
-    {
-        CancelAdd();
-        foreach (var chip in Chips)
-        {
-            chip.IsSelected = false;
-        }
-
-        foreach (var each in Suppliers)
-        {
-            each.IsSelected = false;
-        }
-
-        Supplier = null;
-        Keys.IsSelected = true;
-        IsKeysShown = true;
-        await Keys.ShowAsync().ConfigureAwait(true);
-    }
-
-    /// <summary>Leaves the keys, folding their form in.</summary>
-    private void HideKeys()
-    {
-        Keys.IsSelected = false;
-        Keys.CloseForm();
-        IsKeysShown = false;
     }
 
     /// <summary>Moves an endpoint past its neighbour among those switched on, which the user sees in order.</summary>
@@ -975,8 +934,9 @@ public sealed partial class SourcesViewModel : ObservableObject
         foreach (var endpoint in view.Endpoints)
         {
             var place = on.IndexOf(endpoint);
-            Rows[IndexOf(endpoint.Endpoint.Id)].Show(
-                endpoint, view.Mode, (place, place < 0 ? 0 : on.Count), place + 1, _timeZone);
+            var row = Rows[IndexOf(endpoint.Endpoint.Id)];
+            row.Show(endpoint, view.Mode, (place, place < 0 ? 0 : on.Count), place + 1, _timeZone);
+            row.ShowKey(endpoint.Endpoint.ApiKey, SecretOf(endpoint.Endpoint.ApiKey), endpoint.KeyRefused);
         }
 
         ShowGroups();
@@ -1016,6 +976,136 @@ public sealed partial class SourcesViewModel : ObservableObject
             ShowChain(chain);
         });
     }
+
+    /// <summary>Reads a key from the vault, or nothing when there is none or the vault cannot be read.</summary>
+    /// <param name="service">The vault's name for the key, or <see langword="null"/>.</param>
+    /// <returns>The key, or <see langword="null"/>.</returns>
+    private string? SecretOf(string? service)
+    {
+        if (service is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return _keys.Find(service)?.Secret;
+        }
+        catch (VaultException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Saves the key written on an endpoint's row in the vault under the endpoint's service (sketch NY2a), switches on
+    /// every endpoint that sends it and tries the chain again, so that the row says at once whether it is taken.
+    /// </summary>
+    /// <param name="row">The endpoint's row.</param>
+    /// <param name="entry">The masked field, which is taken and cleared.</param>
+    /// <returns>A task that completes when the chain has been tried.</returns>
+    public async Task SaveKeyAsync(EndpointRowViewModel row, ISecretEntry entry)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        ArgumentNullException.ThrowIfNull(entry);
+        var written = entry.Take();
+        try
+        {
+            var secret = new string(written).Trim();
+            row.KeyError = string.Empty;
+            if (secret.Length == 0 || row.KeyService.Length == 0)
+            {
+                return;
+            }
+
+            if (ApiKeyText.IsAddress(secret))
+            {
+                row.KeyError = ApiKeyText.AddressText;
+                return;
+            }
+
+            await Task.Run(() => _keys.Save(new ApiKey(row.KeyService, string.Empty, secret))).ConfigureAwait(true);
+            await _sources.EnableForKeyAsync(row.KeyService).ConfigureAwait(true);
+            row.IsChangingKey = false;
+            if (Chip.Chain is { } chain)
+            {
+                ShowChain(chain);
+                await _sources.ProbeAsync(chain).ConfigureAwait(true);
+                ShowChain(chain);
+            }
+        }
+        catch (Exception exception) when (exception is VaultException or IOException or ArgumentException)
+        {
+            row.KeyError = ApiKeyText.FailedText;
+        }
+        finally
+        {
+            Secret.Clear(written);
+        }
+    }
+
+    /// <summary>Opens the field to change a saved key on its row.</summary>
+    /// <param name="row">The endpoint's row.</param>
+    [RelayCommand]
+    public void ChangeKey(EndpointRowViewModel row)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        row.KeyError = string.Empty;
+        row.IsChangingKey = true;
+    }
+
+    /// <summary>Folds the field in again without changing the key.</summary>
+    /// <param name="row">The endpoint's row.</param>
+    [RelayCommand]
+    public void CancelKey(EndpointRowViewModel row)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        row.KeyError = string.Empty;
+        row.IsChangingKey = false;
+    }
+
+    /// <summary>
+    /// Removes an endpoint's key from the vault; every endpoint that sends it stops asking until a key is written again.
+    /// </summary>
+    /// <param name="row">The endpoint's row.</param>
+    /// <returns>A task that completes when the vault has answered.</returns>
+    [RelayCommand]
+    public async Task RemoveKeyAsync(EndpointRowViewModel row)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        try
+        {
+            await Task.Run(() => _keys.Remove(row.KeyService)).ConfigureAwait(true);
+        }
+        catch (Exception exception) when (exception is VaultException or IOException)
+        {
+            row.KeyError = ApiKeyText.FailedText;
+        }
+
+        if (Chip.Chain is { } chain)
+        {
+            ShowChain(chain);
+        }
+    }
+
+    /// <summary>
+    /// Shows the first chain whose source refused its key, with the field open on the endpoint's row, and asks for the
+    /// settings to open at Källor (the toast's <em>Byt nyckel …</em>).
+    /// </summary>
+    public void OpenRefusedKey()
+    {
+        var chip = Chips.FirstOrDefault(each => each.Chain is { } chain && each.IsBuilt
+            && _sources.Get(chain).Endpoints.Any(endpoint => endpoint.KeyRefused is not null));
+        if (chip is not null)
+        {
+            ShowChip(chip);
+        }
+
+        KeyWanted?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Raised when the toaster's <em>Byt nyckel …</em> asks for the row of a refused key at Källor.</summary>
+    public event EventHandler? KeyWanted;
 
     /// <summary>Finds an endpoint's row.</summary>
     /// <param name="id">The endpoint.</param>

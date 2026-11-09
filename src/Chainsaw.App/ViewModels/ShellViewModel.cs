@@ -173,6 +173,9 @@ public sealed partial class ShellViewModel : ObservableObject
         {
             // The toaster's Visa for a node whose certificate changed (sketch KL3b) opens its box at Källor.
             sources.PinWanted += (_, _) => Show(AppView.Settings, SettingsPage.Sources);
+
+            // The graph's Byt nyckel … opens the refused key's row at Källor (sketch NY2a).
+            sources.KeyWanted += (_, _) => Show(AppView.Settings, SettingsPage.Sources);
         }
 
         _session = session;

@@ -994,6 +994,54 @@
         </DataTemplate>
 
         <!--
+          The endpoint's API key on its own row (sketch NY2a): what it needs and where it is got, the key's last characters
+          when it is taken, or the source's own words when it refused it; the field opens on the row when the key is
+          missing or refused, or when Byt … is clicked. Only an endpoint that sends a key has the strip.
+        -->
+        <DataTemplate x:Key="Sources.Key" DataType="{x:Type vm:EndpointRowViewModel}">
+            <StackPanel x:Name="Strip" Margin="0,10,0,0" Visibility="{Binding HasKey, Converter={StaticResource Visible}}">
+                <Border BorderBrush="{StaticResource Brush.BorderStrong}" BorderThickness="0,1,0,0" Margin="0,0,0,10" />
+                <DockPanel x:Name="Saved" Visibility="{Binding IsKeySaved, Converter={StaticResource Visible}}">
+                    <Button DockPanel.Dock="Right" Style="{StaticResource Button.Link}" Content="Ta bort" Margin="12,0,0,0"
+                            ToolTip="Ta bort nyckeln ur valvet. Källorna som använder den slutar fråga." CommandParameter="{Binding}"
+                            Command="{Binding DataContext.Sources.RemoveKeyCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                    <Button DockPanel.Dock="Right" Style="{StaticResource Button.Link}" Content="Byt …" CommandParameter="{Binding}"
+                            Command="{Binding DataContext.Sources.ChangeKeyCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <controls:GridIcon Size="13" Data="{StaticResource Icon.Key}" Foreground="{StaticResource Brush.Success}"
+                                           Margin="0,0,8,0" />
+                        <TextBlock Text="Nyckel" FontSize="13" Foreground="{StaticResource Brush.TextMuted}" Margin="0,0,8,0" />
+                        <TextBlock Text="{Binding KeyTail}" FontFamily="Cascadia Mono, Consolas" FontSize="12.5"
+                                   Foreground="{StaticResource Brush.TextMuted}" />
+                    </StackPanel>
+                </DockPanel>
+                <StackPanel Orientation="Horizontal" Visibility="{Binding HasKeyLine, Converter={StaticResource Visible}}">
+                    <controls:GridIcon x:Name="KeyIcon" Size="13" Data="{StaticResource Icon.Key}"
+                                       Foreground="{StaticResource Brush.TextMuted}" Margin="0,0,8,0" VerticalAlignment="Center" />
+                    <TextBlock x:Name="KeyLine" Text="{Binding KeyText}" FontSize="13" Foreground="{StaticResource Brush.TextMuted}"
+                               TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                </StackPanel>
+                <DockPanel Margin="0,8,0,0" Visibility="{Binding IsKeyFieldOpen, Converter={StaticResource Visible}}">
+                    <Button DockPanel.Dock="Right" Style="{StaticResource Button.Secondary}" Content="Avbryt" Margin="8,0,0,0" Height="32" Padding="12,0"
+                            Visibility="{Binding IsChangingKey, Converter={StaticResource Visible}}" CommandParameter="{Binding}"
+                            Command="{Binding DataContext.Sources.CancelKeyCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                    <Button DockPanel.Dock="Right" Style="{StaticResource Button.Primary}" Content="Spara · Enter" Margin="8,0,0,0" Height="32" Padding="14,0"
+                            Click="OnSaveRowKey" />
+                    <PasswordBox Style="{StaticResource PasswordBox.Field}" Tag="Klistra in nyckeln" KeyDown="OnRowKeyKey"
+                                 AutomationProperties.Name="API-nyckel" />
+                </DockPanel>
+                <TextBlock Text="{Binding KeyError}" FontSize="12.5" Foreground="{StaticResource Brush.Error}" Margin="0,6,0,0"
+                           TextWrapping="Wrap" Visibility="{Binding HasKeyError, Converter={StaticResource Visible}}" />
+            </StackPanel>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding IsKeyRefused}" Value="True">
+                    <Setter TargetName="KeyIcon" Property="Foreground" Value="{StaticResource Brush.Error}" />
+                    <Setter TargetName="KeyLine" Property="Foreground" Value="{StaticResource Brush.Error}" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+
+        <!--
           The own node's certificate (sketch KL3b): a small pin after the name in the state's colour (amber and struck
           through when it is not pinned, green when it is, red when the node shows another), with its word on a reserve's
           row. A click folds out the box with an arrow towards the pin: the fingerprint as a picture, a grid of one cell
@@ -1116,6 +1164,7 @@
                         <TextBlock Text="{Binding Address}" FontFamily="Cascadia Mono, Consolas" FontSize="12.5"
                                    Foreground="{StaticResource Brush.TextMuted}" TextTrimming="CharacterEllipsis" />
                     </DockPanel>
+                    <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource Sources.Key}" />
                 </StackPanel>
             </Border>
             <DataTemplate.Triggers>
@@ -1130,6 +1179,7 @@
           the switch and × on hovering, and the latency to the right. No latency bar (the user's decision 2026-11-08).
         -->
         <DataTemplate x:Key="Sources.Reserve" DataType="{x:Type vm:EndpointRowViewModel}">
+            <StackPanel>
             <Border x:Name="Card" Height="44" Padding="14,0" CornerRadius="10" BorderThickness="1.5" Margin="0,0,0,6"
                     Background="{StaticResource Brush.Floating}" BorderBrush="{StaticResource Brush.Submenu}" Opacity="0.72">
                 <DockPanel>
@@ -1201,6 +1251,8 @@
                     </StackPanel>
                 </DockPanel>
             </Border>
+            <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource Sources.Key}" Margin="14,0,14,10" />
+            </StackPanel>
             <DataTemplate.Triggers>
                 <Trigger SourceName="Card" Property="IsMouseOver" Value="True">
                     <Setter TargetName="Card" Property="Opacity" Value="1" />
@@ -1221,6 +1273,7 @@
 
         <!-- One switched off: dashed and toned, a ring for its dot, the key when it sends one, × on hovering. -->
         <DataTemplate x:Key="Sources.Off" DataType="{x:Type vm:EndpointRowViewModel}">
+            <StackPanel>
             <Grid x:Name="Card" Height="40" Margin="0,0,0,6" Opacity="0.6" Background="Transparent">
                 <Rectangle RadiusX="10" RadiusY="10" StrokeThickness="1.5" StrokeDashArray="3 2"
                            Stroke="{StaticResource Brush.BorderStrong}" />
@@ -1272,6 +1325,8 @@
                     </StackPanel>
                 </DockPanel>
             </Grid>
+            <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource Sources.Key}" Margin="14,0,14,10" />
+            </StackPanel>
         </DataTemplate>
 
         <!-- The quiet heading over a group: ANVÄNDS, RESERVER, ENDPOINTS, API-NYCKEL. -->
@@ -2167,20 +2222,6 @@
                                     <StackPanel Margin="10,14">
                                         <ItemsControl ItemsSource="{Binding Chips}" ItemTemplate="{StaticResource Sources.Chain}"
                                                       Focusable="False" AutomationProperties.Name="Kedjor" />
-                                        <!-- The vault's API keys, a row of their own after a little space (sketch NY1a). -->
-                                        <Button Style="{StaticResource Sources.ListRow}" Margin="0,14,0,2" DataContext="{Binding Keys}"
-                                                Command="{Binding DataContext.ShowKeysCommand, RelativeSource={RelativeSource AncestorType=StackPanel}}"
-                                                AutomationProperties.Name="Nycklar" ToolTip="API-nycklarna i valvet">
-                                            <StackPanel Orientation="Horizontal">
-                                                <controls:GridIcon Size="14" Data="{StaticResource Icon.Key}" Margin="0,0,10,0"
-                                                                   Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
-                                                <StackPanel VerticalAlignment="Center">
-                                                    <TextBlock Text="Nycklar" FontSize="14" />
-                                                    <TextBlock Text="{Binding Sub}" FontSize="12" Foreground="{StaticResource Brush.TextDim}"
-                                                               Margin="0,2,0,0" />
-                                                </StackPanel>
-                                            </StackPanel>
-                                        </Button>
                                         <TextBlock Text="Etiketter" Style="{StaticResource Sources.Heading}" Margin="12,16,0,6"
                                                    Visibility="{Binding HasSuppliers, Converter={StaticResource Visible}}" />
                                         <ItemsControl ItemsSource="{Binding Suppliers}" ItemTemplate="{StaticResource Sources.Supplier}"
@@ -2382,113 +2423,6 @@
                                     </ScrollViewer>
                                 </DockPanel>
                             </Grid>
-
-                            <!-- ===== The vault's API keys (sketch NY1a): a row per key, and Lägg till nyckel … ===== -->
-                            <DockPanel Grid.Column="1" Margin="26,18,28,20" DataContext="{Binding Keys}"
-                                       Visibility="{Binding DataContext.IsKeysShown, RelativeSource={RelativeSource AncestorType=Grid}, Converter={StaticResource Visible}}">
-                                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Height="36">
-                                    <TextBlock Text="Nycklar" FontSize="17" FontWeight="SemiBold" VerticalAlignment="Center" />
-                                    <TextBlock Text="i valvet, låsta med huvudnyckeln. Aldrig i ärendet." FontSize="13" Margin="12,0,0,0"
-                                               Foreground="{StaticResource Brush.TextDim}" VerticalAlignment="Center" />
-                                </StackPanel>
-                                <Button DockPanel.Dock="Bottom" Style="{StaticResource Sources.Dashed}" HorizontalAlignment="Left"
-                                        Margin="0,16,0,0" Command="{Binding OpenFormCommand}"
-                                        Visibility="{Binding IsFormClosed, Converter={StaticResource Visible}}">
-                                    <StackPanel Orientation="Horizontal">
-                                        <controls:GridIcon Size="14" Data="{StaticResource Icon.Plus}" Margin="0,0,8,0"
-                                                           Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
-                                        <TextBlock Text="Lägg till nyckel …" VerticalAlignment="Center" />
-                                    </StackPanel>
-                                </Button>
-                                <!-- The form: the service and the key, masked; Lägg i valvet or Enter. -->
-                                <Border DockPanel.Dock="Bottom" Margin="0,12,0,0" Padding="18,16" CornerRadius="12" BorderThickness="1.5"
-                                        Background="{StaticResource Brush.SurfaceRaised}" BorderBrush="{StaticResource Brush.BorderStrong}"
-                                        Visibility="{Binding IsFormOpen, Converter={StaticResource Visible}}">
-                                    <StackPanel>
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="12" />
-                                                <ColumnDefinition Width="1.4*" />
-                                            </Grid.ColumnDefinitions>
-                                            <StackPanel>
-                                                <TextBlock Text="Tjänst" FontSize="12.5" Foreground="{StaticResource Brush.TextMuted}" Margin="0,0,0,5" />
-                                                <TextBox Style="{StaticResource TextBox.Field}" Height="34" FontSize="14"
-                                                         Text="{Binding NewService, UpdateSourceTrigger=PropertyChanged}"
-                                                         AutomationProperties.Name="Tjänst" />
-                                            </StackPanel>
-                                            <StackPanel Grid.Column="2">
-                                                <TextBlock Text="Nyckel" FontSize="12.5" Foreground="{StaticResource Brush.TextMuted}" Margin="0,0,0,5" />
-                                                <PasswordBox x:Name="VaultKeyBox" Style="{StaticResource PasswordBox.Field}" Height="34"
-                                                             FontSize="14" AutomationProperties.Name="Nyckel" KeyDown="OnVaultKeyKey" />
-                                            </StackPanel>
-                                        </Grid>
-                                        <TextBlock Text="Endpointen eller källan som ska använda nyckeln väljer den sedan med samma namn. Etherscan tar nyckeln i adressen; den läggs till när uppslaget skickas och tas bort innan svaret förseglas."
-                                                   FontSize="12.5" Foreground="{StaticResource Brush.TextDim}" TextWrapping="Wrap" Margin="0,12,0,0" />
-                                        <TextBlock Text="{Binding Error}" Style="{StaticResource Text.Error}" FontSize="13" Margin="0,8,0,0"
-                                                   TextWrapping="Wrap" Visibility="{Binding HasError, Converter={StaticResource Visible}}" />
-                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
-                                            <Button Style="{StaticResource Button.Icon}" Width="Auto" Height="32" Padding="14,0"
-                                                    Content="Avbryt" FontSize="13.5" Command="{Binding CloseFormCommand}" />
-                                            <Button Style="{StaticResource Button.Primary}" Height="32" Padding="14,0" Margin="8,0,0,0"
-                                                    FontSize="13.5" Content="Lägg i valvet · Enter" Click="OnSaveVaultKey" />
-                                        </StackPanel>
-                                    </StackPanel>
-                                </Border>
-                                <ScrollViewer VerticalScrollBarVisibility="Auto" Focusable="False" Margin="0,12,0,0">
-                                    <StackPanel>
-                                        <TextBlock Text="{Binding Error}" Style="{StaticResource Text.Error}" FontSize="13" Margin="0,0,0,8"
-                                                   TextWrapping="Wrap"
-                                                   Visibility="{Binding HasListError, Converter={StaticResource Visible}}" />
-                                        <ItemsControl ItemsSource="{Binding Rows}" Focusable="False" AutomationProperties.Name="Nycklar">
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate DataType="{x:Type vm:VaultKeyRow}">
-                                                    <Border x:Name="Row" Margin="0,0,0,6" Padding="14,10" CornerRadius="10" BorderThickness="1.5"
-                                                            Background="{StaticResource Brush.Surface}" BorderBrush="{StaticResource Brush.Border}">
-                                                        <DockPanel>
-                                                            <Button x:Name="Remove" DockPanel.Dock="Right" Style="{StaticResource Button.Icon}" Width="26" Height="26"
-                                                                    Opacity="0" ToolTip="Ta bort ur valvet. Endpoints som använder den slutar fråga."
-                                                                    AutomationProperties.Name="Ta bort" CommandParameter="{Binding}"
-                                                                    Command="{Binding DataContext.RemoveCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}">
-                                                                <controls:GridIcon Size="12" Data="{StaticResource Icon.Close}" Foreground="{StaticResource Brush.TextDim}" />
-                                                            </Button>
-                                                            <Button x:Name="Change" DockPanel.Dock="Right" Style="{StaticResource Button.Icon}" Width="Auto" Height="26"
-                                                                    Padding="9,0" Opacity="0" Content="Byt …" FontSize="12.5" ToolTip="Byt nyckel"
-                                                                    CommandParameter="{Binding}"
-                                                                    Command="{Binding DataContext.ChangeCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" />
-                                                            <TextBlock DockPanel.Dock="Right" Text="{Binding Tail}" FontFamily="{StaticResource Font.Mono}"
-                                                                       FontSize="12.5" Foreground="{StaticResource Brush.TextDim}" Width="92"
-                                                                       TextAlignment="Right" VerticalAlignment="Center" />
-                                                            <Border DockPanel.Dock="Right" Margin="0,0,12,0" Padding="9,3" CornerRadius="10" BorderThickness="1.5"
-                                                                    BorderBrush="{StaticResource Brush.BorderStrong}" VerticalAlignment="Center"
-                                                                    Visibility="{Binding HasWay, Converter={StaticResource Visible}}">
-                                                                <TextBlock Text="{Binding Way}" FontSize="12" Foreground="{StaticResource Brush.TextMuted}" />
-                                                            </Border>
-                                                            <controls:GridIcon x:Name="KeyIcon" Size="16" Data="{StaticResource Icon.Key}" Margin="0,0,12,0"
-                                                                               Foreground="{StaticResource Brush.TextMuted}" VerticalAlignment="Center" />
-                                                            <StackPanel VerticalAlignment="Center">
-                                                                <TextBlock Text="{Binding Service}" FontSize="14.5" />
-                                                                <TextBlock Text="{Binding UsedBy}" FontSize="12.5" Margin="0,3,0,0"
-                                                                           Foreground="{StaticResource Brush.TextDim}" TextTrimming="CharacterEllipsis" />
-                                                            </StackPanel>
-                                                        </DockPanel>
-                                                    </Border>
-                                                    <DataTemplate.Triggers>
-                                                        <Trigger SourceName="Row" Property="IsMouseOver" Value="True">
-                                                            <Setter TargetName="Row" Property="BorderBrush" Value="{StaticResource Brush.BorderStrong}" />
-                                                            <Setter TargetName="Remove" Property="Opacity" Value="1" />
-                                                            <Setter TargetName="Change" Property="Opacity" Value="1" />
-                                                        </Trigger>
-                                                        <DataTrigger Binding="{Binding IsUsed}" Value="False">
-                                                            <Setter TargetName="KeyIcon" Property="Foreground" Value="{StaticResource Brush.TextDim}" />
-                                                        </DataTrigger>
-                                                    </DataTemplate.Triggers>
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-                                    </StackPanel>
-                                </ScrollViewer>
-                            </DockPanel>
 
                             <!-- ===== A supplier of attribution: name, what it reports, its switch, its key and a note ===== -->
                             <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" Focusable="False"

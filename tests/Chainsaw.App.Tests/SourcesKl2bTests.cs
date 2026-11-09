@@ -228,95 +228,69 @@ public sealed class SourcesKl2bTests
     }
 
     [Fact]
-    public async Task The_keys_page_lists_each_key_with_who_uses_it_and_only_its_last_characters()
+    public void A_row_that_sends_a_key_says_whether_it_is_missing_saved_or_refused()
     {
         _keys.Saved.Add(new ApiKey("bc", string.Empty, "blockchair-secret-1234"));
-        _keys.Saved.Add(new ApiKey("Chainabuse", string.Empty, "abusekey-9k2D"));
-        _keys.Saved.Add(new ApiKey("TronGrid", string.Empty, "short"));
         var page = Create();
+        var row = Row(page, OffId);
+        var plain = Row(page, MempoolId);
 
-        await page.ShowKeysAsync();
+        Assert.Equal((EndpointKey.Saved, "••••1234", false), (row.Key, row.KeyTail, row.IsKeyFieldOpen));
+        Assert.Equal(EndpointKey.None, plain.Key);
 
-        Assert.True(page.IsKeysShown);
-        Assert.False(page.IsChainShown);
-        Assert.True(page.Keys.IsSelected);
-        Assert.Equal(["bc", "Chainabuse", "TronGrid"], page.Keys.Rows.Select(row => row.Service));
-        Assert.Equal(("Bitcoin · 1 endpoint", "I ett huvud", "••••1234"),
-            (page.Keys.Rows[0].UsedBy, page.Keys.Rows[0].Way, page.Keys.Rows[0].Tail));
-        Assert.Equal("Etiketter · Chainabuse", page.Keys.Rows[1].UsedBy);
-        Assert.Equal((VaultKeysViewModel.UnusedText, false, "••••"),
-            (page.Keys.Rows[2].UsedBy, page.Keys.Rows[2].IsUsed, page.Keys.Rows[2].Tail));
-        Assert.Equal("3 i valvet", page.Keys.Sub);
+        row.ShowKey("bc", "blockchair-secret-1234", "Invalid API Key (#err2)");
+        Assert.Equal(EndpointKey.Refused, row.Key);
+        Assert.Contains("Invalid API Key (#err2)", row.KeyText, StringComparison.Ordinal);
+        Assert.True(row.IsKeyFieldOpen);
 
-        page.ShowChip(page.Chips[0]);
-
-        Assert.False(page.IsKeysShown);
-        Assert.True(page.IsChainShown);
+        row.ShowKey("Etherscan", null, null);
+        Assert.Equal(EndpointKey.Missing, row.Key);
+        Assert.Contains("etherscan.io", row.KeyText, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task A_key_added_on_the_keys_page_is_saved_in_the_vault_and_the_field_is_cleared()
+    public async Task A_key_written_on_the_row_is_saved_under_its_service_and_switches_its_endpoints_on()
     {
         var page = Create();
-        await page.ShowKeysAsync();
-        page.Keys.OpenForm();
-        var entry = new TestEntry("  S3cretKey  ");
+        var row = Row(page, OffId);
+        Assert.Equal(EndpointKey.Missing, row.Key);
 
-        await page.Keys.SaveAsync(entry);
+        await page.SaveKeyAsync(row, new TestEntry("  S3cretKey  "));
 
-        Assert.Equal("Etherscan", Assert.Single(_keys.Saved).Service);
-        Assert.Equal("S3cretKey", _keys.Saved[0].Secret);
-        Assert.False(page.Keys.IsFormOpen);
-        Assert.Single(page.Keys.Rows);
-        Assert.Contains("Etherscan", _sources.EnabledForKeys);
+        Assert.Equal(("bc", "S3cretKey"), (_keys.Saved[0].Service, _keys.Saved[0].Secret));
+        Assert.Contains("bc", _sources.EnabledForKeys);
+        Assert.Equal(EndpointKey.Saved, Row(page, OffId).Key);
     }
 
     [Fact]
-    public async Task An_address_pasted_as_a_key_is_not_saved_and_says_so()
+    public async Task An_address_pasted_as_a_key_or_a_locked_vault_saves_nothing_and_says_why()
     {
         var page = Create();
-        await page.ShowKeysAsync();
-        page.Keys.OpenForm();
+        var row = Row(page, OffId);
 
-        await page.Keys.SaveAsync(new TestEntry("0xeb931257765e313079f2db87a966d80ca5cf8ac6"));
+        await page.SaveKeyAsync(row, new TestEntry("0xeb931257765e313079f2db87a966d80ca5cf8ac6"));
+        Assert.Equal(ApiKeyText.AddressText, row.KeyError);
+        Assert.False(ApiKeyText.IsAddress("9BG68EH6QDVNRVWUNSVUGJNIA38TMUFR6X"));
 
-        Assert.Equal(VaultKeysViewModel.AddressText, page.Keys.Error);
-        Assert.Empty(_keys.Saved);
-        Assert.False(VaultKeysViewModel.IsAddress("9BG68EH6QDVNRVWUNSVUGJNIA38TMUFR6X"));
-    }
-
-    [Fact]
-    public async Task A_key_without_a_service_or_in_a_locked_vault_is_not_saved_and_says_why()
-    {
-        var page = Create();
-        await page.ShowKeysAsync();
-        page.Keys.OpenForm();
-        page.Keys.NewService = " ";
-
-        await page.Keys.SaveAsync(new TestEntry("abc"));
-
-        Assert.Equal(VaultKeysViewModel.MissingText, page.Keys.Error);
-        page.Keys.NewService = "Etherscan";
         _keys.Locked = true;
-
-        await page.Keys.SaveAsync(new TestEntry("abc"));
-
-        Assert.Equal(VaultKeysViewModel.FailedText, page.Keys.Error);
+        await page.SaveKeyAsync(row, new TestEntry("abc"));
+        Assert.Equal(ApiKeyText.FailedText, row.KeyError);
         Assert.Empty(_keys.Saved);
     }
 
     [Fact]
-    public async Task A_key_removed_on_the_keys_page_leaves_the_vault()
+    public async Task A_key_removed_on_the_row_leaves_the_vault_and_the_row_asks_for_one()
     {
-        _keys.Saved.Add(new ApiKey("Etherscan", string.Empty, "S3cretKey"));
+        _keys.Saved.Add(new ApiKey("bc", string.Empty, "S3cretKey"));
         var page = Create();
-        await page.ShowKeysAsync();
 
-        await page.Keys.RemoveAsync(page.Keys.Rows[0]);
+        await page.RemoveKeyAsync(Row(page, OffId));
 
         Assert.Empty(_keys.Saved);
-        Assert.Empty(page.Keys.Rows);
+        Assert.Equal(EndpointKey.Missing, Row(page, OffId).Key);
     }
+
+    private static EndpointRowViewModel Row(SourcesViewModel page, Guid id) => page.Rows.Single(row => row.Id == id);
 
     private SourcesViewModel Create() =>
         new(_sources, new ExitWay(new TestExitRoute(), new TestExitConnection(), new InlineUi()), _vault, _keys,

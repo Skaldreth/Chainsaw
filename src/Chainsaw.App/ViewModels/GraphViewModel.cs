@@ -946,7 +946,7 @@ public sealed partial class GraphViewModel : ObservableObject
                 var problems = Notice;
                 var said = ExpansionNotice(result, IsOffline ? OfflineNote : null);
                 Notice = problems.Length == 0 ? said : $"{said} {problems}";
-                ToastWanted?.Invoke(this, new ToastRequest(ExpansionKind(result), said));
+                ToastWanted?.Invoke(this, ExpansionToast(result, said));
                 SayHiddenUnspendable(hiddenBefore);
             }
         }
@@ -1015,6 +1015,28 @@ public sealed partial class GraphViewModel : ObservableObject
             }
         }
     }
+
+    /// <summary>What the toast of a lookup whose source refused its key offers.</summary>
+    public const string ChangeKeyText = "Byt nyckel …";
+
+    /// <summary>What the toast says when a source refused its API key, in place of the expansion's whole line.</summary>
+    public const string KeyRefusedText = "En källa godtar inte API-nyckeln, så uppslagen går genom de andra.";
+
+    /// <summary>Raised when a toast's <em>Byt nyckel …</em> asks for the row of the refused key at Källor.</summary>
+    public event EventHandler? ChangeKeyWanted;
+
+    /// <summary>
+    /// Gives the toast of an expansion: its line, or, when a source refused its API key, only that, with
+    /// <em>Byt nyckel …</em> to open the endpoint's row (sketch NY2a).
+    /// </summary>
+    /// <param name="result">The expansion.</param>
+    /// <param name="said">The expansion's line.</param>
+    /// <returns>The toast.</returns>
+    private ToastRequest ExpansionToast(GraphExpansion result, string said) =>
+        result.Problems.Any(SourceKeyTexts.SaysKeyRefused)
+            ? new ToastRequest(ToastKind.Warning, KeyRefusedText, string.Empty, ChangeKeyText,
+                () => ChangeKeyWanted?.Invoke(this, EventArgs.Empty))
+            : new ToastRequest(ExpansionKind(result), said);
 
     /// <summary>Gives the sort of toast an expansion is told with: new tx are a success, nothing new or a part is
     /// information, and nothing brought in is a warning.</summary>

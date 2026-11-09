@@ -30,9 +30,6 @@ public partial class SettingsDialog : UserControl
     /// <summary>The field with a supplier's API key, read as characters.</summary>
     private readonly PasswordEntry _supplierKey;
 
-    /// <summary>The masked field of a new key on the page Nycklar (NY1a).</summary>
-    private readonly PasswordEntry _vaultKey;
-
     /// <summary>The settings, once attached.</summary>
     private SettingsViewModel? _settings;
 
@@ -50,7 +47,6 @@ public partial class SettingsDialog : UserControl
         _next = new PasswordEntry(NewKeyBox);
         _repeat = new PasswordEntry(RepeatKeyBox);
         _supplierKey = new PasswordEntry(SupplierKeyBox);
-        _vaultKey = new PasswordEntry(VaultKeyBox);
     }
 
     /// <summary>Shows the settings and follows when they open and close.</summary>
@@ -266,30 +262,36 @@ public partial class SettingsDialog : UserControl
     /// <param name="e">The click.</param>
     private async void OnSaveSupplierKey(object sender, RoutedEventArgs e) => await SaveSupplierKeyAsync();
 
-    /// <summary>Lägg i valvet on the page Nycklar saves the written key.</summary>
+    /// <summary><em>Spara</em> on an endpoint's row saves the key written in the row's field (sketch NY2a).</summary>
     /// <param name="sender">The button.</param>
     /// <param name="e">The click.</param>
-    private async void OnSaveVaultKey(object sender, RoutedEventArgs e) => await SaveVaultKeyAsync();
+    private async void OnSaveRowKey(object sender, RoutedEventArgs e) => await SaveRowKeyAsync((FrameworkElement)sender);
 
-    /// <summary>Enter in the key field on the page Nycklar saves it; Esc folds the form in.</summary>
+    /// <summary>Enter in an endpoint's key field saves it.</summary>
     /// <param name="sender">The field.</param>
     /// <param name="e">The key.</param>
-    private async void OnVaultKeyKey(object sender, KeyEventArgs e)
+    private async void OnRowKeyKey(object sender, KeyEventArgs e)
     {
         if (e.Key == Key.Enter)
         {
             e.Handled = true;
-            await SaveVaultKeyAsync();
+            await SaveRowKeyAsync((FrameworkElement)sender);
         }
     }
 
-    /// <summary>Gives the masked field to the page Nycklar, which takes and clears what is written.</summary>
-    /// <returns>A task that completes when the vault has answered.</returns>
-    private async Task SaveVaultKeyAsync()
+    /// <summary>
+    /// Gives the masked field beside a button or the field itself to the row's endpoint, which takes and clears what is
+    /// written.
+    /// </summary>
+    /// <param name="element">The button or the field, in the row's strip.</param>
+    /// <returns>A task that completes when the key is saved and the chain tried.</returns>
+    private async Task SaveRowKeyAsync(FrameworkElement element)
     {
-        if (_settings?.Sources?.Keys is { } keys)
+        var box = element as PasswordBox
+            ?? (element.Parent as Panel)?.Children.OfType<PasswordBox>().FirstOrDefault();
+        if (box is not null && element.DataContext is EndpointRowViewModel row && _settings?.Sources is { } sources)
         {
-            await keys.SaveAsync(_vaultKey);
+            await sources.SaveKeyAsync(row, new PasswordEntry(box));
         }
     }
 
