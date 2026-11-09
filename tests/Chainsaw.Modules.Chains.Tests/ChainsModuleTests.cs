@@ -35,7 +35,7 @@ public sealed class ChainsModuleTests
         Assert.Equal(BitcoinNetwork.Mainnet, provider.GetRequiredService<IBitcoinSource>().Network);
         var schema = Assert.Single(provider.GetServices<ICaseSchemaContributor>());
         Assert.Equal("chains", schema.Module);
-        Assert.Equal("chains.raw_responses", Assert.Single(schema.SealedChains).Name);
+        Assert.Equal(["chains.raw_responses", "chains.mempool_gone"], schema.SealedChains.Select(chain => chain.Name));
     }
 
     [Theory]

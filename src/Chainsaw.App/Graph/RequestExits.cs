@@ -282,8 +282,8 @@ public static class RequestExits
                 continue;
             }
 
-            var left = Total(asset, lines.Where(edge => edge.To == node.Key))
-                - Total(asset, lines.Where(edge => edge.From == node.Key));
+            var left = Total(asset, lines.Where(edge => edge.To == node.Key), graph)
+                - Total(asset, lines.Where(edge => edge.From == node.Key), graph);
             if (left.Units.Sign <= 0)
             {
                 continue;
@@ -323,13 +323,18 @@ public static class RequestExits
     private static IEnumerable<GraphEdge> Incoming(TraceGraph graph, string key) =>
         graph.Edges.Where(edge => edge.Kind == GraphEdgeKind.Transfer && edge.To == key);
 
-    /// <summary>Sums the amounts of one asset on lines.</summary>
+    /// <summary>
+    /// Sums the transfers of one asset on lines, without those of a transaction the answers settle the source no
+    /// longer knows (sketch GR9a), which moved nothing on the chain.
+    /// </summary>
     /// <param name="asset">The asset.</param>
     /// <param name="lines">The lines.</param>
+    /// <param name="graph">The graph, which knows the gone transactions.</param>
     /// <returns>The sum.</returns>
-    private static AssetAmount Total(Asset asset, IEnumerable<GraphEdge> lines) =>
-        lines.Where(edge => edge.Amount.Asset == asset)
-            .Aggregate(AssetAmount.Zero(asset), (sum, edge) => sum + edge.Amount);
+    private static AssetAmount Total(Asset asset, IEnumerable<GraphEdge> lines, TraceGraph graph) =>
+        lines.SelectMany(edge => edge.Transfers)
+            .Where(transfer => transfer.Amount.Asset == asset && !graph.IsLeftOut(transfer.Transaction))
+            .Aggregate(AssetAmount.Zero(asset), (sum, transfer) => sum + transfer.Amount);
 
     /// <summary>
     /// Gives the deposits to an actor, facts from the chain, each marked traced when traced money came in with it: on
@@ -364,7 +369,7 @@ public static class RequestExits
                     transfer.Time,
                     transfer.Height,
                     transfer.Block?.Hash.Value ?? transfer.AccountBlock?.Hash,
-                    IsTraced(transfer, edge, tracedCoins, traced)));
+                    IsTraced(transfer, edge, tracedCoins, traced, snapshot.Graph)));
             }
         }
 
@@ -375,15 +380,23 @@ public static class RequestExits
     /// <summary>
     /// Says whether traced money came in with a transfer. On Bitcoin it is a coin the trace holds, or the only coin
     /// of a traced line; on an account chain every transfer of a traced line, since the account trace counts per line.
+    /// Never a transfer of a transaction the answers settle the source no longer knows (sketch GR9a,
+    /// <see cref="TraceGraph.IsLeftOut"/>): it is not in the chain, so the trace counts nothing through it.
     /// </summary>
     /// <param name="transfer">The transfer.</param>
     /// <param name="edge">Its line.</param>
     /// <param name="tracedCoins">The coins the trace holds.</param>
     /// <param name="traced">The lines that carry traced money.</param>
+    /// <param name="graph">The graph, which knows the transactions that are gone.</param>
     /// <returns>Whether it is traced.</returns>
     internal static bool IsTraced(
-        AssetTransfer transfer, GraphEdge edge, HashSet<Outpoint> tracedCoins, HashSet<string> traced)
+        AssetTransfer transfer, GraphEdge edge, HashSet<Outpoint> tracedCoins, HashSet<string> traced, TraceGraph graph)
     {
+        if (graph.IsLeftOut(transfer.Transaction))
+        {
+            return false;
+        }
+
         var lineTraced = traced.Contains(edge.Key);
         return transfer.Coin is { } coin
             ? tracedCoins.Contains(coin) || (lineTraced && edge.Transfers.Count == 1)

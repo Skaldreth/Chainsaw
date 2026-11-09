@@ -76,10 +76,12 @@ public sealed record FlowResult(
     /// <summary>The analysis's name, as <em>Varför?</em> names it.</summary>
     public const string AnalysisName = "flow";
 
-    /// <summary>The analysis's version.</summary>
-    public const int AnalysisVersion = 1;
+    /// <summary>
+    /// The analysis's version; version 2 leaves a transaction the answers settle is gone out of the flow (sketch GR9a).
+    /// </summary>
+    public const int AnalysisVersion = 2;
 
-    /// <summary>Gets the analysis with its version, for example <c>flow v1</c>.</summary>
+    /// <summary>Gets the analysis with its version, for example <c>flow v2</c>.</summary>
     public static string Analysis { get; } =
         AnalysisName + " v" + AnalysisVersion.ToString(CultureInfo.InvariantCulture);
 
@@ -177,7 +179,11 @@ public static class FlowReading
             .ToList();
         var steps = Steps(scene, edges);
         var run = new Run(method, victims, steps);
-        foreach (var (edge, transfer) in InTimeOrder(edges))
+
+        // A transfer of a transaction the answers settle is gone moved nothing on the chain (sketch GR9a), so the flow
+        // leaves it out as the trace does; its line stays drawn in the graph.
+        foreach (var (edge, transfer) in InTimeOrder(edges)
+            .Where(pair => !scene.Snapshot.Graph.IsLeftOut(pair.Transfer.Transaction)))
         {
             run.Move(edge.From, edge.To, transfer.Amount.Units);
         }
@@ -219,7 +225,10 @@ public static class FlowReading
             var guess = edge.Kind == GraphEdgeKind.ContinuesOnOtherChain
                 || scene.Edge(edge.Key) is { Dash: not EdgeDash.None };
             var key = FlowResult.StepKey(edge.From, edge.To);
-            var transactions = edge.Transfers.Select(transfer => transfer.Transaction).Distinct().ToList();
+            var transactions = edge.Transfers.Select(transfer => transfer.Transaction)
+                .Where(transaction => !scene.Snapshot.Graph.IsLeftOut(transaction))
+                .Distinct()
+                .ToList();
             steps[key] = steps.TryGetValue(key, out var known)
                 ? known with
                 {

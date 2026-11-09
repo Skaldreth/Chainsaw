@@ -71,6 +71,9 @@ internal abstract class BlockscoutSource : IAccountSource
     /// <summary>Answers the lookups through the endpoints and the case.</summary>
     private readonly SourceLookups _lookups;
 
+    /// <summary>The sealed records of the transactions that never were in a block and are gone from the mempool.</summary>
+    private readonly MempoolGoneStore _mempool;
+
     /// <summary>Creates the source.</summary>
     /// <param name="chain">The chain and its settings.</param>
     /// <param name="operators">The operator profile.</param>
@@ -99,6 +102,7 @@ internal abstract class BlockscoutSource : IAccountSource
 
         _clock = clock;
         _chain = chain;
+        _mempool = new MempoolGoneStore(chain.ChainName, chain.DisplayName, BlockChangeRule.AccountMempoolGrace);
         _lookups = new SourceLookups(
             chain.Chain, chain.DisplayName, operators, sources, new RawResponseStore(timeZone, chain.ChainName),
             chain.SafeConfirmations,
@@ -171,6 +175,16 @@ internal abstract class BlockscoutSource : IAccountSource
         ThrowIfOtherChain(hash.Chain, nameof(hash));
         var info = await _lookups.LookupAsync(@case, TransactionQuery(hash), mode, cancellationToken)
             .ConfigureAwait(false);
+        if (mode != LookupMode.CaseOnly)
+        {
+            // A new answer may settle that a transaction that never was in a block is gone from the mempool, or that it
+            // is back: sealed with a line in the journal, never read as gone without one.
+            await Task.Run(
+                    () => _mempool.Settle(@case, hash.Value, _lookups.Store, reader => Answers(reader, hash)),
+                    CancellationToken.None)
+                .ConfigureAwait(false);
+        }
+
         if (info.Value is not { } transaction)
         {
             return Without<EthereumTransaction, TransactionInfo>(info);
@@ -353,25 +367,86 @@ internal abstract class BlockscoutSource : IAccountSource
     /// <summary>
     /// Compares a transaction's sealed answers by the rule every chain shares (<see cref="BlockChangeRule"/>): each
     /// answer with its block's height and, from the block fetched with it, the block's hash, and the answers the lookup
-    /// took as the source not knowing it.
+    /// took as the source not knowing it. One that never was in a block is gone only while the sealed record that it is
+    /// gone from the mempool is in force (<see cref="MempoolGoneStore"/>). A gone transaction says, as on Bitcoin,
+    /// which hosts said so since the case last saw it and whether the case has heard from others, so that one
+    /// endpoint's word alone does not settle it (<see cref="BlockChange.IsCorroborated"/>).
     /// </summary>
     /// <param name="reader">The case's reader.</param>
     /// <param name="hash">The transaction.</param>
     /// <returns>The change, or <see langword="null"/> when its block is the same or it is not confirmed.</returns>
     private BlockChange? BlockChangeOf(ICaseReader reader, EthereumTxHash hash)
     {
+        var answers = Answers(reader, hash);
+        if (BlockChangeRule.Compare(answers, _lookups.Store, reader) is not { } change)
+        {
+            if (_mempool.Gone(reader, hash.Value, answers) is not { } mempool)
+            {
+                return null;
+            }
+
+            change = (BlockChangeKind.Gone, mempool.Before, mempool.Now);
+        }
+
+        if (change.Kind != BlockChangeKind.Gone)
+        {
+            return new BlockChange(hash.Value, change.Kind, change.Before, change.Now) { Chain = Chain };
+        }
+
+        var goneHosts = NotFoundHosts(reader, hash, change.Before.Sequence);
+        var single = _lookups.Store.AnsweringHosts(reader).Count <= 1;
+        return new BlockChange(hash.Value, change.Kind, change.Before, change.Now)
+        {
+            Chain = Chain,
+            GoneHosts = goneHosts,
+            IsSingleSource = single,
+            IsCorroborated = goneHosts.Count >= 2 || single,
+            NeverInBlock = change.Before.Height is null,
+        };
+    }
+
+    /// <summary>
+    /// Reads every sealed answer about a transaction for the rule every chain shares: each answer with its block's
+    /// height and hash, and the answers that really say the source does not know it.
+    /// </summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <param name="hash">The transaction.</param>
+    /// <returns>The answers, oldest first.</returns>
+    private List<BlockAnswer> Answers(ICaseReader reader, EthereumTxHash hash)
+    {
         var store = _lookups.Store;
         var seen = store.All(reader, EthereumResponseKinds.Transaction, hash.Value)
             .Select(response => SourceLookups.StoredAs(response, body => BlockscoutParser.ParseTransaction(body, hash)))
             .OfType<(TransactionInfo Value, StoredResponse Response)>()
             .Select(found => Answer(found.Response.Origin, found.Value.Height, BlockHash(reader, found), false));
-        var gone = store.NotFoundAnswers(reader, EthereumResponseKinds.Transaction, hash.Value)
-            .Where(response => SaysNotFound(response, hash))
-            .Select(response => Answer(response.Origin, null, null, true));
-        return BlockChangeRule.Compare(seen.Concat(gone), store, reader) is { } change
-            ? new BlockChange(hash.Value, change.Kind, change.Before, change.Now) { Chain = Chain }
-            : null;
+        var gone = NotFoundAnswers(reader, hash).Select(response => Answer(response.Origin, null, null, true));
+        return [.. seen.Concat(gone).OrderBy(answer => answer.Sighting.Sequence)];
     }
+
+    /// <summary>Reads the sealed answers that really say the source does not know a transaction.</summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <param name="hash">The transaction.</param>
+    /// <returns>The answers, oldest first.</returns>
+    private IEnumerable<StoredResponse> NotFoundAnswers(ICaseReader reader, EthereumTxHash hash) =>
+        _lookups.Store.NotFoundAnswers(reader, EthereumResponseKinds.Transaction, hash.Value)
+            .Where(response => SaysNotFound(response, hash));
+
+    /// <summary>
+    /// Gives the hosts whose sealed answers said the source does not know a transaction after an answer, read from the
+    /// sealed addresses, in lower case.
+    /// </summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <param name="hash">The transaction.</param>
+    /// <param name="after">The answer after which they count.</param>
+    /// <returns>The hosts, each once, in order.</returns>
+    private List<string> NotFoundHosts(ICaseReader reader, EthereumTxHash hash, long after) =>
+    [
+        .. NotFoundAnswers(reader, hash)
+            .Where(response => response.Origin.Sequence > after)
+            .Select(response => response.Origin.Url.Host.ToLowerInvariant())
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal),
+    ];
 
     /// <summary>Reads the hash of the block a transaction's answer put it in, from the block fetched with it.</summary>
     /// <param name="reader">The case's reader.</param>

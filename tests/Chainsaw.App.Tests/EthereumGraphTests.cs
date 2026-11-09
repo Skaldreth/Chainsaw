@@ -251,6 +251,35 @@ public sealed class EthereumGraphTests
     }
 
     [Fact]
+    public void A_transaction_the_source_no_longer_knows_moves_nothing_in_the_balance()
+    {
+        // S pays M 500 USDT in tx 2 with a fee of 0.001 ETH; once the answers settle that tx 2 is gone (sketch GR9a),
+        // the chain never moved it, so the USDT and the fee are still S's, as the trace says.
+        var scene = EthSamples.Scene();
+        var hash = EthSamples.Hash(2);
+        var change = new BlockChange(hash.Value, BlockChangeKind.Gone,
+            new BlockSighting(5, EthSamples.Block(5).Hash, DateTimeOffset.UnixEpoch, 1),
+            new BlockSighting(null, null, DateTimeOffset.UnixEpoch, 2)) { Chain = Chain.Ethereum };
+        var graph = scene.Snapshot.Graph with
+        {
+            Account = scene.Snapshot.Graph.Account with
+            {
+                Gone = new Dictionary<EthereumTxHash, GoneAccountTransaction>
+                {
+                    [hash] = new GoneAccountTransaction(hash, change),
+                },
+            },
+        };
+
+        var scammer = GraphScene.Build(scene.Snapshot with { Graph = graph }).Node(EthSamples.Key(EthSamples.S))!;
+
+        Assert.Equal(
+            AmountText.Number(EthSamples.Usdt(600)), Assert.Single(scammer.Balances, row => row.Name == "USDT").Left);
+        Assert.Equal(
+            AmountText.Number(EthSamples.Ether(2.098m)), Assert.Single(scammer.Balances, row => row.Name == "ETH").Left);
+    }
+
+    [Fact]
     public void An_account_whose_history_is_not_read_says_its_balance_is_unknown_and_gets_no_snowflake()
     {
         var scene = EthSamples.Scene(read: false);

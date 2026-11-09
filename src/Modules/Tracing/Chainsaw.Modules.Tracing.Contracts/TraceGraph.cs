@@ -91,6 +91,26 @@ public sealed record TraceGraph(
     /// </summary>
     public IReadOnlyDictionary<Txid, GoneTransaction> Gone { get; init; } = new Dictionary<Txid, GoneTransaction>();
 
+    /// <summary>
+    /// Says whether a transaction on a line is one the answers settle the source no longer knows, on any chain: a UTXO
+    /// chain's gone transaction (<see cref="GoneTransaction.IsSettled"/>) or an account chain's
+    /// (<see cref="AccountGraph.IsLeftOut"/>). Such a transaction is not in the chain, so what the views count from the
+    /// lines (the flow, the requests, the report) leaves it out, as the trace does; its lines stay drawn.
+    /// </summary>
+    /// <param name="transaction">The transaction.</param>
+    /// <returns><see langword="true"/> when it is left out.</returns>
+    public bool IsLeftOut(ChainTransactionRef transaction)
+    {
+        ArgumentNullException.ThrowIfNull(transaction);
+        if (transaction.Chain.Model() == LedgerModel.Utxo)
+        {
+            return Txid.TryParse(transaction.Chain, transaction.Id, out var txid)
+                && Gone.TryGetValue(txid, out var gone) && gone.IsSettled;
+        }
+
+        return EthereumTxHash.TryParse(transaction.Chain, transaction.Id, out var hash) && Account.IsLeftOut(hash);
+    }
+
     /// <summary>Gets the user's choices in force to follow the replacer of a gone transaction, oldest first.</summary>
     public IReadOnlyList<ReplacementFollow> FollowedReplacements { get; init; } = [];
 

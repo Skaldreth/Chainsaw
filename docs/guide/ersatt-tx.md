@@ -26,6 +26,47 @@ säger då i *Varför?* och i rutan att det vilar på en enda källa, och vilken
 tx:en fortfarande spenderar mynten, **stannar** spåret där med *Tx:en kanske inte finns; uppgifterna går inte ihop*.
 Det är inget slut: Chainsaw gissar inte åt något håll, och nästa svar kan reda ut det.
 
+## En obekräftad tx som aldrig låg i ett block
+
+En tx som bara har legat i **mempool** (kön av tx som väntar på ett block) kan försvinna utan att någon kedja
+organiseras om: avsändaren ersätter den med RBF, en dubbelspendering hinner före, eller noderna kastar den för att
+avgiften var för låg. En publik källa har dessutom många noder bakom en adress, och en helt ny tx har inte alltid
+hunnit fram till alla. Chainsaw räknar därför en sådan tx som borta först när regeln `mempool-gone v1` håller:
+
+- två svar i rad efter det senaste som hade tx:en säger att källan inte känner till den, från olika endpoints eller
+  med ett nytt block emellan, och från endpoints som hade kommit minst lika långt som ärendet när det sist såg tx:en;
+- svaren kommer från **minst två olika värdar**, eller så har ärendet bara hört från en enda värd. En nod med en mindre
+  mempool kastar en tx med låg avgift långt före de andra, så en värds ord räcker inte när det finns fler att fråga;
+- det nyaste av dem kom **minst tre dygn** efter att ärendet sist såg tx:en på Bitcoin (Bitcoin Core håller en tx i
+  upp till två veckor, men en tx som fortfarande är önskad har efter tre dygn i regel skickats om eller ersatts), och
+  **minst tre timmar** efter på Ethereum (så länge en geth-nod håller en väntande tx som förval);
+- och ärendet hade då sett **minst ett nytt block**, så att kedjan har gått vidare utan den.
+
+När regeln håller första gången **förseglas** det, med en rad i journalen som säger vilka svar och vilka värdar det
+bygger på, och att det vilar på en enda källa när ärendet bara har hört från en. Ingen tx
+räknas som borta ur mempool utan en sådan rad. Kommer ett nytt svar som har tx:en igen, i mempool eller i ett block,
+förseglas det också, med en egen rad i journalen, och tx:en räknas som förut. Inget av de gamla svaren eller raderna
+tas bort. Märket i grafen är detsamma, **Finns inte längre**, men första raden i rutan säger *mempool* i stället för
+ett block, och *Varför?* säger att tx:en aldrig låg i ett block. Resten är som för en tx som föll ur ett block: samma
+krav på mer än en källa för att spåret ska sluta, och samma *Ersatt av*.
+
+## På Ethereum och andra kontokedjor
+
+På en kontokedja (Ethereum, BSC, TRON) finns inga mynt: varje adress har ett saldo, och en tx som inte finns i kedjan
+har inte ändrat något saldo. Chainsaw läser därför en borta tx på samma sätt som på Bitcoin, med samma krav på mer än
+en källa, men räknar den så här:
+
+- **Bekräftat borta:** tx:ens rörelser och avgift tas bort ur varje adress huvudbok i spåret, exponeringen, Flöde,
+  begäran och rapporten. Pengarna ligger alltså kvar hos avsändaren, så som kedjan säger, och spårningsmetoden (FIFO
+  eller haircut) fördelar dem på adressens andra utbetalningar, till exempel den tx som skickades i stället. Det som
+  ligger kvar säger i *Varför?* att en borta tx inte räknas, med tx:en som underlag. Ett spår som börjar i en borta tx
+  slutar genast, hos avsändaren, med *Tx:en finns inte längre*. En swap i en borta tx är ingen swap.
+- **Inte bekräftat** (en enda värd har sagt det medan ärendet har svar från fler): tx:en står kvar i huvudboken, men
+  det spårade som går in i den **stannar** där med *Tx:en kanske inte finns; uppgifterna går inte ihop*, och
+  exponeringen räknar det som *Uppgifterna går inte ihop*.
+
+Linjerna står kvar i grafen, gråa och streckade som förut, och alla svar ligger kvar förseglade.
+
 ## Ersatt av
 
 Ett mynt kan bara spenderas en gång. Är tx:en borta frågar Chainsaw, genom utgången, vem som spenderar mynten den

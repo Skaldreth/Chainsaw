@@ -49,6 +49,13 @@ internal abstract class FakeAccountSource
     /// </summary>
     public IReadOnlyList<EthereumTxHash> Unexplained { get; set; } = [];
 
+    /// <summary>Gets the block changes the case's answers show, as the real source reads them from the case.</summary>
+    public List<BlockChange> BlockChanges { get; } = [];
+
+    public Task<IReadOnlyList<BlockChange>> GetBlockChangesAsync(
+        ICase @case, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<BlockChange>>([.. BlockChanges]);
+
     public void Add(params EthereumTransaction[] transactions)
     {
         foreach (var transaction in transactions)

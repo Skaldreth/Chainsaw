@@ -109,10 +109,6 @@ Inget sedan etapp 1 är provat på Windows. Användaren provar efter `docs/TESTE
 
 ### 2. Kvar efter omgång 4
 
-- **En tx som inte finns längre, resterna** (Bitcoin byggt 2026-11-09):
-  - **Ethereum** [etapp]: GR9a ritar en borta Ethereum-tx, men kontomodellens spårning räknar fortfarande med den.
-  - **En obekräftad tx som aldrig låg i ett block** och försvinner ur mempool räknas inte som borta, eftersom
-    regeln (`BlockChangeRule`) jämför med det första svaret i ett block [etapp].
 - **Sökningen:** en etikett från ett annat ärende kan inte säga vilket, eftersom ursprunget saknar ärendenumret
   [etapp].
 - **Begäran:** kontaktvägar till börserna (katalogen är tom tills en väg kan kontrolleras mot sin källa, med källa

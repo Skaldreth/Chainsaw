@@ -61,4 +61,5 @@ Slutet är en **bedömning**, inte ett faktum, och säger alltid vad det bygger 
   eller något okänt avslutar inte spåret: pengarna går att följa vidare.
 - *Inte expanderad ännu*, *Ligger kvar*, *Uppgifterna går inte ihop*, *Avgift* och *Kan aldrig spenderas* avgör
   spåret självt ur kedjan.
-- *Tx:en finns inte längre* kommer från analysen `gone-tx v1`, som läser källans förseglade svar om tx:en.
+- *Tx:en finns inte längre* kommer från analysen `gone-tx v2`, som läser källans förseglade svar om tx:en (också
+  en tx som aldrig låg i ett block, efter regeln `mempool-gone v1`).

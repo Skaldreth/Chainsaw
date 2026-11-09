@@ -148,6 +148,24 @@ public static class BlockMarks
         + "Troligen spenderar en annan tx samma pengar i den nya kedjan. Spåret slutar här, och det efter tx:en är "
         + "osäkert. Båda svaren står kvar i ärendet.";
 
+    /// <summary>
+    /// What the box says when a transaction that never was in a block is gone from the mempool: an assessment by the
+    /// rule <c>mempool-gone v1</c>, sealed with a line in the journal.
+    /// </summary>
+    public const string MempoolGoneFoot =
+        "Tx:en låg aldrig i ett block, och källorna har länge (tre dygn på Bitcoin, tre timmar på Ethereum) och över ett "
+        + "nytt block svarat att de inte känner till den. Troligen ersattes den eller föll ur mempool. Spåret slutar här; det står i journalen, och "
+        + "syns tx:en igen räknas den som förut. Alla svar står kvar i ärendet.";
+
+    /// <summary>
+    /// What the box says when the source no longer knows a transaction on an account chain and the answers settle it:
+    /// its movements and fee are left out of every ledger.
+    /// </summary>
+    public const string AccountGoneFoot =
+        "Källan känner inte längre till tx:en, så den finns inte i kedjan. Dess rörelser och avgift räknas inte: "
+        + "pengarna ligger kvar hos avsändaren enligt kedjan, och det efter tx:en är osäkert. Alla svar står kvar i "
+        + "ärendet.";
+
     /// <summary>How many characters of a hash are kept at its start, where a block's hash has its zeros.</summary>
     private const int HashHead = 6;
 
@@ -215,7 +233,7 @@ public static class BlockMarks
         {
             BlockChangeKind.Moved => (MovedTitle, "Icon.BlockMoved", MovedFoot),
             BlockChangeKind.Unconfirmed => (UnconfirmedTitle, "Icon.Clock", UnconfirmedFoot),
-            _ => (GoneTitle, "Icon.Kind.Ban", GoneFootOf(gone)),
+            _ => (GoneTitle, "Icon.Kind.Ban", GoneFootOf(change, gone)),
         };
         return new BlockMark(change, title, title + TipTail, icon, [before, after], foot)
         {
@@ -223,12 +241,21 @@ public static class BlockMarks
         };
     }
 
-    /// <summary>Gives what a gone transaction's box says, after what the case knows replaced it.</summary>
+    /// <summary>
+    /// Gives what a gone transaction's box says: on an account chain, whether the answers settle it; on a UTXO chain,
+    /// after what the case knows replaced it.
+    /// </summary>
+    /// <param name="change">The change.</param>
     /// <param name="gone">The graph's reading of it, or <see langword="null"/>.</param>
     /// <returns>The foot.</returns>
-    private static string GoneFootOf(GoneReading? gone)
+    private static string GoneFootOf(BlockChange change, GoneReading? gone)
     {
-        var foot = BaseGoneFoot(gone);
+        if (change.Chain.Model() != LedgerModel.Utxo)
+        {
+            return AccountGoneFootOf(change);
+        }
+
+        var foot = BaseGoneFoot(change, gone);
         if (gone?.Gone is { RestsOnOneSource: true } single)
         {
             foot += " " + GoneTransaction.OneSourceText(single.OneSource);
@@ -243,10 +270,35 @@ public static class BlockMarks
         return foot;
     }
 
+    /// <summary>
+    /// Gives what a gone transaction's box says on an account chain, by the same reading as the trace's
+    /// (<see cref="GoneAccountTransaction"/>): left out when settled, with the single source it rests on; otherwise not
+    /// confirmed.
+    /// </summary>
+    /// <param name="change">The change.</param>
+    /// <returns>The foot.</returns>
+    private static string AccountGoneFootOf(BlockChange change)
+    {
+        if (!EthereumTxHash.TryParse(change.Chain, change.TransactionId, out var hash))
+        {
+            return GoneFoot;
+        }
+
+        var gone = new GoneAccountTransaction(hash, change);
+        if (!gone.IsSettled)
+        {
+            return UncertainFoot;
+        }
+
+        var foot = change.NeverInBlock ? MempoolGoneFoot : AccountGoneFoot;
+        return gone.RestsOnOneSource ? foot + " " + GoneTransaction.OneSourceText(gone.OneSource) : foot;
+    }
+
     /// <summary>Gives the first part of a gone transaction's foot, after how far the answers go.</summary>
+    /// <param name="change">The change.</param>
     /// <param name="gone">The graph's reading of it, or <see langword="null"/>.</param>
     /// <returns>The text.</returns>
-    private static string BaseGoneFoot(GoneReading? gone)
+    private static string BaseGoneFoot(BlockChange change, GoneReading? gone)
     {
         if (gone is { Gone.IsSettled: false })
         {
@@ -262,6 +314,7 @@ public static class BlockMarks
         {
             ReplacementKind.Replaced or ReplacementKind.PartlyReplaced => ReplacedFoot,
             ReplacementKind.Dropped => DroppedFoot,
+            _ when change.NeverInBlock => MempoolGoneFoot,
             _ => GoneFoot,
         };
     }
@@ -356,7 +409,7 @@ public static class BlockMarks
             return new BlockMarkRow(Height(height), ShortHash(hash), hash, when, sighting.Endpoint, isBefore);
         }
 
-        return kind == BlockChangeKind.Gone
+        return kind == BlockChangeKind.Gone && !isBefore
             ? new BlockMarkRow("–", "okänd för källan", null, when, sighting.Endpoint, isBefore)
             : new BlockMarkRow("mempool", "obekräftad", null, when, sighting.Endpoint, isBefore);
     }

@@ -6054,3 +6054,81 @@ Ett belopp som är jämnt i kronor, euro eller dollar vid blocket som tecken på
   fiat* (`GuideTopic.RoundFiat`).
 
 **Återstår:** testärendet visar inte kontrollen (TODO 4, *Testärendet*); svaret från kryptospåraren om toleransen.
+## En tx som inte finns längre: Ethereum och en tx som föll ur mempool (GR9a, 2026-11-09)
+
+De två resterna ur TODO efter Bitcoin-etappen (*Ethereum* och *En obekräftad tx som aldrig låg i ett block*).
+
+- **Chains, regeln `mempool-gone v1`** (`BlockChangeRule.CompareMempool`): en tx som inget svar haft i ett block
+  räknas som borta när två svar i rad efter det senaste som hade den säger att källan inte känner den (bekräftade som
+  förut: olika endpoints eller ett nytt block emellan, från endpoints som hade kommit minst lika långt som ärendet när
+  det sist såg tx:en), det nyaste minst en väntetid efter det, och ärendet då har sett minst ett nytt block
+  (granskningen skärpte regeln, se nedan). Bitcoin-kandidaterna (`BlockChangeCandidates`) tar med `404` efter ett svar i mempool, inte bara efter ett i
+  ett block. `Compare` kraschade när inget svar låg i ett block (`FirstOrDefault` på en struct), vilket aldrig nåddes
+  förut; rättat.
+- **Förseglat och journalfört:** en ny förseglad kedja `chains.mempool_gone` (schema 2 i Chains) med en post `gone`
+  när regeln håller första gången och en `back` när ett senare svar har tx:en igen, var och en med en rad i journalen
+  (`chains.mempool-gone`, `chains.mempool-back`, med svarens nummer och regeln). `MempoolGoneStore.Settle` körs efter
+  varje uppslag av tx:en som inte är `CaseOnly` (Esplora och Blockscout, alltså Bitcoin, Litecoin, Zcash, Ethereum och
+  BSC), läser först och skriver bara när något ändras. En tx räknas som borta ur mempool bara medan en `gone`-post
+  gäller och inget svar efter den har tx:en; därför står ingen sådan tx som borta utan en rad i journalen, och den
+  räknas som förut så fort en källa har den igen. `BlockChange.NeverInBlock` säger det, `Before` är då det senaste
+  svaret i mempool.
+- **Ethereum som Bitcoin:** `BlockscoutSource` sätter `GoneHosts`, `IsSingleSource` och `IsCorroborated` ur de
+  förseglade svaren som Esplora gör, så att en enda värds ord inte avgör när ärendet hört från fler (förut var en
+  Ethereum-tx alltid bekräftad).
+- **Tracing:** `EthereumReader` läser kontokedjans borta tx ur källans `GetBlockChangesAsync` (bara ärendet) till
+  `AccountGraph.Gone` (`GoneAccountTransaction`). En bekräftat borta tx (`IsLeftOut`) står i ingen huvudbok: dess
+  rörelser och avgift räknas inte i spåret eller exponeringen, så pengarna ligger kvar hos avsändaren och metoden
+  fördelar dem på adressens andra utbetalningar; det som ligger kvar säger det i *Varför?* med tx:en som underlag. Ett
+  spår som börjar i en borta tx slutar genast hos avsändaren (`TransactionGone`), och en tx som källan säger är borta
+  är ingen swap. En obekräftad (`IsUncertain`) står kvar i huvudboken, men det spårade in i den stannar med
+  `GoneUncertain`, och exponeringen räknar det som `Conflicting`. `TraceGraph.IsLeftOut` säger det för båda sorternas
+  kedjor, och Flöde, Begäran och Rapporten lämnar sådana överföringar utanför (en insättning i en borta tx är aldrig
+  spårad). Versionerna: `gone-tx v2`, `exposure v5`, `flow v2`.
+- **App:** GR9a-rutans fot säger på en kontokedja att rörelserna och avgiften inte räknas, eller att det inte är
+  bekräftat; för en tx som föll ur mempool att den aldrig låg i ett block, och första raden säger *mempool*. Inga nya
+  ytor.
+
+**Egna beslut och avsteg:**
+- **Regeln:** väntetid och ett nytt block, utöver de två bekräftande svaren från mer än en värd (se granskningen
+  nedan). Väntetiderna är konstanter i koden, inte inställningar.
+- **Kontomodellen lämnar en borta tx utanför i stället för att avsluta spåret där.** På Bitcoin slutar spåret vid en
+  borta tx och ersättaren följs bara efter ett val, eftersom myntets identitet avgör vart pengarna går. På en
+  kontokedja finns bara saldot, och en tx som inte finns har inte ändrat det; att pengarna ligger kvar hos avsändaren
+  och följer dess övriga utbetalningar är det kedjan säger, och spårningsmetoden är redan en bedömning. Därför behövs
+  inget *Följ ersättaren* på Ethereum.
+- **Journalen skrivs vid uppslaget, inte vid läsningen.** Att läsa grafen skriver aldrig. Kommer tx:en tillbaka genom
+  ett annat svar än tx-uppslaget (en adress historik på Bitcoin) räknas den genast som förut, men raden *syns igen*
+  skrivs vid nästa uppslag av tx:en.
+- **Flöde lämnar också en bekräftat borta Bitcoin-tx utanför** (förut flyttade Flöde varje överföring på linjerna).
+
+**Kvar:**
+- TRON (TronGrid) har inte `mempool-gone v1` och sätter inte värdarna för en borta tx; dess svar om en tx som inte
+  finns ser annorlunda ut. Kontomodellens spårning lämnar ändå en borta TRON-tx utanför när källan säger att den är
+  borta.
+- Kontrollerna för annan kedja (`CrossChainPayments`, `CrossChainCheck`) läser `AccountGraph.Transfers` med en borta tx.
+- Testärendet `/testdata` har ingen borta Ethereum-tx eller tx som föll ur mempool.
+
+**Tester:** Chains 12 (`MempoolGoneTests`: inom väntetiden, efter väntetiden med journal och `/verify`, en gång,
+tillbaka med journal, borta igen, inget nytt block, en endpoint som ligger efter, en tx som låg i ett block, läsningen
+skriver inget; `EthereumBlockChangeTests`: värdarna och en enda källa, en värd bland två, en väntande Ethereum-tx som
+föll ur mempool och kom tillbaka), Tracing 10 (`GoneAccountTransactionTests`: utan ändring, bekräftat borta, ingen
+avgift, obekräftat, spår som börjar i den, exponeringen bekräftat och obekräftat, swap, läst ur ärendet;
+`GoneTransactionTests`: en Bitcoin-tx som föll ur mempool), App 4 (rutans fot för mempool och kontokedja, en
+insättning i en borta tx i Begäran, Flöde).
+
+**Granskningens rättelser (2 I, 1 M):**
+- **I1:** en tx kunde räknas som borta ur mempool på en enda värds ord (två svar från samma endpoint med ett nytt block
+  emellan), till exempel en värd med mindre mempool som kastat en tx med låg avgift, och journalen sa då mer än analysen
+  (`IsCorroborated` var falskt). `CompareMempool` kräver nu samma bekräftelse som en tx som föll ur ett block: de
+  räknade svaren från minst två värdar, eller att ärendet bara har hört från en (`RawResponseStore.HostOf`,
+  `MempoolVerdict`). Journalraden nämner värdarna och säger när det vilar på en enda källa. Väntetiden är tre dygn på
+  Bitcoin, Litecoin och Zcash (`UtxoMempoolGrace`; Core håller en tx i upp till 336 timmar, men en önskad tx har efter
+  tre dygn i regel skickats om eller ersatts) och tre timmar på Ethereum och BSC (`AccountMempoolGrace`, som en
+  geth-nods förval). Det minskar också att *borta* och *tillbaka* växlar mellan två endpoints med olika mempool (M1).
+  Tester: en värd bland två avgör aldrig ensam, en endpoint som ligger efter räknas inte medan två värdar gör det,
+  inom väntetiden (71 timmar) händer inget, och journalraden för en enda källa.
+- **I2:** nodens baksida (IN4a) och inspektörens saldo räknade en bekräftat borta tx:s överföringar och avgift
+  (`GraphScene.Balances`); de räknas inte längre, som i spåret. Samma sak för vad som ligger kvar att frysa i
+  Begäran (`RequestExits.Total`): en adress vars enda insättning är borta får ingen frysning. Tester i App.
+- **M2:** en för lång rad i `RawResponseStore` är bruten.

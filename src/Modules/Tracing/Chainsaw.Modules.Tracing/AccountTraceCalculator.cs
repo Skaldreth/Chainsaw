@@ -17,6 +17,14 @@ namespace Chainsaw.Modules.Tracing;
 internal static class AccountTraceCalculator
 {
     /// <summary>
+    /// What an account's money that stays says when a transaction the answers settle is gone was left out of its
+    /// ledger (sketch GR9a).
+    /// </summary>
+    private static readonly string LeftOutText =
+        $"En tx som källan inte längre känner till räknas inte ({GoneTransaction.Source}), så det den skulle ha "
+        + "skickat ligger kvar här enligt kedjan.";
+
+    /// <summary>
     /// Why a trace is refused when its seeds lie in each other's flow, also across a swap: money would be counted
     /// twice.
     /// </summary>
@@ -414,10 +422,12 @@ internal static class AccountTraceCalculator
             SwapSteps swaps)
         {
             (_graph, _method, _asset, _seeds, _swaps) = (graph, method, asset, seeds, swaps);
+            // A movement of a transaction the answers settle is gone moved nothing on the chain, so it stands in no
+            // ledger; a seed there ends at once (GoneEnds).
             _transfers =
             [
-                .. graph.Account.Transfers.Where(transfer =>
-                    transfer.Amount.Asset == asset && transfer.From != transfer.To),
+                .. graph.Account.Transfers.Where(transfer => transfer.Amount.Asset == asset
+                    && transfer.From != transfer.To && !graph.Account.IsLeftOut(transfer.Transaction)),
             ];
             foreach (var seed in seeds)
             {
@@ -426,7 +436,8 @@ internal static class AccountTraceCalculator
 
             foreach (var link in graph.CrossChainLinks)
             {
-                if (link.FromTransfer is { } movement && _transfers.FirstOrDefault(movement.Is) is { } transfer)
+                if (link.FromTransfer is { } movement && _transfers.FirstOrDefault(movement.Is) is { } transfer
+                    && !graph.Account.IsUncertain(transfer.Transaction))
                 {
                     if (!_linked.TryGetValue(transfer, out var links))
                     {
@@ -636,7 +647,8 @@ internal static class AccountTraceCalculator
 
             if (_asset.Kind == AssetKind.Native)
             {
-                foreach (var fee in _graph.Account.Fees.Where(fee => fee.Payer.Value == account.Value))
+                foreach (var fee in _graph.Account.Fees.Where(fee => fee.Payer.Value == account.Value
+                    && !_graph.Account.IsLeftOut(fee.Transaction)))
                 {
                     entries.Add((null, new AccountEntry(
                         new AssetTransfer(new ChainTransactionRef(fee.Transaction.Chain, fee.Transaction.Value), fee.Amount,
@@ -661,12 +673,14 @@ internal static class AccountTraceCalculator
 
         /// <summary>
         /// Says whether a movement's traced money stops before it reaches the receiver's ledger: it was linked to
-        /// another chain, or it went into a swap.
+        /// another chain, it went into a swap, or the source says it no longer knows its transaction while the answers
+        /// do not settle it (<see cref="AccountGraph.IsUncertain"/>).
         /// </summary>
         /// <param name="transfer">The movement.</param>
         /// <returns><see langword="true"/> when it does.</returns>
         private bool StopsBefore(EthereumTransfer transfer) =>
-            _linked.ContainsKey(transfer) || _intoSwaps.Contains(transfer);
+            _linked.ContainsKey(transfer) || _intoSwaps.Contains(transfer)
+            || _graph.Account.IsUncertain(transfer.Transaction);
 
         /// <summary>Records an account's answer and says whether an outgoing share changed.</summary>
         /// <param name="account">The account.</param>
@@ -719,6 +733,7 @@ internal static class AccountTraceCalculator
             }
 
             AddSwapEnds(ends, conversions);
+            AddGoneEnds(ends, conversions);
             var arrived = _transfers.Where(transfer => _traced.GetValueOrDefault(transfer) > 0
                     && !StopsBefore(transfer))
                 .GroupBy(transfer => transfer.To.ToChainAddress());
@@ -759,8 +774,11 @@ internal static class AccountTraceCalculator
                     .OfType<EthereumTransfer>() ?? [], conversions);
                 if (taint is { Remaining.Units.Sign: > 0 })
                 {
-                    ends.Add(End(TrailEndReason.Unspent, Amount(taint.Remaining.Units, [], behind), key,
-                        "Ligger kvar på adressen enligt historiken i ärendet; det kan ha flyttats sedan.", [], outdated));
+                    var leftOut = LeftOutAt(account);
+                    var text = "Ligger kvar på adressen enligt historiken i ärendet; det kan ha flyttats sedan."
+                        + (leftOut.Count > 0 ? " " + LeftOutText : string.Empty);
+                    ends.Add(End(TrailEndReason.Unspent, Amount(taint.Remaining.Units, [], behind), key, text,
+                        leftOut, outdated));
                 }
 
                 if (taint is { Fees.Units.Sign: > 0 })
@@ -824,6 +842,71 @@ internal static class AccountTraceCalculator
                     [],
                     group.Any(transfer => transfer.Block is null)));
             }
+        }
+
+        /// <summary>
+        /// Adds where the traced money stops at a transaction the source no longer knows (sketch GR9a): a seed in one
+        /// the answers settle is gone ends at once, at its sender, since the chain never moved it
+        /// (<see cref="TrailEndReason.TransactionGone"/>); what goes into one they do not settle stops there without
+        /// ending (<see cref="TrailEndReason.GoneUncertain"/>), at its receiver, as on Bitcoin.
+        /// </summary>
+        /// <param name="ends">The ends, added to.</param>
+        /// <param name="conversions">What the rule did at each swap.</param>
+        private void AddGoneEnds(List<TraceEnd> ends, IReadOnlyDictionary<TokenSwap, SwapConversion> conversions)
+        {
+            var account = _graph.Account;
+            foreach (var seed in _seeds.Where(seed => account.IsLeftOut(seed.Transaction)))
+            {
+                var hint = account.Gone[seed.Transaction].Hint!;
+                ends.Add(End(
+                    TrailEndReason.TransactionGone,
+                    Amount(seed.Amount.Units, [seed.Transaction], []),
+                    _graph.NodeOf(seed.From.ToChainAddress())?.Key,
+                    hint.Explanation,
+                    [hint],
+                    false));
+            }
+
+            var uncertain = _transfers.Where(transfer => _traced.GetValueOrDefault(transfer) > 0
+                    && account.IsUncertain(transfer.Transaction))
+                .GroupBy(transfer => transfer.Transaction);
+            foreach (var group in uncertain.OrderBy(group => group.Key.Value, StringComparer.Ordinal))
+            {
+                ends.Add(End(
+                    TrailEndReason.GoneUncertain,
+                    Amount(group.Aggregate(BigInteger.Zero, (sum, transfer) => sum + _traced[transfer]), [group.Key],
+                        RestsOn(group, conversions)),
+                    _graph.NodeOf(group.First().To.ToChainAddress())?.Key,
+                    account.Gone[group.Key].Explain(),
+                    [],
+                    group.Any(transfer => transfer.Block is null)));
+            }
+        }
+
+        /// <summary>
+        /// Gives the hints of the transactions the answers settle are gone in which an account paid the asset (a
+        /// movement, or for the chain's coin a fee): left out of its ledger, so that what they would have sent is still
+        /// on the account as the chain says.
+        /// </summary>
+        /// <param name="account">The account.</param>
+        /// <returns>The hints, one per transaction, in hash order.</returns>
+        private List<TrailEndHint> LeftOutAt(ChainAddress account)
+        {
+            var graph = _graph.Account;
+            var paid = graph.Transfers
+                .Where(transfer => transfer.Amount.Asset == _asset && transfer.From.Value == account.Value)
+                .Select(transfer => transfer.Transaction);
+            if (_asset.Kind == AssetKind.Native)
+            {
+                paid = paid.Concat(graph.Fees.Where(fee => fee.Payer.Value == account.Value)
+                    .Select(fee => fee.Transaction));
+            }
+
+            return
+            [
+                .. paid.Where(graph.IsLeftOut).Distinct().OrderBy(hash => hash.Value, StringComparer.Ordinal)
+                    .Select(hash => graph.Gone[hash].Hint).OfType<TrailEndHint>(),
+            ];
         }
 
         /// <summary>Gives what the rule did at the swaps some movements' traced money may rest on.</summary>

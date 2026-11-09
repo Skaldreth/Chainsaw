@@ -184,7 +184,42 @@ internal sealed class EthereumReader(IAccountSource source)
             BlockHashes = blocks.Hashes.ToDictionary(pair => (source.Chain, pair.Key), pair => pair.Value),
             Problems = problems,
             PartlyRead = partly,
+            Gone = await GoneAsync(@case, data, cancellationToken).ConfigureAwait(false),
         };
+    }
+
+    /// <summary>
+    /// Reads which of the data's transactions the source no longer knows (sketch GR9a), from the case's sealed answers
+    /// only, by the rule every chain shares (the source's <see cref="IAccountSource.GetBlockChangesAsync"/>).
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="data">The data read.</param>
+    /// <param name="cancellationToken">Stops the work.</param>
+    /// <returns>The gone transactions, by hash.</returns>
+    private async Task<Dictionary<EthereumTxHash, GoneAccountTransaction>> GoneAsync(
+        ICase @case, AccountData data, CancellationToken cancellationToken)
+    {
+        var held = data.Transfers.Select(transfer => transfer.Transaction)
+            .Concat(data.Fees.Select(fee => fee.Transaction))
+            .Concat(data.Transactions.Keys)
+            .ToHashSet();
+        var gone = new Dictionary<EthereumTxHash, GoneAccountTransaction>();
+        if (held.Count == 0)
+        {
+            return gone;
+        }
+
+        var changes = await source.GetBlockChangesAsync(@case, cancellationToken).ConfigureAwait(false);
+        foreach (var change in changes.Where(change => change.Kind == BlockChangeKind.Gone
+            && change.Chain == source.Chain))
+        {
+            if (EthereumTxHash.TryParse(source.Chain, change.TransactionId, out var hash) && held.Contains(hash))
+            {
+                gone[hash] = new GoneAccountTransaction(hash, change);
+            }
+        }
+
+        return gone;
     }
 
     /// <summary>

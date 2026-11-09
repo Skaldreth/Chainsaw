@@ -280,7 +280,8 @@ internal sealed class ReportTrails(
     private (IReadOnlyList<AssetTransfer> Transfers, bool IsTraced) Transfers(EdgeView edge)
     {
         var traced = edge.Edge.Transfers
-            .Where(transfer => RequestExits.IsTraced(transfer, edge.Edge, _tracedCoins, _traced))
+            .Where(transfer => RequestExits.IsTraced(
+                transfer, edge.Edge, _tracedCoins, _traced, scene.Snapshot.Graph))
             .ToList();
         return traced.Count > 0 ? (traced, true) : (edge.Edge.Transfers, false);
     }

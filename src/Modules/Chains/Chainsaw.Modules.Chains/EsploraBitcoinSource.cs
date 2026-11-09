@@ -40,6 +40,9 @@ internal class EsploraBitcoinSource : IBitcoinSource
     /// <summary>Answers the lookups through the endpoints and the case.</summary>
     private readonly SourceLookups _lookups;
 
+    /// <summary>The sealed records of the transactions that never were in a block and are gone from the mempool.</summary>
+    private readonly MempoolGoneStore _mempool;
+
     /// <summary>The chains' endpoints, for which endpoint gave an answer.</summary>
     private readonly ChainSources _sources;
 
@@ -78,6 +81,8 @@ internal class EsploraBitcoinSource : IBitcoinSource
         _options = options;
         _parser = new EsploraParser(options.Network);
         _store = new RawResponseStore(timeZone, options.Network);
+        _mempool = new MempoolGoneStore(
+            _store.ChainName, options.Network.ChainOf().ToString(), BlockChangeRule.UtxoMempoolGrace);
         if (options.SafeConfirmations < 1)
         {
             throw new ArgumentException("The depth must be at least 1.", nameof(options));
@@ -151,6 +156,16 @@ internal class EsploraBitcoinSource : IBitcoinSource
             Changed: BlockChange,
             FindStored: reader => StoredTransaction(reader, txid));
         var lookup = await _lookups.LookupAsync(@case, query, mode, cancellationToken).ConfigureAwait(false);
+        if (mode != LookupMode.CaseOnly)
+        {
+            // A new answer may settle that a transaction that never was in a block is gone from the mempool, or that it
+            // is back: sealed with a line in the journal, never read as gone without one.
+            await Task.Run(
+                    () => _mempool.Settle(@case, txid.Value, _store, reader => Answers(reader, txid)),
+                    CancellationToken.None)
+                .ConfigureAwait(false);
+        }
+
         if (lookup.Value is null)
         {
             return lookup;
@@ -779,25 +794,23 @@ internal class EsploraBitcoinSource : IBitcoinSource
 
     /// <summary>
     /// Compares a transaction's sealed answers by the rule every chain shares (<see cref="BlockChangeRule"/>): the
-    /// answers that had it, and those the lookup took as the source not knowing it.
+    /// answers that had it, and those the lookup took as the source not knowing it. One that never was in a block is
+    /// gone only while the sealed record that it is gone from the mempool is in force (<see cref="MempoolGoneStore"/>).
     /// </summary>
     /// <param name="reader">The case's reader.</param>
     /// <param name="txid">The transaction.</param>
     /// <returns>The change, or <see langword="null"/> when its block is the same or it is not confirmed.</returns>
     private BlockChange? BlockChangeOf(ICaseReader reader, Txid txid)
     {
-        var notFound = _store.NotFound(reader, txid);
-        var gone = notFound
-            .Select(each => new BlockAnswer(
-                new BlockSighting(null, null, each.ReceivedLocal, each.Sequence) { Endpoint = each.Endpoint },
-                each.EndpointId,
-                IsGone: true));
-        var answers = Sightings(reader, txid)
-            .Select(each => new BlockAnswer(each.Sighting, each.EndpointId, IsGone: false))
-            .Concat(gone);
+        var answers = Answers(reader, txid);
         if (BlockChangeRule.Compare(answers, _store, reader) is not { } change)
         {
-            return null;
+            if (_mempool.Gone(reader, txid.Value, answers) is not { } mempool)
+            {
+                return null;
+            }
+
+            change = (BlockChangeKind.Gone, mempool.Before, mempool.Now);
         }
 
         if (change.Kind != BlockChangeKind.Gone)
@@ -815,8 +828,28 @@ internal class EsploraBitcoinSource : IBitcoinSource
             GoneHosts = goneHosts,
             IsSingleSource = single,
             IsCorroborated = goneHosts.Count >= 2 || single,
+            NeverInBlock = change.Before.Height is null,
         };
     }
+
+    /// <summary>
+    /// Reads every sealed answer about a transaction for the rule every chain shares (<see cref="BlockChangeRule"/>):
+    /// those that had it, and those the lookup took as the source not knowing it.
+    /// </summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <param name="txid">The transaction.</param>
+    /// <returns>The answers, oldest first.</returns>
+    private List<BlockAnswer> Answers(ICaseReader reader, Txid txid) =>
+    [
+        .. Sightings(reader, txid)
+            .Select(each => new BlockAnswer(each.Sighting, each.EndpointId, IsGone: false))
+            .Concat(_store.NotFound(reader, txid)
+                .Select(each => new BlockAnswer(
+                    new BlockSighting(null, null, each.ReceivedLocal, each.Sequence) { Endpoint = each.Endpoint },
+                    each.EndpointId,
+                    IsGone: true)))
+            .OrderBy(answer => answer.Sighting.Sequence),
+    ];
 
     /// <summary>Reads every sealed answer that has a transaction, oldest first, with where it put it.</summary>
     /// <param name="reader">The case's reader.</param>
