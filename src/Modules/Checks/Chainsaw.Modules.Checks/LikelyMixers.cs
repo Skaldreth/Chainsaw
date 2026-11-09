@@ -28,8 +28,10 @@ namespace Chainsaw.Modules.Checks;
 /// can match, must explain clearly fewer on average: the difference must be at least <see cref="MinimumMatched"/> and
 /// <see cref="BaselineSigmas"/> times the square root of the baseline, a margin that grows with chance's own spread,
 /// so that a busy mixer passes and a busy exchange does not;</item>
-/// <item>a payment processor forwards almost at once and keeps the same fee: when nearly every match comes out within
-/// <see cref="ProcessorDelay"/> with nearly the same fee (<see cref="ProcessorFeeSpread"/>), it is not a mixer.</item>
+/// <item>a payment processor forwards on a steady schedule and keeps the same rate: when the fees fit a percentage plus
+/// a fixed amount (<see cref="ProcessorFeeSpread"/>) and the delays are steady (<see cref="ProcessorDelaySpread"/>), it
+/// is not a mixer. A mixer varies its fee and its delay to break the link; one that does neither is not told from a
+/// processor.</item>
 /// </list>
 /// </remarks>
 internal static class LikelyMixers
@@ -55,17 +57,17 @@ internal static class LikelyMixers
     /// </summary>
     public const double BaselineSigmas = 2.5;
 
-    /// <summary>The share of matches that, coming out fast with the same fee, makes the owner a processor.</summary>
-    public const double ProcessorShare = 0.9;
-
     /// <summary>
-    /// The most the fees of a processor's matches differ, between the tenth and ninetieth percentile, as a share of
-    /// the deposit: a quarter of a percentage point.
+    /// The most a processor's fees differ from a fitted rate (a percentage plus a fixed amount), between the tenth and
+    /// ninetieth percentile of the residuals, as a share of the deposit: a quarter of a percentage point.
     /// </summary>
     public const double ProcessorFeeSpread = 0.0025;
 
-    /// <summary>How soon after the deposit a processor forwards: an hour, six blocks.</summary>
-    public static readonly TimeSpan ProcessorDelay = TimeSpan.FromHours(1);
+    /// <summary>
+    /// The most a processor's delays differ, between the tenth and ninetieth percentile: three hours, so that one that
+    /// settles every few hours is a processor too, while a mixer spreads its payouts over a day or more.
+    /// </summary>
+    public static readonly TimeSpan ProcessorDelaySpread = TimeSpan.FromHours(3);
 
     /// <summary>How many outputs soonest after a deposit are tried as parts.</summary>
     public const int MostPartPool = 8;
@@ -247,20 +249,52 @@ internal static class LikelyMixers
     }
 
     /// <summary>
-    /// Says whether the matches look like a payment processor's: nearly all (<see cref="ProcessorShare"/>) come out
-    /// within <see cref="ProcessorDelay"/>, and their fees lie within <see cref="ProcessorFeeSpread"/> of each other.
-    /// A mixer delays and varies its fee to break the link; a processor forwards at once at its fixed rate.
+    /// Says whether the matches look like a payment processor's: the fees fit a percentage of the deposit plus a fixed
+    /// amount (least squares in the fee's share against one over the amount, fitted again over the central eight
+    /// tenths), with the residuals within <see cref="ProcessorFeeSpread"/> of each other, and the delays
+    /// within <see cref="ProcessorDelaySpread"/>. Both between the tenth and ninetieth percentile, so that a few wrong
+    /// pairings do not hide a processor.
     /// </summary>
     /// <param name="matched">The deposits with their matches.</param>
     /// <returns><see langword="true"/> when they do.</returns>
     private static bool IsProcessor(IReadOnlyList<LikelyDeposit> matched)
     {
         var found = matched.Where(deposit => deposit.Match is not null).ToList();
-        var fast = found.Count(deposit =>
-            deposit.Match!.Outputs[^1].Transaction.Block!.Time - deposit.Deposit.Block.Time <= ProcessorDelay);
-        var fees = found.Select(deposit => deposit.Fee).Order().ToList();
-        var spread = Percentile(fees, 0.9) - Percentile(fees, 0.1);
-        return fast >= found.Count * ProcessorShare && spread <= ProcessorFeeSpread;
+        // The fee as a share is the rate plus the fixed part over the amount: a line in 1 / amount.
+        var inverse = found.Select(deposit => 1.0 / deposit.Deposit.Output.Amount.Value).ToList();
+        var shares = found.Select(deposit => deposit.Fee).ToList();
+        var residuals = Residuals(inverse, shares, Enumerable.Range(0, found.Count).ToList());
+        var ordered = residuals.Order().ToList();
+        var bounds = (Low: Percentile(ordered, 0.1), High: Percentile(ordered, 0.9));
+        var kept = Enumerable.Range(0, found.Count)
+            .Where(at => residuals[at] >= bounds.Low && residuals[at] <= bounds.High)
+            .ToList();
+        residuals = Residuals(inverse, shares, kept);
+        var sorted = residuals.Order().ToList();
+        var delays = found.Select(deposit =>
+                (deposit.Match!.Outputs[^1].Transaction.Block!.Time - deposit.Deposit.Block.Time).TotalHours)
+            .Order()
+            .ToList();
+        return Percentile(sorted, 0.9) - Percentile(sorted, 0.1) <= ProcessorFeeSpread
+            && Percentile(delays, 0.9) - Percentile(delays, 0.1) <= ProcessorDelaySpread.TotalHours;
+    }
+
+    /// <summary>
+    /// Fits y = a · x + b by least squares over some of the points, and gives every point's residual from the line: so
+    /// that a second fit over the central points is not pulled by a few wrong pairings.
+    /// </summary>
+    /// <param name="x">The points' x.</param>
+    /// <param name="y">The points' y.</param>
+    /// <param name="over">The points the line is fitted over.</param>
+    /// <returns>Each point's residual, in the points' order.</returns>
+    private static List<double> Residuals(IReadOnlyList<double> x, IReadOnlyList<double> y, IReadOnlyList<int> over)
+    {
+        var meanX = over.Average(at => x[at]);
+        var meanY = over.Average(at => y[at]);
+        var spread = over.Sum(at => (x[at] - meanX) * (x[at] - meanX));
+        var slope = spread == 0 ? 0 : over.Sum(at => (x[at] - meanX) * (y[at] - meanY)) / spread;
+        var intercept = meanY - (slope * meanX);
+        return [.. x.Select((value, at) => y[at] - (slope * value) - intercept)];
     }
 
     /// <summary>Gives a percentile of sorted values, the nearest rank.</summary>

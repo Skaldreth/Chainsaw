@@ -74,6 +74,29 @@ public sealed class RoundFiveReviewTests
         Assert.Empty(new MixerBehaviourCheck().Run(Behaviour.Input(txs, owners)));
     }
 
+    [Theory]
+    [InlineData(0.01, 3_000, 1, 3)]
+    [InlineData(0.01, 10_000, 1, 3)]
+    [InlineData(0.01, 0, 6, 18)]
+    public void A_processor_with_a_network_fee_or_settling_in_hours_is_no_likely_mixer(
+        double fee, long fixedFee, int soonest, int latest)
+    {
+        var (txs, owners) = Behaviour.FreshProcessor(fee, 40, fixedFee, soonest, latest);
+
+        Assert.Empty(new MixerBehaviourCheck().Run(Behaviour.Input(txs, owners)));
+    }
+
+    [Fact]
+    public void A_mixer_with_varied_fees_and_delays_is_a_likely_mixer_but_a_steady_one_is_not()
+    {
+        var (varied, variedOwners) = Behaviour.CentralMixer("vm", users: 20);
+        var (steady, steadyOwners) = Behaviour.SteadyMixer(20);
+
+        Assert.Single(new MixerBehaviourCheck().Run(Behaviour.Input(varied, variedOwners)));
+        // The documented gap (Guide and BACKLOG): a fixed fee paid back at once is a processor's behaviour.
+        Assert.Empty(new MixerBehaviourCheck().Run(Behaviour.Input(steady, steadyOwners)));
+    }
+
     [Fact]
     public void A_mixer_with_only_a_third_of_its_deposits_in_the_graph_is_not_seen()
     {

@@ -334,14 +334,17 @@ internal static class Behaviour
     }
 
     /// <summary>
-    /// A payment processor that forwards each payment, within a few blocks, minus a fixed fee to a merchant's HD
-    /// wallet, a fresh address each time (the second review's probe).
+    /// A payment processor that forwards each payment, a steady while later, minus its rate and a fixed network fee to
+    /// a merchant's HD wallet, a fresh address each time (the second and third review's probes).
     /// </summary>
-    /// <param name="fee">The fixed fee, as a share.</param>
+    /// <param name="fee">The rate, as a share.</param>
     /// <param name="payments">How many payments.</param>
+    /// <param name="fixedFee">The fixed network fee, in satoshi.</param>
+    /// <param name="soonest">The fewest blocks after the payment it forwards.</param>
+    /// <param name="latest">The most blocks after the payment it forwards.</param>
     /// <returns>The transactions and each address's owner.</returns>
     public static (List<BitcoinTransaction> Txs, Dictionary<BitcoinAddress, BitcoinAddress> Owners) FreshProcessor(
-        double fee, int payments)
+        double fee, int payments, long fixedFee = 0, int soonest = 1, int latest = 3)
     {
         var random = new Random(7);
         var pool = Pkh("fp-pool");
@@ -354,9 +357,38 @@ internal static class Behaviour
             owners[invoice] = pool;
             var height = Height + (i * 6);
             txs.Add(Tx($"fp-in-{i}", height).In(Wpkh($"fp-buyer-{i}"), amount + 5_000).Out(invoice, amount).Build());
-            txs.Add(Tx($"fp-out-{i}", height + 1 + random.Next(0, 3)).In(pool, 900_000_000, $"fp-c-{i}")
-                .Out(Wpkh($"fp-merchant-{i % 10}-addr-{i}"), (long)(amount * (1 - fee))).Out(pool, 800_000_000)
+            txs.Add(Tx($"fp-out-{i}", height + soonest + random.Next(0, latest - soonest + 1))
+                .In(pool, 900_000_000, $"fp-c-{i}")
+                .Out(Wpkh($"fp-merchant-{i % 10}-addr-{i}"), (long)(amount * (1 - fee)) - fixedFee)
+                .Out(pool, 800_000_000)
                 .Build());
+        }
+
+        return (txs, owners);
+    }
+
+    /// <summary>
+    /// A mixer that pays every deposit back at once, three blocks later, minus a fixed 3 %, to fresh addresses: it
+    /// varies neither fee nor delay, so it looks like a payment processor (the documented gap).
+    /// </summary>
+    /// <param name="users">How many users.</param>
+    /// <returns>The transactions and each address's owner.</returns>
+    public static (List<BitcoinTransaction> Txs, Dictionary<BitcoinAddress, BitcoinAddress> Owners) SteadyMixer(
+        int users)
+    {
+        var random = new Random(4);
+        var pool = Pkh("sm-pool");
+        var owners = new Dictionary<BitcoinAddress, BitcoinAddress> { [pool] = pool };
+        var txs = new List<BitcoinTransaction>();
+        for (var i = 0; i < users; i++)
+        {
+            var amount = LogUniform(random, 2_000_000, 50_000_000);
+            var deposit = Wpkh($"sm-dep-{i}");
+            owners[deposit] = pool;
+            txs.Add(Tx($"sm-in-{i}", Height + (i * 6)).In(Wpkh($"sm-user-{i}"), amount + 30_000).Out(deposit, amount)
+                .Build());
+            txs.Add(Tx($"sm-out-{i}", Height + (i * 6) + 3).In(pool, 90_000_000, $"sm-c-{i}")
+                .Out(Wpkh($"sm-paid-{i}"), amount * 97 / 100).Out(pool, 10_000_000).Build());
         }
 
         return (txs, owners);

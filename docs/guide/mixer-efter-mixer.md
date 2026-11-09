@@ -75,9 +75,11 @@ den beter sig:
   analysen i snitt förklara klart färre: skillnaden ska vara minst fem och minst **2,5 gånger roten ur** slumpens
   antal, en marginal som växer med slumpens egen spridning. En upptagen mixer med hundratals insättningar klarar det,
   en upptagen börs inte;
-- en **betaltjänst** skickar vidare nästan genast och tar samma avgift varje gång. Kommer nästan alla träffar ut inom
-  en timme med nästan samma avgift (inom en kvarts procentenhet) är det ingen mixer, också när handlarna får en ny
-  adress varje gång.
+- en **betaltjänst** skickar vidare efter ett jämnt schema och tar samma avgift varje gång: en procentsats och ofta en
+  fast nätverksavgift. Passar avgifterna en procentsats plus ett fast belopp (inom en kvarts procentenhet) och ligger
+  fördröjningarna inom tre timmar från varandra är det ingen mixer, också när handlarna får en ny adress varje gång.
+  En mixer som varken varierar avgiften eller fördröjningen går därför inte att skilja från en betaltjänst och känns
+  inte igen.
 
 *Varför?* säger avgiften i **median**.
 

@@ -5745,3 +5745,14 @@ Den oberoende granskningen av omgång 5 fann 1 C och 5 I; alla är rättade, och
 - **M1:** andelen förklarade utbetalningar räknas bara över utbetalningar inom en vecka efter någon insättning; en
   mixer där grafen har en tredjedel av insättningarna känns ändå inte igen, vilket facit, Guiden och BACKLOG säger.
 - Facit: `RoundFiveReviewTests` (upptagen mixer, upptagen börs, betaltjänst med nya adresser, delvis sedd mixer).
+
+## Förvirring, omgång 5: efter tredje granskningen (2026-11-09)
+
+- **I:** betaltjänsten i `mixer-behaviour` känns igen på att avgiften passar en procentsats plus ett fast belopp
+  (minsta kvadrat på avgiftens andel mot 1 / beloppet, anpassad igen över de mittersta åtta tiondelarna så att några
+  fel parningar inte drar linjen) med restspridning högst en kvarts procentenhet, och på att fördröjningarna ligger
+  inom tre timmar från varandra (tionde till nittionde percentilen) i stället för inom en fast timme. Betaltjänster med
+  1 % plus 3 000 eller 10 000 satoshi och en som betalar ut efter en till tre timmar är nu facit, och läses inte som
+  mixer; de upptagna mixrarna och börserna ger samma utfall som förut.
+- **M1:** facit säger nu uttryckligen båda utfallen: `CentralMixer` (1–4 %, en till sex timmar) är en trolig mixer,
+  och `SteadyMixer` (fast 3 %, tre block) är det inte, som Guiden och BACKLOG säger.

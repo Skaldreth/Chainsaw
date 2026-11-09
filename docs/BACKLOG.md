@@ -406,7 +406,9 @@ en tjänst (`pass-through v2`), tidsmönster i svensk tid för mottagare och avs
     insättning (granskningen 2, M1). Har grafen bara en del av mixerns insättningar men alla utbetalningar känns den
     inte igen (facit och Guiden säger det). Bättre: ett snävare fönster ur fördröjningarna i de egna träffarna, eller
     bara de utbetalningar som har en tänkbar insättning i grafen.
-  - En mixer som betalar ut inom en timme med en fast avgift läses som betaltjänst och känns inte igen.
+  - En mixer som tar samma avgift (en procentsats plus ett fast belopp) och betalar ut med jämn fördröjning (inom
+    tre timmar) läses som betaltjänst och känns inte igen (facit: `SteadyMixer`). Omvänt passerar en betaltjänst som
+    varierar sin avgift eller väntar mycket olika länge.
   - `mixer-chain` på en tät slumpgraf med en mixer med etikett (40 adresser, 1 500 tx) ger ett nittiotal kedjor genom
     troliga utgångar, eftersom `mixer-outputs` väger varje utbetalning i fönstret; så var det också i v1. Grenar,
     delar tillsammans och troliga mixrar ger inga fynd där.
