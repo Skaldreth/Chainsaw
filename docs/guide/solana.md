@@ -31,17 +31,19 @@ har **stängts** listas inte längre; dess rörelser hittas då bara i tx:er som
 ## Vad som flyttades
 
 En Solana-tx kan köra många **instruktioner** och **inre instruktioner** (program som anropar andra program). Chainsaw
-läser inte instruktionerna utan det kedjan själv skriver efter varje tx: varje kontos **saldo före och efter**
-(`preBalances`/`postBalances` och `preTokenBalances`/`postTokenBalances`). Det är fakta.
+läser de överföringar som System- och Token-programmen gör, i den ordning de kördes, också de inre: SOL som skickas,
+tokens som flyttas, skapas (*mint*) eller förstörs (*burn*), och hyran som ett stängt tokenkonto lämnar ifrån sig. Det
+är fakta, en överföring för varje instruktion, så en mellanhand mitt i en tx (A till M till E) syns som två steg.
 
-Saldoändringarna paras ihop till rörelser **bara där aritmetiken ger ett enda svar**: har en enda part förlorat och
-flera vunnit (eller tvärtom), fick var och en sin del av den enda. Avgiften räknas för sig. En token som skapades
-(*mint*) kommer från sitt mint-konto, och en som förstördes går dit. Har **flera förlorat och flera vunnit** samma
-tillgång går det inte att säga vem som gav till vem utan instruktionerna; då räknas inte den tillgången i tx:en, och
-det sägs. Inget gissas.
+**Saldona före och efter** (`preBalances`/`postBalances` och `preTokenBalances`/`postTokenBalances`) är kontrollen:
+Chainsaw spelar upp instruktionerna på saldona före och jämför med saldona efter. Går det inte ihop har ett program
+flyttat värde utan en instruktion som noden tolkar; då visas de överföringar som instruktionerna anger, det som fattas
+gissas inte fram, och tx:en sägs, i grafen och i bevakningen.
 
-**Wrapped SOL** är SOL i ett tokenkonto. Dess värde är kontots egna lamports, som redan räknas som SOL, och de räknas
-som ägarens. Därför syns en swap mot en pool som SOL från poolens ägare och token till samma ägare.
+Ett **tokenkonto** och dess lamports räknas som **ägarens**, så hyran som läggs i ett nytt tokenkonto är en överföring
+till ägaren, och ett tillfälligt konto som skapas och stängs i samma tx blir ingen egen aktör. **Wrapped SOL** är SOL i
+ett tokenkonto och räknas som SOL; därför syns en swap mot en pool som SOL från poolens ägare och token till samma
+ägare.
 
 ## USDT och USDC på Solana
 

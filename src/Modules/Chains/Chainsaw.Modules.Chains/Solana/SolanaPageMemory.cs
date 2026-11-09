@@ -37,44 +37,48 @@ internal sealed class SolanaPageMemory
     }
 
     /// <summary>
-    /// Finds how to ask for an address's page that goes back from a slot: after the oldest entry newer than the slot
-    /// on a page read before that reaches down to it, or after that page's own start when it has none.
+    /// Finds an address's page that goes back from a slot. A page read before that is not full and reaches up to the
+    /// slot already holds the whole history at or below it: its own entries there are the page, and nothing is asked.
+    /// Otherwise the page is asked after the oldest entry newer than the slot on a page read before that reaches down
+    /// to it, or after that page's own start when it has none.
     /// </summary>
     /// <param name="address">The address.</param>
     /// <param name="slot">The slot the page goes back from.</param>
     /// <returns>
-    /// Whether it is known, the signature to ask after (<see langword="null"/> to ask from the newest and leave out
-    /// what is above the slot), and whether the history is known to hold nothing at or below the slot, so that
-    /// nothing need be asked.
+    /// Whether it is known; the entries at or below the slot when a page read before holds them all, so that nothing
+    /// need be asked (empty when there are none); otherwise <see langword="null"/> and the signature to ask after.
     /// </returns>
-    public (bool Known, EthereumTxHash? Before, bool Empty) Locate(EthereumAddress address, long slot)
+    public (bool Known, EthereumTxHash? Before, IReadOnlyList<SolanaSignature>? Entries) Locate(
+        EthereumAddress address, long slot)
     {
         ArgumentNullException.ThrowIfNull(address);
         lock (_gate)
         {
             if (!_pages.TryGetValue(address.Value, out var pages))
             {
-                return (false, null, false);
+                return (false, null, null);
             }
 
             foreach (var (page, before) in pages)
             {
-                var top = page.AtOrBelow ?? long.MaxValue;
-                var bottom = page.IsFull ? page.Entries[^1].Slot : long.MinValue;
-                if (slot > top || slot < bottom)
+                if (slot > (page.AtOrBelow ?? long.MaxValue) || (page.IsFull && slot < page.Entries[^1].Slot))
                 {
                     continue;
                 }
 
-                var after = page.Entries.LastOrDefault(entry => entry.Slot > slot)?.Transaction ?? before;
-                var empty = !page.IsFull && page.Entries.All(entry => entry.Slot > slot);
-                if (after is not null || empty)
+                if (!page.IsFull)
                 {
-                    return (true, after, empty);
+                    // The page reaches the end of the history: what is at or below the slot is on it.
+                    return (true, null, [.. page.Entries.Where(entry => entry.Slot <= slot)]);
+                }
+
+                if ((page.Entries.LastOrDefault(entry => entry.Slot > slot)?.Transaction ?? before) is { } after)
+                {
+                    return (true, after, null);
                 }
             }
 
-            return (false, null, false);
+            return (false, null, null);
         }
     }
 }

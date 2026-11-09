@@ -33,6 +33,12 @@ internal sealed class SolanaHarness : IDisposable
 
     public static readonly EthereumAddress Foo = Key(0x77);
 
+    public static readonly EthereumAddress TokenAccountA2 = Key(0x58);
+
+    public static readonly EthereumAddress Payer = Key(0x12);
+
+    public static readonly EthereumAddress Mule = Key(0x13);
+
     public static readonly EthereumTxHash S1 = Signature(0xA1);
 
     public static readonly EthereumTxHash S2 = Signature(0xA2);
@@ -43,12 +49,22 @@ internal sealed class SolanaHarness : IDisposable
 
     public static readonly EthereumTxHash S5 = Signature(0xA5);
 
+    public static readonly EthereumTxHash S7 = Signature(0xA7);
+
+    public static readonly EthereumTxHash S8 = Signature(0xA8);
+
+    public static readonly EthereumTxHash S9 = Signature(0xA9);
+
+    public static readonly EthereumTxHash S10 = Signature(0xAA);
+
+    public static readonly EthereumTxHash S11 = Signature(0xAB);
+
     private readonly ServiceProvider _provider;
 
     private readonly string _directory =
         Path.Combine(Path.GetTempPath(), "chainsaw-solana-" + Guid.NewGuid().ToString("N"));
 
-    public SolanaHarness(int pageSize = 25)
+    public SolanaHarness(int pageSize = 25, string baseUri = Base)
     {
         Http = new FakeExitHttp(Clock);
         PageSize = pageSize;
@@ -67,7 +83,7 @@ internal sealed class SolanaHarness : IDisposable
         services.AddChainsModule(
             new BitcoinSourceOptions { EsploraBaseUri = new Uri(Fixtures.Base) },
             options => options.Delay = Clock.Delay,
-            solana: new SolanaSourceOptions { DefaultEndpoints = [new Uri(Base)], PageSize = pageSize });
+            solana: new SolanaSourceOptions { DefaultEndpoints = [new Uri(baseUri)], PageSize = pageSize });
         _provider = services.BuildServiceProvider();
         Case = _provider.GetRequiredService<ICaseStore>().Create(SourceHarness.CaseNumber);
         Source = _provider.GetRequiredService<ISolanaSource>();

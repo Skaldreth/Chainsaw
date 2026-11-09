@@ -130,7 +130,18 @@ internal sealed class MonitoringService(
     /// <param name="second">The other.</param>
     /// <returns><see langword="true"/> when they are.</returns>
     private static bool SameBlock(WatchBlock first, WatchBlock second) =>
-        first.Height == second.Height && string.Equals(first.Hash, second.Hash, StringComparison.OrdinalIgnoreCase);
+        first.Height == second.Height && string.Equals(first.Hash, second.Hash, HashComparison(first.Hash));
+
+    /// <summary>
+    /// Gives how two block hashes are compared: hex (Bitcoin, Ethereum, TRON) without case, any other (Solana's Base58,
+    /// whose case is part of it) exactly.
+    /// </summary>
+    /// <param name="hash">One of the hashes.</param>
+    /// <returns>The comparison.</returns>
+    private static StringComparison HashComparison(string? hash) =>
+        (hash ?? string.Empty).AsSpan().TrimStart("0x").ContainsAnyExcept("0123456789abcdefABCDEF")
+            ? StringComparison.Ordinal
+            : StringComparison.OrdinalIgnoreCase;
 
     /// <inheritdoc/>
     public IReadOnlyList<WatchTip> GetTips(ICase @case)

@@ -126,6 +126,38 @@ public sealed class SolanaGraphTests : IDisposable
         Assert.Equal(Sol(5), swap.Bought);
     }
 
+    [Fact]
+    public async Task A_swap_stop_on_solana_is_read_back_on_solana()
+    {
+        _harness.Solana.Add(
+            Tx("pay-usdt", 100, Victim, Token(Victim, Scammer, Usdt(1_000))),
+            Tx("swap", 120, Scammer,
+                Token(Scammer, Pool, Usdt(1_000)), (EthereumTransferKind.Native, Pool, Scammer, Sol(5))));
+        _harness.Service.AddStartPoint(_harness.Case, TraceStartPoint.ForEthereumAddress(Scammer));
+        var graph = (await _harness.Service.ExpandAsync(
+            _harness.Case, ExpansionRequest.ForEthereumAddress(Scammer))).Graph;
+        var stop = _harness.Service.StopAtSwap(_harness.Case, Assert.Single(graph.Account.Swaps), null);
+        _harness.Reopen();
+
+        var read = Assert.Single((await _harness.Load()).SwapStops);
+
+        Assert.Equal(stop, read);
+        Assert.Equal(SharedKernel.Chain.Solana, read.Transaction.Chain);
+    }
+
+    [Fact]
+    public async Task A_transaction_the_source_could_not_read_whole_is_said_in_the_graph()
+    {
+        Chain();
+        _harness.Solana.Unexplained = [Hash("to-mule")];
+        _harness.Service.AddStartPoint(_harness.Case, TraceStartPoint.ForEthereumAddress(Scammer));
+
+        var result = await _harness.Service.ExpandAsync(_harness.Case, ExpansionRequest.ForEthereumAddress(Scammer));
+
+        Assert.Contains("flyttade mer än källan kunde läsa", result.Problem, StringComparison.Ordinal);
+        Assert.Contains(Hash("to-mule").Brief(), result.Problem, StringComparison.Ordinal);
+    }
+
     private static EthereumAddress Address(string label) =>
         EthereumAddress.Parse(SharedKernel.Chain.Solana, Base58.Encode(Bytes(label, 32)));
 
@@ -158,7 +190,9 @@ public sealed class SolanaGraphTests : IDisposable
             EthereumOutcome.Succeeded, transfers);
     }
 
-    /// <summary>Gives some bytes made from a label, so that every synthetic key and signature belongs to nobody.</summary>
+    /// <summary>
+    /// Gives some bytes made from a label, so that every synthetic key and signature belongs to nobody.
+    /// </summary>
     private static byte[] Bytes(string label, int length)
     {
         var digest = SHA256.HashData(Encoding.UTF8.GetBytes(label));

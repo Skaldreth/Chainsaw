@@ -280,6 +280,35 @@ public sealed class MonitoringServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task On_Solana_a_transaction_the_source_could_not_read_whole_is_said_not_missed()
+    {
+        var node = Solana(0x11);
+        var unread = EthereumTxHash.Parse(Chain.Solana, Base58.Encode(Enumerable.Repeat((byte)0xA4, 64).ToArray()));
+        _harness.Service.Add(
+            _harness.Case,
+            new WatchSubject(WatchSubjectKind.Address, node.ToChainAddress(), "node"),
+            new WatchFilter(Chain.Solana, WatchDirection.Both, [], [], null, null));
+        await _harness.Service.CheckAsync(_harness.Case, Chain.Solana, 400_000_000);
+        var block = new EthereumBlockReference(400_000_040, null, DateTimeOffset.UnixEpoch.AddDays(20_000));
+        _harness.Solana.Holds(node, EthereumHistory.Transactions, new EthereumTransfer(
+            unread, EthereumTransferKind.Native, node, Solana(0x22), new AssetAmount(Asset.Sol, 1_000_000_000), 0,
+            block));
+        _harness.Solana.BlockHashes[400_000_040] = Base58.Encode(Enumerable.Repeat((byte)0x99, 32).ToArray());
+        _harness.Solana.Unexplained = [unread];
+
+        var run = await _harness.Service.CheckAsync(_harness.Case, Chain.Solana, 400_000_050);
+
+        Assert.Single(run.Hits);
+        Assert.Contains(run.Outcomes.Single().Problems,
+            problem => problem.Contains("flyttade mer än källan kunde läsa", StringComparison.Ordinal));
+        Assert.Empty(_harness.Ethereum.Asked);
+    }
+
+    /// <summary>Makes a synthetic Solana address of one repeated byte.</summary>
+    private static EthereumAddress Solana(byte value) =>
+        EthereumAddress.Parse(Chain.Solana, Base58.Encode(Enumerable.Repeat(value, 32).ToArray()));
+
+    [Fact]
     public async Task A_hit_without_a_block_hash_waits_for_a_check_that_has_it()
     {
         var node = Synthetic.Eth("eth-node");

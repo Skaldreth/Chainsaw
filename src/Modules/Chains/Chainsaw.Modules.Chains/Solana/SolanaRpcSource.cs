@@ -36,6 +36,16 @@ internal sealed class SolanaRpcSource : ISolanaSource
     /// <summary>The SPL Token program, which holds the classic tokens (USDT and USDC among them).</summary>
     public const string TokenProgram = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
 
+    /// <summary>
+    /// The Token-2022 program, which holds the newer tokens; its id was read as an account of a transaction answered
+    /// by the public JSON-RPC (2026-11-09).
+    /// </summary>
+    public const string Token2022Program = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
+
+    /// <summary>The Token programs whose accounts make up an address's tokens, with their names for the user.</summary>
+    private static readonly (string Program, string Name)[] TokenPrograms =
+        [(TokenProgram, "Token-programmet"), (Token2022Program, "Token-2022")];
+
     /// <summary>What a page says when the page before it has not been read, so it cannot be asked for.</summary>
     private const string PageBeforeText =
         "Sidan går inte att be om innan sidan före den har lästs (Solana bläddrar efter signatur). Inget skickades.";
@@ -217,20 +227,28 @@ internal sealed class SolanaRpcSource : ISolanaSource
         }
 
         var parts = Parts.Of(lamports);
-        var holdings = parts.Add(
-            await _lookups.LookupAsync(
-                    @case, TokenAccountsQuery(address, "programId", TokenProgram), LookupMode.AsNeeded,
-                    cancellationToken)
-                .ConfigureAwait(false),
-            "Adressens tokens");
-        var (tokens, skipped) = Holdings(holdings?.Accounts ?? []);
+        // Both Token programs hold tokens: the classic one (USDT and USDC) and Token-2022.
+        var held = new List<SolanaTokenAccount>();
+        var complete = true;
+        foreach (var (program, name) in TokenPrograms)
+        {
+            var listed = parts.Add(
+                await _lookups.LookupAsync(
+                        @case, TokenAccountsQuery(address, "programId", program), LookupMode.AsNeeded,
+                        cancellationToken)
+                    .ConfigureAwait(false),
+                $"Adressens tokens i {name}");
+            held.AddRange(listed?.Accounts ?? []);
+            complete &= listed is not null;
+        }
+
+        var (tokens, skipped) = Holdings(held);
         if (skipped > 0)
         {
             parts.Note("Adressen har tokens vars decimaler Chainsaw inte kan räkna i; de visas inte.");
         }
 
-        if (holdings?.Accounts.Any(account => account.IsFrozen) == true)
-
+        if (held.Any(account => account.IsFrozen))
         {
             parts.Note("Ett av adressens tokenkonton är fryst: ägaren kan inte flytta tokenen.");
         }
@@ -238,7 +256,7 @@ internal sealed class SolanaRpcSource : ISolanaSource
         var balance = new EthereumBalance(address, new AssetAmount(Asset.Sol, sol.Value), tokens)
         {
             Skipped = skipped,
-            IsComplete = holdings is not null,
+            IsComplete = complete,
         };
         return parts.Answer(balance);
     }
@@ -272,6 +290,7 @@ internal sealed class SolanaRpcSource : ISolanaSource
             read.Waiting.Count > 0)
         {
             Skipped = read.Skipped,
+            Unexplained = read.Unexplained,
             Waiting = read.Waiting,
         };
         return parts.Answer(result);
@@ -293,11 +312,15 @@ internal sealed class SolanaRpcSource : ISolanaSource
     {
         var parts = new Parts(LookupStatus.FromCase);
         var accounts = new List<EthereumAddress>();
+
+        // The owner's token accounts are asked for with the newest page; an older page reads the list from the case,
+        // so that paging back does not ask the same list again for every page.
+        var listMode = atOrBelow is null || mode == LookupMode.CaseOnly ? mode : LookupMode.CaseOnly;
         foreach (var token in KnownSolanaTokens)
         {
             var listed = parts.Add(
                 await _lookups.LookupAsync(
-                        @case, TokenAccountsQuery(owner, "mint", token.Contract!), mode, cancellationToken)
+                        @case, TokenAccountsQuery(owner, "mint", token.Contract!), listMode, cancellationToken)
                     .ConfigureAwait(false),
                 $"Adressens tokenkonton för {token.Symbol}");
             accounts.AddRange(listed?.Accounts.Select(account => account.Account) ?? []);
@@ -337,6 +360,7 @@ internal sealed class SolanaRpcSource : ISolanaSource
             waiting.Count > 0 || parts.IsIncomplete)
         {
             Skipped = read.Skipped,
+            Unexplained = read.Unexplained,
             Waiting = waiting,
         };
         return parts.Answer(result);
@@ -360,11 +384,11 @@ internal sealed class SolanaRpcSource : ISolanaSource
         var askable = true;
         if (atOrBelow is { } slot)
         {
-            var (known, after, empty) = _pages.Locate(address, slot);
-            if (empty)
+            var (known, after, entries) = _pages.Locate(address, slot);
+            if (entries is not null)
             {
-                var none = new SolanaSignaturePage(address, atOrBelow, _options.PageSize, []);
-                return new BitcoinLookup<SolanaSignaturePage>(LookupStatus.FromCase, none, [], null);
+                var held = new SolanaSignaturePage(address, atOrBelow, _options.PageSize, entries);
+                return new BitcoinLookup<SolanaSignaturePage>(LookupStatus.FromCase, held, [], null);
             }
 
             (before, askable) = (after, known);
@@ -417,9 +441,10 @@ internal sealed class SolanaRpcSource : ISolanaSource
             read.Transfers.AddRange(moves.Transfers);
             var fee = new AssetAmount(Asset.Sol, raw.Fee);
             read.Paid.Add(new EthereumFee(raw.Hash, raw.Payer, fee, !raw.Failed, block));
-            if (!moves.IsComplete || moves.Skipped > 0)
+            read.Skipped += moves.Skipped;
+            if (!moves.IsComplete)
             {
-                read.Skipped++;
+                read.Unexplained.Add(raw.Hash);
                 foreach (var problem in moves.Problems)
                 {
                     parts.Note($"{raw.Hash.Brief()}: {problem}");
@@ -452,8 +477,7 @@ internal sealed class SolanaRpcSource : ISolanaSource
         var tokens = countable
             .GroupBy(account => account.Mint, StringComparer.Ordinal)
             .Select(group => new AssetAmount(
-                KnownTokens.Canonical(Asset.Token(Chain.Solana, group.Key, "SPL " + group.Key[..4] + "…",
-                    group.First().Decimals)),
+                SolanaMovements.Token(group.Key, group.First().Decimals),
                 group.Aggregate(BigInteger.Zero, (sum, account) => sum + account.Amount)))
             .OrderBy(amount => KnownTokens.IsKnown(amount.Asset) ? 0 : 1)
             .ThenBy(amount => amount.Asset.Symbol, StringComparer.Ordinal)
@@ -628,8 +652,11 @@ internal sealed class SolanaRpcSource : ISolanaSource
         /// <summary>Gets the transactions that could not be had now.</summary>
         public List<EthereumTxHash> Waiting { get; } = [];
 
-        /// <summary>Gets or sets how many transactions could not be read whole from their balances.</summary>
+        /// <summary>Gets or sets how many movements were not counted, for decimals Chainsaw cannot count in.</summary>
         public int Skipped { get; set; }
+
+        /// <summary>Gets the transactions whose balances their instructions do not explain.</summary>
+        public List<EthereumTxHash> Unexplained { get; } = [];
     }
 
     /// <summary>

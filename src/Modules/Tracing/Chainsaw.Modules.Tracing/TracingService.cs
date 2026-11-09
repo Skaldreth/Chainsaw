@@ -293,11 +293,11 @@ internal sealed class TracingService : ITracingService
         ArgumentNullException.ThrowIfNull(@case);
         ArgumentNullException.ThrowIfNull(swap);
         reason = OptionalReason(reason);
-        // Only a swap the case's own facts on the swap's chain (Ethereum or BSC) show, for that account in that
-        // transaction, is chosen for, so that no choice is sealed about something the case does not hold. Only that
-        // chain's part is read, not the graph. The labels are asked as when the graph is built, so that a swap a label
-        // refuses is not chosen for either.
-        if (!swap.Account.Chain.IsEvm())
+        // Only a swap the case's own facts on the swap's account chain (Ethereum, BSC, TRON or Solana) show, for that
+        // account in that transaction, is chosen for, so that no choice is sealed about something the case does not
+        // hold. Only that chain's part is read, not the graph. The labels are asked as when the graph is built, so
+        // that a swap a label refuses is not chosen for either.
+        if (swap.Account.Chain.Model() != LedgerModel.Account)
         {
             throw new ArgumentException("The swap is not in the case's graph.", nameof(swap));
         }

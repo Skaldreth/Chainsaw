@@ -12,7 +12,9 @@ namespace Chainsaw.Modules.Chains;
 /// "params":[…]}</c> to the endpoint's address, always with the commitment <c>finalized</c>, which every Solana node
 /// answers. The height is the newest finalized slot (<c>getSlot</c>); the hash at height 0 is the cluster's genesis
 /// hash (<c>getGenesisHash</c>), since the first slot's block is often pruned from a node that is not archival. A key
-/// goes in <c>Authorization: Bearer</c> (a provider that wants it in the address is added with it there).
+/// comes from the vault and goes in <c>Authorization: Bearer</c>, never in the address. A response is sealed under the
+/// endpoint's host alone, with the call as the fragment (<see cref="SourceLookups.SealedPostUri"/>), so that nothing
+/// in an endpoint's path ever reaches a case.
 /// </summary>
 internal sealed class SolanaRpcApi : ISourceApi
 {
@@ -102,7 +104,10 @@ internal sealed class SolanaRpcApi : ISourceApi
         ["maxSupportedTransactionVersion"] = SupportedTransactionVersion,
     });
 
-    /// <summary>The call for a transaction with its balances before and after.</summary>
+    /// <summary>
+    /// The call for a transaction with its balances before and after and its instructions parsed by the node
+    /// (<c>jsonParsed</c>), so that the System and Token programs' transfers can be read as they ran.
+    /// </summary>
     /// <param name="hash">The transaction's first signature.</param>
     /// <returns>The body.</returns>
     public static string TransactionCall(EthereumTxHash hash)
@@ -110,7 +115,7 @@ internal sealed class SolanaRpcApi : ISourceApi
         ArgumentNullException.ThrowIfNull(hash);
         return Call("getTransaction", hash.Value, new JsonObject
         {
-            ["encoding"] = "json",
+            ["encoding"] = "jsonParsed",
             ["commitment"] = SolanaRpcParser.Finalized,
             ["maxSupportedTransactionVersion"] = SupportedTransactionVersion,
         });

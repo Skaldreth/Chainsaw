@@ -384,6 +384,14 @@ internal sealed class EthereumReader(IAccountSource source)
                     "Källan saknade decimaler för en token; de posterna räknades inte än.");
             }
 
+            if (page.Unexplained.Count > 0)
+            {
+                Problem = Lookups.Join(Problem,
+                    "Tx " + EthereumTxHash.BriefList(page.Unexplained) + " flyttade mer än källan kunde läsa (på "
+                    + "Solana ett program som flyttade värde utan en instruktion noden tolkar); det som kunde läsas "
+                    + "visas, resten gissas inte.");
+            }
+
             if (page.Skipped > 0)
             {
                 Notes = Lookups.Join(Notes,

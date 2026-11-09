@@ -245,6 +245,27 @@ public sealed class TronGraphTests : IDisposable
         Assert.Equal(seed, (await _harness.Load()).CrossChainLinks.Single().FromTransfer);
     }
 
+    /// <summary>A stop at a swap on TRON is read back with its TRON transaction, which has no <c>0x</c>.</summary>
+    [Fact]
+    public async Task A_swap_stop_on_tron_is_read_back_on_tron()
+    {
+        var pool = Address("pool");
+        _harness.Tron.Add(
+            Tx("pay-usdt", 100, Victim, Token(Victim, Scammer, Usdt(1_000))),
+            Tx("swap", 120, Scammer, Token(Scammer, pool, Usdt(1_000)),
+                (EthereumTransferKind.Internal, pool, Scammer, Trx(3_000))));
+        _harness.Service.AddStartPoint(_harness.Case, TraceStartPoint.ForEthereumAddress(Scammer));
+        var graph = (await _harness.Service.ExpandAsync(
+            _harness.Case, ExpansionRequest.ForEthereumAddress(Scammer))).Graph;
+        var stop = _harness.Service.StopAtSwap(_harness.Case, Assert.Single(graph.Account.Swaps), null);
+        _harness.Reopen();
+
+        var read = Assert.Single((await _harness.Load()).SwapStops);
+
+        Assert.Equal(stop, read);
+        Assert.Equal(SharedKernel.Chain.Tron, read.Transaction.Chain);
+    }
+
     private static EthereumAddress Address(string label) =>
         EthereumAddress.Parse(SharedKernel.Chain.Tron, "41" + Hex(label, 40));
 

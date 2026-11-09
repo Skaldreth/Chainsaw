@@ -173,13 +173,20 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
   litar på `Txid`.
 - **Solana efter omgång 8c** (källan, grafen, startpunkterna, sanktionerna, kurserna och bevakningen är byggda,
   DEV-LOG):
-  - **Instruktionerna läses inte:** rörelserna paras ur saldona före och efter, bara där aritmetiken ger ett svar. En
-    tillgång med flera avsändare och flera mottagare i samma tx räknas inte (och sägs). Att läsa System- och
-    Token-programmens instruktioner (`jsonParsed`, också de inre) och använda dem när de förklarar saldoändringarna
-    exakt skulle para också de.
-  - **Token-2022** läses i en tx (dess saldon står bredvid de klassiska), men saldot på kortets baksida frågar bara
-    Token-programmet (`TokenkegQ…`), och en överföringsavgift i Token-2022 gör att summan inte går ihop, så tokenen
-    räknas inte i den tx:en.
+  - **Andra programs instruktioner:** bara System-, Token-, Token-2022- och ATA-programmen läses (det noden tolkar i
+    `jsonParsed`). Ett program som flyttar lamports själv (stängda programkonton, bonding curves) eller Token-2022:s
+    `transferCheckedWithFee` gör att saldona inte går ihop; tx:en sägs (`EthereumAddressPage.Unexplained`) och det som
+    fattas visas inte. Att läsa fler program, eller visa resten som en namngiven bedömning (*netto ur saldona*,
+    streckad, med *Varför?*), är nästa steg; det senare skissas först.
+  - **En nyckel i endpointens sökväg** (Helius, QuickNode): Chainsaw skickar nyckeln bara som `Authorization: Bearer`
+    och förseglar ett JSON-RPC-svar under värden ensam (sökvägen förseglas aldrig), men en leverantör som kräver
+    nyckeln i sökvägen kan bara läggas till med nyckeln i adressen, som då ligger i inställningarna utanför valvet. En
+    platshållare för valvet i adressen (`{nyckel}`) skulle hålla den där.
+  - **Bevakningen i fas på Solana:** en endpoint räknas i fas bara med exakt den högsta sloten i sin omgång, och
+    slotarna går 2,5 i sekunden; *efter* har en marginal på 75 slotar (`ChainSources.HeightMarginOf`), men *i fas*
+    för bevakningen har det inte.
+  - **M2 och M3 ur granskningen av omgång 8c** står kvar som granskningen beskrev dem (granskarens rapport till
+    huvudsessionen 2026-11-09).
   - **Stängda tokenkonton:** tokenhistoriken läser ägarens tokenkonton som noden listar dem nu; ett stängt konto finns
     inte där, och dess rörelser hittas bara i tx:er som ägaren själv signerade.
   - **Kända tokens i tokenhistoriken** är USDT och USDC; andra SPL-tokens syns i hela tx:er och i ägarens egna

@@ -5338,6 +5338,27 @@ i KF2b-panelen, och ett godkännande som knyter fortsättningen i samma transakt
   tokenhistoriken, höjden, saldot, hoppad slot, rate limit, offline), Tracing (grafen, tillståndet, länken, spårning
   och swap på Solana), Attribution (OFAC:s `SOL`), Pricing (`soleur`, USDT och USDC), Monitoring (källan registrerad),
   App (prefix, bevakningens kedja, startpunkten, *Annan kedja*).
+- **Granskningen (inga C, sex I; alla rättade):**
+  - **I1:** rörelserna läses nu ur instruktionerna (`jsonParsed`: System-programmets överföringar, Token- och
+    Token-2022-programmens `transfer`/`transferChecked`, `mintTo`, `burn` och `closeAccount`, också de inre) i den
+    ordning de kördes (`SolanaInstructions`), och saldona före och efter är kontrollen (`SolanaMovements` spelar upp
+    dem). Ingen nettning: en mellanhand mitt i en tx syns, och en stängning plus en SOL-sändning ger rätt belopp. Det
+    instruktionerna inte förklarar visas inte och sägs; en stängnings belopp, som bara uppspelningen ger, tas bort när
+    SOL inte går ihop.
+  - **I2:** varje tokenkontos lamports räknas som ägarens (ur saldona och ur `initializeAccount`/ATA-`create`), så
+    hyra och stängning skapar inga tokenkonton som aktörer.
+  - **I3:** `SolanaPageMemory.Locate` ger en sida som inte är full sina egna poster vid eller under sloten, så ett
+    andra tokenkonto med en äldre post pagineras rätt; ägarens tokenkonton frågas bara med den nyaste sidan.
+  - **I4:** tx som inte går ihop står i `EthereumAddressPage.Unexplained` (inte *Skipped*), grafen säger dem som
+    problem och bevakningens flöde säger dem. `CaseFeeds` bläddrade dessutom Solana som TRON (efter tid); nu efter
+    slot.
+  - **I5:** marginalen för *efter* är per kedja (`ChainSources.HeightMarginOf`: 75 slotar på Solana, ungefär 30 s).
+  - **I6:** nyckeln rekommenderas aldrig i adressen, och ett JSON-RPC-svar förseglas under värden ensam med anropet
+    som fragment (`SourceLookups.SealedPostUri`), så att sökvägen aldrig når ärendet och det som frågades (`before`
+    med mera) förseglas (M1).
+  - **M:** Token-2022 frågas för saldot (M4), symbolregeln står på ett ställe (`SolanaMovements.Token`, M5),
+    jämförelser av Base58 är exakta (M6). Swap-stopp gäller alla kontokedjor och läses tillbaka på TRON och Solana.
+    M2 och M3 står i BACKLOG.
 
 ## Egen nod: Bitcoin Core, electrs och bekräftelse mot den egna noden (backloggen, 2026-11-09)
 

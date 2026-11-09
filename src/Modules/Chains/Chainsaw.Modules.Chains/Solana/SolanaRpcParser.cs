@@ -71,6 +71,10 @@ internal sealed record SolanaTokenBalance(
 /// <param name="Post">Each account's lamports after it ran.</param>
 /// <param name="PreTokens">The token accounts' balances before it ran.</param>
 /// <param name="PostTokens">The token accounts' balances after it ran.</param>
+/// <param name="Moves">
+/// What its parsed instructions moved, top-level and inner, in the order they ran (<see cref="SolanaInstructions"/>).
+/// </param>
+/// <param name="Hints">The token accounts' owners its instructions name (accounts created in it).</param>
 internal sealed record SolanaTransactionRaw(
     EthereumTxHash Hash,
     long Slot,
@@ -82,7 +86,9 @@ internal sealed record SolanaTransactionRaw(
     IReadOnlyList<BigInteger> Pre,
     IReadOnlyList<BigInteger> Post,
     IReadOnlyList<SolanaTokenBalance> PreTokens,
-    IReadOnlyList<SolanaTokenBalance> PostTokens)
+    IReadOnlyList<SolanaTokenBalance> PostTokens,
+    IReadOnlyList<SolanaMove> Moves,
+    IReadOnlyList<SolanaTokenAccountHint> Hints)
 {
     /// <summary>Gets the account that paid the fee: the first one, which signed it.</summary>
     public EthereumAddress Payer => Accounts[0];
@@ -227,8 +233,8 @@ internal static class SolanaRpcParser
     }
 
     /// <summary>
-    /// Reads a transaction from <c>getTransaction</c> with <c>encoding: json</c>: its accounts, including those loaded
-    /// from address lookup tables, and each one's balance before and after.
+    /// Reads a transaction from <c>getTransaction</c> with <c>encoding: jsonParsed</c>: its accounts, including those
+    /// loaded from address lookup tables, each one's balance before and after, and what its parsed instructions moved.
     /// </summary>
     /// <param name="body">The body.</param>
     /// <param name="hash">The transaction asked for.</param>
@@ -252,17 +258,19 @@ internal static class SolanaRpcParser
         }
 
         var meta = Object(result, "meta");
-        var accounts = Accounts(Object(transaction, "message"), meta);
+        var message = Object(transaction, "message");
+        var accounts = Accounts(message, meta);
         var pre = Lamports(meta, "preBalances", accounts.Count);
         var post = Lamports(meta, "postBalances", accounts.Count);
         var slot = Long(result, "slot") ?? throw new FormatException("slot is missing.");
         var time = Long(result, "blockTime") ?? throw new FormatException("blockTime is missing.");
         var fee = Long(meta, "fee") ?? throw new FormatException("fee is missing.");
         var failed = meta.TryGetProperty("err", out var error) && error.ValueKind != JsonValueKind.Null;
+        var (moves, hints) = SolanaInstructions.Read(message, meta);
         return new SolanaTransactionRaw(
             hash, slot, DateTimeOffset.FromUnixTimeSeconds(time), Long(result, "transactionIndex"), fee, failed,
             accounts, pre, post, TokenBalances(meta, "preTokenBalances", accounts.Count),
-            TokenBalances(meta, "postTokenBalances", accounts.Count));
+            TokenBalances(meta, "postTokenBalances", accounts.Count), moves, hints);
     }
 
     /// <summary>Reads an address's SOL now (<c>getBalance</c>).</summary>
@@ -315,9 +323,12 @@ internal static class SolanaRpcParser
     /// <returns>The accounts.</returns>
     private static List<EthereumAddress> Accounts(JsonElement message, JsonElement meta)
     {
-        var accounts = Array(message, "accountKeys").EnumerateArray().Select(key => Address(key.GetString()))
-            .ToList();
-        if (meta.TryGetProperty("loadedAddresses", out var loaded) && loaded.ValueKind == JsonValueKind.Object)
+        // With jsonParsed each key is an object that names its pubkey, and the loaded ones are among them already.
+        var keys = Array(message, "accountKeys").EnumerateArray().ToList();
+        var parsed = keys.Count > 0 && keys[0].ValueKind == JsonValueKind.Object;
+        var accounts = keys.Select(key => Address(parsed ? String(key, "pubkey") : key.GetString())).ToList();
+        if (!parsed && meta.TryGetProperty("loadedAddresses", out var loaded)
+            && loaded.ValueKind == JsonValueKind.Object)
         {
             accounts.AddRange(Array(loaded, "writable").EnumerateArray().Select(key => Address(key.GetString())));
             accounts.AddRange(Array(loaded, "readonly").EnumerateArray().Select(key => Address(key.GetString())));
