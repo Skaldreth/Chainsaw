@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Media;
 using Chainsaw.App.Graph;
+using static Chainsaw.App.Controls.Freezing;
 
 namespace Chainsaw.App.Controls;
 
@@ -49,7 +50,7 @@ public sealed partial class GraphCanvas
         if (mark.IsGone)
         {
             var y = box.Y + 1 + ((box.Height - 2) / 2);
-            dc.DrawLine(new Pen(GraphPalette.Find(this, "Brush.TextDim"), 1), new Point(box.X + 5, y),
+            dc.DrawLine(PenOf(Ink("Brush.TextDim"), 1), new Point(box.X + 5, y),
                 new Point(box.Right - 5, y));
         }
 
@@ -66,10 +67,10 @@ public sealed partial class GraphCanvas
     private void DrawMarkDisc(DrawingContext dc, BlockMark mark, Point centre, double size)
     {
         var (disc, ink) = mark.IsGone ? ("Brush.Error", "Brush.Mark.OnSanctioned") : ("Brush.Pending", "Brush.Mark.OnPending");
-        dc.DrawEllipse(GraphPalette.Find(this, disc), new Pen(GraphPalette.Find(this, "Brush.Background"), 2), centre,
+        dc.DrawEllipse(Ink(disc), PenOf(Ink("Brush.Background"), 2), centre,
             size / 2, size / 2);
         var icon = size * MarkIconSize / MarkSize;
-        DrawGlyph(dc, mark.Icon, GraphPalette.Find(this, ink), new Point(centre.X - (icon / 2), centre.Y - (icon / 2)),
+        DrawGlyph(dc, mark.Icon, Ink(ink), new Point(centre.X - (icon / 2), centre.Y - (icon / 2)),
             icon);
     }
 
@@ -80,8 +81,6 @@ public sealed partial class GraphCanvas
     /// <param name="dc">Where to draw.</param>
     private void DrawBlockMarkBox(DrawingContext dc)
     {
-        (_markCentres, _nextMarkCentres) = (_nextMarkCentres, _markCentres);
-        _nextMarkCentres.Clear();
         _markGuide = null;
         var model = _model!;
         var key = _hoveredMark ?? model.OpenBlockMark;
@@ -108,11 +107,11 @@ public sealed partial class GraphCanvas
         }
 
         var footBox = new Rect(frame.X, rowTop, frame.Width, frame.Bottom - rowTop);
-        dc.DrawRectangle(GraphPalette.Find(this, "Brush.Surface"), null, footBox);
-        dc.DrawLine(new Pen(GraphPalette.Find(this, "Brush.Card.Rule"), 1), footBox.TopLeft, footBox.TopRight);
+        dc.DrawRectangle(Ink("Brush.Surface"), null, footBox);
+        dc.DrawLine(PenOf(Ink("Brush.Card.Rule"), 1), footBox.TopLeft, footBox.TopRight);
         dc.DrawText(foot, new Point(frame.X + MarkBoxPadding, rowTop + 9));
         dc.Pop();
-        dc.DrawRoundedRectangle(null, new Pen(GraphPalette.Find(this, "Brush.BorderStrong"), 1.5), frame, CardRadius,
+        dc.DrawRoundedRectangle(null, PenOf(Ink("Brush.BorderStrong"), 1.5), frame, CardRadius,
             CardRadius);
     }
 
@@ -126,7 +125,7 @@ public sealed partial class GraphCanvas
         dc.PushOpacity(0.35);
         dc.DrawRoundedRectangle(Brushes.Black, null, shadow, CardRadius, CardRadius);
         dc.Pop();
-        dc.DrawRoundedRectangle(GraphPalette.Find(this, "Brush.Floating"), null, frame, CardRadius, CardRadius);
+        dc.DrawRoundedRectangle(Ink("Brush.Floating"), null, frame, CardRadius, CardRadius);
     }
 
     /// <summary>Draws the box's head: the mark, its title and the <em>?</em> that opens the Guide.</summary>
@@ -137,12 +136,12 @@ public sealed partial class GraphCanvas
     {
         var middle = frame.Y + 22;
         DrawMarkDisc(dc, mark, new Point(frame.X + MarkBoxPadding + 9, middle), MarkSize);
-        var title = CachedText(mark.Title, 13.5, GraphPalette.Find(this, "Brush.Text"), FontWeights.SemiBold);
+        var title = Text(mark.Title, 13.5, Ink("Brush.Text"), FontWeights.SemiBold);
         dc.DrawText(title, new Point(frame.X + MarkBoxPadding + 27, middle - (title.Height / 2)));
         var guide = new Rect(frame.Right - 10 - 24, middle - 12, 24, 24);
-        dc.DrawEllipse(null, new Pen(GraphPalette.Find(this, "Brush.BorderStrong"), 1.5),
+        dc.DrawEllipse(null, PenOf(Ink("Brush.BorderStrong"), 1.5),
             new Point(guide.X + 12, guide.Y + 12), 11.25, 11.25);
-        DrawScreenGlyph(dc, "Icon.Question", GraphPalette.Find(this, "Brush.TextMuted"), new Point(guide.X + 6, guide.Y + 6), 12);
+        DrawScreenGlyph(dc, "Icon.Question", Ink("Brush.TextMuted"), new Point(guide.X + 6, guide.Y + 6), 12);
         _markGuide = guide;
     }
 
@@ -153,20 +152,20 @@ public sealed partial class GraphCanvas
     /// <param name="top">The row's top.</param>
     private void DrawMarkRow(DrawingContext dc, BlockMarkRow row, Rect frame, double top)
     {
-        dc.DrawLine(new Pen(GraphPalette.Find(this, "Brush.Card.Rule"), 1), new Point(frame.X, top),
+        dc.DrawLine(PenOf(Ink("Brush.Card.Rule"), 1), new Point(frame.X, top),
             new Point(frame.Right, top));
         var middle = top + (MarkRowHeight / 2);
-        var ink = GraphPalette.Find(this, row.IsBefore ? "Brush.TextDim" : "Brush.Text");
+        var ink = Ink(row.IsBefore ? "Brush.TextDim" : "Brush.Text");
         var left = frame.X + MarkBoxPadding;
         DrawScreenGlyph(dc, "Icon.Block", ink, new Point(left, middle - 6.5), 13);
-        var height = Struck(Text(row.Height, 12.5, ink, FontWeights.Normal), row.IsBefore);
+        var height = Struck(NewText(row.Height, 12.5, ink, FontWeights.Normal), row.IsBefore);
         dc.DrawText(height, new Point(left + 23, middle - (height.Height / 2)));
-        var hashInk = GraphPalette.Find(this, row.IsBefore ? "Brush.TextDim" : "Brush.TextMuted");
+        var hashInk = Ink(row.IsBefore ? "Brush.TextDim" : "Brush.TextMuted");
         var hash = Struck(MonoText(row.Hash, 11.5, hashInk), row.IsBefore);
         dc.DrawText(hash, new Point(left + 85, middle - (hash.Height / 2)));
         var whenLeft = left + 85 + hash.Width + 10;
         var room = Math.Max(1, frame.Right - MarkBoxPadding - whenLeft);
-        var when = CachedFitted(row.WhenAndWhere, 11, GraphPalette.Find(this, "Brush.TextDim"), FontWeights.Normal, room);
+        var when = CachedFitted(row.WhenAndWhere, 11, Ink("Brush.TextDim"), FontWeights.Normal, room);
         dc.DrawText(when, new Point(frame.Right - MarkBoxPadding - when.Width, middle - (when.Height / 2)));
     }
 
@@ -191,6 +190,16 @@ public sealed partial class GraphCanvas
         return true;
     }
 
+    /// <summary>
+    /// Takes where the marks stand in the scene just drawn as where they stand now; called only when the scene is
+    /// drawn again, since a pan moves the drawing with its marks and their places on the surface stay the same.
+    /// </summary>
+    private void KeepMarkCentres()
+    {
+        (_markCentres, _nextMarkCentres) = (_nextMarkCentres, _markCentres);
+        _nextMarkCentres.Clear();
+    }
+
     /// <summary>Follows the pointer over the marks, so that the hovered mark's box opens.</summary>
     /// <param name="surface">The pointer on the surface.</param>
     private void HoverBlockMark(GraphPoint surface)
@@ -199,7 +208,7 @@ public sealed partial class GraphCanvas
         if (mark != _hoveredMark)
         {
             _hoveredMark = mark;
-            InvalidateVisual();
+            Request(GraphChange.Overlay);
         }
     }
 
@@ -264,7 +273,7 @@ public sealed partial class GraphCanvas
     /// <returns>The text.</returns>
     private FormattedText Wrapped(string text, double width)
     {
-        var wrapped = Text(text, 11.5, GraphPalette.Find(this, "Brush.TextDim"), FontWeights.Normal);
+        var wrapped = NewText(text, 11.5, Ink("Brush.TextDim"), FontWeights.Normal);
         wrapped.MaxTextWidth = width;
         wrapped.LineHeight = 16.5;
         return wrapped;
@@ -278,19 +287,14 @@ public sealed partial class GraphCanvas
     /// <param name="size">Its size.</param>
     private void DrawScreenGlyph(DrawingContext dc, string key, Brush ink, Point corner, double size)
     {
-        if (TryFindResource(key) is not Geometry glyph)
+        if (GlyphOf(key) is not { } glyph)
         {
             return;
         }
 
         var scale = size / GridIcon.GridSize;
-        var pen = new Pen(ink, GridIcon.StrokeFor(size))
-        {
-            StartLineCap = PenLineCap.Round,
-            EndLineCap = PenLineCap.Round,
-            LineJoin = PenLineJoin.Round,
-        };
-        dc.PushTransform(new MatrixTransform(scale, 0, 0, scale, corner.X, corner.Y));
+        var pen = RoundPen(ink, GridIcon.StrokeFor(size));
+        dc.PushTransform(Frozen(new MatrixTransform(scale, 0, 0, scale, corner.X, corner.Y)));
         dc.DrawGeometry(null, pen, glyph);
         dc.Pop();
     }

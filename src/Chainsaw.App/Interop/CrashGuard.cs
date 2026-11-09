@@ -19,9 +19,9 @@ public static class CrashGuard
     /// <summary>The largest the log grows before it starts over.</summary>
     private const long MaximumLogSize = 1024 * 1024;
 
-    /// <summary>What the box says, before the fault's own message.</summary>
+    /// <summary>What the box says: never the fault's own message, which may hold case data or a path.</summary>
     private const string BoxText =
-        "Något gick fel, men Chainsaw fortsätter. Detaljerna (utan ärendets data) står i {0}.\n\n{1}";
+        "Något gick fel, men Chainsaw fortsätter. Detaljerna (utan ärendets data) står i {0}.";
 
     /// <summary>The toast's title for a fault nobody caught.</summary>
     private const string ToastTitle = "Något gick fel, men Chainsaw fortsätter.";
@@ -76,12 +76,12 @@ public static class CrashGuard
         e.Handled = true;
         if (Toaster is { } toaster)
         {
-            toaster.Show(ToastKind.Error, ToastTitle, $"{e.Exception.Message} Detaljerna står i {path}.");
+            toaster.Show(ToastKind.Error, ToastTitle, $"Detaljerna står i {path}.");
             return;
         }
 
         MessageBox.Show(
-            string.Format(System.Globalization.CultureInfo.InvariantCulture, BoxText, path, e.Exception.Message),
+            string.Format(System.Globalization.CultureInfo.InvariantCulture, BoxText, path),
             "Chainsaw", MessageBoxButton.OK, MessageBoxImage.Warning);
     }
 

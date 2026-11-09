@@ -75,6 +75,14 @@ internal sealed class ExitRecords(IVaultSecrets secrets)
         return new ExitWithConfiguration(new ExitInfo(id, name, place, stored.Kind), configuration);
     }
 
+    /// <summary>
+    /// Gives an exit's record exactly as the vault holds it, so that a copy for the background (decided 2026-11-08)
+    /// reads the same as the original.
+    /// </summary>
+    /// <param name="id">The exit.</param>
+    /// <returns>The record, or <see langword="null"/> when there is no readable exit with the id.</returns>
+    public string? Value(Guid id) => Find(id) is null ? null : secrets.Find(NameOf(id));
+
     /// <summary>Stores an exit.</summary>
     /// <param name="id">The exit's id.</param>
     /// <param name="exit">The exit.</param>

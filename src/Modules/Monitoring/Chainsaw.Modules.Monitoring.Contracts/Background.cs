@@ -70,6 +70,13 @@ public sealed record BackgroundCase(Guid CaseId, IReadOnlyList<BackgroundWatch> 
 public sealed record BackgroundPlan(
     bool Enabled, ExitRoute Route, WatchAlerts Alerts, IReadOnlyList<BackgroundCase> Cases)
 {
+    /// <summary>
+    /// Gets the proxy set by hand in Windows that the user let Chainsaw log in to with the Windows account (sketch
+    /// PX1a), as <c>host:port</c>, or <see langword="null"/> when the login is off: the background follows the
+    /// choice, through the same gate as Chainsaw (never a proxy found with WPAD, never another address).
+    /// </summary>
+    public string? ProxyLoginFor { get; init; }
+
     /// <summary>Gets the plan when none is written: off, through VPN, nothing to watch.</summary>
     public static BackgroundPlan Empty { get; } = new(false, ExitRoute.Vpn, WatchAlerts.None, []);
 
@@ -368,6 +375,43 @@ public static class WatchSchedule
 
         var newBlock = height > last.Tip || last.Status is WatchFeedStatus.Failed or WatchFeedStatus.NotAsked;
         return newBlock && now - last.CheckedUtc >= pace.Interval() - Tolerance;
+    }
+
+    /// <summary>
+    /// Asks a chain's height through its source, as the open Chainsaw and the background both do, only of an endpoint
+    /// in step with the chain (<see cref="LookupMode.InStep"/>).
+    /// </summary>
+    /// <param name="bitcoin">Bitcoin's source.</param>
+    /// <param name="ethereum">Ethereum's source.</param>
+    /// <param name="case">The case the response is sealed in.</param>
+    /// <param name="chain">The chain.</param>
+    /// <param name="cancellationToken">Stops the lookup.</param>
+    /// <param name="tron">TRON's source, or <see langword="null"/> where it is not registered.</param>
+    /// <returns>The height, or <see langword="null"/> when it was not fetched or the chain cannot be watched.</returns>
+    public static async Task<long?> HeightAsync(
+        IBitcoinSource bitcoin, IEthereumSource ethereum, ICase @case, Chain chain, CancellationToken cancellationToken,
+        ITronSource? tron = null)
+    {
+        ArgumentNullException.ThrowIfNull(bitcoin);
+        ArgumentNullException.ThrowIfNull(ethereum);
+        switch (chain)
+        {
+            case Chain.Bitcoin:
+                // Only an endpoint in step: a watch never starts or counts from a height one a block behind gave.
+                var tip = await bitcoin.GetTipHeightAsync(@case, LookupMode.InStep, cancellationToken)
+                    .ConfigureAwait(false);
+                return tip.Status == LookupStatus.Fetched ? tip.Value?.Height : null;
+            case Chain.Ethereum:
+                var height = await ethereum.GetTipHeightAsync(@case, LookupMode.InStep, cancellationToken)
+                    .ConfigureAwait(false);
+                return height.Status == LookupStatus.Fetched ? height.Value?.Height : null;
+            case Chain.Tron when tron is not null:
+                var newest = await tron.GetTipHeightAsync(@case, LookupMode.InStep, cancellationToken)
+                    .ConfigureAwait(false);
+                return newest.Status == LookupStatus.Fetched ? newest.Value?.Height : null;
+            default:
+                return null;
+        }
     }
 
     /// <summary>Gives the block a check reads back to: the last read-through height less the look-back.</summary>

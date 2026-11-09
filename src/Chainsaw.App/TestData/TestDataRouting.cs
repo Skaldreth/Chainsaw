@@ -44,6 +44,11 @@ public sealed class TestDataBitcoinRouter(IBitcoinSource real, Lazy<IBitcoinSour
         For(@case).VerifyTransactionAsync(@case, txid, cancellationToken);
 
     /// <inheritdoc/>
+    public Task<BitcoinLookup<BitcoinTransaction>> VerifyInBlockAsync(
+        ICase @case, Txid txid, CancellationToken cancellationToken = default) =>
+        For(@case).VerifyInBlockAsync(@case, txid, cancellationToken);
+
+    /// <inheritdoc/>
     public Task<BitcoinLookup<BitcoinAddressSummary>> GetAddressSummaryAsync(
         ICase @case, BitcoinAddress address, CancellationToken cancellationToken = default) =>
         For(@case).GetAddressSummaryAsync(@case, address, cancellationToken);
@@ -61,6 +66,11 @@ public sealed class TestDataBitcoinRouter(IBitcoinSource real, Lazy<IBitcoinSour
     /// <inheritdoc/>
     public Task<BitcoinLookup<BitcoinTip>> GetTipHeightAsync(ICase @case, CancellationToken cancellationToken = default) =>
         For(@case).GetTipHeightAsync(@case, cancellationToken);
+
+    /// <inheritdoc/>
+    public Task<BitcoinLookup<BitcoinTip>> GetTipHeightAsync(
+        ICase @case, LookupMode mode, CancellationToken cancellationToken = default) =>
+        For(@case).GetTipHeightAsync(@case, mode, cancellationToken);
 
     /// <inheritdoc/>
     public Task<BitcoinLookup<ChainTip>> GetTipAsync(ICase @case, CancellationToken cancellationToken = default) =>
@@ -158,6 +168,9 @@ public sealed class TestDataSanctionLists(ISanctionLists inner, TestActors actor
     /// <summary>The made-up entry's name.</summary>
     public const string EntryName = "Sanktionerad aktör (påhittad)";
 
+    /// <summary>The made-up entry of the story's dark market, a sanction beside its own sort.</summary>
+    public const string DarknetEntryName = "Skuggtorget";
+
     /// <summary>The made-up entry's id on the list.</summary>
     private const string EntryUid = "testdata-1";
 
@@ -170,7 +183,7 @@ public sealed class TestDataSanctionLists(ISanctionLists inner, TestActors actor
         Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(ListName))),
         new DateOnly(2026, 10, 1),
         new DateTimeOffset(2026, 10, 1, 12, 0, 0, TimeSpan.Zero),
-        new Dictionary<string, int>(StringComparer.Ordinal) { [SanctionCurrency.Bitcoin] = 1 },
+        new Dictionary<string, int>(StringComparer.Ordinal) { [SanctionCurrency.Bitcoin] = 2 },
         0);
 
     /// <inheritdoc/>
@@ -186,17 +199,69 @@ public sealed class TestDataSanctionLists(ISanctionLists inner, TestActors actor
     public SanctionMatch? Find(BitcoinAddress address)
     {
         ArgumentNullException.ThrowIfNull(address);
-        if (!TestDataScope.IsBuilding || address != actors.Sanctioned.Address)
-        {
-            return inner.Find(address);
-        }
-
-        var hit = new SanctionedAddress(SanctionCurrency.Bitcoin, address.Value, EntryUid, EntryName, [Programme]);
-        return new SanctionMatch(MadeUp, [hit]);
+        return MadeUpFor(address) ?? inner.Find(address);
     }
 
     /// <inheritdoc/>
     public SanctionMatch? Find(EthereumAddress address) => inner.Find(address);
+
+    /// <inheritdoc/>
+    public IReadOnlyList<SanctionListInfo> CurrentLists => inner.CurrentLists;
+
+    /// <inheritdoc/>
+    public IReadOnlyList<SanctionMatch> FindAll(BitcoinAddress address)
+    {
+        ArgumentNullException.ThrowIfNull(address);
+        return MadeUpFor(address) is { } madeUp ? [madeUp] : inner.FindAll(address);
+    }
+
+    /// <inheritdoc/>
+    public IReadOnlyList<SanctionMatch> FindAll(EthereumAddress address) => inner.FindAll(address);
+
+    /// <inheritdoc/>
+    public SanctionLookup FindMany(IReadOnlyCollection<ChainAddress> addresses)
+    {
+        ArgumentNullException.ThrowIfNull(addresses);
+        var lookup = inner.FindMany(addresses);
+        var matches = new Dictionary<ChainAddress, IReadOnlyList<SanctionMatch>>(lookup.Matches);
+        foreach (var address in addresses)
+        {
+            if (BitcoinAddress.TryParse(address.Value, out var bitcoin) && MadeUpFor(bitcoin) is { } madeUp)
+            {
+                matches[address] = [madeUp];
+            }
+        }
+
+        return lookup with { Matches = matches };
+    }
+
+    /// <summary>
+    /// Gives the made-up list's entry for an address while the test case is built: the story's sanctioned actor and
+    /// the dark market (so that a sanction also stands as a mark beside another sort), never any other address.
+    /// </summary>
+    /// <param name="address">The address.</param>
+    /// <returns>The made-up match, or <see langword="null"/>.</returns>
+    private SanctionMatch? MadeUpFor(BitcoinAddress address)
+    {
+        if (!TestDataScope.IsBuilding)
+        {
+            return null;
+        }
+
+        var name = (address == actors.Sanctioned.Address, address == actors.Darknet.Address) switch
+        {
+            (true, _) => EntryName,
+            (_, true) => DarknetEntryName,
+            _ => null,
+        };
+        return name is null
+            ? null
+            : new SanctionMatch(
+                MadeUp, [new SanctionedAddress(SanctionCurrency.Bitcoin, address.Value, EntryUid, name, [Programme])]);
+    }
+
+    /// <inheritdoc/>
+    public bool Remove(string sha256) => inner.Remove(sha256);
 }
 
 /// <summary>Marks the work of building the test case, in the flow that does it and nowhere else.</summary>

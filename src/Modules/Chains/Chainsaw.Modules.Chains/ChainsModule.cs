@@ -52,6 +52,7 @@ public static class ChainsModule
         services.TryAddSingleton<IClock, SystemClock>();
         services.AddSingleton<ICaseSchemaContributor, ChainsSchema>();
         services.AddSingleton<IResponseTransfer, ResponseTransfer>();
+        services.AddSingleton<ICaseHeights>(new CaseHeights(settings));
 
         // Each sort of API is registered here; another chain (Ethereum, TRON) only adds its own.
         services.AddSingleton<ISourceApi>(new EsploraApi(settings));
@@ -67,6 +68,14 @@ public static class ChainsModule
             provider.GetService<ILocalHttp>(),
             sourcesOptions.Delay));
         services.AddSingleton<IChainSources>(provider => provider.GetRequiredService<ChainSources>());
+
+        // News of new blocks by websocket where an endpoint has it; only a nudge for the watching.
+        services.AddSingleton(provider => new BlockNews(
+            provider.GetRequiredService<IChainSources>(),
+            provider.GetService<IExitWebSocket>(),
+            provider.GetRequiredService<IClock>(),
+            network: settings.Network));
+        services.AddSingleton<IBlockNews>(provider => provider.GetRequiredService<BlockNews>());
         services.AddSingleton<IBitcoinSource>(provider => new EsploraBitcoinSource(
             provider.GetRequiredService<ChainSources>(),
             provider.GetRequiredService<IOperatorProfileStore>(),

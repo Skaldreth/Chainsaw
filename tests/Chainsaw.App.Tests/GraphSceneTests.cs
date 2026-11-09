@@ -326,9 +326,9 @@ public sealed partial class GraphSceneTests
         Assert.Equal(NodeSort.Gambling, VisualLanguage.SortOf(LabelKind.Gambling));
         Assert.Equal(NodeSort.Unknown, VisualLanguage.SortOf(LabelKind.Unknown));
         Assert.All(
-            // A supplier's report and a former sanction are marks beside the node's sort, not sorts of their own.
-            Enum.GetValues<LabelKind>().Where(kind =>
-                kind is not (LabelKind.Unknown or LabelKind.Reported or LabelKind.FormerlySanctioned)),
+            // A supplier's report, a former and a possible sanction are not sorts of their own.
+            Enum.GetValues<LabelKind>().Where(kind => kind is not (LabelKind.Unknown or LabelKind.Reported
+                or LabelKind.FormerlySanctioned or LabelKind.PossiblySanctioned)),
             kind => Assert.NotEqual(NodeSort.Unknown, VisualLanguage.SortOf(kind)));
         Assert.True(VisualLanguage.IsCashOut(NodeSort.Atm));
         Assert.False(VisualLanguage.IsCashOut(NodeSort.Gambling));

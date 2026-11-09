@@ -53,11 +53,7 @@ public enum MarkdownStyle
 /// <param name="Target">
 /// The address when the piece is (part of) a link, from <c>[text](adress)</c>, otherwise <see langword="null"/>.
 /// </param>
-public sealed record MarkdownSpan(string Text, MarkdownStyle Style = MarkdownStyle.None, string? Target = null)
-{
-    /// <summary>Gets a value indicating whether the piece is part of a link.</summary>
-    public bool IsLink => Target is not null;
-}
+public sealed record MarkdownSpan(string Text, MarkdownStyle Style = MarkdownStyle.None, string? Target = null);
 
 /// <summary>A line of a note, or a whole fenced code block.</summary>
 /// <param name="Kind">What the line is.</param>
@@ -75,9 +71,6 @@ public sealed record MarkdownBlock(
 {
     /// <summary>Gets the text without any marks, e.g. for a title or a tooltip.</summary>
     public string PlainText => string.Concat(Spans.Select(s => s.Text));
-
-    /// <summary>Gets how many lines the block was typed as: the lines of a code block, otherwise one.</summary>
-    public int LineCount => Kind == MarkdownBlockKind.Code ? PlainText.Split('\n').Length : 1;
 }
 
 /// <summary>A block of a note with the lines it was typed as.</summary>

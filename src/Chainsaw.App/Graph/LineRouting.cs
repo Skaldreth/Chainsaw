@@ -52,25 +52,41 @@ public static class LineRouting
     /// <param name="to">The receiver's frame.</param>
     /// <param name="room">The room the nodes take (<see cref="Room"/>).</param>
     /// <returns>The line, bent when it had to be.</returns>
-    public static EdgeCurve AroundNodes(EdgeCurve curve, GraphRect from, GraphRect to, RoomGrid room)
+    public static EdgeCurve AroundNodes(EdgeCurve curve, GraphRect from, GraphRect to, RoomGrid room) =>
+        Route(curve, from, to, room).Curve;
+
+    /// <summary>
+    /// Gives a line bent around the nodes it would run through, as <see cref="AroundNodes"/>, and the cells of the
+    /// room it looked in to choose the bend: those of every point it tried, until a curve was clear. Only a node that
+    /// comes into or leaves one of those cells can change how the line is routed, so a drag routes only those lines
+    /// again (<see cref="SceneLayout.Move"/>).
+    /// </summary>
+    /// <param name="curve">The line.</param>
+    /// <param name="from">The sender's frame.</param>
+    /// <param name="to">The receiver's frame.</param>
+    /// <param name="room">The room the nodes take (<see cref="Room"/>).</param>
+    /// <returns>The line, bent when it had to be, and the cells looked in; none for an arc or a loop.</returns>
+    public static (EdgeCurve Curve, IReadOnlySet<(int Column, int Row)> LookedIn) Route(
+        EdgeCurve curve, GraphRect from, GraphRect to, RoomGrid room)
     {
         ArgumentNullException.ThrowIfNull(curve);
         ArgumentNullException.ThrowIfNull(room);
-        if (curve.IsArc || !Crosses(curve, from, to, room))
+        var lookedIn = new HashSet<(int Column, int Row)>();
+        if (curve.IsArc || !Crosses(curve, from, to, room, lookedIn))
         {
-            return curve;
+            return (curve, lookedIn);
         }
 
         foreach (var detour in Detours)
         {
             var bent = curve.Bent(detour);
-            if (!Crosses(bent, from, to, room))
+            if (!Crosses(bent, from, to, room, lookedIn))
             {
-                return bent;
+                return (bent, lookedIn);
             }
         }
 
-        return curve;
+        return (curve, lookedIn);
     }
 
     /// <summary>Says whether a line runs through a node other than its two ends.</summary>
@@ -79,7 +95,18 @@ public static class LineRouting
     /// <param name="to">The receiver's frame.</param>
     /// <param name="room">The room the nodes take.</param>
     /// <returns><see langword="true"/> when it does.</returns>
-    public static bool Crosses(EdgeCurve curve, GraphRect from, GraphRect to, RoomGrid room)
+    public static bool Crosses(EdgeCurve curve, GraphRect from, GraphRect to, RoomGrid room) =>
+        Crosses(curve, from, to, room, null);
+
+    /// <summary>Says whether a line runs through a node other than its two ends, and notes the cells it looked in.</summary>
+    /// <param name="curve">The line.</param>
+    /// <param name="from">The sender's frame.</param>
+    /// <param name="to">The receiver's frame.</param>
+    /// <param name="room">The room the nodes take.</param>
+    /// <param name="lookedIn">Where the cells looked in are noted, or <see langword="null"/>.</param>
+    /// <returns><see langword="true"/> when it does.</returns>
+    private static bool Crosses(
+        EdgeCurve curve, GraphRect from, GraphRect to, RoomGrid room, HashSet<(int Column, int Row)>? lookedIn)
     {
         ArgumentNullException.ThrowIfNull(curve);
         ArgumentNullException.ThrowIfNull(room);
@@ -92,7 +119,8 @@ public static class LineRouting
                 continue;
             }
 
-            if (room.Touches(new GraphRect(point.X, point.Y, 0, 0)))
+            lookedIn?.Add(room.CellOf(point));
+            if (room.Holds(point))
             {
                 return true;
             }

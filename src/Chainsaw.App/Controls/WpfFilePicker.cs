@@ -41,7 +41,8 @@ public sealed class WpfFilePicker(AutoLock autoLock, IVault vault) : IFilePicker
     }
 
     /// <summary>The dialog's filter for a sanction list: the SDN list is XML, and any file can be tried.</summary>
-    private const string SanctionListFilter = "Sanktionslista (*.xml)|*.xml|Alla filer (*.*)|*.*";
+    private const string SanctionListFilter =
+        "Sanktionslista eller öppen källa (*.xml;*.json)|*.xml;*.json|Alla filer (*.*)|*.*";
 
     /// <summary>The dialog's filter for a WireGuard file: a <c>.conf</c>, and any file can be tried.</summary>
     private const string WireGuardFilter = "WireGuard-konfiguration (*.conf)|*.conf|Alla filer (*.*)|*.*";

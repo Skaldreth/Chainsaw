@@ -30,6 +30,9 @@ public sealed partial class CommandSearchViewModel : ObservableObject
     /// <summary>What Enter does with a row that lies in the trash.</summary>
     public const string OpenTrashText = "öppnar soptunnan";
 
+    /// <summary>What Enter does on a row that lies in the trash and can be put back from the row.</summary>
+    public const string PutBackText = "lägger tillbaka";
+
     /// <summary>What Enter does with an address or a tx the case does not have.</summary>
     public const string AddText = "lägger till";
 
@@ -151,6 +154,7 @@ public sealed partial class CommandSearchViewModel : ObservableObject
     {
         { GuideSection: not null } => OpenGuideText,
         { NodeKey: not null } => ShowInGraphText,
+        { Entry.TrashPlace: not null } => PutBackText,
         { Entry.IsInTrash: true } => OpenTrashText,
         not null => CloseText,
         _ when IsUnknown => AddText,

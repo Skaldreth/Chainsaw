@@ -51,6 +51,15 @@ public sealed class BandMotion
     /// <summary>How much the band sags in the middle, in pixels, before the right key pulls it straight.</summary>
     private const double Sag = 7;
 
+    /// <summary>
+    /// How fast the taut link trembles before it lets go, in swings a second: slow enough to be seen as a tremble at the
+    /// screen's sixty frames a second, not as a shimmer.
+    /// </summary>
+    private const double TrembleTone = 8;
+
+    /// <summary>How far the taut link trembles before it lets go, in pixels.</summary>
+    private const double TrembleWidth = 0.9;
+
     /// <summary>How far beyond the page's edges the rope is held, in pixels.</summary>
     private const double Hold = 60;
 
@@ -90,6 +99,9 @@ public sealed class BandMotion
     /// <summary>The page's size the figure was last laid out for.</summary>
     private (double Width, double Height) _page;
 
+    /// <summary>The band as it stands at this step, laid out once and drawn from; null when it must be laid out again.</summary>
+    private ChainBand? _current;
+
     /// <summary>Creates the motion, at the start.</summary>
     /// <param name="random">Picks where and how each particle comes loose; seeded in the tests.</param>
     public BandMotion(Random random) => _particles = new DnaParticles(random);
@@ -122,6 +134,7 @@ public sealed class BandMotion
         _sinceWrong = double.MaxValue;
         _sinceRight = null;
         _lens = null;
+        _current = null;
         _stopped = false;
         _letGo = false;
         Array.Clear(_swings);
@@ -151,7 +164,8 @@ public sealed class BandMotion
             }
         }
 
-        var band = Band();
+        _current = null;
+        var band = Current();
         Jolts(band);
         Swing(seconds, window);
         if (!IsStill && _time >= LetGo && !IsUnlocking)
@@ -167,7 +181,7 @@ public sealed class BandMotion
     {
         if (!IsStill && !IsUnlocking)
         {
-            _particles.LetGoBase(Band());
+            _particles.LetGoBase(Current());
         }
     }
 
@@ -185,7 +199,7 @@ public sealed class BandMotion
         _swings[2].Speed += 40 * _jerk;
         if (!IsStill)
         {
-            _particles.Burst(Band(), 70);
+            _particles.Burst(Current(), 70);
         }
     }
 
@@ -196,6 +210,7 @@ public sealed class BandMotion
         _node = node;
         _sinceRight = 0;
         _lens = null;
+        _current = null;
     }
 
     /// <summary>Gives how red the band is after a wrong key, from 0 to nearly 1.</summary>
@@ -217,8 +232,13 @@ public sealed class BandMotion
     /// <returns>The frame.</returns>
     public BandFrame Frame(double width, double height)
     {
-        _page = (width, height);
-        var band = Band();
+        if (_page != (width, height))
+        {
+            _page = (width, height);
+            _current = null;
+        }
+
+        var band = Current();
         var tint = Tint();
         if (_sinceRight is { } since && since > Morph.From)
         {
@@ -238,7 +258,11 @@ public sealed class BandMotion
     /// <returns>The eased share.</returns>
     private static double Ease(double t) => t * t * (3 - (2 * t));
 
-    /// <summary>Gives the band as it stands now, on the page it was last laid out for.</summary>
+    /// <summary>Gives the band at this step, laid out once for the step and the page.</summary>
+    /// <returns>The band.</returns>
+    private ChainBand Current() => _current ??= Band();
+
+    /// <summary>Lays the band out as it stands now, on the page it was last laid out for.</summary>
     /// <returns>The band.</returns>
     private ChainBand Band()
     {
@@ -345,7 +369,7 @@ public sealed class BandMotion
         var length = band.Width + (2 * Hold);
         var x = (along + Hold) / length;
         var tremble = !IsStill && _time > ChainsIn && _time < LetGo
-            ? 1.4 * ChainBand.Smooth(ChainsIn, LetGo, _time) * Math.Sin(2 * Math.PI * 15 * _time)
+            ? TrembleWidth * ChainBand.Smooth(ChainsIn, LetGo, _time) * Math.Sin(2 * Math.PI * TrembleTone * _time)
             : 0;
         var straight = _sinceRight is { } since ? ChainBand.Smooth(0, 0.45, since) : 0;
         var bow = tremble - (Sag * (1 - straight));

@@ -214,10 +214,22 @@ public sealed class GraphSource(
             {
                 var latest = new Dictionary<Asset, Price>();
                 var throttled = new StrongBox<bool>();
-                var (values, gaps) = await ValuesAsync(
-                    @case, scene.Snapshot.Graph, PriceLookupMode.AsNeeded, latest, cancellationToken, throttled)
+
+                // The swaps' rates come first, so that a price that decides where traced money goes is tested before
+                // a line's value is filled in.
+                var graph = scene.Snapshot.Graph;
+                var traced = scene.Snapshot.AccountTrace?.Swaps.Select(conversion => conversion.Swap).ToHashSet()
+                    ?? [];
+                var (swapRates, asked) = await FetchSwapRatesAsync(@case, graph, traced, throttled, cancellationToken)
                     .ConfigureAwait(false);
-                return new GraphRates(values, gaps, latest) { IsThrottled = throttled.Value };
+                var (values, gaps) = await ValuesAsync(
+                    @case, graph, PriceLookupMode.AsNeeded, latest, cancellationToken, throttled, asked)
+                    .ConfigureAwait(false);
+                return new GraphRates(values, gaps, latest)
+                {
+                    IsThrottled = throttled.Value,
+                    SwapRatesFetched = swapRates,
+                };
             },
             cancellationToken);
     }
@@ -447,7 +459,8 @@ public sealed class GraphSource(
     {
         var addresses = graph.Nodes.SelectMany(node => node.GraphAddresses).Distinct().ToList();
         var accounts = graph.Nodes.SelectMany(node => node.Accounts).Distinct().ToList();
-        var labelled = LabelKnownContracts(@case, accounts);
+        var lists = CheckLists(@case, [.. addresses.Select(address => address.ToChainAddress()), .. accounts]);
+        var labelled = LabelKnownContracts(@case, accounts) + lists.Added;
         var shared = 0;
         if (library is not null)
         {
@@ -469,9 +482,10 @@ public sealed class GraphSource(
             }
         }
 
-        return shared + labelled == 0
+        var read = shared + labelled == 0
             ? graph
             : await tracing.LoadAsync(@case, cancellationToken).ConfigureAwait(false);
+        return lists.Problems.Count == 0 ? read : read with { Problems = [.. read.Problems, .. lists.Problems] };
     }
 
     /// <summary>
@@ -503,6 +517,90 @@ public sealed class GraphSource(
             // The same, but unexpected: only the type is logged, since the message could name the case's data.
             Trace.TraceWarning("Labelling the known contracts failed: {0}", exception.GetType().FullName);
             return 0;
+        }
+    }
+
+    /// <summary>
+    /// Checks the graph's addresses on both chains against the imported sanction lists (OFAC SDN and the EU's) and
+    /// open sources (Ransomwhere), so that an address that comes in with an expansion is labelled the moment it is in
+    /// the case, and a list imported while a case is open is applied the next time its graph is read. Nothing is
+    /// fetched: the lists are files on this computer. The sanction lists and the open sources are checked each on
+    /// their own, so that a failure in one never keeps the other from being checked; a list whose file has changed is
+    /// passed over by Attribution and said in the graph's problems (the review of round 5, I4).
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="addresses">The graph's addresses on every chain.</param>
+    /// <returns>How many labels were added, and what to say about lists that could not be used.</returns>
+    private (int Added, IReadOnlyList<string> Problems) CheckLists(
+        ICase @case, IReadOnlyCollection<ChainAddress> addresses)
+    {
+        if (addresses.Count == 0)
+        {
+            return (0, []);
+        }
+
+        var problems = new List<string>();
+        var sanctions = Quietly(() => attribution.CheckSanctions(@case, addresses), "sanction lists");
+        var open = Quietly(() => attribution.CheckOpenSources(@case, addresses), "open sources");
+        problems.AddRange(sanctions?.Unusable.Select(list => UnusableListText(
+            "Sanktionslistan", list.Name, list.PublishDate)) ?? []);
+        problems.AddRange(sanctions?.Missing.Select(list => MissingListText(
+            "Sanktionslistan", list.Name, list.PublishDate)) ?? []);
+        problems.AddRange(open?.Unusable.Select(source => UnusableListText(
+            "Den öppna källan", source.Name, source.DataDate)) ?? []);
+        problems.AddRange(open?.Missing.Select(source => MissingListText(
+            "Den öppna källan", source.Name, source.DataDate)) ?? []);
+        return ((sanctions?.Added.Count ?? 0) + (open?.Added.Count ?? 0), problems);
+    }
+
+    /// <summary>Says that a list on this computer has changed since it was imported and is not used.</summary>
+    /// <param name="what">What kind of list, with its article, for example <c>Sanktionslistan</c>.</param>
+    /// <param name="name">The list's name.</param>
+    /// <param name="date">Its date.</param>
+    /// <returns>The text, in Swedish.</returns>
+    public static string UnusableListText(string what, string name, DateOnly date) => string.Format(
+        CultureInfo.InvariantCulture,
+        "{0} {1} {2:yyyy-MM-dd} har ändrats på datorn sedan den importerades och används inte; importera den igen.",
+        what,
+        name,
+        date);
+
+    /// <summary>Says that a list is gone from the computer since it was imported, so it was not used.</summary>
+    /// <param name="what">What kind of list, with its article, for example <c>Sanktionslistan</c>.</param>
+    /// <param name="name">The list's name.</param>
+    /// <param name="date">Its date.</param>
+    /// <returns>The text, in Swedish.</returns>
+    public static string MissingListText(string what, string name, DateOnly date) => string.Format(
+        CultureInfo.InvariantCulture,
+        "{0} {1} {2:yyyy-MM-dd} saknas på datorn och användes inte; importera den igen om den behövs.",
+        what,
+        name,
+        date);
+
+    /// <summary>Runs a check of the lists, giving nothing when it fails, so that the graph is always shown.</summary>
+    /// <typeparam name="T">The check's result.</typeparam>
+    /// <param name="check">The check.</param>
+    /// <param name="what">What is checked, for the log.</param>
+    /// <returns>The result, or <see langword="null"/> when the check failed.</returns>
+    private static T? Quietly<T>(Func<T> check, string what)
+        where T : class
+    {
+        try
+        {
+            return check();
+        }
+        catch (Exception exception) when (exception is CaseException or SanctionListException
+            or OpenSourceListException or IOException or UnauthorizedAccessException)
+        {
+            // A closed case or a list that cannot be read must never keep the graph from being shown; the check runs
+            // again at the next reading.
+            return null;
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException and not OperationCanceledException)
+        {
+            // The same, but unexpected: only the type is logged, since the message could name the case's data.
+            Trace.TraceWarning("Checking the {0} failed: {1}", what, exception.GetType().FullName);
+            return null;
         }
     }
 
@@ -636,12 +734,14 @@ public sealed class GraphSource(
                 : NothingToTraceText;
         }
 
+        var swapPricing = await SwapPricingAsync(@case, graph, cancellationToken).ConfigureAwait(false);
         if (accountSeeds.Count > 0)
         {
             try
             {
                 accountTrace = await tracing.TraceAccountsAsync(
-                    graph, new AccountTraceRequest(method, accountSeeds), cancellationToken).ConfigureAwait(false);
+                    graph, new AccountTraceRequest(method, accountSeeds) { Pricing = swapPricing }, cancellationToken)
+                    .ConfigureAwait(false);
             }
             catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
             {
@@ -677,6 +777,7 @@ public sealed class GraphSource(
             ValueGaps = gaps,
             Rates = latest,
             KeptOutOfPiles = reading.KeptOutOfPiles,
+            SwapPricing = swapPricing,
         }, reading.ShowUnspendable);
     }
 
@@ -723,6 +824,7 @@ public sealed class GraphSource(
     /// Set when a source asked Chainsaw to wait (429): from then on no rate is asked of the source in this run, so that
     /// a refusing source is asked once and not once per line; <see langword="null"/> when it does not matter.
     /// </param>
+    /// <param name="alreadyAsked">How many rates were already asked of the source in this run, for the swaps.</param>
     /// <returns>The values and the reasons a line has none, by line key.</returns>
     private async Task<(IReadOnlyDictionary<string, EdgeValue> Values, IReadOnlyDictionary<string, EdgeValueGap> Gaps)>
         ValuesAsync(
@@ -731,7 +833,8 @@ public sealed class GraphSource(
             PriceLookupMode mode,
             Dictionary<Asset, Price> latest,
             CancellationToken cancellationToken,
-            StrongBox<bool>? throttled = null)
+            StrongBox<bool>? throttled = null,
+            int alreadyAsked = 0)
     {
         var values = new Dictionary<string, EdgeValue>(StringComparer.Ordinal);
         var gaps = new Dictionary<string, EdgeValueGap>(StringComparer.Ordinal);
@@ -740,7 +843,7 @@ public sealed class GraphSource(
             return (values, gaps);
         }
 
-        var asked = 0;
+        var asked = throttled?.Value == true ? MostRateLookups : alreadyAsked;
         var currency = Currency;
         var known = new Dictionary<(Asset, DateTimeOffset), PriceLookup<Price>>();
         foreach (var edge in graph.Edges.Where(edge => edge.Kind == GraphEdgeKind.Transfer && edge.Transfers.Count > 0))
@@ -806,6 +909,123 @@ public sealed class GraphSource(
         }
 
         return (values, gaps);
+    }
+
+    /// <summary>
+    /// Reads the rates the case already has for the graph's swaps, at each swap's time, for the swaps' price check
+    /// (<see cref="SwapValue.CheckPrice"/>); nothing is asked of a source, so the check is honest offline and says when
+    /// a rate is missing. Wrapped ether is valued as ether, since one is always worth the other.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="graph">The graph.</param>
+    /// <param name="cancellationToken">Stops the work.</param>
+    /// <returns>The rates, or <see langword="null"/> when no rates are wired or the graph has no swaps.</returns>
+    private async Task<SwapPricing?> SwapPricingAsync(ICase @case, TraceGraph graph, CancellationToken cancellationToken)
+    {
+        if (prices is null || graph.Account.Swaps.Count == 0)
+        {
+            return null;
+        }
+
+        var rates = new Dictionary<(Asset, DateTimeOffset), Price>();
+        foreach (var swap in graph.Account.Swaps.Where(swap => swap.Time is not null))
+        {
+            foreach (var asset in new[] { PricedAs(swap.Sold.Asset), PricedAs(swap.Bought.Asset) })
+            {
+                var key = (asset, swap.Time!.Value);
+                if (!rates.ContainsKey(key)
+                    && (await LookUp(@case, asset, key.Value, PriceLookupMode.CaseOnly, cancellationToken)
+                        .ConfigureAwait(false)).Value is { } price)
+                {
+                    rates[key] = price;
+                }
+            }
+        }
+
+        return new SwapPricing((amount, at) => ValueAt(rates, amount, at), Currency);
+    }
+
+    /// <summary>
+    /// Asks the source for the rates the case lacks at each swap's time, for both sides and with wrapped ether as
+    /// ether, so that the swaps' price check (<see cref="SwapValue.CheckPrice"/>) can be made. They are asked before a
+    /// line's rates, within <see cref="MostRateLookups"/>, and a source that asks Chainsaw to wait is asked no more.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="graph">The graph.</param>
+    /// <param name="traced">The swaps traced money goes through, whose rates are asked for first.</param>
+    /// <param name="throttled">Set when the source asked Chainsaw to wait.</param>
+    /// <param name="cancellationToken">Stops the work.</param>
+    /// <returns>Whether a rate the case lacked arrived, and how many rates were asked of the source.</returns>
+    private async Task<(bool Fetched, int Asked)> FetchSwapRatesAsync(
+        ICase @case,
+        TraceGraph graph,
+        IReadOnlySet<TokenSwap> traced,
+        StrongBox<bool> throttled,
+        CancellationToken cancellationToken)
+    {
+        var fetched = false;
+        var asked = 0;
+        if (prices is null)
+        {
+            return (fetched, asked);
+        }
+
+        var seen = new HashSet<(Asset, DateTimeOffset)>();
+        var swaps = graph.Account.Swaps.Where(swap => swap.Time is not null).OrderBy(swap => !traced.Contains(swap));
+        foreach (var swap in swaps)
+        {
+            foreach (var asset in new[] { PricedAs(swap.Sold.Asset), PricedAs(swap.Bought.Asset) })
+            {
+                var at = swap.Time!.Value;
+                if (!seen.Add((asset, at)) || throttled.Value || asked >= MostRateLookups)
+                {
+                    continue;
+                }
+
+                var lookup = await LookUp(@case, asset, at, PriceLookupMode.CaseOnly, cancellationToken)
+                    .ConfigureAwait(false);
+                if (lookup.Status != PriceLookupStatus.NotInCase)
+                {
+                    continue;
+                }
+
+                asked++;
+                lookup = await LookUp(@case, asset, at, PriceLookupMode.AsNeeded, cancellationToken)
+                    .ConfigureAwait(false);
+                throttled.Value |= lookup.IsThrottled;
+                fetched |= lookup.Value is not null;
+            }
+        }
+
+        return (fetched, asked);
+    }
+
+    /// <summary>Gives the asset an amount is priced as: wrapped ether as ether, everything else as itself.</summary>
+    /// <param name="asset">The asset.</param>
+    /// <returns>The priced asset.</returns>
+    private static Asset PricedAs(Asset asset) => asset == KnownTokens.EthereumWeth ? Asset.Ether : asset;
+
+    /// <summary>Values an amount at a time from the rates read, or gives none.</summary>
+    /// <param name="rates">The rates by priced asset and time.</param>
+    /// <param name="amount">The amount.</param>
+    /// <param name="at">The time.</param>
+    /// <returns>The value, or <see langword="null"/> without a rate or when the amount is too large to value.</returns>
+    private static decimal? ValueAt(Dictionary<(Asset, DateTimeOffset), Price> rates, AssetAmount amount, DateTimeOffset at)
+    {
+        var asset = PricedAs(amount.Asset);
+        if (!rates.TryGetValue((asset, at), out var price))
+        {
+            return null;
+        }
+
+        try
+        {
+            return price.ValueOf(new AssetAmount(asset, amount.Units)).Value;
+        }
+        catch (OverflowException)
+        {
+            return null;
+        }
     }
 
     /// <summary>Asks Pricing for an asset's rate at a time; a failure is no rate, never an error in the graph.</summary>

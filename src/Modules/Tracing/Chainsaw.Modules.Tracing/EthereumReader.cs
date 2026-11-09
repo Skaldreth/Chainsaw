@@ -3,6 +3,7 @@ using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Tracing.Contracts;
 using Chainsaw.SharedKernel;
+using static Chainsaw.Modules.Tracing.Lookups;
 
 namespace Chainsaw.Modules.Tracing;
 
@@ -310,12 +311,6 @@ internal sealed class EthereumReader(IAccountSource source)
                 unknown);
         return (hashes, problem);
     }
-
-    /// <summary>Joins two texts for the user, either of which may be missing, each once.</summary>
-    /// <param name="first">The first text.</param>
-    /// <param name="second">The second text.</param>
-    /// <returns>Both, one, or <see langword="null"/>.</returns>
-    private static string? Join(string? first, string? second) => Lookups.Join(first, second);
 
     /// <summary>What a walk through an address's histories found.</summary>
     private sealed class HistoryWalk

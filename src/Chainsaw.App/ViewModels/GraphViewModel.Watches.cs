@@ -289,6 +289,13 @@ public sealed partial class GraphViewModel
     [RelayCommand]
     private void CopyText(string? text)
     {
+        if (Poison is { } poison && text == poison.Suspect.Value)
+        {
+            // The look-alike is never copied past the comparison (sketch DM1a); the comparison lights up instead.
+            IsPoisonAsked = true;
+            return;
+        }
+
         if (!string.IsNullOrWhiteSpace(text))
         {
             CopyWanted?.Invoke(this, text);
@@ -298,6 +305,12 @@ public sealed partial class GraphViewModel
     /// <summary>Copies the chosen node's address (Ctrl+C).</summary>
     public void CopyAddress()
     {
+        if (AskBeforeCopy())
+        {
+            // A look-alike is compared with the genuine address first (sketch DM1a); nothing is copied yet.
+            return;
+        }
+
         if (Scene?.Node(SelectedNode) is { } node && node.Node.Addresses.Count > 0)
         {
             CopyWanted?.Invoke(this, node.Node.Addresses[0].Value);

@@ -9,10 +9,16 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
   stället räknas fram på nytt ur svaret av källan (en tolk per sort av svar), så att det aldrig tas emot utifrån.
 - **Ethereum efter etapp 23b** (grafen, inspektören, startpunkterna, swap-pillret och kurserna för USDT och USDC är
   byggda). Kvar:
-  - **Spårning genom en swap:** pillret visar bytet, men spårningen räknar varje tillgång för sig, så spårade USDT blir
-    inte spårad ether hos den som bytte (de stannar som *inte expanderad* hos poolen). Att föra över den spårade
-    andelen i bytet är en bedömning (analys med namn och version); regeln är beslutad (CLAUDE.md, *Spåra*), och valet
-    per swap i pillret skissas först.
+  - **Swappen i testärendet** (SW1a, 2026-11-08): `/testdata` har ingen Ethereum-källa, så spåret genom en swap syns
+    inte där.
+  - **Swappens pris och val** (SW1a, femte och sjätte granskningen): `StopAtSwap` läser hela ärendets Ethereum-del
+    för att se att swappen finns, inte bara tx:ens svar; och exponeringen (EP1b) drar inte av den del som stannar i
+    poolen när det som kom ut var värt mindre, och inte heller andelen när det var värt mer (spåret gör båda;
+    *Varför?* i Exponering säger det).
+  - **Swappar som inte känns igen** (SW1a, andra granskningen; hellre ingen swap än en felaktig): Uniswap V2 genom
+    routern när bara historiken är hämtad (parets WETH till routern syns först när hela tx:en läses; att läsa swappens
+    tx av sig själv vore ett uppslag per swap), och en aggregator som tar en avgift till en egen adress i samma tx (en
+    lista över aggregatorernas avgiftsadresser skulle kunna räkna dem till bytets sida).
   - **Swap genom en känd DEX:** pillret sätts på mönstret (den som signerade skickade en tillgång och fick en annan i
     samma tx), utan lista över DEX-kontrakt. En lista över kända DEX:ar och aggregatorer kan visa namnet i *Varför?*.
   - **Tx:ens plats i blocket:** källornas historik ger inte `transactionIndex`, så två tx i samma block ordnas efter
@@ -165,16 +171,15 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
 - **Direkt mot kedjan:** egen nod och eget index (Bitcoin Core med `txindex`, Fulcrum eller electrs eller ett eget index;
   Reth eller Erigon för Ethereum; java-tron för TRON). Kräver en server. Esplora går att köra själv, så Bitcoin blir bara en
   annan adress i datalagret.
-- **Bevakning i realtid:** websocket där källan har det (mempool.space har bevakning av adresser), senare ZMQ från egen nod.
+- **Bevakning i realtid, resten** (nya block via mempool.space:s websocket är byggt, omgång 3): ZMQ från egen nod (en
+  egen nod nås bara genom `ILocalHttp`, och dess websocket lyssnas inte på), Ethereum (Blockscout har websockets) och
+  mempool.space:s `track-address` för obekräftade tx. Det sista skickar de bevakade adresserna tillsammans över en
+  anslutning, så att källan ser att de hör ihop; ett beslut för användaren innan det byggs.
 
 ## Bitcoin-källan (Chains)
 - **Svarshuvuden som ursprung:** se *Utgångar*. Behövs om källans `Date` ska stå bredvid Chainsaws egen tid.
 - **Flera källor att jämföra:** samma tx från två Esplora-källor, och en varning om de skiljer sig.
 - **Endpointens namn** (etapp 24): namnet tas ur adressens värd och kan inte ändras i sidan Källor.
-- **Blockhash i provet vid start** (KL2b, 2026-11-08): kortet för den endpoint som används visar *Höjd 921 404* men
-  hashen bara när den är känd, eftersom provet vid start och *Prova alla nu* bara frågar efter höjden (bara formulärets
-  *Prova* frågar efter hashen). Skissen visar båda; provet kunde fråga efter blockets hash vid höjden också, ett uppslag
-  till per endpoint.
 - **Nyckeln som huvud** (etapp 24): Esplora skickar nyckeln som `Authorization: Bearer`. Huvudena som tillåts är
   `Authorization` och `X-Api-Key` (`ExitCredential`); en källa som vill ha något annat lägger till det i Network.
 - **Varför en endpoint fick röd prick** (etapp 24, granskningen omgång 2, M): en nyckel som saknas i valvet gör att
@@ -184,14 +189,21 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
 - **Tx på en adress sida kontrolleras inte mot sina bytes** (etapp 15): bara tx som expanderas för sig (och deras
   spenderare) hämtar `/tx/:txid/hex`. En adress historik med 50 tx skulle kosta 50 uppslag till. Kontrollera dem när
   de visas i inspektören, eller i bakgrunden?
-- **Tx:en i blocket** (etapp 15): bytesen binder beskrivningen till txid, men att tx:en ligger i just det blocket
-  vilar på källan. `/tx/:txid/merkle-proof` och blockets merklerot skulle binda dem; och om `bits` är nätets rätta
-  svårighet på höjden kontrolleras inte.
-- **Målet i blockhuvudet** (granskningen etapp 15, M2): huvudet måste nå det mål dess egna `bits` anger, men `bits`
-  prövas inte mot nätets gräns (powLimit, `0x1d00ffff` på mainnet), och blockets `bits` och nonce i källans svar
-  jämförs inte med huvudet.
-- **Ett block som en gång motsäger sitt huvud** (granskningen etapp 15, M3): både blocket och huvudet ändras aldrig,
-  så `GetBlockAsync` vägrar för gott. Hämta blockets beskrivning igen i stället (`GetBlockAsync` används inte än).
+- **Svårigheten på höjden** (etapp 15): att tx:en ligger i blocket kontrolleras nu med merkle-beviset
+  (`VerifyInBlockAsync`, omgång 3) och att huvudets mål ligger inom nätets gräns, men om `bits` är nätets exakta
+  svårighet på höjden kontrolleras inte; det kräver huvudena före (var 2016:e block). Görs med egen nod.
+- **Kontrollpunkter för arbetet** (granskningen av omgång 3, I2): blockets hash bekräftas nu av en annan endpoint i
+  fas (`InBlockCheck.ConfirmedElsewhere`), men inbyggda kontrollpunkter (lägsta `bits` per period om 2016 block, med
+  källa och datum i koden) skulle låta ett huvud bära arbetet för sin höjd också med en enda källa. Kräver verifierade
+  värden ur kedjan, inte ur minnet.
+- **64 bytes ur de kontrollerade bytesen** (granskningen av omgång 3, M8): kontrollen av en tx på 64 bytes räknar
+  storleken utan vittnesdata ur källans `weight` och `size`; de är kontrollerade mot bytesen men inte själva räknade ur
+  dem. Räkna storleken ur de förseglade bytesen.
+- **Bekräftelsen är en annan endpoint, inte en oberoende källa** (M7): en annan endpoint med en annan värd kan läsa
+  samma nod; den heter *en annan endpoint* med namn, aldrig *oberoende*. Att jämföra värdarnas uppslagna adresser
+  vore nästa steg.
+- **Signet** har ett eget, lättare powLimit (`0x1e0377ae`) men inget eget värde i `BitcoinNetwork`; dess huvuden
+  vägras i dag. Ett eget nätvärde behövs om signet ska användas.
 - **Svar som hämtades när blocket var grunt** (granskningen etapp 15, M4): de räknas aldrig som säkra vid läsning bara
   ur ärendet, och står som *kan ha ändrats* tills noden expanderas igen. Fråga om dem i bakgrunden när utgången är
   ansluten.
@@ -205,13 +217,11 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
   Skissas om det behövs.
 - **Den egna noden provas inte utan utgång** (etapp 25, granskningen M1): ett prov där utgången vägrar sparas inte, också
   när den egna noden svarade, och provet vid start väntar på en ansluten utgång (eller Windows). Uppslagen går ändå till
-  noden, men den kan inte bli *i fas* för bevakningen förrän ett prov med utgång gjorts. Prova lokala endpoints för sig.
-- **NotFound när alla tillfrågade är otrodda** (granskningen av etapp 25, omgång 2, M; regeln är etapp 24:s): sa varje
-  endpoint som frågades 404, ges *finns inte* också när ingen av dem kunde tros (till exempel en enda Blockscout vars
-  sökväg ändrats). Kunde i stället ge *misslyckades* med texten att källan inte känner till det.
-- ***Prova* i formuläret följer inte takten** (granskningen av etapp 25, omgång 2, M): en adress som prövas innan den
-  lagts till har ingen takt, också om samma adress redan finns som endpoint. Två frågor per tryck.
-- **Ett behållet prov åldras** (granskningen av etapp 25, omgång 5, M): ett prov som behålls när endpointen bara väntade
+  noden, men den kan inte bli *i fas* för bevakningen förrän ett prov med utgång gjorts. Lämnat i omgång 3: prövas den
+  egna noden för sig blir den sin egen högsta höjd och därmed *i fas* också när den ligger efter kedjan, så bevakningen
+  skulle kunna missa block utan att det syns. Ett beslut (lita på den egna noden som facit, eller inte) behövs först.
+- **Ett behållet prov åldras** (granskningen av etapp 25, omgång 5, M; lämnat i omgång 3 som ett avvägningsbeslut, det
+  försiktiga valet står kvar): ett prov som behålls när endpointen bara väntade
   mäts mot den nya omgångens höjd, så block som kommit sedan räknas mot den. På Ethereum (block var tolfte sekund) blir
   ett behållet prov äldre än en halv minut *efter*, tills nästa *Prova alla nu*. Försiktigt för bevakningen, men kunde
   i stället bara ta bort *i fas* och behålla *svarar rätt*. Och en referenshöjd ur ett behållet prov följer med så länge
@@ -219,10 +229,12 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
 - **Spridningen i Prioriterad** (etapp 25): varje endpoint är en egen grupp, så användarens ordning gäller och nästa tas
   först när den första bett om väntan eller dess kö är längre än fem sekunder. I Snabbast sprids uppslagen inom den bästa
   gruppen (de som svarat rätt). Ändras om användaren vill ha spridning också i Prioriterad.
-- **Svaret om spenderade utgångar och omorganisationer** (etapp 15): en tx som bytt block säger det, men ett svar om
-  vem som spenderar en output jämförs inte med det förra.
-
 ## Klustring och heuristiker
+- **Efter omgranskningen av omgång 4:s ytor (2026-11-09, M):** BU1a förseglar en uppbrytning i användarens namn också
+  för en adress som bara föll med när hela förslaget vägrades (förklara det i journalen och *Varför?*, eller bryt bara
+  det valda); KV1a-rutan ska vara streckad (`ClusterWhyView.xaml:164` ritar hel linje); *Ångra* efter *Släpp
+  slutsatsen* återställer inte den gamla slutsatsen om en körning hunnit emellan — säg det eller vägra; HB1a:s
+  `HeldBackMatch.Touches` är O(N·E) per bild; vyn Etiketter kopierar `FullAddress` direkt också för en liknande adress.
 - **PayJoin v2 och en plånbok som byter adresstyp** (slutgranskningen 2026-11-08, M1): en Taproot-plånbok som spenderar
   ett gammalt P2WPKH-mynt och ett P2TR-mynt, betalar till P2WPKH och lägger växeln på P2TR har samma form som BIP78 och
   ger ett förslag i stället för en sammanslagning (sonden i granskningen). Sällsynt och bara falskt negativt; lägg
@@ -316,17 +328,18 @@ tidsmönster (`active-hours`) och tjänster ur beteende (`service-behaviour`). K
   förseglat, och ett nytt beslut om samma kandidat ersätter det förra.
 
 ## Spårning (Tracing)
+- **Efter slutkontrollen av SW1a (2026-11-09, M):** det utfällda valet *Följer / Följer inte* ritas inuti linjens
+  toning, så det tonas ned när en annan nod är vald (prova på Windows, och att pillrets öppna läge ritas om när
+  linjelagret är cachat); ett ovanligt specialfall i Exponering (länkad insättning till ämnet i en köpt tillgång,
+  `_onOtherChain[(ämne, tillgång)]`) saknar test.
 - **LIFO och poison** (etapp 7): kontraktet `ITracingMethod` tar emot fler metoder, men LIFO behöver en definition
   (inom en tx är ordningen redan FIFO:s; LIFO handlar om en adress saldo över tid), och poison ger inga belopp som går
   jämnt ut, så den behöver visas som *berört* i stället för ett belopp. Se `docs/KRYPTOSPARAREN.md`, fråga 1.
-- **Fråga om det som kan ha ändrats** (etapp 7): grafen visas bara ur ärendet (`LookupMode.CaseOnly`). Ett mynt som
-  låg kvar visas som *kan ha flyttats* tills noden expanderas igen. En knapp eller ett kommando som frågar om alla
-  sådana mynt på en gång, och bevakningen som gör det i bakgrunden, behövs.
 - **Tidsfönster för en adress historik** (etapp 7): expansionen tar de nyaste tx upp till gränsen (50 som förval).
   För en adress med lång historik behövs ett tidsfönster runt händelsen i stället.
-- **Grafens prestanda vid tusentals noder** (etapp 12): ytan ritar bara det som syns, men varje drag räknar om alla
-  kurvor och varje hovring prövar alla linjer. Ett rutnät (spatial index) och att bara räkna om linjerna till den
-  dragna noden behövs om graferna blir mycket stora.
+- **Grafens prestanda, efter omgång 7:** när en drag släpps räknas hela layouten om (cirka 100 ms i hoppkolumnerna
+  och 20 ms på den fria ytan vid 3 000 aktörer, `GraphScaleTests`), på UI-tråden. Den kunde räknas utanför UI-tråden
+  och bytas in när den är klar. Under draget står de belopp som inte tillhör de dragna linjerna kvar där de stod.
 - **Hitta fortsättningen på en annan kedja själv** (CLAUDE.md, *Cross-chain*): belopp och tid hos swap-tjänster,
   bryggornas egna händelser. I v1 knyts den för hand.
 
@@ -341,7 +354,6 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
   och beloppen cachas (`DrawCache`) och beloppens krocktest ligger i ett rutnät (`RoomGrid`), bevakade adresser och
   bevakningarnas motparter viks aldrig in i en hög, ledtrådens linje är `GraphEdgeKind.HeldBack`, och högens och
   ledtrådens nycklar följer var de senast flyttades i stället för ankarets representant. Kvar av det:
-  - Valvyns streckade guide och rombens hörnmärke byggs som ny geometri per bildruta; de kan cachas per vy.
   - En bevakad aktör i en hög är kvar som medlem i Tracings hög och ritas bara för sig. Om en sådan ska räknas i
     högens *N mottagare* i modellen (till exempel i en begäran) avgörs när det behövs.
 - **Valvyn finns bara för en Bitcoin-adress:** en tx-expansions mottagare och en Ethereum-adress hämtar fortfarande
@@ -356,24 +368,31 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
 
 ## Kommentarsnoden (KN1a, byggd 2026-11-08)
 
-- **Länkar:** `chainsaw:` till något som inte finns i grafen säger det bara; kanske ska det kunna bli en startpunkt.
-- **Kvar efter granskningen av KN1a 2026-11-08** (tråden och soptunnan står i `docs/TODO.md`): när en hög
-  eller valvy är utfälld döljs lagret med `Opacity=0` men fokus kan ligga kvar i en dold redigerare;
-  `PlaceComments` gör en ny `MatrixTransform` per omritning och `DropShadowEffect` per lapp kostar vid panorering
-  med många lappar.
-- **Fler noder med storlekshandtag** (användarens önskemål 2026-11-07): kommentarsnoden har det; vilka fler som får
-  det (samlingsnoden EX2b, egna ytor) avgörs när de skissas.
 - **En skrivning i kö när ärendet stängs:** lappen som skrivs i förseglas innan ärendet släpps, men en skrivning som
   redan står i kö (till exempel en ändring som väntar på disken) väntas inte in, eftersom den återkommer på UI-tråden.
 
 ## Attribution
+- **Efter fjärde granskningen av omgång 5 (2026-11-09, M):** testärendet visar inte längre *Tidigare sanktionerad*
+  (steget på Blandaren gick genom `Add`, som nu vägrar sorten); låt den påhittade listan eller ett förseglat steg ge
+  den igen [direkt]. `StartPointPreview.IsPossiblySanctioned` läses ur tipsets text; bär `IsUncertain` som data.
 - **Vyn Etiketter (ET1a), det som återstår:**
   - *Sprid inte* som slås på i efterhand tar etiketten ur biblioteket och hindrar att den ges vidare, men kopior som
     redan gått till andra ärenden ligger kvar där (toasten säger det).
   - *Ångra* i toasten efter *Ta tillbaka* (skissens Ctrl+Z) är inte byggt: en tillbakatagen etikett sätts på nytt, och
     då med den som ångrar som ursprung, inte den ursprungliga. Behöver ett eget förseglat *återinsatt*.
   - Raderna *Kom in*, *Gick ut* och *Sprids inte* under BIBLIOTEKET är bara antal; de kunde filtrera listan.
-- **EU:s sanktionslista** (och andra) bredvid OFAC SDN, som etapp 8 läser ur en sparad XML-fil.
+- **EU:s lista, märkningarna för kedjor** (granskningen av omgång 5, I5 och I-a): kedjan tas ur den närmaste
+  märkningen före adressen i samma del av texten (delad vid `;`, komma och radbrytning, `EuFsfParser.Labels`). Listan
+  med märkningar är Chainsaws egen och kan behöva fyllas på när en riktig EU-fil har setts; en adress utan säker
+  märkning blir *Möjlig sanktion*.
+- **EU:s lista (omgång 5, byggd 2026-11-08), det som återstår:** listan har ingen egen sort för kryptoadresser, så
+  `EuFsfParser` känner igen en adress på formen (Bitcoin med kontrollsumma, `0x` och 40 hextecken) i identifieringar
+  och anmärkningar. Det är inte kontrollerat mot en riktig fil om EU skriver adresser någon annanstans (till exempel i
+  `nameAlias` eller i `regulation`s sammanfattning), och TRON-adresser (`T…`) känns igen men slås inte upp än, fast
+  TRON har en adresstyp i Chains sedan omgång 8. Fler listor (FN:s, Storbritanniens OFSI) kan läggas till som en ny
+  `ListKind`.
+- **Ta bort en sanktionslista eller öppen källa i gränssnittet:** `ISanctionLists.Remove` och
+  `IOpenSourceLists.Remove` finns (en lista med fel datum i framtiden kan tas bort), men ingen knapp; se TODO [skiss].
 - **Chainabuse som underleverantör** (användarens beslut 2026-11-08): Chainabuse (TRM Labs,
   https://docs.trmlabs.com/guides/chainabuse/welcome-to-chainabuse-api) samarbetar med brottsbekämpande myndigheter.
   Chainsaw hämtar rapporterna för en adress ur deras API, genom utgången och med nyckeln i valvet; bara adressen
@@ -395,8 +414,16 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
   inte en sort, så att noden behåller sin sort.
 - **Flera attributionskällor samtidigt, var och en med en strömbrytare** (användarens beslut 2026-11-08): Chainsaw
   hämtar från alla källor som är på, inte bara en, och varje källa kan stängas av.
-- **Öppna källor:** till exempel ransomwhe.re (öppen datamängd med ransomware-adresser), WalletExplorer (äldre BTC-kluster). Varje källa granskas för licens och kvalitet innan den byggs in. `LabelSource.OpenSource`
-  finns i kontraktet.
+- **Öppna källor, granskade 2026-11-08 (omgång 5):**
+  - **Ransomwhere är inbyggd** (CC BY 4.0 på Zenodo, post 13999026, Jack Cable): läses ur en sparad
+    `ransomwhere.json` och ger *Rapporterad* med licensen i skälet. Datamängdens tx-hashar (lösensummorna) läses inte
+    än; de kunde bli etiketter på tx (*betalning till ransomware*) och offrens sida i spåret.
+  - **WalletExplorer** (äldre BTC-kluster) har inga uttalade villkor för datan och inget nedladdningsbart underlag, så
+    den byggs inte in; att skrapa webbplatsen är inte tillåtet utan villkor.
+  - **OpenSanctions** återpublicerar Ransomwhere och sanktionslistorna, men gratis bara för icke-kommersiellt bruk;
+    för en myndighet krävs troligen en licens (som Bitstamps fråga under *Före tjänstebruk* i TODO). Läses inte.
+  - Andra kandidater att granska: GraphSense TagPacks (licens per paket), Etherscans etiketter (villkoren förbjuder
+    återanvändning), CryptoScamDB (arkiverad).
 - **Etiketterna läses två gånger per bygge** (granskningen etapp 15, M6): `LabelTrailEnds` och grafens etiketter läser
   var för sig, och klustren byggs om för etiketterna. Ett gemensamt underlag per bygge.
 - **Biblioteket vid avslut och låsning** (granskningen etapp 15, M8): `Absorb` körs när ett ärende öppnas och stängs
@@ -412,12 +439,11 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
 - **Allt sprids:** etikettens namn, skälet, anteckningen, ärendenumret och hela operatörsprofilen följer med till andra
   ärenden (Allt följer med). Gränssnittet ska säga det, och kanske varna när namnet liknar ett ärendenummer (granskningen etapp 8, M3).
 - **Listan i ärendet:** ärendet sparar listans hash, datum och postens uid, inte listan. En kollega eller en annan dator
-  kan inte kontrollera träffen utan filen. Försegla postens XML i ärendet? (granskningen etapp 8, M4).
-- **Sanktionslistorna i appdata:** ingen funktion för att ta bort en lista (en lista med fel datum i framtiden förblir
-  aktuell), en trasig beskrivning gör att listan försvinner tyst ur listningen, och ändringar utanför Chainsaw märks
-  först vid omstart (granskningen etapp 8, M5).
-- **Minnet vid import:** en `sdnEntry` läses in hel; en konstruerad fil med miljontals `id` i en post kan ta mycket
-  minne. Läs id:n strömmande eller sätt ett tak per post (granskningen etapp 8, M6).
+  kan inte kontrollera träffen utan filen. Försegla postens XML i ärendet? (granskningen etapp 8, M4). Detsamma för
+  en öppen källas post.
+- **Sanktionslistorna i appdata** (omgång 5): en trasig beskrivning skrivs om ur listan och ändringar utanför
+  Chainsaw märks utan omstart (mappens ändringstid), men en lista vars fil fått fel hash försvinner fortfarande ur
+  listningen utan att något säger det; vyn Etiketter kunde visa den som *ändrad*.
 - **Biblioteket:** ärenden som tagits bort ligger kvar som innehavare, två kopior av samma ärende (samma id) skriver
   över varandra, och ett bibliotek som inte går att läsa (skadat eller från ett annat valv) stoppar varje inläsning
   tills det byggs om. Bygg om biblioteket ur ärendena, och ta bort ett ärendes etiketter (granskningen etapp 8, M8).
@@ -431,7 +457,10 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
   rensas aldrig (granskningen etapp 8, omgång 2, M). Räcker för tusentals etiketter.
 - **Samma person på två datorer:** en egen etikett räknas som oberoende per operatörsprofil (namn, titel, enhet). En
   profil som ändras räknas som en annan person; ett stabilt operatörs-id i Security vore bättre.
-- **Etiketter på tx** (till exempel en känd brygga eller swap): `ClassifyTransaction` ger inget från etiketter än.
+- **Etiketter på tx (omgång 5, modellen byggd 2026-11-08):** `ITransactionLabels` förseglar och tar tillbaka en
+  etikett på en tx (Bitcoin och Ethereum), och `ClassifyTransaction` avslutar spåret vid en märkt Bitcoin-tx. Kvar:
+  ytan (TODO [skiss]), att etiketter på tx följer med i biblioteket (*Etiketter smittar* gäller adresser), att en
+  märkt Ethereum-tx avslutar spåret (Tracings klassning för konton tar bara adresser), och historiken (AN1b) för tx.
 - **Uppbrytningen mot den riktiga klustringen** (granskningen etapp 16, M4): `InspectorForms.BreakOut` testas mot
   ett handbyggt kluster i App.Tests; ett test i Clustering.Tests som sparar bevis, bryter ut genom `Split` och läser
   klustret efteråt (blandat val i en CIO-länk med tre adresser, en senare länk med annan heuristik, valda adresser som
@@ -448,26 +477,44 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
   värdet är kronor per *en* enhet (stämmer med nivån, cirka 10 kr per dollar), vilken tid på dagen kursen sätts, och
   att Bitstamps perioder börjar på jämna multipler av sin längd från 1970 och att en period utan handel har volym noll
   och föregående pris.
-- **Perioder före källans historik** (granskningen, omgång 1 M6 och omgång 3 M-3): ett svar utan kurs (Bitstamp före
-  2011, Riksbanken före 1993) sparas men pekas inte ut som slutligt, så varje uppslag som inte sker samtidigt frågar
-  igen och sparar ett nytt svar. Kan pekas ut som *ingen kurs* när perioden är slut.
-- **Riksbankens dygnsgräns** räknas bara sedan Chainsaw startade och bara på den här datorn; datorer bakom samma utgång
-  delar gränsen utan att veta om det. Kan sparas i appdata, och en nyckel i valvet höjer gränsen.
+- **Svar utan kurs räknas som kurser** (omgång 5): ett slutligt svar före Bitstamps historik pekas ut i registret som
+  en kurs, så *Sparas i ärendet* (`RateSummary`) räknar det. Ett eget register för *ingen kurs* vore rättare.
+- **Före källans historik, efter granskningen av omgång 5 (prova mot ett riktigt anrop före 1.0):** ett svar från
+  Bitstamp utan perioden är slutligt bara när svaret har perioder som alla börjar efter den (`HistoryStartsAfter`);
+  att Bitstamp svarar så för en period före marknadens början är inte kontrollerat mot dokumentationen eller ett
+  riktigt anrop. Riksbanken pekas aldrig ut som
+  slutlig utan kurs (ett tomt svar visar inte att serien saknade kurs), så en dag före 1993 frågas igen efter
+  väntetiden. Bevis för Riksbanken (kurser efter dagen men ingen före i samma svar) kan läggas till.
+- **Riksbankens dygnsgräns** räknas sedan omgång 5 över omstarter på den här datorn (`Kurser\riksbank-requests.json`),
+  men datorer bakom samma utgång delar gränsen utan att veta om det. En nyckel i valvet (200 anrop i minuten) höjer
+  gränsen; den behöver en rad på sidan Källor (skiss).
 - **Fler källor och tokens:** (ETH sedan etapp 23, USDT och USDC på Ethereum sedan etapp 23b, TRX och USDT på TRON
   sedan omgång 8, alla efter kontraktet och aldrig som en dollar av sig själva); en
   andra kryptokälla att jämföra med (till exempel Kraken eller Coinbase för nyare perioder); Riksbankens nyckel (200
   anrop i minuten) i valvet om gränsen på 5 i minuten blir ett problem.
-- **Ett gemensamt lager för råsvar:** Chains och Pricing har var sin likadan tabell och kod för förseglade råsvar. Kan
-  bli ett kontrakt i Cases när en tredje modul behöver det.
+- **Ett gemensamt lager för råsvar:** Chains, Pricing och nu Attribution (Chainabuse) har var sin tabell och kod för
+  förseglade råsvar, så villkoret *när en tredje modul behöver det* är uppfyllt. Bedömt i omgång 5 och inte gjort än:
+  kolumnerna skiljer sig (Chains har endpoint och block, Pricing sort och ämne, Attribution kedja och adress), en
+  flytt ändrar tre moduler och tre hashkedjor samtidigt som andra arbetar i Chains och Cases, och vinsten är mindre
+  kod, inte en ny förmåga. Görs som en egen etapp: ett kontrakt i Cases (`ISealedResponses` med källa, ämne,
+  utgång, hash och kropp) och modulernas egna index ovanpå.
 
 ## Säkerhet
 - **Klartext i minnet:** API-nycklarnas hemligheter och profilen ligger som `string` medan valvet är upplåst och kan inte
   nollställas (valvets JSON skrivs nu i en fäst buffert, omgång 6). `char[]` för hemligheterna ändrar `IApiKeyStore`
   och varje källa som läser en nyckel; görs när ingen annan omgång arbetar i Chains och Attribution.
-- **DPAPI för bevakningsprocessen** (CLAUDE.md, *Bevaka*): bevakningens adresser krypteras för Windows-användaren, utanför
-  valvet. Byggs med bevakningen.
+- **Den gamla databasnyckeln i SQLite3 Multiple Ciphers minne** (granskningen av VT1a, M4): biblioteket kan ha kvar
+  kopior av en databasnyckel i anslutningens minne (chiffrets tillstånd) efter att anslutningen stängts, också efter
+  ett byte av filnyckeln. Chainsaw nollställer sina egna buffertar men når inte bibliotekets; ta reda på om
+  `sqlite3_close` nollställer chiffrets nyckelmaterial, och annars om en egen allokerare eller en process per ärende
+  behövs.
 
 ## Utgångar (Network)
+- **Efter säkerhetsgranskningen av PX1a och KL3b (2026-11-08, M):** NTLM tillåts för proxyns inloggning (Negotiate kan
+  falla tillbaka till NTLM; en förfalskad proxy kan få ett NTLMv2-svar) — överväg bara Kerberos eller säg det i
+  Inställningar; ett utgånget nålat certifikat godtas för alltid — markera det i KL3b-raden när `NotAfter` passerat;
+  nålen och flaggan *lokal* i `sources.json` saknar integritetsskydd (MAC under en nyckel i valvet); ett förseglat
+  råsvar från en nålad nod säger inte att kontrollen var en nål — ta med fingeravtrycket i härkomsten.
 - **Certifikatkedjor som saknar en mellanliggande nivå** som datorn aldrig sett: de som Windows redan har erbjuds
   (omgång 6), men inget hämtas runt utgången (AIA och spärrlistor), och `IExitHttp` tar bara https. Att hämta en
   mellannivå genom utgången över http är ett beslut för användaren (granskningen etapp 4, C).
@@ -487,10 +534,6 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
   säkerhetsrättelser, minst när en Go-version slutar få stöd.
   `dotnet test` kör inte Go-testerna; de körs av byggskriptet. Signera programmet med organisationens certifikat när
   Chainsaw signeras.
-- **Bevakningsprocessen och utgången:** bakgrundsprocessen (CLAUDE.md, *Bevaka*) ska gå genom Chainsaws utgång utan
-  valvet. Hur den får konfigurationen (DPAPI för Windows-användaren) bestäms med bevakningen (väntar på användarens
-  beslut om VPN i bakgrunden).
-
 ## Ärenden
 - **Vem som förseglade en post:** en modul kan försegla poster i en annan moduls kedja (inte i Cases egna), och posten
   säger inte vilken modul som skrev den. Att binda transaktionen till sin modul ändrar varje moduls sätt att försegla
@@ -516,14 +559,10 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
 - **Senast öppnade ärendet** föreslås som den `.cut` som sparades senast (filens tid), inte ur en egen lista, så att
   inget om ärenden sparas utanför ärendet. Ett ärende som sparats av en kopia eller synk hamnar då först.
 - **Testklasserna saknar XML-dokumentation** (M10), som i de tidigare testprojekten.
+- **Brickan *Etikett härifrån* i LN1a:** en streckad bricka vid det ärende i listan som etikettbiblioteket har en
+  etikett på länkens adress från. Kräver en fråga till biblioteket per adress och ärende; inte byggd 2026-11-08.
 
 ## Exponering (EP1b)
-
-- **Kontokedjan och länkade insättningar** (omgranskningen 2026-11-08, M): `AccountExposureRun.Ledger` tar bort en
-  länkad insättning helt, så dess del av plånbokens utbetalningar står som *Kom före historiken* eller *Inte
-  expanderat* i stället för *Fortsätter på annan kedja* (`ExposureRest.OtherChain`), som Bitcoin säger. Beloppen stämmer.
-- **Pengar i cirkel i *Fått från*** (M, fanns före): `ReadIn` skriver `_units[coin]` för varje ingång, så ett
-  startmynt som också är ingång i en tx som läses bakåt tappar sitt belopp och analysen vägras. Test saknas.
 
 - **M4 från granskningen:** Ethereums gasavgifter finns inte som poster i grafens linjer, så plånboksläsningen räknar
   dem inte; pengar som betalade gas står som kvar hos aktören.
@@ -537,45 +576,38 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
 - **En fil som inte gick att skriva klart** tas bort (M5), men det finns inget test som framkallar ett skrivfel.
 
 ## Rapport (RP1b)
-- **Godkända förslag i slutsatserna:** en godkänd trolig utgång ur en mixer (KF2b) kommer inte med som slutsats med
-  analysens namn och version; rapporten tar kluster, etiketter och spårningsmetoden.
-- **Tillbaka till rapporten från grafen:** skissen har en knapp *← Rapport Esc* i grafen när man kommit dit med
-  *Ändra i grafen*; nu tar Ctrl+8 tillbaka.
-- **Visa i mappen** i toasten efter exporten (skissen) finns inte; filen står under förhandsvisningen med sökväg och
-  SHA-256 i verktygstipset.
 - **Markeringen** är grafens val med Ctrl+klick eller en ruta, inte Shift-klick som skissen säger, eftersom Shift redan
   används i högen.
 
 ## Undermenyer i pillret (etapp 11b)
+- **Sanktionslistan och det öppna ärendet:** en import kontrollerar inte ärendets adresser
+  (`IAttributionService.CheckSanctions`, som i dag bara körs för startpunkterna när ärendet skapas); att köra den för
+  grafens adresser efter en import skriver i ärendet och hör till Attribution (omgång 7 lät den vara).
 - **Nytt → Etikett** är tonad som inte byggd (en etikett sätts sedan etapp 16 i inspektören med L); ändra
   `SubmenuNeed` i `Navigation/SubmenuTable.cs` till `OpenCase` och koppla raden i `ShellViewModel` när vyn Etiketter
   finns. Begäran är kopplad sedan BG1b.
 - **Startpunkt med ett ärende** lägger bara markören i kommandoraden; ett eget fält (som i Nytt ärende) kan skissas.
-- **Sanktionslistan och det öppna ärendet:** en import kontrollerar inte ärendets adresser
-  (`IAttributionService.CheckSanctions`); det görs när grafen byggs.
 
 ## Låsskärmen och förstagångsinställningen (etapp 10)
-- **Inställningarna, Utseende:** fältets scen och rörelse (skissens val; nu Drift och stilla kätting) är tonade med
-  *Inte byggt än* i ST1a.
+- **Inställningarna, Utseende:** raden *Kättingen* (*Rör sig* eller *Står still*) är tonad med *Inte byggt än* i
+  ST1a; figuren står still bara när Windows har animeringar avstängda.
 - **Låsning mitt i inställningen** avslutar den: efter upplåsning visas skalet, och utgången och första ärendet erbjuds
   inte igen. En krasch mellan valvet och profilen ger ett valv utan profil, så att ärenden inte går att skapa.
   Inställningen kunde återupptas tills den är klar (granskningen, M).
-- **Fältets loop** stannar tyst om en bildruta kastar ett fel; kunde loggas och startas om. Hela bildrutan kopieras på
-  UI-tråden varje ruta (cirka 33 MB per ruta i 4K); kunde sänka takten på stora ytor (granskningen, M).
 - **WireGuard-filens text** läses som fästa tecken som töms (`Exits/WireGuardFile`, etapp 17), men blir en `string`
   i anropet till `IExitStore.Add`, som tar en (samma sak som *Klartext i minnet*). Kräver ett kontrakt med tecken.
 - **En öppen filväljare** ligger kvar ovanpå låsskärmen om Chainsaw låses medan den är öppen; den visar bara filer.
+- **Instabilt test:** `LinkCaseTests.After_the_unlock_the_picker_folds_out_with_the_link_at_the_top` faller ungefär
+  två gånger av fem i molnmiljön (sett 2026-11-09, efter LN1a), och `Esc_throws_the_link_away` likaså: 5 av 20
+  körningar av klassen faller på huvudgrenen utan grafens ändringar. Felen är dubbla eller tomma rader i
+  `CasePickerViewModel` (`Chosen`), troligen en kapplöpning när ärendeväljarens lista fylls efter upplåsningen.
 
 ## Bevakning (etapp 26)
-- **Starten från en höjd i fas** (granskningen omgång 1, M5): starten är kedjans höjd från `GetTipHeightAsync`, som
-  frågar vilken endpoint som helst; ligger den ett block efter kan pengar i det nyaste blocket före bevakningen räknas
-  som en träff. Höjden borde komma från en endpoint i fas (eller provets högsta höjd).
-- **Omorganisation** (granskningen omgång 1, M6): en träff förseglas en gång per tx; byter tx:en block står den gamla
-  hashen kvar. Kontrollera träffarnas block mot kedjan och säg det.
 - **Mycket aktiva adresser:** en kontroll läser högst fem sidor bakåt. Har en adress fler nya tx än så går kontrollen
   vidare från det äldsta block den läste och sparar luckan (*tx under block N kan ha missats*) med kontrollen; tx i luckan
   kan ha missats. Samma när källan inte kan bläddra längre (en full sida i ett block) eller inte läst historiken
-  färdigt. Läs luckan i efterhand med en markör, eller med källans egen bevakning (websocket).
+  färdigt. Läs luckan i efterhand med en markör. (Websocketen som byggdes i omgång 3 säger bara att ett nytt block
+  kommit, så att kontrollen kommer tidigare och luckorna blir färre, men den läser inte luckan.)
 - **Flera adresser på Ethereum** (granskningen omgång 5, M): `WatchCheckResult.CompleteAbove` tar den högsta över
   adresserna, så en adress som håller kontrollen tillbaka (ett block utan hash) kan köras över av en annans högre golv.
   Kan inte hända i dag (bara Bitcoin har kluster); håll isär golv och spärrar innan kluster på andra kedjor bevakas.
@@ -588,23 +620,24 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
   övre gräns, inte ett faktum (granskningen omgång 3, M4): träffen borde bära en markering och visas som *högst …*
   (streckat) i stället för som fakta i historiken och listan.
 - **Varje råsvar förseglas** också för bevakningen: höjden en gång i minuten och adressernas första sida vid varje nytt
-  block. Ärendet växer med bevakningar som går länge; att slå ihop lika svar (samma hash) vore en ändring i Chains.
+  block. Ärendet växer med bevakningar som går länge; att slå ihop lika svar (samma hash) vore en ändring i Chains och
+  ett beslut om princip 1 (ett svar som hämtats igen och var likadant sparas då bara en gång). Bakgrundens kö slår sedan
+  omgång 3 ihop tysta kontroller till en post per bevakning, men behåller varje svar.
 
 ## Bevakning i bakgrunden (etapp 27)
-- **VPN i bakgrunden:** WireGuard-filerna ligger krypterade i valvet, så bakgrunden kan inte starta en tunnel utan
-  huvudnyckeln och gör inga uppslag med VPN vald. Användaren har beslutat (2026-11-08) att en utgångs
-  WireGuard-fil får ligga under DPAPI utanför valvet för bakgrunden, om det inte är alldeles för stort arbete.
 - **Kluster i bakgrunden** följer klustringen som den var när planen skrevs (när ärendet senast var öppet), inte nya
   adresser som kommer med senare.
 - **Ett ärende som tas bort eller flyttas** ligger kvar i planen och bevakas tills det öppnas och dess bevakningar
-  pausas. Rensa planen från ärenden som inte längre finns (ärendenas id i `Ärenden`).
+  pausas. Rensa planen från ärenden som inte längre finns (ärendenas id i `Ärenden`). Lämnat i omgång 3: ett ärende kan
+  öppnas var som helst (`OpenWithPassword`, en kollegas fil), så ett id som saknas i `Ärenden` betyder inte att ärendet
+  är borta, och att rensa det skulle tyst sluta bevaka. Ett beslut: planen kunde hålla filens sökväg (under DPAPI), eller
+  `ICaseStore` lista id:n ur huvudena.
 - **Höjden som inte ledde till någon kontroll** förs inte in i något ärende (den hör inte till ett ärende); höjden som en
   kontroll byggde på förs in med ärendets första post i varvet.
-- **Endpoints med API-nyckel** fungerar inte i bakgrunden (nyckeln ligger i valvet); de hoppas över och nästa tas.
+- **Endpoints med API-nyckel** fungerar inte i bakgrunden (nyckeln ligger i valvet); de hoppas över och nästa tas. Samma
+  väg som för VPN-utgångarna (en kopia under DPAPI för de nycklar användaren väljer) går att bygga om användaren vill.
 - **Aviseringen i Windows** kommer från en ikon i meddelandefältet (`Shell_NotifyIcon`), som Windows visar som en toast.
   En riktig toast med appens identitet (AUMID) kräver att Chainsaw registreras som app; pröva om det behövs.
-- **Kön växer** med en post per kontroll (på Ethereum ungefär en i minuten per bevakning), med alla råsvar, så länge
-  ärendet inte öppnas (granskningen omgång 1, M3). Slå ihop poster per bevakning eller sätt ett tak, och säg det.
 - **Sammanfattningsraden i journalen** (*Bakgrundens bevakning förd in*) skrivs efter posterna; kraschar Chainsaw
   mitt i kan den saknas för de poster som redan förts in (granskningen omgång 1, M2). Träffarna har alltid sin egen rad.
 - **Två takter mot samma endpoints** (granskningen omgång 1, M7): medan Chainsaw är öppet har appen och bakgrunden var
@@ -616,8 +649,6 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
 - **Hämtad i historiken:** en adress visar *Först in* med blocket men inte när den hämtades, eftersom
   `IBitcoinSource.GetAddressTransactionsAsync` inte kan läsa ur ärendet utan att fråga källan. Ett läge bara ur ärendet
   (som för tx) skulle ge raden *Hämtad · block · källa*.
-- **Ta tillbaka en egen yta** (KF1b, Z) när ytorna finns (etapp 22): samma rad och samma formulär i historiken.
-- **Äldre ärenden** (före etapp 21) har en journalrad per uppbrytning och visar en rad per länk.
 - **Test saknas** för en omläsning av grafen medan en ångring sparas (granskningen omgång 3, M4).
 - En adressnod visar inte en klusteretikett som sitter på en annan adress i ett kluster den inte är en del av i grafen
   (granskningen omgång 1, M5).
@@ -628,6 +659,13 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
   och snöflingan); Ethereum har ännu ingen påhittad källa (Blockscout går inte lika lätt att fejka: tx, kvitton med
   Transfer-loggar, tokenuppgifter).
 
+- **Tidigare sanktionerad syns inte i testärendet** sedan omgång 5: en sanktion, en möjlig och en tidigare kommer
+  bara ur en lista (aldrig ur en etikett i formuläret), och den påhittade listan har inga borttagna poster. En
+  påhittad lista med borttagna poster (som Tornado Cash i Chainsaws kontraktlista) fyller luckan [direkt].
+
+- **Omgång 5 syns inte i testärendet än:** en träff på EU:s lista, en *Rapporterad* adress ur Ransomwhere och en
+  etikett på en tx (en swap som avslutar spåret) behöver påhittade listor på samma sätt som
+  `TestDataSanctionLists` och ett steg i berättelsen (`TestStory`) som sätter etiketten på tx:en [direkt].
 - **Kollegans etiketter** (Garantitorget, Nordbörsen) ligger kvar i etikettbiblioteket på datorn efter `/testdata`. De
   gäller bara påhittade adresser och kan aldrig träffa en riktig, men biblioteket saknar ännu ett sätt att rensa dem.
 - **Valvyn i testärendet:** Navet (66 tx, många motparter) och gruvbelöningens OP_RETURN finns i testärendet; en
@@ -652,27 +690,68 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
 - **Tidslinje och Flöde, efter bygget 2026-11-08:** flödet läser aktörerna som plånböcker; på Bitcoin kan det följa
   mynten som spåret i grafen gör, så att siffrorna aldrig skiljer sig. LIFO och poison läggs i metodens val när
   Tracing har dem (fråga 1 till kryptospåraren). Avgifterna kan bli en egen grå tråd *Avgift* som i skissen. Tidslinjen
-  kan gruppera banorna när grafen har hundratals aktörer, och ett klick på en bana kan välja aktören. Exponeringens
-  `MakeRoom` anropas inte när Guidens panel öppnas (Tidslinje och Flöde gör det).
+  kan gruppera banorna när grafen har hundratals aktörer, och ett klick på en bana kan välja aktören.
 - **Plånböcker, efter granskningen 2026-11-08:** en avfärdad plånbok dras inte av som en godkänd, så en ny adress i
   samma grupp föreslås aldrig (`WalletCheck.KeyOf`); ett godkänt fynd utan tx i grafen har tomt underlag (prova på
   Windows); `PreviewUndoMerges` visar inte heuristiklänkar som slutar slå ihop efter en senare uppbrytning.
 - **Soptunnan för lappar och högar, efter granskningen 2026-11-08:** en lapp som töms precis före Ctrl+W slängs inte
   (`SealBeforeClose` väntar inte på köade skrivningar); en lapp som redan slängts från ett annat fönster läser inte om
-  soptunnan; en slängd hög kommer tillbaka till hälften när ett av dess ärenden sparas igen (`ForgetRewritten`); en
-  lapp som tappar musgreppet lämnar soptunnan förstorad (`LostMouseCapture`); historiken säger *en nod utanför
-  grafen* för en nod i soptunnan; `IGraphCommentService.RemoveComment` saknar anropare.
+  soptunnan; en slängd hög kommer tillbaka till hälften när ett av dess ärenden sparas igen (`ForgetRewritten`);
+  historiken säger *en nod utanför grafen* för en nod i soptunnan; `IGraphCommentService.RemoveComment` saknar anropare.
 - **Etiketter, efter omgranskningen 2026-11-08:** skäl och anteckning följer med kopior, så en mening vid fältet
   Anteckning borde varna för att skriva offrets namn där; `HeldBack` gäller bara på den egna datorn (en kollegas
-  bibliotek kan sprida en kopia tills ursprungsärendet öppnats där); *Visa i grafen* på en sanktionsträff i en hög
-  hittar inte högen (`GraphViewModel.ShowNode`); vyn räknar *nära ett offer* på aktören, biblioteket på hela klustret.
+  bibliotek kan sprida en kopia tills ursprungsärendet öppnats där); vyn räknar *nära ett offer* på aktören, biblioteket på hela klustret.
 - **Grafens kort och markeringar, efter omgranskningen 2026-11-08:** en grund tx hämtas inte om när den endpoint
   som är i fas väntar eller fallerar, och *i fas* bygger bara på provet vid start; schemasteg 1 ändrades på plats
   (`block_hash`, `chains_not_found`), så äldre testärenden ska slängas.
-- **Rapporten, efter omgranskningen 2026-11-08:** med delen Kontroll avslagen bär utkastet en gammal kontroll, så
-  exporten provar om i onödan (sätt `Ledger = null`); provet mellan kontroll och försegling ser bara journalen; ett
-  slut som nås genom en CoinJoin utan markerad avsändare blir *Börs A → Börs A*; `(decimal)` i `ReportTrails` kan
-  kasta för mycket stora tokenbelopp.
+- **Rapporten, efter omgranskningen 2026-11-08:** provet mellan kontroll och försegling ser bara journalen; ett
+  slut som nås genom en CoinJoin utan markerad avsändare blir *Börs A → Börs A*.
 - **Ärendets kuvert, efter omgranskningen 2026-11-08:** kraschar Chainsaw mellan att grenen öppnats och att
   grenraden skrivits blir `/verify` röd för grenen (skriv raden under ett tillfälligt namn först); en ovanlig dubbel
   felväg i `OpenSettingAsideWorkingCopy` kan lämna arbetskopian i *Återställda* utan journalrad.
+
+## Kodgranskningen 2026-11-08 (mindre fynd som inte rättades)
+
+Rapporterna per varv ligger inte i repot; det som står kvar är detta.
+- **Virtualisering som kräver skiss:** kontrollpanelens tre listor (*Att avgöra*, *Gjort av sig självt*, *Beslutade*)
+  och papperskorgsvyns grupper är inte virtualiserade; ett stort ärende bygger en rad per post.
+- **Rapportens aktörsbrickor** ligger i en `WrapPanel` utan tak; en lasso över en stor graf gör en bricka per aktör
+  (förslag: tak på ungefär 50 och "+N till"). `TrashWarningViewModel.CountBelow`/`IsLast` är O(n²) på en stor kastning.
+- **Endpoint före startprovet:** ett uppslag kan gå till en endpoint som inte har provats än; en fel kedja med lägre
+  höjd (testnet4, Sepolia) fångas först när startprovet körs. Svar som redan ligger i äldre ärenden med orimliga höjder
+  räknas inte längre (varv 5) men ligger kvar.
+- **`/verify` och indexen:** indexen byggs inte om ur de förseglade svaren vid `/verify`; höjderna räknas bara med ett
+  förseglat svar bakom sig och under det kedjan kan ha nått (varv 5), men en ändrad höjd upp till den gränsen syns
+  inte.
+- **CoinJoin v2:** en CoinJoin vars alla inputs kommer från en och samma tidigare tx känns inte igen (`funding < 2`).
+- **Exponeringen på konton** tar inte med avgifterna, så FIFO och haircut kan skilja något från grafens spår.
+- **Bevakningen:** en tips vars Ethereum-svar aldrig blir komplett frågas en gång i minuten utan slut; om importen inte
+  kan läsa kön just nu kan rundans egen kontroll starta en ostartad bevakning högre än bakgrunden gjorde; planens skrivning
+  vid stängning görs på UI-tråden; `CaseHolds.IsHeld` kan krocka med `Hold` (bara en extra avisering).
+- **Ärendet:** en `schema_version` ändrad för hand ger `InvalidOperationException`, inte `Corrupt`; journalvyn kastar på
+  en post vars tid ändrats med nyckeln (`/verify` rapporterar den); efter *behåll båda* kan lösenord och kuvert ändå
+  journalföras i arbetskopian; ett lösenordskuvert utan `iterations` tas inte bort som svagt.
+- **Bakgrundsprocessens namn:** mutex och stopphändelse är `Local\Chainsaw.Watcher[.Stop]` och kan tas först av en annan
+  användares process i samma session (en privat objektnamnrymd vore rätt); samma för appens egen mutex.
+- **Länkröret** börjar lyssna först efter värdens start; en länk under en start längre än 3 s tappas tyst.
+- **Uppslag och kurser:** leverantörens Retry-After läser `UtcNow` i stället för `IClock` och visas i UTC; en 429 från
+  Bitstamp eller Riksbanken läser inte Retry-After (avkylningen täcker det); `BlockscoutApi.ReadHash` kontrollerar inte
+  blockets höjd; varje adressbyte i Windows nollställer återanslutningens väntan.
+- **Begäran:** insättningarnas belopp nämner en token bara med symbolen; rapportens del heter "Belopp i SEK" också med
+  en annan valuta; exponeringens förklaring skriver BTC i annat format än resten; en etikett som ser ut som en
+  webbadress blir en länk i en GFM-förhandsvisning av exporten; rapportens toppvakt jämför bara journalraden.
+- **Grafen:** "Uppbruten · N ut" räknar för lågt när en vald adress bara är länkad till en annan vald; animationer som
+  redan rullar stoppas först vid nästa omritning när Windows animeringar stängs av; ett kort som hämtar ritar om hela
+  grafen 60 gånger i sekunden.
+- **Bakgrundens höjder (varv 8 och 9):** när ärendet inte hade någon höjd då bevakningen gjordes golvas en
+  bakgrundsstart bara med tiden, så en förfalskad start kan ligga upp till ungefär dubbla tiden sedan bevakningen
+  gjordes under den verkliga höjden; en ovanligt snabb följd av Bitcoin-block, eller en klocka som gick fel när
+  bevakningen gjordes, kan i teorin lyfta golvet över en ärlig start; sätts alla bakgrundens poster för en bevakning
+  undan som oläsliga startar ärendets kontroll vid toppen; en förfalskad väntande post håller indikatorn för köade
+  träffar tänd tills bevakningen startas, återupptas eller tas bort; `MonitoringService.Start` läser inte om
+  starthöjden i sin skrivning; upptagna bevakningar når `MaximumPages` oftare (ärligt märkt som delvis); `LowestAt`
+  saknar ett eget test.
+- **Instabilt test i LN1a:** `LinkCaseTests.After_the_unlock_the_picker_folds_out_with_the_link_at_the_top` fallerar
+  ungefär en gång av fyra i hela sviten (också utan granskningens ändringar); troligen samma trådmönster som
+  `PileTests` och `BackgroundLinkTests` hade (rättat med `UiThread` i `Fakes.cs`).
+

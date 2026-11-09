@@ -81,7 +81,10 @@ internal static class EthSamples
             new(Hash(2), S, Ether(0.001m), true, Block(102)),
             new(Hash(3), S, Ether(0.002m), true, Block(103)),
         };
-        var swap = new TokenSwap(Hash(3), S.ToChainAddress(), Usdt(400), Ether(0.1m));
+        var swap = new TokenSwap(Hash(3), S.ToChainAddress(), Usdt(400), Ether(0.1m))
+        {
+            SoldMovements = [AccountSeed.Of(Transfers[3])],
+        };
         return new TraceGraph(
             [TraceStartPoint.ForEthereumAddress(S)], nodes, edges,
             new UtxoGraph(new Dictionary<Txid, GraphTransaction>(), new Dictionary<Outpoint, CoinSpend>(),
@@ -304,7 +307,7 @@ public sealed class EthereumGraphTests
         Assert.Contains(swapLine.Facts, fact => fact.Name == "Swap" && fact.Value == "₮ → Ξ");
         Assert.Contains(swapLine.Facts, fact => fact.Name == "Värde" && fact.Value == InspectorContent.NoRateText);
         Assert.DoesNotContain(swapLine.Facts, fact => fact.Name == "Kontroll");
-        Assert.Contains(swapLine.Why, line => line.Topic == GuideTopic.Tokens && line.Text.Contains("Swap"));
+        Assert.Contains(swapLine.Why, line => line.Topic == GuideTopic.Swaps && line.Text.Contains("Swap"));
         Assert.Contains(swapLine.Details, line => line.StartsWith("Block 103 · 0x", StringComparison.Ordinal));
         Assert.Contains(
             valued.Facts, fact => fact.Name == "Belopp" && fact.Value.StartsWith("₮ ", StringComparison.Ordinal));

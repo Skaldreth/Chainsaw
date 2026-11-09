@@ -17,9 +17,6 @@ public sealed partial class GraphTimelineViewModel
     /// <summary>What the lens's chip says before its window.</summary>
     public const string LensName = "Valvyn";
 
-    /// <summary>What the lens's chip says on hovering.</summary>
-    public const string LensTip = "Valvyns tidsfönster runt den spårade ankomsten · klicka för att byta";
-
     /// <summary>The lens's centre: the traced arrival, or the window's own centre.</summary>
     private DateTimeOffset _lensCentre;
 

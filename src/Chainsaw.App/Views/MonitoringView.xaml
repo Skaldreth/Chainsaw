@@ -320,9 +320,9 @@
 
         <!-- The chosen watch: details, hits and what can be done with it. -->
         <!-- Only while a watch is chosen; otherwise it folds away and the list takes the width (principle 7). -->
-        <Border Grid.Column="1" Width="340" Background="{StaticResource Brush.Surface}"
-                BorderBrush="{StaticResource Brush.Border}" BorderThickness="1.5,0,0,0" Padding="18"
-                Visibility="{Binding HasSelection, Converter={StaticResource Visible}}">
+        <!-- Under the work, as the graph's inspector (sketch IN5a). -->
+        <controls:UnderPanel Grid.Column="1" Width="380" Padding="40,18,26,18"
+                             Visibility="{Binding HasSelection, Converter={StaticResource Visible}}">
             <Grid>
                 <DockPanel>
                     <StackPanel DockPanel.Dock="Top">
@@ -519,6 +519,6 @@
                     </DockPanel>
                 </DockPanel>
             </Grid>
-        </Border>
+        </controls:UnderPanel>
     </Grid>
 </UserControl>

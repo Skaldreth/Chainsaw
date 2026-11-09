@@ -39,16 +39,29 @@ public sealed partial class GraphCanvas
     /// <summary>The areas as last drawn, for the pointer.</summary>
     private IReadOnlyList<AreaPlace> _areas = [];
 
+    /// <summary>
+    /// The areas, places and scene <see cref="_areas"/> was worked out from, so that it is worked out again only when
+    /// one of them changes, not on every frame of a pan (principle 6).
+    /// </summary>
+    private (object? Areas, object? Places, object? Scene) _areasFrom;
+
     /// <summary>Draws the areas' fills and edges behind the lines and the actors.</summary>
     /// <param name="dc">Where to draw.</param>
     /// <param name="visible">The visible part of the surface.</param>
     private void DrawAreas(DrawingContext dc, GraphRect visible)
     {
         var model = _model!;
-        _areas = AreaGeometry.Place(model.Checks.Areas, model.Places, model.FrameAt);
+        var from = ((object)model.Checks.Areas, (object)model.Places, (object?)model.Scene);
+        if (!ReferenceEquals(_areasFrom.Areas, from.Item1) || !ReferenceEquals(_areasFrom.Places, from.Item2)
+            || !ReferenceEquals(_areasFrom.Scene, from.Item3))
+        {
+            _areasFrom = from;
+            _areas = AreaGeometry.Place(model.Checks.Areas, model.Places, model.FrameAt);
+        }
+
         foreach (var place in _areas.Where(place => place.Frame.Intersects(visible)))
         {
-            var tint = GraphPalette.Find(this, AreaLooks.BrushKey(place.Area.Look.Tint));
+            var tint = Ink(AreaLooks.BrushKey(place.Area.Look.Tint));
             var chosen = model.Checks.ChosenArea == place.Area.Key || model.Checks.Selected?.Key == place.Area.CheckKey;
             var rect = new Rect(place.Frame.X, place.Frame.Y, place.Frame.Width, place.Frame.Height);
             if (place.Area.IsFilled)
@@ -58,16 +71,13 @@ public sealed partial class GraphCanvas
                 dc.Pop();
             }
 
-            var pen = new Pen(tint, chosen ? 1.5 : 1)
+            var dash = place.Area.Line switch
             {
-                DashCap = PenLineCap.Round,
-                DashStyle = place.Area.Line switch
-                {
-                    AreaLine.Dashed => AreaDash,
-                    AreaLine.Dotted => AreaDots,
-                    _ => DashStyles.Solid,
-                },
+                AreaLine.Dashed => AreaDash,
+                AreaLine.Dotted => AreaDots,
+                _ => null,
             };
+            var pen = PenOf(tint, chosen ? 1.5 : 1, dash, PenLineCap.Round);
             dc.PushOpacity(chosen ? 0.8 : AreaEdgeOpacity);
             dc.DrawRoundedRectangle(null, pen, rect, AreaGeometry.Radius, AreaGeometry.Radius);
             dc.Pop();
@@ -83,7 +93,7 @@ public sealed partial class GraphCanvas
     private void DrawCandidates(DrawingContext dc, GraphRect visible)
     {
         var model = _model!;
-        var accent = GraphPalette.Find(this, "Brush.Accent");
+        var accent = Ink("Brush.Accent");
         foreach (var line in model.Checks.CandidateLines)
         {
             if (model.CurveBetween(line.From, line.To) is not { } curve
@@ -100,7 +110,7 @@ public sealed partial class GraphCanvas
             }
 
             geometry.Freeze();
-            var pen = new Pen(accent, 1 + (2 * line.Score)) { DashStyle = CandidateDash, DashCap = PenLineCap.Round };
+            var pen = PenOf(accent, 1 + (2 * line.Score), CandidateDash, PenLineCap.Round);
             dc.PushOpacity(line.IsApproved || line.IsChosen ? 1 : 0.35 + (0.65 * line.Score));
             dc.DrawGeometry(null, pen, geometry);
             if (line.Rank > 0)
@@ -130,25 +140,25 @@ public sealed partial class GraphCanvas
     {
         const double Radius = 10;
         const double Inset = 2;
-        var ground = GraphPalette.Find(this, "Brush.Background");
+        var ground = Ink("Brush.Background");
         if (line.IsApproved)
         {
             const double CheckRadius = MarkSize / 2;
             var marks = CornerMarks(line.To);
             var right = node.Right + MarkOverhang - CheckRadius - (marks * (MarkSize + 2));
             var at = new Point(right, node.Y - MarkOverhang + CheckRadius);
-            dc.DrawEllipse(GraphPalette.Find(this, "Brush.Success"), new Pen(ground, 2), at, CheckRadius, CheckRadius);
+            dc.DrawEllipse(Ink("Brush.Success"), PenOf(ground, 2), at, CheckRadius, CheckRadius);
             DrawGlyph(dc, "Icon.Check", ground, new Point(at.X - (MarkIconSize / 2), at.Y - (MarkIconSize / 2)),
                 MarkIconSize);
             return;
         }
 
         var centre = new Point(node.X + Inset, node.Y + Inset);
-        var edge = line.IsChosen ? accent : GraphPalette.Find(this, "Brush.TextMuted");
-        dc.DrawEllipse(line.IsChosen ? accent : GraphPalette.Find(this, "Brush.Surface"), new Pen(edge, 1.5), centre,
+        var edge = line.IsChosen ? accent : Ink("Brush.TextMuted");
+        dc.DrawEllipse(line.IsChosen ? accent : Ink("Brush.Surface"), PenOf(edge, 1.5), centre,
             Radius, Radius);
         var text = Text(
-            line.Rank.ToString(CultureInfo.InvariantCulture), 11, GraphPalette.Find(this, "Brush.Text"),
+            line.Rank.ToString(CultureInfo.InvariantCulture), 11, Ink("Brush.Text"),
             FontWeights.SemiBold);
         dc.DrawText(text, new Point(centre.X - (text.Width / 2), centre.Y - (text.Height / 2)));
     }
@@ -174,7 +184,7 @@ public sealed partial class GraphCanvas
         var box = new Rect(
             middle.X - (text.Width / 2) - 5, middle.Y - (text.Height / 2) - 1, text.Width + 10, text.Height + 2);
         dc.DrawRoundedRectangle(
-            GraphPalette.Find(this, "Brush.Background"), new Pen(accent, 1) { DashStyle = CandidateDash }, box, 4, 4);
+            Ink("Brush.Background"), PenOf(accent, 1, CandidateDash), box, 4, 4);
         dc.DrawText(text, new Point(box.X + 5, box.Y + 1));
     }
 
@@ -187,21 +197,21 @@ public sealed partial class GraphCanvas
     private void DrawAreaChips(DrawingContext dc, GraphRect visible)
     {
         var model = _model!;
-        var ground = GraphPalette.Find(this, "Brush.Background");
+        var ground = Ink("Brush.Background");
         foreach (var place in _areas.Where(place => place.Frame.Intersects(visible)))
         {
-            var tint = GraphPalette.Find(this, AreaLooks.BrushKey(place.Area.Look.Tint));
+            var tint = Ink(AreaLooks.BrushKey(place.Area.Look.Tint));
             var chip = place.Chip;
             var chosen = model.Checks.ChosenArea == place.Area.Key || model.Checks.Selected?.Key == place.Area.CheckKey;
             var rect = new Rect(chip.X, chip.Y, chip.Width, chip.Height);
-            var edge = new Pen(tint, 1) { DashStyle = place.Area.Line == AreaLine.Dashed ? AreaDash : DashStyles.Solid };
+            var edge = PenOf(tint, 1, place.Area.Line == AreaLine.Dashed ? AreaDash : null);
             dc.DrawRoundedRectangle(ground, edge, rect, chip.Height / 2, chip.Height / 2);
             var iconTop = chip.Y + ((chip.Height - ChipIconSize) / 2);
             DrawGlyph(dc, place.Area.Look.Icon, tint, new Point(chip.X + 6, iconTop), ChipIconSize);
             if (place.Area.IsOwn)
             {
                 DrawGlyph(
-                    dc, "Icon.Kind.Person", GraphPalette.Find(this, "Brush.Text"),
+                    dc, "Icon.Kind.Person", Ink("Brush.Text"),
                     new Point(chip.X + 6 + ChipIconSize + 1, iconTop + 2), 8);
             }
 
@@ -224,11 +234,11 @@ public sealed partial class GraphCanvas
     /// <param name="tint">Its tint.</param>
     private void DrawAreaName(DrawingContext dc, AreaPlace place, Brush tint)
     {
-        var text = Text(place.Area.Label, 11, GraphPalette.Find(this, "Brush.Text"), FontWeights.Normal);
+        var text = Text(place.Area.Label, 11, Ink("Brush.Text"), FontWeights.Normal);
         var box = new Rect(
             place.Chip.X - text.Width - 16, place.Chip.Y, text.Width + 12, place.Chip.Height);
         dc.DrawRoundedRectangle(
-            GraphPalette.Find(this, "Brush.Background"), new Pen(tint, 1), box, box.Height / 2, box.Height / 2);
+            Ink("Brush.Background"), PenOf(tint, 1), box, box.Height / 2, box.Height / 2);
         dc.DrawText(text, new Point(box.X + 6, box.Y + ((box.Height - text.Height) / 2)));
     }
 
@@ -240,13 +250,13 @@ public sealed partial class GraphCanvas
     {
         var rect = new Rect(where.X, where.Y, where.Width, where.Height);
         dc.DrawRoundedRectangle(
-            GraphPalette.Find(this, "Brush.SurfaceRaised"),
-            new Pen(GraphPalette.Find(this, "Brush.BorderStrong"), 1),
+            Ink("Brush.SurfaceRaised"),
+            PenOf(Ink("Brush.BorderStrong"), 1),
             rect,
             where.Height / 2,
             where.Height / 2);
         DrawGlyph(
-            dc, icon, GraphPalette.Find(this, "Brush.TextMuted"),
+            dc, icon, Ink("Brush.TextMuted"),
             new Point(where.X + ((where.Width - ChipIconSize) / 2), where.Y + ((where.Height - ChipIconSize) / 2)),
             ChipIconSize);
     }
@@ -295,7 +305,7 @@ public sealed partial class GraphCanvas
         DropZoom();
         _viewport = Viewport.Fit(bounds.Inflate(AreaGeometry.TimePadding), ActualWidth, ActualHeight);
         _model.ViewportChanged(_viewport);
-        InvalidateVisual();
+        Request(GraphChange.View);
     }
 
     /// <summary>

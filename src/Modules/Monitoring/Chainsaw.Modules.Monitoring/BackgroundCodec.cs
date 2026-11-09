@@ -34,7 +34,10 @@ internal static class BackgroundCodec
                 WatchCodec.Encode(watch.Filter),
                 watch.StartHeight,
                 Of(watch.Checked),
-                [.. watch.Known]))]))]));
+                [.. watch.Known]))]))])
+    {
+        ProxyLoginFor = plan.ProxyLoginFor,
+    });
 
     /// <summary>Reads the plan.</summary>
     /// <param name="json">The UTF-8 JSON.</param>
@@ -64,7 +67,10 @@ internal static class BackgroundCodec
 
         // An unknown way out is read as VPN, never as Windows (as the settings do).
         return new BackgroundPlan(
-            text.Enabled, Enum.IsDefined(route) ? route : ExitRoute.Vpn, (WatchAlerts)text.Alerts, [.. cases]);
+            text.Enabled, Enum.IsDefined(route) ? route : ExitRoute.Vpn, (WatchAlerts)text.Alerts, [.. cases])
+        {
+            ProxyLoginFor = string.IsNullOrWhiteSpace(text.ProxyLoginFor) ? null : text.ProxyLoginFor,
+        };
     });
 
     /// <summary>Writes a queued entry.</summary>
@@ -255,7 +261,11 @@ internal static class BackgroundCodec
     /// <param name="Route">The way out.</param>
     /// <param name="Alerts">How a hit is said.</param>
     /// <param name="Cases">The cases.</param>
-    private sealed record PlanText(int Version, bool Enabled, string Route, int Alerts, List<CaseText> Cases);
+    private sealed record PlanText(int Version, bool Enabled, string Route, int Alerts, List<CaseText> Cases)
+    {
+        /// <summary>Gets the proxy the login is on for (PX1a), or none; missing in a plan written before.</summary>
+        public string? ProxyLoginFor { get; init; }
+    }
 
     /// <summary>A case as stored.</summary>
     /// <param name="CaseId">Its id.</param>

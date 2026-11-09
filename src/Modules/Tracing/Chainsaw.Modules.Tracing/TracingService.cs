@@ -5,6 +5,7 @@ using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Clustering.Contracts;
 using Chainsaw.Modules.Tracing.Contracts;
 using Chainsaw.SharedKernel;
+using static Chainsaw.Modules.Tracing.Lookups;
 
 namespace Chainsaw.Modules.Tracing;
 
@@ -303,6 +304,109 @@ internal sealed class TracingService : ITracingService
     }
 
     /// <inheritdoc/>
+    public SwapStop StopAtSwap(ICase @case, TokenSwap swap, string? reason)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(swap);
+        reason = OptionalReason(reason);
+        // Only a swap the case's own Ethereum facts show, for that account in that transaction, is chosen for, so that
+        // no choice is sealed about something the case does not hold. Only Ethereum's part is read, not the graph.
+        // The labels are asked as when the graph is built, so that a swap a label refuses is not chosen for either.
+        var state = @case.Read(GraphStateStore.Read);
+        var facts = _ethereum.ReadAsync(@case, state, CancellationToken.None).GetAwaiter().GetResult();
+        var ends = AccountEnds(@case, new GraphData(
+            state, new Dictionary<Txid, GraphTransaction>(), new Dictionary<Txid, OutputSpendsAnswer>(), [])
+        {
+            Account = facts,
+        });
+        var swaps = facts.ReadSwaps(address => GraphBuilder.SwapEndpoint(
+            account => ends.GetValueOrDefault(account) ?? [], address)).Swaps;
+        if (swap.Account.Chain != Chain.Ethereum || !swaps.Contains(swap))
+        {
+            throw new ArgumentException("The swap is not in the case's graph.", nameof(swap));
+        }
+
+        return @case.Write(transaction =>
+        {
+            // One choice in force per swap; choosing again leaves the one there, so that a double click seals once.
+            if (SwapValue.StopOf(swap, SwapStopStore.ReadInForce(transaction)) is { } already)
+            {
+                return already;
+            }
+
+            var journal = transaction.AppendJournal(new JournalDraft(
+                TracingJournalKinds.SwapStopped,
+                string.Format(
+                    CultureInfo.InvariantCulture,
+                    "Spåret följer inte med genom swappen: {0} ({1} → {2})",
+                    swap.Transaction.Value,
+                    swap.Sold.Asset.Symbol,
+                    swap.Bought.Asset.Symbol),
+                JsonSerializer.Serialize(new
+                {
+                    transaction = swap.Transaction.Value,
+                    account = swap.Account.Value,
+                    sold = swap.Sold.Asset.Symbol,
+                    bought = swap.Bought.Asset.Symbol,
+                    analysis = SwapValue.Analysis,
+                    reason,
+                })));
+            return SwapStopStore.Seal(transaction, swap, reason, journal);
+        });
+    }
+
+    /// <inheritdoc/>
+    public bool FollowSwap(ICase @case, SwapStop stop, string? reason)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(stop);
+        reason = OptionalReason(reason);
+        return @case.Write(transaction =>
+        {
+            // The stored choice is what is taken back, whatever the caller's copy says.
+            var stored = SwapStopStore.ReadInForce(transaction)
+                .FirstOrDefault(current => current.Sequence == stop.Sequence);
+            if (stored is null)
+            {
+                return false;
+            }
+
+            var journal = transaction.AppendJournal(new JournalDraft(
+                TracingJournalKinds.SwapFollowed,
+                string.Format(
+                    CultureInfo.InvariantCulture,
+                    "Värdet följer med genom swappen igen: {0}",
+                    stored.Transaction.Value),
+                JsonSerializer.Serialize(new { stop = stored.Sequence, analysis = SwapValue.Analysis, reason })));
+            SwapStopStore.SealUndo(transaction, stored, reason, journal);
+            return true;
+        });
+    }
+
+    /// <inheritdoc/>
+    public IReadOnlyList<SwapStopHistoryEntry> GetSwapStopHistory(ICase @case)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        return @case.Read(SwapStopStore.ReadHistory);
+    }
+
+    /// <summary>Trims an optional reason and checks its length; an empty one is none.</summary>
+    /// <param name="reason">The reason, or <see langword="null"/>.</param>
+    /// <returns>The reason, or <see langword="null"/>.</returns>
+    /// <exception cref="ArgumentException">It is too long.</exception>
+    private static string? OptionalReason(string? reason)
+    {
+        if (string.IsNullOrWhiteSpace(reason))
+        {
+            return null;
+        }
+
+        var trimmed = reason.Trim();
+        CheckReason(trimmed);
+        return trimmed;
+    }
+
+    /// <inheritdoc/>
     public void SavePosition(ICase @case, string nodeKey, GraphLayout layout, NodePosition position)
     {
         ArgumentNullException.ThrowIfNull(@case);
@@ -399,31 +503,30 @@ internal sealed class TracingService : ITracingService
     }
 
     /// <inheritdoc/>
-    public TraceResult Trace(TraceGraph graph, TraceRequest request)
-    {
-        ArgumentNullException.ThrowIfNull(graph);
-        ArgumentNullException.ThrowIfNull(request);
-        if (!_methods.TryGetValue(request.Method, out var method))
-        {
-            throw new ArgumentException("The tracing method is not registered.", nameof(request));
-        }
-
-        return TraceCalculator.Trace(graph, method, request.Seeds);
-    }
+    public TraceResult Trace(TraceGraph graph, TraceRequest request) =>
+        TraceCalculator.Trace(graph, MethodFor(graph, request), request.Seeds);
 
     /// <inheritdoc/>
     public Task<TraceResult> TraceAsync(
         TraceGraph graph, TraceRequest request, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(graph);
-        ArgumentNullException.ThrowIfNull(request);
-        if (!_methods.TryGetValue(request.Method, out var method))
-        {
-            throw new ArgumentException("The tracing method is not registered.", nameof(request));
-        }
-
+        var method = MethodFor(graph, request);
         return Task.Run(
             () => TraceCalculator.Trace(graph, method, request.Seeds, cancellationToken), cancellationToken);
+    }
+
+    /// <summary>Checks a UTXO trace's arguments and gives its method.</summary>
+    /// <param name="graph">The graph.</param>
+    /// <param name="request">The request.</param>
+    /// <returns>The registered method the request names.</returns>
+    /// <exception cref="ArgumentException">The method is not registered.</exception>
+    private IUtxoTracingMethod MethodFor(TraceGraph graph, TraceRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(graph);
+        ArgumentNullException.ThrowIfNull(request);
+        return _methods.TryGetValue(request.Method, out var method)
+            ? method
+            : throw new ArgumentException("The tracing method is not registered.", nameof(request));
     }
 
     /// <inheritdoc/>
@@ -439,7 +542,8 @@ internal sealed class TracingService : ITracingService
         }
 
         return Task.Run(
-            () => AccountTraceCalculator.Trace(graph, method, request.Seeds, cancellationToken), cancellationToken);
+            () => AccountTraceCalculator.Trace(graph, method, request.Seeds, cancellationToken, request.Pricing),
+            cancellationToken);
     }
 
     /// <inheritdoc/>
@@ -1067,17 +1171,6 @@ internal sealed class TracingService : ITracingService
     }
 
     /// <summary>
-    /// Gives why an answer may be outdated, when it came from the case instead of the source; such an answer leaves
-    /// the expansion incomplete. Other texts on a current answer (for example that the case's answer about the spends
-    /// is as of when it was fetched) do not, since the expansion asks about the spends itself.
-    /// </summary>
-    /// <typeparam name="T">What was looked up.</typeparam>
-    /// <param name="lookup">The answer.</param>
-    /// <returns>The text, or <see langword="null"/> when the answer is current.</returns>
-    private static string? Outdated<T>(BitcoinLookup<T> lookup)
-        where T : class => Lookups.Outdated(lookup);
-
-    /// <summary>
     /// Joins an answer's notes (a transaction that left its block, one that could not be checked against its bytes)
     /// to those already gathered; they are said, but do not make the expansion incomplete.
     /// </summary>
@@ -1087,18 +1180,6 @@ internal sealed class TracingService : ITracingService
     /// <returns>The notes with the answer's added.</returns>
     private static string? WithNotes<T>(string? notes, BitcoinLookup<T> lookup)
         where T : class => lookup.Notes.Aggregate(notes, Join);
-
-    /// <summary>Joins two texts for the user, either of which may be missing, each once.</summary>
-    /// <param name="first">The first text.</param>
-    /// <param name="second">The second text.</param>
-    /// <returns>Both, one, or <see langword="null"/>.</returns>
-    private static string? Join(string? first, string? second) => Lookups.Join(first, second);
-
-    /// <summary>Says what went wrong with a lookup, for the user.</summary>
-    /// <param name="status">How it was answered.</param>
-    /// <param name="problem">The source's own text, if any.</param>
-    /// <returns>The text.</returns>
-    private static string Problem(LookupStatus status, string? problem) => Lookups.Problem(status, problem);
 
     /// <summary>What one expansion step brought in.</summary>
     /// <param name="Transactions">The transactions.</param>

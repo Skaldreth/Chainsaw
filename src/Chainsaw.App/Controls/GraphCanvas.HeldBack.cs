@@ -73,11 +73,18 @@ public sealed partial class GraphCanvas
     /// </summary>
     private List<GraphPoint>? _lasso;
 
+    /// <summary>
+    /// The dotted guides as last made, with the guides and the centre they were made from, so that they are made
+    /// again only when the view changes, not on every frame (BACKLOG, <em>Ledtrådsnoden</em>).
+    /// </summary>
+    private (HeldBackGuides? Guides, GraphPoint Centre, IReadOnlyList<Geometry> Dotted) _guideGeometry =
+        (null, default, []);
+
+    /// <summary>The corner mark of a counterparty labelled in another case: a small diamond around the origin.</summary>
+    private static readonly Geometry CornerDiamond = Frozen(Diamond(CornerMark / 2));
+
     /// <summary>Whether a press in the view is under way.</summary>
     private bool _viewPressed;
-
-    /// <summary>Whether the canvas is called every frame while something moves.</summary>
-    private bool _moving;
 
     /// <summary>Gets the view's centre on screen in the mode shown.</summary>
     private GraphPoint ViewCentre => _model?.HeldBack is { IsTimeArc: true }
@@ -135,7 +142,7 @@ public sealed partial class GraphCanvas
             Begin(BlastPhase.Back);
         }
 
-        InvalidateVisual();
+        Redraw();
     }
 
     /// <summary>Starts the blast from a clue.</summary>
@@ -200,28 +207,27 @@ public sealed partial class GraphCanvas
     /// </summary>
     private void KeepMoving()
     {
-        if (!_moving && AnimationsOn)
+        if (AnimationsOn)
         {
-            _moving = true;
-            CompositionTarget.Rendering += OnMovingFrame;
+            StartMotion(GraphMotion.Blast);
         }
 
-        InvalidateVisual();
+        Redraw();
     }
 
-    /// <summary>Moves what moves one frame and draws again.</summary>
-    /// <param name="sender">WPF's rendering.</param>
-    /// <param name="e">The arguments.</param>
-    private void OnMovingFrame(object? sender, EventArgs e)
+    /// <summary>Moves the blast and the fan one step, and stops when neither moves or the surface is hidden.</summary>
+    /// <param name="seconds">The time since the last step; the two move by the clock of their own.</param>
+    /// <returns>What changed: the scene.</returns>
+    private GraphChange BlastStep(double seconds)
     {
         var fan = StepFan();
         var blast = StepBlast();
-        InvalidateVisual();
         if ((!fan && !blast) || !IsVisible)
         {
-            _moving = false;
-            CompositionTarget.Rendering -= OnMovingFrame;
+            _frames.Stop(GraphMotion.Blast);
         }
+
+        return GraphChange.Scene;
     }
 
     /// <summary>Gives where a node is during the blast out or back.</summary>
@@ -330,7 +336,7 @@ public sealed partial class GraphCanvas
     /// <param name="dc">Where to draw.</param>
     private void DrawBlastRings(DrawingContext dc)
     {
-        var pen = PenOf(GraphPalette.Find(this, "Brush.TextDim"), 1.5);
+        var pen = PenOf(Ink("Brush.TextDim"), 1.5);
         for (var ring = 0; ring < 2; ring++)
         {
             var (diameter, opacity) = HeldBackMotion.Ring(ring, BlastK);
@@ -348,18 +354,10 @@ public sealed partial class GraphCanvas
     /// <param name="centre">The view's centre.</param>
     private void DrawGuides(DrawingContext dc, HeldBackGuides guides, GraphPoint centre)
     {
-        var faint = GraphPalette.Find(this, "Brush.BorderStrong");
+        var faint = Ink("Brush.BorderStrong");
         var dots = PenOf(faint, 1.2, GuideDots, PenLineCap.Round);
-        foreach (var run in guides.Dotted.Where(run => run.Count > 1))
+        foreach (var geometry in DottedGuides(guides, centre))
         {
-            var geometry = new StreamGeometry();
-            using (var context = geometry.Open())
-            {
-                context.BeginFigure(At(centre, run[0]), false, false);
-                context.PolyLineTo([.. run.Skip(1).Select(point => At(centre, point))], true, true);
-            }
-
-            geometry.Freeze();
             dc.DrawGeometry(null, dots, geometry);
         }
 
@@ -371,17 +369,17 @@ public sealed partial class GraphCanvas
 
         if (guides.Arrival is { } ray)
         {
-            var dashed = PenOf(GraphPalette.Find(this, "Brush.Accent"), 1.2, ArrivalDash);
+            var dashed = PenOf(Ink("Brush.Accent"), 1.2, ArrivalDash);
             dc.DrawLine(dashed, At(centre, ray.From), At(centre, ray.To));
         }
 
         foreach (var label in guides.Labels)
         {
-            var ink = GraphPalette.Find(this, label.IsAccent ? "Brush.Accent" : "Brush.TextDim");
-            var text = CachedText(label.Text, 10.5, ink, FontWeights.Normal);
+            var ink = Ink(label.IsAccent ? "Brush.Accent" : "Brush.TextDim");
+            var text = Text(label.Text, 10.5, ink, FontWeights.Normal);
             var at = At(centre, label.At);
             var box = new Rect(at.X - (text.Width / 2) - 4, at.Y - (text.Height / 2), text.Width + 8, text.Height);
-            dc.DrawRoundedRectangle(GraphPalette.Find(this, "Brush.Background"), null, box, 3, 3);
+            dc.DrawRoundedRectangle(Ink("Brush.Background"), null, box, 3, 3);
             dc.DrawText(text, new Point(box.X + 4, box.Y));
         }
     }
@@ -397,8 +395,8 @@ public sealed partial class GraphCanvas
     /// <param name="k">How far the dots have come out.</param>
     private void DrawDots(DrawingContext dc, HeldBackViewModel view, GraphPoint centre, double k)
     {
-        var background = GraphPalette.Find(this, "Brush.Background");
-        var accent = PenOf(GraphPalette.Find(this, "Brush.Accent"), 1.5);
+        var background = Ink("Brush.Background");
+        var accent = PenOf(Ink("Brush.Accent"), 1.5);
         var visible = new Rect(0, 0, ActualWidth, ActualHeight);
         for (var index = 0; index < view.Dots.Count; index++)
         {
@@ -410,7 +408,7 @@ public sealed partial class GraphCanvas
                 continue;
             }
 
-            var ink = GraphPalette.Brush(this, HeldBackChoice.InkOf(dot.First.Group));
+            var ink = InkOf(HeldBackChoice.InkOf(dot.First.Group));
             var size = dot.Size + (view.Hovered == index ? DotHoverGrowth : 0);
             dc.PushOpacity(arrived);
             if (arrived > 0.9)
@@ -426,7 +424,7 @@ public sealed partial class GraphCanvas
 
             if (dot.Count > 1)
             {
-                var count = CachedText(dot.Count.ToString(System.Globalization.CultureInfo.InvariantCulture), 10,
+                var count = Text(dot.Count.ToString(System.Globalization.CultureInfo.InvariantCulture), 10,
                     dot.IsOut ? background : ink, FontWeights.Bold);
                 dc.DrawText(count, new Point(at.X - (count.Width / 2), at.Y - (count.Height / 2)));
             }
@@ -500,7 +498,7 @@ public sealed partial class GraphCanvas
             var (scale, opacity) = AnimationsOn ? HeldBackMotion.Sonar(phase) : (1.45, 0.6);
             var radius = (dot.Size + 6) / 2 * scale;
             dc.PushOpacity(opacity);
-            dc.DrawEllipse(null, PenOf(GraphPalette.Find(this, key), 1.5), at, radius, radius);
+            dc.DrawEllipse(null, PenOf(Ink(key), 1.5), at, radius, radius);
             dc.Pop();
         }
     }
@@ -519,8 +517,8 @@ public sealed partial class GraphCanvas
         if (dot.First.InGraph)
         {
             dc.DrawEllipse(
-                GraphPalette.Find(this, "Brush.Background"),
-                PenOf(GraphPalette.Find(this, "Brush.Text"), 1.5),
+                Ink("Brush.Background"),
+                PenOf(Ink("Brush.Text"), 1.5),
                 corner,
                 CornerMark / 2,
                 CornerMark / 2);
@@ -529,21 +527,53 @@ public sealed partial class GraphCanvas
 
         if (dot.First.FromOtherCase)
         {
-            var half = CornerMark / 2;
-            var diamond = new StreamGeometry();
-            using (var context = diamond.Open())
+            dc.PushTransform(new TranslateTransform(corner.X, corner.Y));
+            dc.DrawGeometry(GraphPalette.Find(this, "Brush.TextMuted"), null, CornerDiamond);
+            dc.Pop();
+        }
+    }
+
+    /// <summary>Gives the dotted guides' geometry, made again only when the guides or the centre changed.</summary>
+    /// <param name="guides">The guides.</param>
+    /// <param name="centre">The view's centre.</param>
+    /// <returns>One frozen geometry per dotted run.</returns>
+    private IReadOnlyList<Geometry> DottedGuides(HeldBackGuides guides, GraphPoint centre)
+    {
+        if (!ReferenceEquals(_guideGeometry.Guides, guides) || _guideGeometry.Centre != centre)
+        {
+            var made = new List<Geometry>();
+            foreach (var run in guides.Dotted.Where(run => run.Count > 1))
             {
-                context.BeginFigure(new Point(corner.X, corner.Y - half), true, true);
-                context.PolyLineTo(
-                    [new Point(corner.X + half, corner.Y), new Point(corner.X, corner.Y + half),
-                        new Point(corner.X - half, corner.Y)],
-                    true,
-                    true);
+                var geometry = new StreamGeometry();
+                using (var context = geometry.Open())
+                {
+                    context.BeginFigure(At(centre, run[0]), false, false);
+                    context.PolyLineTo([.. run.Skip(1).Select(point => At(centre, point))], true, true);
+                }
+
+                geometry.Freeze();
+                made.Add(geometry);
             }
 
-            diamond.Freeze();
-            dc.DrawGeometry(GraphPalette.Find(this, "Brush.TextMuted"), null, diamond);
+            _guideGeometry = (guides, centre, made);
         }
+
+        return _guideGeometry.Dotted;
+    }
+
+    /// <summary>Makes a filled diamond around the origin.</summary>
+    /// <param name="half">Half its width and height.</param>
+    /// <returns>The geometry, not yet frozen.</returns>
+    private static StreamGeometry Diamond(double half)
+    {
+        var diamond = new StreamGeometry();
+        using (var context = diamond.Open())
+        {
+            context.BeginFigure(new Point(0, -half), true, true);
+            context.PolyLineTo([new Point(half, 0), new Point(0, half), new Point(-half, 0)], true, true);
+        }
+
+        return diamond;
     }
 
     /// <summary>Draws the address in the middle (sketch EX2): its icon, its name and what was held back.</summary>
@@ -554,19 +584,19 @@ public sealed partial class GraphCanvas
     {
         var node = _model?.Scene?.Node(_blastAnchor);
         var title = node?.Subject ?? string.Empty;
-        var name = CachedText(title, 12.5, GraphPalette.Find(this, "Brush.Text"), FontWeights.SemiBold);
-        var sub = CachedText(line, 11, GraphPalette.Find(this, "Brush.TextDim"), FontWeights.Normal);
+        var name = Text(title, 12.5, Ink("Brush.Text"), FontWeights.SemiBold);
+        var sub = Text(line, 11, Ink("Brush.TextDim"), FontWeights.Normal);
         var width = Math.Max(CentreCardWidth, NodePadding + IconBox + NodeGap + Math.Max(name.Width, sub.Width) + 12);
         var card = new Rect(centre.X - (width / 2), centre.Y - (CentreCardHeight / 2), width, CentreCardHeight);
         dc.DrawRoundedRectangle(
-            GraphPalette.Find(this, "Brush.SurfaceRaised"),
-            PenOf(GraphPalette.Find(this, "Brush.BorderHover"), 1),
+            Ink("Brush.SurfaceRaised"),
+            PenOf(Ink("Brush.BorderHover"), 1),
             card,
             NodeRadius,
             NodeRadius);
         var look = node?.Look ?? VisualLanguage.Of(NodeSort.Unknown);
         var iconCorner = new Point(card.X + NodePadding, card.Y + ((card.Height - IconBox) / 2));
-        DrawSmallIcon(dc, look, GraphPalette.Brush(this, look.Ink), iconCorner, IconBox, IconSize);
+        DrawSmallIcon(dc, look, InkOf(look.Ink), iconCorner, IconBox, IconSize);
         var left = iconCorner.X + IconBox + NodeGap;
         var top = card.Y + ((card.Height - name.Height - sub.Height + 2) / 2);
         dc.DrawText(name, new Point(left, top));
@@ -591,11 +621,11 @@ public sealed partial class GraphCanvas
         }
 
         geometry.Freeze();
-        var accent = GraphPalette.Find(this, "Brush.Accent");
+        var accent = Ink("Brush.Accent");
         dc.PushOpacity(0.06);
         dc.DrawGeometry(accent, null, geometry);
         dc.Pop();
-        dc.DrawGeometry(null, new Pen(accent, 1.5) { DashStyle = LassoDash, LineJoin = PenLineJoin.Round }, geometry);
+        dc.DrawGeometry(null, PenOf(accent, 1.5, LassoDash, join: PenLineJoin.Round), geometry);
     }
 
     /// <summary>
@@ -611,13 +641,13 @@ public sealed partial class GraphCanvas
         var (head, sub, lines) = view.TipOf(dot);
         var texts = new List<(FormattedText Text, Brush? Dot)>
         {
-            (CachedText(head, 12, GraphPalette.Find(this, "Brush.Text"), FontWeights.Normal), null),
-            (CachedText(sub, 11, GraphPalette.Find(this, "Brush.TextDim"), FontWeights.Normal), null),
+            (Text(head, 12, Ink("Brush.Text"), FontWeights.Normal), null),
+            (Text(sub, 11, Ink("Brush.TextDim"), FontWeights.Normal), null),
         };
         texts.AddRange(lines.Select(line =>
         {
-            var ink = GraphPalette.Brush(this, line.Ink);
-            return (CachedText(line.Text, 11, ink, FontWeights.Normal), (Brush?)ink);
+            var ink = InkOf(line.Ink);
+            return (Text(line.Text, 11, ink, FontWeights.Normal), (Brush?)ink);
         }));
         const double Pad = 10;
         const double DotRoom = 12;
@@ -628,8 +658,8 @@ public sealed partial class GraphCanvas
         box.X = Math.Clamp(box.X, 4, Math.Max(4, ActualWidth - width - 4));
         box.Y = Math.Max(4, box.Y);
         dc.DrawRoundedRectangle(
-            GraphPalette.Find(this, "Brush.SurfaceRaised"),
-            PenOf(GraphPalette.Find(this, "Brush.BorderStrong"), 1),
+            Ink("Brush.SurfaceRaised"),
+            PenOf(Ink("Brush.BorderStrong"), 1),
             box,
             7,
             7);
@@ -686,7 +716,7 @@ public sealed partial class GraphCanvas
         if (_lasso is not null)
         {
             _lasso.Add(Relative(at));
-            InvalidateVisual();
+            Redraw();
             return true;
         }
 
@@ -729,7 +759,7 @@ public sealed partial class GraphCanvas
             view.Click(view.DotAt(Relative(at)), (Keyboard.Modifiers & ModifierKeys.Shift) != 0);
         }
 
-        InvalidateVisual();
+        Redraw();
         return true;
     }
 

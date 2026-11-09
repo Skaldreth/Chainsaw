@@ -54,31 +54,16 @@ public sealed class CaseTrashStore(string directory) : ICaseTrashStore
     public string FilePath => Path.Combine(directory, FileName);
 
     /// <inheritdoc />
-    public IReadOnlyList<TrashedCase> Load()
-    {
-        try
-        {
-            if (!File.Exists(FilePath))
-            {
-                return [];
-            }
-
-            var file = JsonSerializer.Deserialize<TrashFile>(SettingsFile.ReadShared(FilePath), Json);
-            return
-            [
-                .. (file?.Cases ?? []).Where(saved => !string.IsNullOrWhiteSpace(saved?.Case))
-                    .Select(saved => new TrashedCase(
-                        saved!.Case!,
-                        saved.Thrown,
-                        string.IsNullOrWhiteSpace(saved.Pile) ? null : saved.Pile,
-                        saved.PileName ?? string.Empty)),
-            ];
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
-        {
-            return [];
-        }
-    }
+    public IReadOnlyList<TrashedCase> Load() =>
+    [
+        .. (SettingsFile.ReadJson<TrashFile>(FilePath, Json)?.Cases ?? [])
+            .Where(saved => !string.IsNullOrWhiteSpace(saved?.Case))
+            .Select(saved => new TrashedCase(
+                saved!.Case!,
+                saved.Thrown,
+                string.IsNullOrWhiteSpace(saved.Pile) ? null : saved.Pile,
+                saved.PileName ?? string.Empty)),
+    ];
 
     /// <inheritdoc />
     public bool Save(IReadOnlyList<TrashedCase> cases)
@@ -88,15 +73,7 @@ public sealed class CaseTrashStore(string directory) : ICaseTrashStore
             [.. cases.Select(each => new SavedCase(each.CaseNumber, each.ThrownUtc, each.PileId, each.PileName))]);
         lock (_writing)
         {
-            try
-            {
-                SettingsFile.WriteReplacing(FilePath, JsonSerializer.Serialize(file, Json));
-                return true;
-            }
-            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-            {
-                return false;
-            }
+            return SettingsFile.TryWriteJson(FilePath, file, Json);
         }
     }
 

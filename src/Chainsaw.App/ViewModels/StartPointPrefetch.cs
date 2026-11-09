@@ -612,20 +612,22 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
     /// </returns>
     private string SanctionTip(ChainStartPoint startPoint)
     {
-        SanctionMatch? match;
+        IReadOnlyList<SanctionMatch> matches;
         Func<string, bool> onChain;
         try
         {
             // The same hits the case is labelled with when it is created (IAttributionService.CheckSanctions).
             if (startPoint.Bitcoin?.Address is { } bitcoin)
             {
-                match = _sanctions.Find(bitcoin);
+                matches = _sanctions.FindAll(bitcoin);
                 onChain = currency => currency == SanctionCurrency.Bitcoin;
             }
             else if (startPoint.EthereumAccount is { } ethereum)
             {
-                match = _sanctions.Find(ethereum);
-                onChain = SanctionCurrency.OnAccountChain;
+                matches = _sanctions.FindAll(ethereum);
+                onChain = ethereum.Chain == Chain.Tron
+                    ? SanctionCurrency.OnTron.Contains
+                    : SanctionCurrency.OnEthereum.Contains;
             }
             else
             {
@@ -638,17 +640,22 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
             return string.Empty;
         }
 
-        var hit = match?.Hits.FirstOrDefault(each => onChain(each.Currency));
-        if (match is null || hit is null)
+        // Every current list is looked on (OFAC SDN and the EU's); a certain hit is shown before an uncertain one.
+        var (list, hit) = matches
+            .SelectMany(match => match.Hits.Where(each => onChain(each.Currency)).Select(each => (match.List, each)))
+            .OrderBy(found => found.each.IsUncertain)
+            .FirstOrDefault();
+        if (list is null || hit is null)
         {
             return string.Empty;
         }
 
         var listedAs = hit.Currency is SanctionCurrency.Bitcoin or SanctionCurrency.Ether or SanctionCurrency.Tronix
-
             ? string.Empty
             : $" (listad som {hit.Currency})";
-        return $"Sanktionerad enligt {match.List.Name} {match.List.PublishDate:yyyy-MM-dd} · {hit.EntryName}{listedAs}"
+        var what = hit.IsUncertain ? StartPointPreview.PossibleSanctionText : "Sanktionerad enligt";
+        var chain = hit.IsUncertain ? " · listan säger inte säkert vilken kedja" : string.Empty;
+        return $"{what} {list.Name} {list.PublishDate:yyyy-MM-dd} · {hit.EntryName}{listedAs}{chain}"
             + " · en uppgift ur en öppen källa";
     }
 }

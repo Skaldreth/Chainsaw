@@ -21,6 +21,11 @@ internal sealed class SourceLookups
     /// <summary>The HTTP status for something the source does not know.</summary>
     private const int NotFoundStatus = 404;
 
+    /// <summary>What a lookup says when only endpoints that cannot be believed said that they do not know it.</summary>
+    internal const string UntrustedNotFoundText =
+        "Källan känner inte till det som söktes, men ingen endpoint som visat att den svarar rätt sa det. "
+        + "Uppslaget räknas som misslyckat tills en endpoint som provats svarar.";
+
     /// <summary>The HTTP status of a source that is asked too fast.</summary>
     private const int TooManyRequestsStatus = 429;
 
@@ -166,7 +171,8 @@ internal sealed class SourceLookups
     /// <param name="preferInStep">
     /// Whether endpoints in step with the chain are asked when some are known to be, and the others only when none is.
     /// </param>
-    /// <param name="except">
+    /// <param name="except">An endpoint not to ask, as when its own answer is to be confirmed by another.</param>
+    /// <param name="doubted">
     /// The response of an answer that is not believed (a final TRON answer without a known token's event): its
     /// endpoint, and any other at the same host and port, is not asked (<see cref="IsOther"/>); <see langword="null"/>
     /// to ask any.
@@ -174,8 +180,8 @@ internal sealed class SourceLookups
     /// <returns>The answer.</returns>
     public async Task<BitcoinLookup<T>> FetchAsync<T>(
         ICase @case, LookupQuery<T> query, (T Value, StoredResponse Response)? stored,
-        CancellationToken cancellationToken, bool inStep = false, bool preferInStep = false,
-        ResponseOrigin? except = null)
+        CancellationToken cancellationToken, bool inStep = false, bool preferInStep = false, Guid? except = null,
+        ResponseOrigin? doubted = null)
         where T : class
     {
         var fetchedBy = CurrentOperator(out var noOperator);
@@ -190,6 +196,12 @@ internal sealed class SourceLookups
             plan = _sources.Plan(_chain);
         }
 
+        if (except is { } passedOver)
+        {
+            // Another endpoint than the one whose answer is to be confirmed.
+            plan = plan with { Endpoints = [.. plan.Endpoints.Where(each => each.Endpoint.Id != passedOver)] };
+        }
+
         if (plan.Off)
         {
             return Fallback(stored, LookupStatus.Offline, _sourcesOffText);
@@ -200,11 +212,11 @@ internal sealed class SourceLookups
             return Fallback(stored, LookupStatus.Failed, plan.NoneInStep ? _noneInStepText : _noneOnText);
         }
 
-        if (except is { } passedOver)
+        if (doubted is { } notBelieved)
         {
             plan = plan with
             {
-                Endpoints = [.. plan.Endpoints.Where(planned => IsOther(planned.Endpoint, passedOver))],
+                Endpoints = [.. plan.Endpoints.Where(planned => IsOther(planned.Endpoint, notBelieved))],
             };
 
             if (plan.Endpoints.Count == 0)
@@ -329,8 +341,15 @@ internal sealed class SourceLookups
             onlyNotFound = false;
         }
 
-        // Not found is said only when an endpoint that can be believed said it, or every endpoint asked said it.
-        var isNotFound = notFound is not null && (trustedNotFound || onlyNotFound);
+        // Not found is said only when an endpoint that can be believed said it. When every endpoint asked said it but
+        // none of them can be believed (a single endpoint whose path has changed, say), the lookup failed instead and
+        // says why (etapp 25, M), so that nothing reads as gone from the chain on an untried word.
+        var isNotFound = notFound is not null && trustedNotFound;
+        if (!isNotFound && notFound is not null && onlyNotFound)
+        {
+            problem = UntrustedNotFoundText;
+        }
+
         if (isNotFound && notFoundSequence is { } taken)
         {
             // Only an answer the lookup believed is noted, so that a lagging endpoint's 404 never reads as a
@@ -576,7 +595,9 @@ internal sealed class SourceLookups
         Task.Run(
             () => @case.Read(reader =>
             {
-                var stored = query.FindStored(reader);
+                var stored = query.FindStored is { } find
+                    ? find(reader)
+                    : StoredAs(_store.Latest(reader, query.Kind, query.Subject), query.Parse);
                 var counts = stored is not null && !query.NeverChanges;
                 return (stored, counts ? _store.KnownHeight(reader, stored!.Value.Response.Origin.Sequence) : null);
             }),
@@ -660,6 +681,13 @@ internal sealed class SourceLookups
             ? clock
             : $"den {local.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)} {clock}";
     }
+
+    /// <summary>Gives sealed responses once each, in the order they were sealed.</summary>
+    /// <param name="origins">The responses.</param>
+    /// <returns>The responses.</returns>
+    public static List<ResponseOrigin> Ordered(IEnumerable<ResponseOrigin> origins) =>
+        [.. origins.DistinctBy(origin => origin.Sequence).OrderBy(origin => origin.Sequence)];
+
 
     /// <summary>Writes a local time for the user.</summary>
     /// <param name="time">The time.</param>

@@ -111,6 +111,19 @@ public sealed class MonitoringGateTests
 
     private sealed class Sources : IChainSources
     {
+        public event EventHandler<SourceEndpoint>? CertificateRefused
+        {
+            add { }
+            remove { }
+        }
+
+        public Task<Chainsaw.Modules.Network.Contracts.NodeCertificate> ReadCertificateAsync(
+            Chain chain, Guid id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task PinAsync(Chain chain, Guid id, string fingerprint, string by) => Task.CompletedTask;
+
+        public Task UnpinAsync(Chain chain, Guid id, string by) => Task.CompletedTask;
+
         public HashSet<Chain> Off { get; } = [];
 
         public IReadOnlyList<Chain> Chains => [Chain.Bitcoin, Chain.Ethereum];

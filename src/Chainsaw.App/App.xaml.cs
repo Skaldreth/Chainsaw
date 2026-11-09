@@ -2,7 +2,9 @@ using System.Windows;
 using Chainsaw.Modules.Cases;
 using Chainsaw.Modules.Security;
 using Chainsaw.Modules.Network;
+using Chainsaw.Modules.Network.Contracts;
 using Chainsaw.Modules.Chains;
+using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Clustering;
 using Chainsaw.Modules.Attribution;
 using Chainsaw.Modules.Tracing;
@@ -191,7 +193,14 @@ public partial class App : Application
                 .AddSingleton(provider => StartAutoLock(provider.GetRequiredService<IClock>(), settings))
                 .AddCasesModule()
                 .AddSecurityModule()
-                .AddNetworkModule(options => options.Route = settings.ExitRoute)
+                .AddNetworkModule(options =>
+                {
+                    options.Route = settings.ExitRoute;
+                    options.BackgroundExitsFile = Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Chainsaw",
+                        BackgroundNames.Folder, NetworkOptions.BackgroundExitsFileName);
+                    options.ProxyLoginFor = settings.ProxyLoginFor;
+                })
                 .AddChainsModule(sources: options => options.Directory = Path.GetDirectoryName(store.FilePath))
                 .AddClusteringModule()
                 .AddAttributionModule()
@@ -201,6 +210,7 @@ public partial class App : Application
                 {
                     Currency = settings.Currency,
                     Resolution = settings.Resolution,
+                    StateDirectory = Path.GetDirectoryName(store.FilePath),
                 })
                 .AddMonitoringModule()
                 .AddBackgroundWatchFiles()
@@ -221,6 +231,7 @@ public partial class App : Application
                 .AddSingleton<WpfFilePicker>()
                 .AddSingleton<IFilePicker>(provider => provider.GetRequiredService<WpfFilePicker>())
                 .AddSingleton<ISaveFilePicker>(provider => provider.GetRequiredService<WpfFilePicker>())
+                .AddSingleton<IFolderView, WpfFolderView>()
                 .AddSingleton<ICaseFilePicker>(provider => provider.GetRequiredService<WpfFilePicker>())
                 .AddSingleton<SanctionListImport>()
                 .AddSingleton<ExitWay>()
@@ -239,6 +250,11 @@ public partial class App : Application
                 .AddSingleton<IAlertPreview>(provider => new WpfAlertPreview(
                     () => provider.GetRequiredService<ShellViewModel>().Show(AppView.Monitoring)))
                 .AddSingleton<RatesSummaryViewModel>()
+                .AddSingleton(provider => new ProxyLoginViewModel(
+                    provider.GetRequiredService<IWindowsProxy>(),
+                    provider.GetRequiredService<INetworkPresence>(),
+                    provider.GetRequiredService<IUiThread>(),
+                    $"{Environment.UserDomainName}\\{Environment.UserName}"))
                 .AddSingleton<SettingsViewModel>()
                 .AddSingleton<IGraphSource, GraphSource>()
                 .AddSingleton<IGraphChainState, GraphChainState>()
@@ -270,7 +286,10 @@ public partial class App : Application
                     provider.GetRequiredService<IBackgroundStatusFile>(),
                     provider.GetRequiredService<IBackgroundProcess>(),
                     provider.GetRequiredService<IAutostart>(),
-                    provider.GetRequiredService<IClock>()))
+                    provider.GetRequiredService<IClock>())
+                {
+                    Exits = provider.GetRequiredService<IBackgroundExits>(),
+                })
                 .AddSingleton(provider => new BackgroundLink(
                     provider.GetRequiredService<BackgroundParts>(),
                     provider.GetRequiredService<CaseSession>(),
@@ -280,7 +299,8 @@ public partial class App : Application
                 .AddSingleton(provider => new WatchRunner(
                     provider.GetRequiredService<WatchBoard>(),
                     provider.GetRequiredService<IClock>(),
-                    import: provider.GetRequiredService<BackgroundLink>().ImportAsync))
+                    import: provider.GetRequiredService<BackgroundLink>().ImportAsync,
+                    news: provider.GetRequiredService<IBlockNews>()))
                 .AddSingleton(_ => GuideLibrary.Load())
                 .AddSingleton<GuidePanelViewModel>()
                 .AddSingleton<CommandSearchViewModel>()

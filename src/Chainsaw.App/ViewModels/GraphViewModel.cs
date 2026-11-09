@@ -73,6 +73,15 @@ public sealed partial class GraphViewModel : ObservableObject
     /// <summary>The places the user has dragged nodes to in this session, per layout.</summary>
     private readonly Dictionary<(string Key, GraphLayout Layout), GraphPoint> _moved = [];
 
+    /// <summary>Where everything stands in the layout shown: places, curves, amounts and their index.</summary>
+    private SceneLayout _layout = SceneLayout.Empty;
+
+    /// <summary>
+    /// Whether a drag has moved nodes since the whole layout was last worked out, so that the amounts it passed are
+    /// placed again when it ends.
+    /// </summary>
+    private bool _dragUnsettled;
+
     /// <summary>
     /// Counts the graph's readings and expansions, so that an answer to an older one is dropped.
     /// </summary>
@@ -184,6 +193,9 @@ public sealed partial class GraphViewModel : ObservableObject
         };
         History.Saved += (_, notice) => _ = RefreshThenSayAsync(notice);
         History.Failed += (_, text) => Tell(ToastKind.Error, text);
+        _editor = editor;
+        ClusterWhy = new ClusterWhyViewModel(session, editor);
+        WireClusterWhy();
 
         // The node's actions over it follow the chosen node, its facts, the expansion and the forms (sketch IN2b).
         Forms.PropertyChanged += (_, e) =>
@@ -237,6 +249,18 @@ public sealed partial class GraphViewModel : ObservableObject
 
     /// <summary>Raised when the places or the drawing change, so that the view draws again.</summary>
     public event EventHandler? Redraw;
+
+    /// <summary>
+    /// Raised instead of <see cref="Redraw"/> while nodes are dragged, with the nodes that moved, so that the view
+    /// draws only them again over the nodes that stand still.
+    /// </summary>
+    public event EventHandler<GraphMoved>? Moved;
+
+    /// <summary>
+    /// Raised instead of <see cref="Redraw"/> when the pointer comes onto another node or line, with the nodes whose
+    /// look changed and whether a line's did, so that the view draws only them again.
+    /// </summary>
+    public event EventHandler<GraphHovered>? Hovered;
 
     /// <summary>
     /// Raised when <em>Varför?</em>, the <em>?</em> or the method asks for the Guide (sketch GD1b); a request about
@@ -340,17 +364,26 @@ public sealed partial class GraphViewModel : ObservableObject
     public string LabelsText => Labels.Describe();
 
     /// <summary>Gets each node's place in the layout shown.</summary>
-    public IReadOnlyDictionary<string, GraphPoint> Places { get; private set; } = new Dictionary<string, GraphPoint>();
+    public IReadOnlyDictionary<string, GraphPoint> Places => _layout.Places;
 
     /// <summary>Gets each line's curve between its nodes' places.</summary>
-    public IReadOnlyDictionary<string, EdgeCurve> Curves { get; private set; } = new Dictionary<string, EdgeCurve>();
+    public IReadOnlyDictionary<string, EdgeCurve> Curves => _layout.Curves;
 
     /// <summary>
     /// Gets where each line's amount is written (<see cref="AmountLayout"/>); a line that is missing has no free place
     /// and shows its amount on hovering.
     /// </summary>
-    public IReadOnlyDictionary<string, AmountSpot> Amounts { get; private set; } =
-        new Dictionary<string, AmountSpot>();
+    public IReadOnlyDictionary<string, AmountSpot> Amounts => _layout.Amounts;
+
+    /// <summary>Gives the nodes on screen, in drawing order, among those near it only (principle 6).</summary>
+    /// <param name="visible">The visible part of the surface.</param>
+    /// <returns>The nodes whose frame or marks reach into it.</returns>
+    public IEnumerable<NodeView> VisibleNodes(GraphRect visible) => _layout.VisibleNodes(visible);
+
+    /// <summary>Gives the lines on screen, in drawing order, among those near it only (principle 6).</summary>
+    /// <param name="visible">The visible part of the surface.</param>
+    /// <returns>The lines that may cross it.</returns>
+    public IEnumerable<EdgeView> VisibleEdges(GraphRect visible) => _layout.VisibleEdges(visible);
 
     /// <summary>Gets the chosen node's key, or <see langword="null"/>.</summary>
     [ObservableProperty]
@@ -392,6 +425,18 @@ public sealed partial class GraphViewModel : ObservableObject
 
     /// <summary>Gets the inspector's tabs and its history, with taking back and undoing (sketch AN1b).</summary>
     public InspectorHistoryViewModel History { get; }
+
+    /// <summary>
+    /// Gets the heuristics behind a chosen cluster, <em>Varför är de en plånbok?</em>, with drawing a version back
+    /// (sketch KV1a).
+    /// </summary>
+    public ClusterWhyViewModel ClusterWhy { get; }
+
+    /// <summary>
+    /// The inspector's way into the modules, also for what the graph reads beside the scene and for the graph's own
+    /// choices, such as the choice per swap (sketch SW1a).
+    /// </summary>
+    private readonly IGraphEditor _editor;
 
     /// <summary>
     /// Gets the checks and suggestions (sketch KF1a, Ctrl+J) and the areas behind the actors with the own areas
@@ -746,24 +791,32 @@ public sealed partial class GraphViewModel : ObservableObject
     /// <summary>Says what is under the pointer, so that its frame lights and a line's amount shows.</summary>
     /// <param name="point">The point on the surface, or <see langword="null"/> when the pointer left the graph.</param>
     /// <param name="tolerance">How close to a line counts, in the surface's units.</param>
-    public void HoverAt(GraphPoint? point, double tolerance)
+    /// <returns>What is under the point, so that the view need not look again.</returns>
+    public (string? Node, string? Edge) HoverAt(GraphPoint? point, double tolerance)
     {
         var (node, edge) = point is { } at ? HitTest(at, tolerance) : (null, null);
         if (node == HoveredNode && edge == HoveredEdge)
         {
-            return;
+            return (node, edge);
         }
 
+        var hovered = GraphHovered.Between(HoveredNode, node, HoveredEdge, edge);
         (HoveredNode, HoveredEdge) = (node, edge);
-        Redraw?.Invoke(this, EventArgs.Empty);
+        Hovered?.Invoke(this, hovered);
+        return (node, edge);
     }
 
     /// <summary>Gives the node or line under a point on the surface.</summary>
     /// <param name="point">The point.</param>
     /// <param name="tolerance">How close to a line counts, in the surface's units.</param>
     /// <returns>The node's or the line's key; both <see langword="null"/> over empty surface.</returns>
-    public (string? Node, string? Edge) HitTest(GraphPoint point, double tolerance) =>
-        Scene is { } scene ? GraphHitTest.At(scene, Places, Curves, point, tolerance) : (null, null);
+    public (string? Node, string? Edge) HitTest(GraphPoint point, double tolerance)
+    {
+        var (node, edge) = _layout.HitTest(point, tolerance);
+
+        // What a folded row of many hops hides cannot be hit (sketch HP1a).
+        return node is not null && IsFoldedAway(node) ? (null, edge) : (node, edge);
+    }
 
     /// <summary>
     /// Moves a node while it is dragged: anywhere on the free surface, up and down in its column. A picked node takes
@@ -780,16 +833,25 @@ public sealed partial class GraphViewModel : ObservableObject
         }
 
         var at = GraphPlacement.Drag(Layout, start, wanted);
+        IEnumerable<string> keys;
         if (_group is not null || MovesGroup(nodeKey))
         {
             MoveGroup(nodeKey, start, at);
+            keys = _group!.Keys;
         }
         else
         {
             _moved[(nodeKey, Layout)] = at;
+            keys = [nodeKey];
         }
 
-        Arrange();
+        // Only the dragged nodes' lines are worked out again on each move; the whole layout when the drag ends
+        // (principle 6). The view draws again only the dragged nodes over the still ones, and they count as moved
+        // even where they could not move (a column's edge), since they shrink toward the bin as the pointer nears it.
+        var dragged = keys.ToDictionary(key => key, key => _moved[(key, Layout)], StringComparer.Ordinal);
+        _layout.Move(dragged);
+        _dragUnsettled = true;
+        Moved?.Invoke(this, new GraphMoved(dragged.Keys.ToHashSet(StringComparer.Ordinal)));
     }
 
     /// <summary>
@@ -799,6 +861,7 @@ public sealed partial class GraphViewModel : ObservableObject
     /// <returns>A task that completes when it is stored or could not be.</returns>
     public async Task DropNodeAsync(string nodeKey)
     {
+        SettleDrag();
         if (TakeGroup() is { } group)
         {
             await DropGroupAsync(group.Actors.Keys, group.Notes.Keys);
@@ -1173,6 +1236,7 @@ public sealed partial class GraphViewModel : ObservableObject
         FollowFan();
         ShowTrash();
         TellThrownStartPoints(scene);
+        TellRecalculatedSwaps(scene);
         OnPropertyChanged(nameof(MethodToolTip));
         if (fit)
         {
@@ -1209,18 +1273,28 @@ public sealed partial class GraphViewModel : ObservableObject
                 moved.TryAdd((key, GraphLayout.Free), place);
             }
 
-            Places = GraphPlacement.Place(scene.LayoutNodes, Layout, scene.Columns, moved);
-            Curves = GraphHitTest.Curves(scene, Places, IsHopColumns);
-            Amounts = AmountLayout.Place(scene, Places, Curves);
+            _layout = SceneLayout.Build(
+                scene, GraphPlacement.Place(scene.LayoutNodes, Layout, scene.Columns, moved), IsHopColumns);
         }
         else
         {
-            Places = new Dictionary<string, GraphPoint>();
-            Curves = new Dictionary<string, EdgeCurve>();
-            Amounts = new Dictionary<string, AmountSpot>();
+            _layout = SceneLayout.Empty;
         }
 
+        _dragUnsettled = false;
         Redraw?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Works out the whole layout once a drag has ended, so that the amounts the dragged lines passed find their room
+    /// again; during the drag only the dragged lines were (<see cref="SceneLayout.Move"/>).
+    /// </summary>
+    private void SettleDrag()
+    {
+        if (_dragUnsettled)
+        {
+            Arrange();
+        }
     }
 
     /// <summary>
@@ -1299,6 +1373,7 @@ public sealed partial class GraphViewModel : ObservableObject
         };
         Why = Inspection?.Why ?? [];
         Forms.Follow(scene, node);
+        ClusterWhy.Follow(scene, node);
         if (comment is not null)
         {
             History.FollowComment(scene, comment);
@@ -1309,6 +1384,8 @@ public sealed partial class GraphViewModel : ObservableObject
         }
 
         Checks.Inspect(node?.Key);
+        ServiceCheck = ServiceCheckOf(Checks.Stored, node);
+        FollowPoison();
         if (node is { Node.Kind: GraphNodeKind.Cluster } && _session.Current is { } openCase)
         {
             _ = ExplainClusterAsync(openCase, node);

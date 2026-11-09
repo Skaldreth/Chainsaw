@@ -90,15 +90,5 @@ public partial class TimelineView : UserControl
 
     /// <summary>Copies a fact to the clipboard; a clipboard held by another program is left alone.</summary>
     /// <param name="text">The text.</param>
-    private static void CopyText(string text)
-    {
-        try
-        {
-            Clipboard.SetText(text);
-        }
-        catch (System.Runtime.InteropServices.ExternalException)
-        {
-            // Another program holds the clipboard; nothing is lost but the copy.
-        }
-    }
+    private static void CopyText(string text) => Interop.CaseClipboard.TrySetText(text);
 }

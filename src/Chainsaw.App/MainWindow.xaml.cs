@@ -149,6 +149,7 @@ public partial class MainWindow : Window
         background.Start();
         gate.PropertyChanged += OnGateChanged;
         GraphPage.InspectorReachChanged += (_, _) => ShowSheet();
+        UnderPanel.Changed += (_, _) => Dispatcher.BeginInvoke(ShowSheet, DispatcherPriority.Render);
         shell.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(ShellViewModel.IsGraphShown))
@@ -285,6 +286,7 @@ public partial class MainWindow : Window
 
         ExposurePage.Attach(exposure);
         exposure.Update(graph.Scene);
+        graph.Checks.Changed += (_, _) => exposure.UpdateWaysOut(graph.Checks.ApprovedWaysOut);
         graph.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(GraphViewModel.Scene))
@@ -688,6 +690,12 @@ public partial class MainWindow : Window
             _shell.Show(AppView.Graph);
             _graph.ChooseFound(key);
         }
+        else if (row.Entry.TrashPlace is { } place)
+        {
+            // Put back from the row (TODO, Lägg tillbaka direkt på raden I soptunnan): the graph shows it again.
+            _shell.Show(AppView.Graph);
+            _ = _graph.PutBackFoundAsync(place);
+        }
         else if (row.Entry.IsInTrash)
         {
             // What lies in the trash is not drawn; it is found there, where it can be put back (sketch SO1a).
@@ -708,6 +716,7 @@ public partial class MainWindow : Window
         GraphPage.MakeRoom(covered);
         TimelinePage.MakeRoom(covered);
         FlowPage.MakeRoom(covered);
+        ExposurePage.MakeRoom(covered);
         CommandPanel.Margin = new Thickness(CommandBarGutter, 0, covered + CommandBarGutter, 0);
     }
 
@@ -760,14 +769,15 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Lets the title bar stop where the graph's inspector starts (sketch IN5a): over an open inspector the window's top
-    /// is the inspector's darker panel with the window's buttons on it, and the title bar ends in a rounded corner with
+    /// Lets the title bar stop where the graph's inspector, or any other panel under the work, starts (sketch IN5a): over
+    /// an open one the window's top is the panel's darker underlay with the window's buttons on it, and the title bar ends in a rounded corner with
     /// its shadow over the panel, as the graph's sheet does below it. Without the inspector the title bar spans the
     /// window under the buttons.
     /// </summary>
     private void ShowSheet()
     {
-        var reach = _shell.IsGraphShown ? GraphPage.InspectorReach : 0;
+        var graph = _shell.IsGraphShown ? GraphPage.InspectorReach : 0;
+        var reach = Math.Max(graph, UnderPanel.Reach(ShellRoot));
         var open = reach >= WindowButtonsWidth;
         var corner = open ? new CornerRadius(0, GraphView.SheetCorner, 0, 0) : default;
         var margin = open ? new Thickness(0, 0, reach, 0) : default;
@@ -1115,6 +1125,7 @@ public partial class MainWindow : Window
         }
 
         CasePickerView.Attach(picker);
+        picker.GuideWanted += (_, request) => _guidePanel.Ask(request);
         if (Shortcuts.TryParse(CasePickerGesture) is { } gesture)
         {
             var open = new RoutedCommand();

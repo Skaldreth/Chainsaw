@@ -16,6 +16,12 @@ public sealed record EndpointView(SourceEndpoint Endpoint, EndpointProbe? Probe,
     /// <see langword="null"/>. Until then the others are asked, and it comes back by itself.
     /// </summary>
     public DateTimeOffset? WaitUntil { get; init; }
+
+    /// <summary>
+    /// Gets whether the own node showed another certificate than the one pinned for it (sketch KL3b), so that it is
+    /// refused until the user trusts the new one; never for an endpoint without a pin.
+    /// </summary>
+    public bool CertificateRefused { get; init; }
 }
 
 /// <summary>A chain's sources: its mode, its endpoints in the user's order and when they were last tried.</summary>

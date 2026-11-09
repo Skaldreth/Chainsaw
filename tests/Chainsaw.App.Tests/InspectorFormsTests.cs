@@ -146,12 +146,90 @@ internal sealed class TestGraphEditor : IGraphEditor
     public Task<UndoOutcome> UndoMergesAsync(ICase @case, IReadOnlyList<long> merges, string? reason) =>
         Undo("merge", string.Join(",", merges), reason);
 
+    /// <summary>Gets the swaps the user chose not to follow, in order.</summary>
+    public List<TokenSwap> SwapStops { get; } = [];
+
+    public Task StopAtSwapAsync(ICase @case, TokenSwap swap, string? reason)
+    {
+        SwapStops.Add(swap);
+        return Failure is { } failure ? Task.FromException(failure) : Task.CompletedTask;
+    }
+
+    public Task<UndoOutcome> FollowSwapAsync(ICase @case, SwapStop stop, string? reason) =>
+        Undo("swap", stop.Sequence.ToString(System.Globalization.CultureInfo.InvariantCulture), reason);
+
     /// <summary>Gets or sets what undoing merges would merge again; by default nothing, while they hold.</summary>
     public UndoMergePreview? MergePreview { get; set; } = new([MergeSample], [], []);
 
     public Task<UndoMergePreview?> PreviewUndoMergesAsync(
         ICase @case, IReadOnlyList<long> merges, CancellationToken cancellationToken) =>
         Task.FromResult(MergePreview);
+
+    /// <summary>Gets the withdrawals that are read and stored.</summary>
+    public List<VersionWithdrawal> Withdrawals { get; } = [];
+
+    /// <summary>Gets or sets the preview of a withdrawal.</summary>
+    public WithdrawPreview? WithdrawPreview { get; set; }
+
+    /// <summary>Gets the held back conclusions that are read.</summary>
+    public List<HeldBackConclusion> HeldBack { get; } = [];
+
+    /// <summary>Gets the decisions stored about held back conclusions.</summary>
+    public List<(Txid Txid, ConclusionChoice Choice, string? Reason)> HeldDecisions { get; } = [];
+
+    /// <summary>Gets the withdrawals taken back.</summary>
+    public List<long> TakenBack { get; } = [];
+
+    /// <summary>Gets or sets the path between two addresses, or <see langword="null"/> for none.</summary>
+    public IReadOnlyList<ClusterLink>? Path { get; set; }
+
+    public Task<IReadOnlyList<VersionWithdrawal>> ReadWithdrawalsAsync(
+        ICase @case, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<VersionWithdrawal>>([.. Withdrawals]);
+
+    public Task<WithdrawPreview?> PreviewWithdrawAsync(
+        ICase @case, HeuristicId heuristic, CancellationToken cancellationToken) => Task.FromResult(WithdrawPreview);
+
+    public Task<VersionWithdrawal> WithdrawAsync(ICase @case, HeuristicId heuristic, string? reason)
+    {
+        if (Failure is { } failure)
+        {
+            return Task.FromException<VersionWithdrawal>(failure);
+        }
+
+        var withdrawal = new VersionWithdrawal(Withdrawals.Count + 1, heuristic, reason, 9, DateTimeOffset.UnixEpoch);
+        Withdrawals.Add(withdrawal);
+        return Task.FromResult(withdrawal);
+    }
+
+    public Task<UndoOutcome> TakeBackWithdrawalAsync(ICase @case, long withdrawal, string? reason)
+    {
+        TakenBack.Add(withdrawal);
+        return Task.FromResult(new UndoOutcome(true));
+    }
+
+    public Task<IReadOnlyList<HeldBackConclusion>> ReadHeldBackAsync(
+        ICase @case, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<HeldBackConclusion>>([.. HeldBack]);
+
+    public Task<UndoOutcome> DecideHeldBackAsync(ICase @case, Txid txid, ConclusionChoice choice, string? reason)
+    {
+        HeldDecisions.Add((txid, choice, reason));
+        return Task.FromResult(new UndoOutcome(true));
+    }
+
+    /// <summary>Gets the decisions taken back.</summary>
+    public List<long> Reopened { get; } = [];
+
+    public Task<UndoOutcome> ReopenHeldBackAsync(ICase @case, long decision, string? reason)
+    {
+        Reopened.Add(decision);
+        return Task.FromResult(new UndoOutcome(true));
+    }
+
+    public Task<IReadOnlyList<ClusterLink>?> ExplainConnectionAsync(
+        ICase @case, BitcoinAddress from, BitcoinAddress to, CancellationToken cancellationToken) =>
+        Task.FromResult(Path);
 
     /// <summary>A merge of the user's that holds, for a preview.</summary>
     private static ClusterMerge MergeSample => new(
@@ -563,7 +641,8 @@ public sealed class InspectorFormsTests
 
         await rig.Graph.RefreshAsync();
 
-        Assert.Equal(reads + 1, rig.Editor.Reads);
+        // The form reads its members once, and the inspector's Varför? (KV1a) reads the cluster's heuristics once.
+        Assert.Equal(reads + 2, rig.Editor.Reads);
         Assert.Equal(2, rig.Forms.Members.Count);
         Assert.True(rig.Forms.Members[1].IsPicked);
         Assert.Equal("1 av 2 ut", rig.Forms.PickedText);
@@ -726,10 +805,11 @@ public sealed class InspectorFormsTests
         Assert.Equal(LabelKind.Victim, kinds[0]);
         Assert.Equal(LabelKind.Unknown, kinds[1]);
         Assert.Equal(LabelKind.Exchange, kinds[2]);
-        Assert.Equal(Enum.GetValues<LabelKind>().Length - 3, kinds.Distinct().Count());
+        Assert.Equal(Enum.GetValues<LabelKind>().Length - 4, kinds.Distinct().Count());
         Assert.DoesNotContain(LabelKind.Sanctioned, kinds);
         Assert.DoesNotContain(LabelKind.Reported, kinds);
         Assert.DoesNotContain(LabelKind.FormerlySanctioned, kinds);
+        Assert.DoesNotContain(LabelKind.PossiblySanctioned, kinds);
         Assert.Equal("CIO v1", InspectorForms.ShortName(new HeuristicId(HeuristicNames.CommonInputOwnership, 1)));
         Assert.Equal("Växel v2", InspectorForms.ShortName(new HeuristicId(HeuristicNames.ChangeAddress, 2)));
     }

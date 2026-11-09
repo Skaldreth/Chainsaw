@@ -1,3 +1,4 @@
+using System.Formats.Asn1;
 using System.Security.Cryptography;
 using Chainsaw.Modules.Cases.Contracts;
 
@@ -21,6 +22,17 @@ internal static class KeyFiles
 
     /// <summary>The PBKDF2 iterations that protect the private key (the same as for the master key).</summary>
     public const int Iterations = 600_000;
+
+    /// <summary>
+    /// The most PBKDF2 iterations a key file may ask for (a few seconds), so that a crafted file cannot stall the tool.
+    /// </summary>
+    private const int MaximumIterations = 2_000_000;
+
+    /// <summary>The object identifier of PBES2 (PKCS #5).</summary>
+    private const string Pbes2Oid = "1.2.840.113549.1.5.13";
+
+    /// <summary>The object identifier of PBKDF2 (PKCS #5).</summary>
+    private const string Pbkdf2Oid = "1.2.840.113549.1.5.12";
 
     /// <summary>The largest key file that is read; a key file is well under a kilobyte.</summary>
     private const long MaximumFileSize = 64 * 1024;
@@ -83,6 +95,7 @@ internal static class KeyFiles
             throw new CryptographicException("The file holds no encrypted private key.");
         }
 
+        RequireSaneIterations(text);
         var key = ECDiffieHellman.Create();
         try
         {
@@ -102,6 +115,49 @@ internal static class KeyFiles
         {
             key.Dispose();
             throw;
+        }
+    }
+
+    /// <summary>
+    /// Checks, before anything is decrypted, that every encrypted private key in a text is protected the way this tool
+    /// writes it (PBES2 with PBKDF2) with no more iterations than <see cref="MaximumIterations"/>.
+    /// </summary>
+    /// <param name="text">The file's text.</param>
+    /// <exception cref="CryptographicException">
+    /// A key is protected otherwise or asks for too many iterations.
+    /// </exception>
+    private static void RequireSaneIterations(string text)
+    {
+        var rest = text.AsMemory();
+        while (PemEncoding.TryFind(rest.Span, out var fields))
+        {
+            if (rest.Span[fields.Label].SequenceEqual(EncryptedPrivateKeyLabel.AsSpan()))
+            {
+                try
+                {
+                    var der = Convert.FromBase64String(rest.Span[fields.Base64Data].ToString());
+                    var algorithm = new AsnReader(der, AsnEncodingRules.BER).ReadSequence().ReadSequence();
+                    var scheme = algorithm.ReadObjectIdentifier();
+                    var derivation = algorithm.ReadSequence().ReadSequence();
+                    if (scheme != Pbes2Oid || derivation.ReadObjectIdentifier() != Pbkdf2Oid)
+                    {
+                        throw new CryptographicException("The private key is not protected with PBES2 and PBKDF2.");
+                    }
+
+                    var parameters = derivation.ReadSequence();
+                    parameters.ReadEncodedValue();
+                    if (!parameters.TryReadInt32(out var iterations) || iterations is < 1 or > MaximumIterations)
+                    {
+                        throw new CryptographicException("The private key asks for an unreasonable iteration count.");
+                    }
+                }
+                catch (Exception exception) when (exception is AsnContentException or FormatException)
+                {
+                    throw new CryptographicException("The private key cannot be read.", exception);
+                }
+            }
+
+            rest = rest[fields.Location.End..];
         }
     }
 

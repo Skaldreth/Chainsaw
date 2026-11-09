@@ -88,6 +88,7 @@ internal sealed class GraphBuilder
             .ThenBy(edge => edge.Key, StringComparer.Ordinal)
             .ToList();
         var account = _data.Account;
+        var (swaps, refused) = account.ReadSwaps(SwapEndpoint);
         var graph = new TraceGraph(
             _data.State.StartPoints,
             nodes,
@@ -98,11 +99,14 @@ internal sealed class GraphBuilder
             problems)
         {
             Account = new AccountGraph(
-                account.Transfers, account.Fees, account.Transactions, account.ReadAccounts, account.Swaps())
+                account.Transfers, account.Fees, account.Transactions, account.ReadAccounts,
+                swaps)
             {
                 MayBeOutdated = account.MayBeOutdated,
                 PartlyRead = account.PartlyRead,
+                RefusedSwaps = refused,
             },
+            SwapStops = _data.State.SwapStops,
         };
         var (piles, clues) = PileRules.Arrange(graph, _data.State);
         return graph with { Piles = piles, HeldBack = clues };
@@ -234,6 +238,27 @@ internal sealed class GraphBuilder
             AddTransfer(GraphEdgeKind.Transfer, node.Key, Receiver(transaction, output), Paid(transaction, output));
         }
     }
+
+    /// <summary>
+    /// Says why an Ethereum address is one the trail must reach by its label (an exchange, a mixer, or a bridge or
+    /// swap service to another chain), so that a transaction with it is never read as a swap.
+    /// </summary>
+    /// <param name="address">The address.</param>
+    /// <returns>The label's end and source, for example <c>Börs, uttag funnet (etikett: …)</c>, or null.</returns>
+    private string? SwapEndpoint(EthereumAddress address) => SwapEndpoint(_knowledge.AccountEnds, address);
+
+    /// <summary>
+    /// Says why an Ethereum address is one the trail must reach by its label, from the ends the labels give; written
+    /// once, so that choosing for a swap and building the graph read swaps alike.
+    /// </summary>
+    /// <param name="ends">Gives why the trail ends at an account.</param>
+    /// <param name="address">The address.</param>
+    /// <returns>The label's end and source, or <see langword="null"/>.</returns>
+    public static string? SwapEndpoint(Func<ChainAddress, IReadOnlyList<TrailEndHint>> ends, EthereumAddress address) =>
+        ends(address.ToChainAddress())
+            .Where(hint => hint.Reason is TrailEndReason.Exchange or TrailEndReason.Mixer or TrailEndReason.OtherChain)
+            .Select(hint => $"{hint.Reason.Describe()} ({hint.Source})")
+            .FirstOrDefault();
 
     /// <summary>Adds an edge to another chain for every link from a coin or an Ethereum movement in the graph.</summary>
     private void AddCrossChainLinks()

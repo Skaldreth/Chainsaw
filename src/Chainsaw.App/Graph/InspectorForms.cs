@@ -108,7 +108,7 @@ public static class InspectorForms
         .. new[] { LabelKind.Victim, LabelKind.Unknown }
             .Concat(Enum.GetValues<LabelKind>()
                 .Where(kind => kind is not (LabelKind.Victim or LabelKind.Unknown or LabelKind.Sanctioned
-                    or LabelKind.Reported or LabelKind.FormerlySanctioned)))
+                    or LabelKind.Reported or LabelKind.FormerlySanctioned or LabelKind.PossiblySanctioned)))
             .Select(kind => new LabelKindOption(kind, VisualLanguage.Of(VisualLanguage.SortOf(kind))))
             .OrderBy(option => option.Kind is LabelKind.Victim or LabelKind.Unknown ? -1 : LegendOrder(option.Look)),
     ];

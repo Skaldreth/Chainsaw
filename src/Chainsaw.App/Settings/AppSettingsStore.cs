@@ -40,22 +40,7 @@ public sealed class AppSettingsStore(string directory)
     /// The settings with only known values (<see cref="AppSettings.Known"/>), or the defaults when the file is missing
     /// or cannot be read.
     /// </returns>
-    public AppSettings Load()
-    {
-        try
-        {
-            if (!File.Exists(FilePath))
-            {
-                return new AppSettings();
-            }
-
-            return (JsonSerializer.Deserialize<AppSettings>(SettingsFile.ReadShared(FilePath), Json) ?? new AppSettings()).Known();
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
-        {
-            return new AppSettings();
-        }
-    }
+    public AppSettings Load() => (SettingsFile.ReadJson<AppSettings>(FilePath, Json) ?? new AppSettings()).Known();
 
     /// <summary>
     /// Removes the file unless it can be read and says VPN, after a choice of VPN could not be written, so that the next
@@ -115,18 +100,8 @@ public sealed class AppSettingsStore(string directory)
 
     /// <summary>Reads the file strictly: whether it can be read and says VPN, with no fall back to the defaults.</summary>
     /// <returns><see langword="true"/> only when the file was read and says VPN.</returns>
-    private bool SaysVpn()
-    {
-        try
-        {
-            var read = JsonSerializer.Deserialize<AppSettings>(SettingsFile.ReadShared(FilePath), Json);
-            return read is not null && read.ExitRoute == Modules.Network.Contracts.ExitRoute.Vpn;
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
-        {
-            return false;
-        }
-    }
+    private bool SaysVpn() =>
+        SettingsFile.ReadJson<AppSettings>(FilePath, Json)?.ExitRoute == Modules.Network.Contracts.ExitRoute.Vpn;
 
     /// <summary>Writes the settings, replacing the file in one step.</summary>
     /// <param name="settings">The settings.</param>

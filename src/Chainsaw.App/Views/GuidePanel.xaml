@@ -73,15 +73,8 @@
         <KeyBinding Key="Escape" Command="{Binding CloseCommand}" />
     </UserControl.InputBindings>
 
-    <Grid>
-        <!-- The shadow lies in a layer of its own, as under the pill, so that the text is not blurred. -->
-        <Border Background="{StaticResource Brush.Surface}">
-            <Border.Effect>
-                <DropShadowEffect BlurRadius="40" ShadowDepth="0" Direction="180" Opacity="0.35" Color="Black" />
-            </Border.Effect>
-        </Border>
-        <Border Background="{StaticResource Brush.Surface}" BorderBrush="{StaticResource Brush.BorderStrong}"
-                BorderThickness="1,0,0,0">
+    <!-- Under the work, as the graph's inspector (sketch IN5a): 14 px more room on the left than the content's 26. -->
+    <controls:UnderPanel Padding="14,0,0,0">
             <DockPanel>
                 <!-- The header: back, the group, Öppna i Guide and close. -->
                 <Border DockPanel.Dock="Top" Height="48" Padding="8,0,10,0" BorderBrush="{StaticResource Brush.Border}"
@@ -207,6 +200,95 @@
                     </DockPanel>
                 </Border>
 
+                <!--
+                  Varför? for a replaced anchor (sketch AK1a): that the file is untouched, the chain as dots with the
+                  anchor in yellow and the file's head in green, and the likely cause as a dashed tag (an assessment,
+                  principle 2) with what else it can be; the section on anchors opens under it.
+                -->
+                <Border DockPanel.Dock="Top" Margin="26,20,26,0" Padding="16,14" CornerRadius="10"
+                        Background="{StaticResource Brush.SurfaceRaised}" BorderBrush="{StaticResource Brush.Pending}"
+                        BorderThickness="2,0,0,0"
+                        Visibility="{Binding Page.HasAnchorChange, Converter={StaticResource VisibleWhen},
+                                             FallbackValue=Collapsed}">
+                    <StackPanel DataContext="{Binding Page.AnchorChange}">
+                        <DockPanel>
+                            <controls:GridIcon DockPanel.Dock="Left" Size="18" Data="{StaticResource Icon.Why}"
+                                               Foreground="{StaticResource Brush.Pending}" VerticalAlignment="Top"
+                                               Margin="0,1,10,0" />
+                            <TextBlock Text="{Binding Heading}" FontSize="12.5" TextWrapping="Wrap"
+                                       Foreground="{StaticResource Brush.TextDim}" />
+                        </DockPanel>
+                        <DockPanel Margin="28,10,0,0">
+                            <controls:GridIcon DockPanel.Dock="Left" Size="14" Data="{StaticResource Icon.ShieldCheck}"
+                                               Foreground="{StaticResource Brush.Success}" VerticalAlignment="Top"
+                                               Margin="0,2,8,0" />
+                            <TextBlock Text="{Binding ChainText}" FontSize="13" TextWrapping="Wrap"
+                                       Foreground="{StaticResource Brush.Text}" />
+                        </DockPanel>
+
+                        <!-- The chain as dots: the rows before, the anchor in yellow, the file's head in green. -->
+                        <Grid Margin="28,16,0,0" Height="16">
+                            <Line X1="0" X2="1" Stretch="Fill" VerticalAlignment="Center" StrokeThickness="1.5"
+                                  StrokeDashArray="1 3" Stroke="{StaticResource Brush.BorderStrong}" />
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Ellipse Width="6" Height="6" Fill="{StaticResource Brush.TextDim}" Margin="0,0,14,0" />
+                                <Ellipse Width="6" Height="6" Fill="{StaticResource Brush.TextDim}" Margin="0,0,14,0" />
+                                <Ellipse Width="6" Height="6" Fill="{StaticResource Brush.TextDim}" Margin="0,0,14,0" />
+                                <Ellipse Width="6" Height="6" Fill="{StaticResource Brush.TextDim}" />
+                            </StackPanel>
+                            <Grid HorizontalAlignment="Right" Width="200">
+                                <Ellipse Width="12" Height="12" HorizontalAlignment="Left" Fill="{StaticResource Brush.Pending}" />
+                                <Ellipse Width="12" Height="12" HorizontalAlignment="Right" Fill="{StaticResource Brush.Success}" />
+                            </Grid>
+                        </Grid>
+                        <Grid Margin="28,6,0,0" HorizontalAlignment="Right" Width="260">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel DataContext="{Binding Before}">
+                                <TextBlock FontSize="11.5" Foreground="{StaticResource Brush.Pending}">
+                                    <Run Text="{Binding Role, Mode=OneWay}" /><Run Text=" · " /><Run Text="{Binding Who, Mode=OneWay}" />
+                                </TextBlock>
+                                <TextBlock Text="{Binding Row, StringFormat='rad {0}'}" FontSize="12.5"
+                                           Foreground="{StaticResource Brush.Text}" />
+                                <TextBlock Text="{Binding Hash}" FontSize="11.5" FontFamily="{StaticResource Font.Mono}"
+                                           Foreground="{StaticResource Brush.TextMuted}" ToolTip="{Binding FullHash}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" DataContext="{Binding After}" HorizontalAlignment="Right">
+                                <TextBlock FontSize="11.5" Foreground="{StaticResource Brush.Success}" TextAlignment="Right">
+                                    <Run Text="{Binding Role, Mode=OneWay}" /><Run Text=" · " /><Run Text="{Binding Who, Mode=OneWay}" />
+                                </TextBlock>
+                                <TextBlock Text="{Binding Row, StringFormat='rad {0}'}" FontSize="12.5" TextAlignment="Right"
+                                           Foreground="{StaticResource Brush.Text}" />
+                                <TextBlock Text="{Binding Hash}" FontSize="11.5" FontFamily="{StaticResource Font.Mono}"
+                                           TextAlignment="Right" Foreground="{StaticResource Brush.TextMuted}"
+                                           ToolTip="{Binding FullHash}" />
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- The likely cause: dashed, since Chainsaw sees only the file and the anchor. -->
+                        <Grid Margin="28,16,0,0" HorizontalAlignment="Left">
+                            <Rectangle RadiusX="11" RadiusY="11" StrokeThickness="1.5" StrokeDashArray="3 3"
+                                       Stroke="{StaticResource Brush.Pending}" />
+                            <TextBlock Margin="12,3" FontSize="12" Foreground="{StaticResource Brush.Pending}"
+                                       ToolTip="En bedömning: Chainsaw ser bara filen och ankaret">
+                                <Run Text="Troligast: " /><Run Text="{Binding CauseShort, Mode=OneWay}" />
+                            </TextBlock>
+                        </Grid>
+                        <TextBlock Text="{Binding CauseName}" FontSize="14" FontWeight="SemiBold" Margin="28,10,0,0"
+                                   Foreground="{StaticResource Brush.Text}" />
+                        <TextBlock Text="{Binding What}" FontSize="12.5" Margin="28,4,0,0" TextWrapping="Wrap"
+                                   LineHeight="18" Foreground="{StaticResource Brush.TextMuted}" />
+                        <TextBlock FontSize="12.5" Margin="28,8,0,0" TextWrapping="Wrap" LineHeight="18"
+                                   Foreground="{StaticResource Brush.TextMuted}">
+                            <Run Text="Vad du kan göra. " Foreground="{StaticResource Brush.Text}" /><Run Text="{Binding Todo, Mode=OneWay}" />
+                        </TextBlock>
+                        <TextBlock Text="{Binding Also}" FontSize="12" Margin="28,8,0,0" TextWrapping="Wrap"
+                                   Foreground="{StaticResource Brush.TextDim}" />
+                    </StackPanel>
+                </Border>
+
                 <!-- A line that sums several transfers ends with its total. -->
                 <Border DockPanel.Dock="Top" Margin="26,8,26,0" Padding="16,8" CornerRadius="8"
                         Background="{StaticResource Brush.SurfaceRaised}"
@@ -238,13 +320,12 @@
                             IsHitTestVisible="False" Opacity="0">
                         <Border.Background>
                             <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                                <GradientStop Offset="0" Color="{StaticResource Color.Surface.Clear}" />
-                                <GradientStop Offset="1" Color="{StaticResource Color.Surface}" />
+                                <GradientStop Offset="0" Color="{StaticResource Color.Underlay.Clear}" />
+                                <GradientStop Offset="1" Color="{StaticResource Color.Underlay}" />
                             </LinearGradientBrush>
                         </Border.Background>
                     </Border>
                 </Grid>
             </DockPanel>
-        </Border>
-    </Grid>
+    </controls:UnderPanel>
 </UserControl>

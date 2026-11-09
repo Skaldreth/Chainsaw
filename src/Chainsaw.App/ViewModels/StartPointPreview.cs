@@ -56,8 +56,20 @@ public sealed record StartPointPreview(
     string Problem,
     string SanctionTip)
 {
-    /// <summary>Gets whether the imported sanction list names the address.</summary>
-    public bool IsSanctioned => SanctionTip.Length > 0;
+    /// <summary>The start of the tooltip for a possible sanction, which is never shown as a sanction.</summary>
+    public const string PossibleSanctionText = "Möjlig sanktion enligt";
+
+    /// <summary>Gets whether an imported sanction list names the address, for certain or only possibly.</summary>
+    public bool HasSanctionTip => SanctionTip.Length > 0;
+
+    /// <summary>Gets whether a list names the address only possibly: not for certain on this chain.</summary>
+    public bool IsPossiblySanctioned => SanctionTip.StartsWith(PossibleSanctionText, StringComparison.Ordinal);
+
+    /// <summary>Gets whether an imported sanction list names the address for certain.</summary>
+    public bool IsSanctioned => HasSanctionTip && !IsPossiblySanctioned;
+
+    /// <summary>Gets the chip's text: <em>Sanktionerad</em>, or <em>Möjlig sanktion</em>.</summary>
+    public string SanctionChipText => IsPossiblySanctioned ? "Möjlig sanktion" : "Sanktionerad";
 
     /// <summary>Gives a preview with nothing but a state.</summary>
     /// <param name="state">The state.</param>

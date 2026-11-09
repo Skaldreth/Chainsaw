@@ -68,6 +68,12 @@ public sealed record SearchEntry(
     public bool IsInTrash { get; init; }
 
     /// <summary>
+    /// Gets where in the trash it lies, so that Enter puts it back from the row; <see langword="null"/> when it is not
+    /// in the trash or its throw was not found.
+    /// </summary>
+    public TrashPlace? TrashPlace { get; init; }
+
+    /// <summary>
     /// Gets other words it is found by, such as a section's id and group, or a cluster's addresses; matched less
     /// well than <see cref="Text"/>.
     /// </summary>

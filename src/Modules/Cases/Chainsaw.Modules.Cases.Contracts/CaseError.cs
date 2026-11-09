@@ -67,4 +67,13 @@ public enum CaseError
     /// changed.
     /// </summary>
     TooManyEnvelopes,
+
+    /// <summary>The master key given to confirm a step that cannot be undone does not open this vault.</summary>
+    WrongMasterKey,
+
+    /// <summary>
+    /// The vault could not be read for a step that needs it (its file is missing, changed or was replaced while it was
+    /// unlocked); nothing was changed in the case.
+    /// </summary>
+    VaultFailed,
 }

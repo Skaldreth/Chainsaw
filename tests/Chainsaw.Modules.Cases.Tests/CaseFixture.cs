@@ -47,13 +47,17 @@ internal sealed class CaseFixture : IDisposable
     public static TimeZoneInfo TimeZone { get; } =
         TimeZoneInfo.CreateCustomTimeZone("Chainsaw/Test", TimeSpan.FromHours(1), "Test", "Test");
 
+    /// <summary>Gets or sets the iterations of a new sharing envelope; below 1 000 it is weaker than accepted.</summary>
+    public int SharingIterations { get; set; } = 1_000;
+
     public CaseStore CreateStore(params ICaseSchemaContributor[] contributors)
     {
         var options = new CasesOptions
         {
             Directory = Directory,
             AnchorDirectory = AnchorDirectory,
-            SharingIterations = 1_000,
+            SharingIterations = SharingIterations,
+            MinimumSharingIterations = 1_000,
             TimeZone = TimeZone,
             Time = Time,
             RecoveryKey = RecoveryKey,

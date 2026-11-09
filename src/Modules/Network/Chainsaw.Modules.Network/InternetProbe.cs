@@ -23,7 +23,12 @@ namespace Chainsaw.Modules.Network;
 /// </remarks>
 /// <param name="handlers">Builds the pipeline of the way out through Windows.</param>
 /// <param name="time">Times the probe out; the tests move it by hand.</param>
-internal sealed class InternetProbe(IWindowsHandlerFactory handlers, TimeProvider time) : IInternetProbe
+/// <param name="login">
+/// The login to Windows' proxy, told when the proxy asks for a login, so that the settings can say why the computer
+/// counts as offline (sketch PX1a), and when the probe goes through; none in some tests.
+/// </param>
+internal sealed class InternetProbe(IWindowsHandlerFactory handlers, TimeProvider time, WindowsProxyLogin? login = null)
+    : IInternetProbe
 {
     /// <summary>The exact body of <see cref="WindowsConnectTest"/>.</summary>
     internal const string ConnectTestContent = "Microsoft Connect Test";
@@ -57,6 +62,7 @@ internal sealed class InternetProbe(IWindowsHandlerFactory handlers, TimeProvide
         {
             if (await AnswersAsync(target, cancellationToken).ConfigureAwait(false))
             {
+                login?.NoteThrough();
                 return true;
             }
         }
@@ -111,6 +117,11 @@ internal sealed class InternetProbe(IWindowsHandlerFactory handlers, TimeProvide
         catch (Exception exception) when (exception is not OutOfMemoryException
                                           && !cancellationToken.IsCancellationRequested)
         {
+            if (WindowsProxyLogin.AsksForLogin(exception))
+            {
+                login?.NoteLoginAsked();
+            }
+
             return false;
         }
     }
