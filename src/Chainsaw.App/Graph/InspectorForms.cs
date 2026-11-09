@@ -118,7 +118,8 @@ public static class InspectorForms
         [LabelBasis.Own, LabelBasis.OpenSource, LabelBasis.Order, LabelBasis.ExchangeAnswer];
 
     /// <summary>
-    /// Gets the chains the form <em>Annan kedja</em> offers: Ethereum, TRON, BSC and Litecoin, which a link can name
+    /// Gets the chains the form <em>Annan kedja</em> offers: Bitcoin, Ethereum, TRON, BSC, Litecoin and Zcash, which
+    /// a link can name
     /// now, and the chains that are not built yet, shown toned (CLAUDE.md: never show what does not exist as if it
     /// did).
     /// </summary>
@@ -128,6 +129,7 @@ public static class InspectorForms
         new("TRON", Chain.Tron),
         new("BSC", Chain.Bsc),
         new("Litecoin", Chain.Litecoin),
+        new("Zcash", Chain.Zcash),
         new("Solana", null),
     ];
 

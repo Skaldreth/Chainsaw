@@ -37,12 +37,22 @@ public sealed class LinkTests
     }
 
     [Fact]
-    public void A_link_to_a_litecoin_tx_names_litecoin_and_is_fetched_but_not_traced()
+    public void A_link_to_a_litecoin_tx_names_litecoin_and_is_traced()
     {
         Assert.True(ChainsawLink.TryParse("chainsaw:litecoin/" + Samples.Txid, out var startPoint));
         Assert.Equal(Chain.Litecoin, startPoint.Chain);
-        Assert.False(startPoint.IsSupported);
-        Assert.True(startPoint.CanFetch);
+        Assert.True(startPoint.IsSupported);
+        Assert.Equal(Chain.Litecoin, startPoint.UtxoTransaction!.Chain);
+    }
+
+    [Fact]
+    public void A_link_to_a_zcash_tx_names_zcash_and_is_traced()
+    {
+        Assert.True(ChainsawLink.TryParse("chainsaw:zcash/" + Samples.Txid, out var startPoint));
+        Assert.Equal(Chain.Zcash, startPoint.Chain);
+        Assert.True(startPoint.IsSupported);
+        Assert.True(ChainsawLink.TryParse("chainsaw:zec/" + Samples.Txid, out var written));
+        Assert.Equal(Chain.Zcash, written.Chain);
     }
 
     [Theory]

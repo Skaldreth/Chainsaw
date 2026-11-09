@@ -23,6 +23,8 @@ public static class StartPointText
         ["ltc"] = Chain.Litecoin,
         ["bsc"] = Chain.Bsc,
         ["bnb"] = Chain.Bsc,
+        ["zcash"] = Chain.Zcash,
+        ["zec"] = Chain.Zcash,
     };
 
     /// <summary>Finds the chain a name means.</summary>

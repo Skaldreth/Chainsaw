@@ -78,7 +78,7 @@ internal sealed class LabelTrailEnds(IAttributionService attribution, ITransacti
         ArgumentNullException.ThrowIfNull(transaction);
         return
         [
-            .. transactions.For(@case, Chain.Bitcoin, transaction.Txid.Value)
+            .. transactions.For(@case, transaction.Txid.Chain, transaction.Txid.Value)
                 .Select(label => (Label: label, Reason: EndFor(label.Kind)))
                 .Where(pair => pair.Reason is not null)
                 .Select(pair => new TrailEndHint(pair.Reason!.Value, Source(pair.Label), Explain(pair.Label))),

@@ -197,13 +197,13 @@ public static class WatchWords
 
     /// <summary>Gives the asset part of a watch, as the list writes it.</summary>
     /// <param name="filter">The filter.</param>
-    /// <returns>For example <c>BTC</c>, <c>Bara USDT</c> or <c>ETH och tokens</c>.</returns>
+    /// <returns>For example <c>BTC</c>, <c>LTC</c>, <c>Bara USDT</c> or <c>ETH och tokens</c>.</returns>
     public static string Asset(WatchFilter filter)
     {
         ArgumentNullException.ThrowIfNull(filter);
         return filter switch
         {
-            { Chain: Chain.Bitcoin } => "BTC",
+            { Chain: var utxo } when utxo.Model() == LedgerModel.Utxo => utxo.NativeAsset().Symbol,
             { Asset: { } asset } => "Bara " + asset.Symbol,
             _ => "ETH och tokens",
         };

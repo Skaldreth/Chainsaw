@@ -99,7 +99,8 @@ public sealed record LabelSubject
         ArgumentNullException.ThrowIfNull(address);
         return address.Chain switch
         {
-            Chain.Bitcoin or Chain.Litecoin when BitcoinAddress.TryParse(address.Chain, address.Value, out var utxo) =>
+            Chain.Bitcoin or Chain.Litecoin or Chain.Zcash
+                when BitcoinAddress.TryParse(address.Chain, address.Value, out var utxo) =>
                 ForAddress(utxo),
             Chain.Ethereum or Chain.Tron or Chain.Bsc
                 when EthereumAddress.TryParse(address.Chain, address.Value, out var account) => new(account),

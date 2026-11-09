@@ -7,34 +7,38 @@ namespace Chainsaw.Modules.Monitoring;
 
 /// <summary>
 /// The chains' sources a watch reads through, written once for the check, the feeds and the tips: Bitcoin's and
-/// Ethereum's always, and TRON's, Litecoin's and BSC's where they are registered. A chain is watched through the
-/// contract of its model: Bitcoin and Litecoin as UTXO chains, Ethereum, TRON and BSC as account chains.
+/// Ethereum's always, and TRON's, Litecoin's, BSC's and Zcash's where they are registered. A chain is watched
+/// through the contract of its model: Bitcoin, Litecoin and Zcash's transparent part as UTXO chains, Ethereum, TRON
+/// and BSC as account chains.
 /// </summary>
 /// <param name="Bitcoin">Bitcoin's source.</param>
 /// <param name="Ethereum">Ethereum's source.</param>
 /// <param name="Tron">TRON's source, or <see langword="null"/> where it is not registered.</param>
 /// <param name="Litecoin">Litecoin's source, or <see langword="null"/> where it is not registered.</param>
 /// <param name="Bsc">BSC's source, or <see langword="null"/> where it is not registered.</param>
+/// <param name="Zcash">Zcash's source, or <see langword="null"/> where it is not registered.</param>
 internal sealed record WatchSources(
     IBitcoinSource Bitcoin,
     IEthereumSource Ethereum,
     ITronSource? Tron = null,
     ILitecoinSource? Litecoin = null,
-    IBscSource? Bsc = null)
+    IBscSource? Bsc = null,
+    IZcashSource? Zcash = null)
 {
     /// <summary>The chains that can be watched, whatever is registered.</summary>
     public static readonly IReadOnlySet<Chain> Watchable =
-        new HashSet<Chain> { Chain.Bitcoin, Chain.Ethereum, Chain.Tron, Chain.Litecoin, Chain.Bsc };
+        new HashSet<Chain> { Chain.Bitcoin, Chain.Ethereum, Chain.Tron, Chain.Litecoin, Chain.Bsc, Chain.Zcash };
 
     /// <summary>Gives a UTXO chain's source.</summary>
     /// <param name="chain">The chain.</param>
     /// <returns>
-    /// Bitcoin's or Litecoin's source, or <see langword="null"/> for another chain or one not registered.
+    /// Bitcoin's, Litecoin's or Zcash's source, or <see langword="null"/> for another chain or one not registered.
     /// </returns>
     public IBitcoinSource? Utxo(Chain chain) => chain switch
     {
         Chain.Bitcoin => Bitcoin,
         Chain.Litecoin => Litecoin,
+        Chain.Zcash => Zcash,
         _ => null,
     };
 

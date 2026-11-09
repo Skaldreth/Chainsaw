@@ -99,6 +99,7 @@ internal static class OfacSdnParser
         {
             SanctionCurrency.Bitcoin => Chain.Bitcoin,
             SanctionCurrency.Litecoin => Chain.Litecoin,
+            SanctionCurrency.Zcash => Chain.Zcash,
             _ => null,
         };
         return chain is { } on && BitcoinAddress.TryParse(on, address.Address, out var parsed) ? parsed : null;

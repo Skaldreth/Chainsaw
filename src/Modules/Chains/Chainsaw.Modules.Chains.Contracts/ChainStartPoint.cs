@@ -29,8 +29,33 @@ public enum StartPointKind
 /// <param name="Bitcoin">The Bitcoin start point, when the chain is Bitcoin.</param>
 public sealed record ChainStartPoint(Chain? Chain, StartPointKind Kind, string Value, BitcoinStartPoint? Bitcoin)
 {
-    /// <summary>The longest text that is looked at; no address or txid on any known chain is longer.</summary>
-    public const int MaximumLength = 128;
+    /// <summary>
+    /// The longest text that is looked at; no address or txid on any known chain is longer (Zcash's unified addresses
+    /// with three receivers are the longest, a little over 210 characters).
+    /// </summary>
+    public const int MaximumLength = 256;
+
+    /// <summary>What Zcash's Sapling addresses begin with (Bech32).</summary>
+    private const string SaplingPrefix = "zs1";
+
+    /// <summary>A Sapling address's length: the prefix, 43 bytes in Bech32 and the checksum.</summary>
+    private const int SaplingLength = 78;
+
+    /// <summary>What Zcash's unified addresses begin with (Bech32m, ZIP 316).</summary>
+    private const string UnifiedPrefix = "u1";
+
+    /// <summary>The shortest unified address: one Orchard receiver, the padding and the checksum.</summary>
+    private const int UnifiedShortest = 100;
+
+    /// <summary>What Zcash's first shielded addresses (Sprout) begin with (Base58).</summary>
+    private const string SproutPrefix = "zc";
+
+    /// <summary>A Sprout address's length.</summary>
+    private const int SproutLength = 95;
+
+    /// <summary>Base58's characters, which a Sprout address is written in.</summary>
+    private static readonly System.Buffers.SearchValues<char> Base58Characters =
+        System.Buffers.SearchValues.Create("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz");
 
     /// <summary>What an address in Litecoin's MWEB begins with.</summary>
     private const string MwebPrefix = "ltcmweb1";
@@ -50,33 +75,44 @@ public sealed record ChainStartPoint(Chain? Chain, StartPointKind Kind, string V
         System.Buffers.SearchValues.Create("0123456789abcdefABCDEF");
 
     /// <summary>
-    /// Gets whether Chainsaw can trace from this start point in the graph now: Bitcoin, Ethereum, TRON and BSC are
-    /// built. Litecoin is not yet: its source answers (<see cref="CanFetch"/>), but the graph's UTXO part counts in
-    /// bitcoin only.
+    /// Gets whether Chainsaw can trace from this start point in the graph now: Bitcoin, Litecoin, Zcash's transparent
+    /// part, Ethereum, TRON and BSC are built. An address in a shielded part (MWEB, Zcash's pools) is not: the trail
+    /// ends there.
     /// </summary>
     public bool IsSupported =>
-        Chain is SharedKernel.Chain.Bitcoin or SharedKernel.Chain.Ethereum or SharedKernel.Chain.Tron
-            or SharedKernel.Chain.Bsc;
+        !IsShielded && Chain is SharedKernel.Chain.Bitcoin or SharedKernel.Chain.Ethereum or SharedKernel.Chain.Tron
+            or SharedKernel.Chain.Bsc or SharedKernel.Chain.Litecoin or SharedKernel.Chain.Zcash;
 
     /// <summary>
-    /// Gets whether Chainsaw has a source that can answer for this start point: every chain it can trace, and
-    /// Litecoin, whose address can be fetched in advance and watched (not an MWEB address, which no source can).
+    /// Gets whether Chainsaw has a source that can answer for this start point: every chain it can trace (not an
+    /// address in a shielded part, which no source can).
     /// </summary>
-    public bool CanFetch => IsSupported || (Chain == SharedKernel.Chain.Litecoin && !IsShielded);
+    public bool CanFetch => IsSupported;
 
     /// <summary>
-    /// Gets whether the value is an address in a shielded part of its chain (Litecoin's MWEB, <c>ltcmweb1…</c>),
-    /// where amounts and owners do not show: the trail ends there, and nothing can be fetched.
+    /// Gets whether the value is an address in a shielded part of its chain (Litecoin's MWEB, <c>ltcmweb1…</c>, or
+    /// Zcash's pools, <c>zs1…</c>, <c>u1…</c>, <c>zc…</c>), where amounts and owners do not show: the trail ends there,
+    /// and nothing can be fetched.
     /// </summary>
     public bool IsShielded { get; init; }
 
     /// <summary>
-    /// Gets the address on a UTXO chain (Bitcoin or Litecoin), when the start point is one; otherwise
+    /// Gets the address on a UTXO chain (Bitcoin, Litecoin or Zcash), when the start point is one; otherwise
     /// <see langword="null"/>.
     /// </summary>
     public BitcoinAddress? UtxoAddress =>
         Chain is { } chain && Kind == StartPointKind.Address && BitcoinAddress.TryParse(chain, Value, out var address)
             ? address
+            : null;
+
+    /// <summary>
+    /// Gets the transaction on a UTXO chain (Bitcoin, Litecoin or Zcash), when the start point is one; otherwise
+    /// <see langword="null"/>.
+    /// </summary>
+    public Txid? UtxoTransaction =>
+        Chain is { } chain && chain.Model() == LedgerModel.Utxo && Kind == StartPointKind.Transaction
+            && Txid.TryParse(chain, Value, out var txid)
+            ? txid
             : null;
 
     /// <summary>Gets whether the text was recognised on some chain.</summary>
@@ -119,6 +155,7 @@ public sealed record ChainStartPoint(Chain? Chain, StartPointKind Kind, string V
         }
 
         return RecogniseBitcoin(trimmed) ?? RecogniseLitecoinAddress(trimmed) ?? RecogniseMweb(trimmed)
+            ?? RecogniseZcashAddress(trimmed) ?? RecogniseZcashShielded(trimmed)
             ?? RecogniseEthereum(trimmed) ?? RecogniseTronAddress(trimmed) ?? Unknown(trimmed);
     }
 
@@ -143,6 +180,8 @@ public sealed record ChainStartPoint(Chain? Chain, StartPointKind Kind, string V
             SharedKernel.Chain.Litecoin => RecogniseLitecoinAddress(trimmed) ?? RecogniseMweb(trimmed)
                 ?? RecogniseBareTransaction(SharedKernel.Chain.Litecoin, trimmed) ?? Unknown(trimmed),
             SharedKernel.Chain.Bsc => RecogniseBsc(trimmed) ?? Unknown(trimmed),
+            SharedKernel.Chain.Zcash => RecogniseZcashAddress(trimmed) ?? RecogniseZcashShielded(trimmed)
+                ?? RecogniseBareTransaction(SharedKernel.Chain.Zcash, trimmed) ?? Unknown(trimmed),
             _ => Unknown(trimmed),
         };
     }
@@ -227,6 +266,40 @@ public sealed record ChainStartPoint(Chain? Chain, StartPointKind Kind, string V
     private static ChainStartPoint? RecogniseLitecoinAddress(string text) =>
         BitcoinAddress.TryParse(SharedKernel.Chain.Litecoin, text, out var address)
             ? new(SharedKernel.Chain.Litecoin, StartPointKind.Address, address.Value, null)
+            : null;
+
+    /// <summary>
+    /// Recognises an address in Zcash's shielded pools: Sapling's (<c>zs1…</c>), a unified address (<c>u1…</c>) or
+    /// Sprout's (<c>zc…</c>). As for MWEB, only its form is checked (prefix, characters, one letter case, length), not
+    /// its checksum, since nothing can be looked up there; it is a start point on Zcash where the trail ends.
+    /// </summary>
+    /// <param name="text">The trimmed text.</param>
+    /// <returns>The result, or <see langword="null"/>.</returns>
+    private static ChainStartPoint? RecogniseZcashShielded(string text)
+    {
+        var lower = text.ToLowerInvariant();
+        var isBech32 = (lower == text || text.ToUpperInvariant() == text)
+            && ((lower.Length == SaplingLength && lower.StartsWith(SaplingPrefix, StringComparison.Ordinal)
+                    && !lower.AsSpan(SaplingPrefix.Length).ContainsAnyExcept(Bech32Characters))
+                || (lower.Length is >= UnifiedShortest and <= MaximumLength
+                    && lower.StartsWith(UnifiedPrefix, StringComparison.Ordinal)
+                    && !lower.AsSpan(UnifiedPrefix.Length).ContainsAnyExcept(Bech32Characters)));
+        var isSprout = text.Length == SproutLength && text.StartsWith(SproutPrefix, StringComparison.Ordinal)
+            && !text.AsSpan().ContainsAnyExcept(Base58Characters);
+        if (!isBech32 && !isSprout)
+        {
+            return null;
+        }
+
+        return new(SharedKernel.Chain.Zcash, StartPointKind.Address, isSprout ? text : lower, null) { IsShielded = true };
+    }
+
+    /// <summary>Recognises a transparent Zcash address (<c>t1…</c>, <c>t3…</c>), whose checksum must hold.</summary>
+    /// <param name="text">The trimmed text.</param>
+    /// <returns>The result, or <see langword="null"/>.</returns>
+    private static ChainStartPoint? RecogniseZcashAddress(string text) =>
+        BitcoinAddress.TryParse(SharedKernel.Chain.Zcash, text, out var address)
+            ? new(SharedKernel.Chain.Zcash, StartPointKind.Address, address.Value, null)
             : null;
 
     /// <summary>

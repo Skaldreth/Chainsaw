@@ -616,6 +616,11 @@ public sealed partial class WatchFormViewModel : ObservableObject
             return SharedKernel.Chain.Litecoin;
         }
 
+        if (BitcoinAddress.TryParse(SharedKernel.Chain.Zcash, trimmed, out _))
+        {
+            return SharedKernel.Chain.Zcash;
+        }
+
         // A BSC address is written as Ethereum's, so typed alone it is Ethereum's; a node on BSC brings its chain.
         if (EthereumAddress.TryParse(trimmed, out _))
         {

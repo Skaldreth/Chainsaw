@@ -654,6 +654,7 @@ public sealed record GraphScene(
         Chain.Tron => "TRON",
         Chain.Litecoin => "LTC",
         Chain.Bsc => "BSC",
+        Chain.Zcash => "ZEC",
         _ => chain.ToString().ToUpperInvariant(),
     };
 

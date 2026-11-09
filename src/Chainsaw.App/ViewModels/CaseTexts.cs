@@ -68,7 +68,9 @@ public static class CaseTexts
 
         if (startPoint.IsShielded)
         {
-            return "MWEB-adress · spåret tar slut här";
+            return chain == Chain.Zcash
+                ? "Skyddad Zcash-adress · spåret tar slut här"
+                : "MWEB-adress · spåret tar slut här";
         }
 
         var what = ChainName(chain) + (startPoint.Kind == StartPointKind.Address ? "-adress" : "-tx");

@@ -76,7 +76,7 @@ public sealed partial class SourcesViewModel : ObservableObject
     private static readonly (string Name, Chain? Chain)[] ChainNames =
     [
         ("Bitcoin", Chain.Bitcoin), ("Ethereum", Chain.Ethereum), ("TRON", Chain.Tron), ("Litecoin", Chain.Litecoin),
-        ("BSC", Chain.Bsc), ("Solana", null),
+        ("BSC", Chain.Bsc), ("Zcash", Chain.Zcash), ("Solana", null),
     ];
 
     /// <summary>The modes, their words and what they do.</summary>

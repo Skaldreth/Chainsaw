@@ -426,6 +426,12 @@ internal sealed class FakeLitecoinSource : FakeBitcoinSource, ILitecoinSource
     public override BitcoinNetwork Network => BitcoinNetwork.Litecoin;
 }
 
+/// <summary>Zcash's source, as Bitcoin's fake on Zcash's network.</summary>
+internal sealed class FakeZcashSource : FakeBitcoinSource, IZcashSource
+{
+    public override BitcoinNetwork Network => BitcoinNetwork.Zcash;
+}
+
 /// <summary>BSC's source, as Ethereum's fake on BSC.</summary>
 internal sealed class FakeBscSource : FakeEthereumSource, IBscSource
 {

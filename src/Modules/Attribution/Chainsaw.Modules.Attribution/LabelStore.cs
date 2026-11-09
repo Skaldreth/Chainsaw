@@ -227,14 +227,16 @@ internal static class LabelStore
 
     /// <summary>
     /// Reads a stored address on a UTXO chain: Bitcoin's first, so that a label stored before Litecoin could be
-    /// labelled reads as it did, and otherwise Litecoin's, whose stored form (<c>L…</c>, <c>M…</c>, <c>ltc1…</c>) no
-    /// Bitcoin address has.
+    /// labelled reads as it did, and otherwise Litecoin's or Zcash's, whose stored forms (<c>L…</c>, <c>M…</c>,
+    /// <c>ltc1…</c>, <c>t1…</c>, <c>t3…</c>) no Bitcoin address has.
     /// </summary>
     /// <param name="text">The stored address.</param>
     /// <returns>The address.</returns>
     /// <exception cref="FormatException">The text is no address.</exception>
     private static BitcoinAddress UtxoAddress(string text) =>
-        BitcoinAddress.TryParse(text, out var bitcoin) ? bitcoin : BitcoinAddress.Parse(Chain.Litecoin, text);
+        BitcoinAddress.TryParse(text, out var bitcoin) ? bitcoin
+            : BitcoinAddress.TryParseOnAnyChain(text, out var other) && other.Value == text ? other
+            : BitcoinAddress.Parse(Chain.Litecoin, text);
 
     /// <summary>Says whether a stored address is a TRON account, in the Base58Check form a label stores.</summary>
     /// <param name="text">The stored address.</param>

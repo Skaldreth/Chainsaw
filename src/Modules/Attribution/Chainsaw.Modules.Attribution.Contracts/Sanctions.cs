@@ -101,8 +101,8 @@ public interface ISanctionLists
             {
                 Chain.Bitcoin when BitcoinAddress.TryParse(address.Value, out var bitcoin) => FindAll(bitcoin),
                 Chain.Ethereum when EthereumAddress.TryParse(address.Value, out var account) => FindAll(account),
-                Chain.Litecoin when BitcoinAddress.TryParse(Chain.Litecoin, address.Value, out var litecoin) =>
-                    FindAll(litecoin),
+                Chain.Litecoin or Chain.Zcash
+                    when BitcoinAddress.TryParse(address.Chain, address.Value, out var utxo) => FindAll(utxo),
                 Chain.Bsc when EthereumAddress.TryParse(Chain.Bsc, address.Value, out var bsc) => FindAll(bsc),
                 _ => [],
             };
@@ -171,6 +171,12 @@ public static class SanctionCurrency
     /// <summary>The code OFAC's SDN list gives Litecoin addresses (<c>L…</c>, <c>M…</c>, <c>ltc1…</c>).</summary>
     public const string Litecoin = "LTC";
 
+    /// <summary>
+    /// The code OFAC's SDN list gives Zcash addresses; only its transparent ones (<c>t1…</c>, <c>t3…</c>) are read,
+    /// since a shielded address can never be met on the chain.
+    /// </summary>
+    public const string Zcash = "ZEC";
+
     /// <summary>Says whether a code is one of an account chain's (Ethereum's, TRON's or BSC's).</summary>
     /// <param name="currency">The code.</param>
     /// <returns><see langword="true"/> when an account can be listed under it.</returns>
@@ -188,6 +194,7 @@ public static class SanctionCurrency
         Chain.Ethereum => OnEthereum.Contains(currency),
         Chain.Tron => OnTron.Contains(currency),
         Chain.Bsc => currency == Bsc,
+        Chain.Zcash => currency == Zcash,
         _ => false,
     };
 }

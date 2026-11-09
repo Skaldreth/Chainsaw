@@ -40,6 +40,7 @@ internal sealed class Harness : IDisposable
         services.AddSingleton<IEthereumSource>(Ethereum);
         services.AddSingleton<ITronSource>(Tron);
         services.AddSingleton<ILitecoinSource>(Litecoin);
+        services.AddSingleton<IZcashSource>(Zcash);
         services.AddSingleton<IBscSource>(Bsc);
         services.AddCasesModule(options =>
         {
@@ -87,6 +88,9 @@ internal sealed class Harness : IDisposable
     public FakeTronSource Tron { get; } = new();
 
     public FakeLitecoinSource Litecoin { get; } = new();
+
+    /// <summary>Gets Zcash's fake source.</summary>
+    public FakeZcashSource Zcash { get; } = new();
 
     public FakeBscSource Bsc { get; } = new();
 

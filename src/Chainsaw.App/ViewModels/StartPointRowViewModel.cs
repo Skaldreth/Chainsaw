@@ -40,6 +40,7 @@ public sealed partial class StartPointRowViewModel : ObservableObject
         Chain.Ethereum => "Ξ",
         Chain.Litecoin => "Ł",
         Chain.Bsc => "B",
+        Chain.Zcash => "Z",
         _ => string.Empty,
     };
 
@@ -92,7 +93,7 @@ public sealed partial class StartPointRowViewModel : ObservableObject
     public string LineText => Preview.State switch
     {
         PreviewState.WaitingForExit => _waiting,
-        PreviewState.NotBuilt when StartPoint.IsShielded => CaseWorkflow.MwebText,
+        PreviewState.NotBuilt when StartPoint.IsShielded => CaseWorkflow.ShieldedText(StartPoint),
         PreviewState.NotBuilt => CaseTexts.ChainName(StartPoint.Chain!.Value) + " hämtas inte, inte byggt än",
         PreviewState.Failed => Preview.Problem,
         PreviewState.NotRecognised => NotRecognisedText,
