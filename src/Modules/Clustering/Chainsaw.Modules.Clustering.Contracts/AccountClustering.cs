@@ -30,6 +30,81 @@ public interface IAccountClustering
     /// <param name="chain">The chain.</param>
     /// <returns>The clusters and the proposals.</returns>
     AccountClusteringRun Read(ICaseReader reader, Chain chain);
+
+    /// <summary>
+    /// Merges accounts as the user's judgement (<c>user v1</c>), approving a proposal; sealed with its origin (the
+    /// decision in the panel), so that taking the decision back undoes it.
+    /// </summary>
+    /// <param name="transaction">The case's write transaction, shared with the decision.</param>
+    /// <param name="chain">The chain.</param>
+    /// <param name="accounts">The accounts, two or more.</param>
+    /// <param name="origin">What it came from, such as <c>checks.decisions:12</c>.</param>
+    /// <param name="reason">Why, or <see langword="null"/>.</param>
+    /// <returns>The sealed decision.</returns>
+    /// <exception cref="ArgumentException">Fewer than two accounts, or two the user has split.</exception>
+    AccountDecision Merge(
+        ICaseTransaction transaction, Chain chain, IReadOnlyList<ChainAddress> accounts, string origin, string? reason);
+
+    /// <summary>
+    /// Splits two accounts of an account cluster (BU1a): no conclusion that joins the two counts any longer, until
+    /// the split is undone.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="first">One account.</param>
+    /// <param name="second">The other, on the same chain.</param>
+    /// <param name="reason">Why, or <see langword="null"/>.</param>
+    /// <returns>The sealed decision.</returns>
+    AccountDecision Split(ICase @case, ChainAddress first, ChainAddress second, string? reason);
+
+    /// <summary>Undoes a merge or a split; the decision itself stays, struck through (AN1b).</summary>
+    /// <param name="transaction">The case's write transaction.</param>
+    /// <param name="decision">The decision's sequence.</param>
+    /// <param name="reason">Why, or <see langword="null"/>.</param>
+    void Undo(ICaseTransaction transaction, long decision, string? reason);
+
+    /// <summary>Reads every decision about account clusters on a chain, in sequence order, also those undone.</summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <param name="chain">The chain.</param>
+    /// <returns>The decisions.</returns>
+    IReadOnlyList<AccountDecision> Decisions(ICaseReader reader, Chain chain);
+}
+
+/// <summary>What the user decided about account clusters.</summary>
+public enum AccountDecisionAction
+{
+    /// <summary>Merged accounts, approving a proposal.</summary>
+    Merge,
+
+    /// <summary>Split two accounts.</summary>
+    Split,
+
+    /// <summary>Undid an earlier decision.</summary>
+    Undo,
+}
+
+/// <summary>A sealed decision about account clusters.</summary>
+/// <param name="Sequence">Its sequence in the sealed chain.</param>
+/// <param name="Action">What was decided.</param>
+/// <param name="Chain">The chain.</param>
+/// <param name="Accounts">The accounts; empty for an undoing.</param>
+/// <param name="Origin">What a merge came from, or <see langword="null"/>.</param>
+/// <param name="Undoes">The decision an undoing undoes, or <see langword="null"/>.</param>
+/// <param name="Reason">Why, or <see langword="null"/>.</param>
+/// <param name="JournalSequence">The journal entry it was sealed under.</param>
+/// <param name="RecordedUtc">When it was sealed.</param>
+public sealed record AccountDecision(
+    long Sequence,
+    AccountDecisionAction Action,
+    Chain Chain,
+    IReadOnlyList<ChainAddress> Accounts,
+    string? Origin,
+    long? Undoes,
+    string? Reason,
+    long JournalSequence,
+    DateTimeOffset RecordedUtc)
+{
+    /// <summary>Gets whether a later decision undid it.</summary>
+    public bool IsUndone { get; init; }
 }
 
 /// <summary>

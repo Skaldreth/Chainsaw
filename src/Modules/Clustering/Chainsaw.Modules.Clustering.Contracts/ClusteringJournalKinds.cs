@@ -9,6 +9,15 @@ public static class ClusteringJournalKinds
     /// <summary>The account heuristics ran over a chain's transfers and sealed new conclusions.</summary>
     public const string AccountsAnalysed = "clustering.accounts-analysed";
 
+    /// <summary>The user merged accounts, approving a proposal of the account heuristics (<c>user v1</c>).</summary>
+    public const string AccountsMerged = "clustering.accounts-merged";
+
+    /// <summary>The user split two accounts of an account cluster, so that no conclusion joins them again.</summary>
+    public const string AccountsSplit = "clustering.accounts-split";
+
+    /// <summary>The user undid a merge or a split of accounts.</summary>
+    public const string AccountDecisionUndone = "clustering.account-decision-undone";
+
     /// <summary>The user split two addresses that a heuristic had merged.</summary>
     public const string Split = "clustering.split";
 

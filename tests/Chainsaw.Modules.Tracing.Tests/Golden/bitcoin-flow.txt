@@ -167,7 +167,7 @@ end CoinJoin 670000 haircut v1 [092c843523ed690b2c4d873ac5870d28937d4112c574166a
 end Unspent 79296666 haircut v1 [092c843523ed690b2c4d873ac5870d28937d4112c574166a40e443a40bbdaf45, 119718addd9fd50a005eff6c1f70bad27e9657856846dcb20df60bdada13c1ab, 387ab3e1a8f3dc3869df6ce19ab8e943c1b604f499d39ab65e81028ac76f55fc, 3cf15817247c97b1adcb98601807f3af603d8c45f3441c70f0b7b995b5f8d7b0] coin=092c843523ed690b2c4d873ac5870d28937d4112c574166a40e443a40bbdaf45:1 tx= node=address:bc1q08c8d27arxn49kmjv7ll7tusygtp6ysdud76zd True basis=[] links=0 Myntet var ospenderat när ärendet senast frågade; det kan ha flyttats sedan.
   why Spårat belopp 0.79296666 BTC enligt haircut v1, räknat genom 4 tx: 092c843523ed690b2c4d873ac5870d28937d4112c574166a40e443a40bbdaf45, 119718addd9fd50a005eff6c1f70bad27e9657856846dcb20df60bdada13c1ab, 387ab3e1a8f3dc3869df6ce19ab8e943c1b604f499d39ab65e81028ac76f55fc, 3cf15817247c97b1adcb98601807f3af603d8c45f3441c70f0b7b995b5f8d7b0. Det är en bedömning enligt metoden, inte ett faktum på kedjan.
 # journal
-1 case.created Ärendet 2026-0077 skapades av Testa Testsson {"caseId":"<case>","caseNumber":"2026-0077","createdUtc":"2026-11-07T01:02:03.0000000\u002B00:00","schema":{"cases":2,"clustering":7,"tracing":7,"tracing_trash":1},"recoveryKey":null}
+1 case.created Ärendet 2026-0077 skapades av Testa Testsson {"caseId":"<case>","caseNumber":"2026-0077","createdUtc":"2026-11-07T01:02:03.0000000\u002B00:00","schema":{"cases":2,"clustering":8,"tracing":7,"tracing_trash":1},"recoveryKey":null}
 2 tracing.start-point-added Startpunkt för spårningen: a3eb287034eaad801be25e37a7d012742a7909bec0bb48bb1fcd208260fff36e {"kind":"transaction","subject":"a3eb287034eaad801be25e37a7d012742a7909bec0bb48bb1fcd208260fff36e"}
 3 clustering.analysed Klustring av 2 tx: 1 sammanslagningar, 1 förslag, 0 stoppade, 0 CoinJoin. {"transactions":2,"results":2,"heuristics":["coinjoin v2","common-input-ownership v1","change-address v2","peel-chain v2","payjoin v2"],"merges":1,"suggestions":1,"stopped":0,"coinJoins":[],"failed":[],"heldBack":[]}
 4 clustering.analysed Klustring av 3 tx: 0 sammanslagningar, 1 förslag, 0 stoppade, 0 CoinJoin. {"transactions":3,"results":1,"heuristics":["coinjoin v2","common-input-ownership v1","change-address v2","peel-chain v2","payjoin v2"],"merges":0,"suggestions":1,"stopped":0,"coinJoins":[],"failed":[],"heldBack":[]}
@@ -181,6 +181,7 @@ table case_title 0
 table chain_head 2
   cases.journal | 7 | <hash>
   clustering.evidence | 16 | <hash>
+table clustering_account_decisions 0
 table clustering_account_evidence 0
 table clustering_evidence 16
   1 | proposal | change-address | 2 | a3eb287034eaad801be25e37a7d012742a7909bec0bb48bb1fcd208260fff36e | ["bc1qr0w4kkujutvlxz3mygamxk24r5x6yr3hspwd5t","bc1qh83t9klz9ygw0rdttl57x3er2ypgrhr3xxrglg"] | Suggestion | 1 | Output 1 är trolig växel: 1 av 6 tecken (de andra beloppen är jämna), 0 mot. Tecknen räcker inte för att slå ihop, så det är bara ett förslag. |  |  | [] | 5d89c2bbe35ec3019d2c55f7716985add6de85b5382d3a88618d153c3fe7c805 | 3 | 2026-11-07T01:02:03.0000000+00:00 | <hash>
@@ -209,7 +210,7 @@ table clustering_splits 0
 table clustering_withdrawal_undos 0
 table clustering_withdrawals 0
 table journal 7
-  1 | 2026-11-07T01:02:03.0000000+00:00 | 2026-11-07T01:02:03.0000000+00:00 | Chainsaw/Test | Testa Testsson | Utredare | Enheten | case.created | Ärendet 2026-0077 skapades av Testa Testsson | {"caseId":"<case>","caseNumber":"2026-0077","createdUtc":"2026-11-07T01:02:03.0000000\u002B00:00","schema":{"cases":2,"clustering":7,"tracing":7,"tracing_trash":1},"recoveryKey":null} | <hash>
+  1 | 2026-11-07T01:02:03.0000000+00:00 | 2026-11-07T01:02:03.0000000+00:00 | Chainsaw/Test | Testa Testsson | Utredare | Enheten | case.created | Ärendet 2026-0077 skapades av Testa Testsson | {"caseId":"<case>","caseNumber":"2026-0077","createdUtc":"2026-11-07T01:02:03.0000000\u002B00:00","schema":{"cases":2,"clustering":8,"tracing":7,"tracing_trash":1},"recoveryKey":null} | <hash>
   2 | 2026-11-07T01:02:03.0000000+00:00 | 2026-11-07T01:02:03.0000000+00:00 | Chainsaw/Test | Testa Testsson | Utredare | Enheten | tracing.start-point-added | Startpunkt för spårningen: a3eb287034eaad801be25e37a7d012742a7909bec0bb48bb1fcd208260fff36e | {"kind":"transaction","subject":"a3eb287034eaad801be25e37a7d012742a7909bec0bb48bb1fcd208260fff36e"} | <hash>
   3 | 2026-11-07T01:02:03.0000000+00:00 | 2026-11-07T01:02:03.0000000+00:00 | Chainsaw/Test | Testa Testsson | Utredare | Enheten | clustering.analysed | Klustring av 2 tx: 1 sammanslagningar, 1 förslag, 0 stoppade, 0 CoinJoin. | {"transactions":2,"results":2,"heuristics":["coinjoin v2","common-input-ownership v1","change-address v2","peel-chain v2","payjoin v2"],"merges":1,"suggestions":1,"stopped":0,"coinJoins":[],"failed":[],"heldBack":[]} | <hash>
   4 | 2026-11-07T01:02:03.0000000+00:00 | 2026-11-07T01:02:03.0000000+00:00 | Chainsaw/Test | Testa Testsson | Utredare | Enheten | clustering.analysed | Klustring av 3 tx: 0 sammanslagningar, 1 förslag, 0 stoppade, 0 CoinJoin. | {"transactions":3,"results":1,"heuristics":["coinjoin v2","common-input-ownership v1","change-address v2","peel-chain v2","payjoin v2"],"merges":0,"suggestions":1,"stopped":0,"coinJoins":[],"failed":[],"heldBack":[]} | <hash>
@@ -218,12 +219,13 @@ table journal 7
   7 | 2026-11-07T01:02:03.0000000+00:00 | 2026-11-07T01:02:03.0000000+00:00 | Chainsaw/Test | Testa Testsson | Utredare | Enheten | clustering.analysed | Klustring av 8 tx: 0 sammanslagningar, 0 förslag, 1 stoppade, 1 CoinJoin. | {"transactions":8,"results":2,"heuristics":["coinjoin v2","common-input-ownership v1","change-address v2","peel-chain v2","payjoin v2"],"merges":0,"suggestions":0,"stopped":1,"coinJoins":["c751e0f41c333c3001b3958c67036040a752d2d3d425709f9b59997fbd90a412"],"failed":[],"heldBack":[]} | <hash>
 table schema_version 4
   cases | 2
-  clustering | 7
+  clustering | 8
   tracing | 7
   tracing_trash | 1
-table sealed_chain 16
+table sealed_chain 17
   cases.journal | journal | ["utc","local","time_zone","operator_name","operator_title","operator_organization","kind","summary","details"]
   cases.title | case_title | ["utc","title"]
+  clustering.account_decisions | clustering_account_decisions | ["action","chain","accounts","origin","undoes","reason","journal_sequence","recorded_utc"]
   clustering.account_evidence | clustering_account_evidence | ["heuristic","heuristic_version","chain","transactions","accounts","strength","reason","fingerprint","journal_sequence","recorded_utc"]
   clustering.evidence | clustering_evidence | ["record_kind","heuristic","heuristic_version","txid","addresses","strength","change_output","reason","adjustment","finding","basis","fingerprint","journal_sequence","recorded_utc"]
   clustering.held_back_decisions | clustering_held_back_decisions | ["txid","missing","addresses","choice","reason","undoes","journal_sequence","recorded_utc"]

@@ -61,17 +61,196 @@ internal sealed class AccountClusteringService : IAccountClustering
         });
     }
 
+    /// <summary>The user's own judgement, as the clustering of addresses names it.</summary>
+    public static readonly HeuristicId User = new("user", 1);
+
     /// <inheritdoc/>
     public AccountClusteringRun Read(ICaseReader reader, Chain chain)
     {
         ArgumentNullException.ThrowIfNull(reader);
-        var evidence = ReadEvidence(reader, chain);
-        var clusters = Clusters(evidence.Where(entry => entry.Strength == EvidenceStrength.Merge).ToList());
+        var decisions = Decisions(reader, chain).Where(decision => !decision.IsUndone).ToList();
+        var splits = decisions.Where(decision => decision.Action == AccountDecisionAction.Split).ToList();
+        bool Splits(AccountEvidence entry) => splits.Any(split => split.Accounts.All(entry.Accounts.Contains));
+        var evidence = ReadEvidence(reader, chain).Where(entry => !Splits(entry)).ToList();
+        var merging = evidence.Where(entry => entry.Strength == EvidenceStrength.Merge)
+            .Concat(decisions.Where(decision => decision.Action == AccountDecisionAction.Merge).Select(UserEvidence))
+            .Where(entry => !Splits(entry))
+            .ToList();
+        var clusters = Clusters(merging);
         var proposals = evidence
             .Where(entry => entry.Strength == EvidenceStrength.Suggestion)
             .Where(entry => !InOneCluster(entry.Accounts, clusters))
             .ToList();
         return new AccountClusteringRun(clusters, proposals);
+    }
+
+    /// <inheritdoc/>
+    public AccountDecision Merge(
+        ICaseTransaction transaction, Chain chain, IReadOnlyList<ChainAddress> accounts, string origin, string? reason)
+    {
+        ArgumentNullException.ThrowIfNull(transaction);
+        ArgumentNullException.ThrowIfNull(accounts);
+        ArgumentException.ThrowIfNullOrWhiteSpace(origin);
+        var members = Members(chain, accounts);
+        var split = Decisions(transaction, chain).FirstOrDefault(decision => !decision.IsUndone
+            && decision.Action == AccountDecisionAction.Split && decision.Accounts.All(members.Contains));
+        if (split is not null)
+        {
+            throw new ArgumentException(
+                "The user has split two of the accounts; undo the split first.", nameof(accounts));
+        }
+
+        var journal = transaction.AppendJournal(new JournalDraft(
+            ClusteringJournalKinds.AccountsMerged,
+            string.Create(CultureInfo.InvariantCulture,
+                $"Slog ihop {members.Count} adresser på {chain} som din bedömning (user v1)."),
+            JsonSerializer.Serialize(
+                new { chain = chain.ToString(), accounts = members.Select(account => account.Value), origin }, Json)));
+        return AppendDecision(transaction, AccountDecisionAction.Merge, chain, members, origin, null, reason, journal);
+    }
+
+    /// <inheritdoc/>
+    public AccountDecision Split(ICase @case, ChainAddress first, ChainAddress second, string? reason)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(first);
+        ArgumentNullException.ThrowIfNull(second);
+        if (first.Chain != second.Chain || first == second)
+        {
+            throw new ArgumentException("A split is of two accounts on the same chain.", nameof(second));
+        }
+
+        var members = Members(first.Chain, [first, second]);
+        return @case.Write(transaction =>
+        {
+            var (one, other) = (AccountFinding.Short(members[0]), AccountFinding.Short(members[1]));
+            var journal = transaction.AppendJournal(new JournalDraft(
+                ClusteringJournalKinds.AccountsSplit,
+                $"Bröt upp {one} och {other} på {first.Chain}.",
+                JsonSerializer.Serialize(
+                    new { chain = first.Chain.ToString(), accounts = members.Select(account => account.Value) },
+                    Json)));
+            return AppendDecision(
+                transaction, AccountDecisionAction.Split, first.Chain, members, null, null, reason, journal);
+        });
+    }
+
+    /// <inheritdoc/>
+    public void Undo(ICaseTransaction transaction, long decision, string? reason)
+    {
+        ArgumentNullException.ThrowIfNull(transaction);
+        var undone = AllDecisions(transaction).FirstOrDefault(entry => entry.Sequence == decision
+            && entry.Action != AccountDecisionAction.Undo)
+            ?? throw new ArgumentException("No such decision about account clusters.", nameof(decision));
+        if (undone.IsUndone)
+        {
+            return;
+        }
+
+        var summary = undone.Action == AccountDecisionAction.Merge
+            ? "Ångrade en sammanslagning av adresser."
+            : "Ångrade en uppbrytning av adresser.";
+        var journal = transaction.AppendJournal(new JournalDraft(
+            ClusteringJournalKinds.AccountDecisionUndone, summary,
+            JsonSerializer.Serialize(new { undoes = decision }, Json)));
+        AppendDecision(transaction, AccountDecisionAction.Undo, undone.Chain, [], null, decision, reason, journal);
+    }
+
+    /// <inheritdoc/>
+    public IReadOnlyList<AccountDecision> Decisions(ICaseReader reader, Chain chain)
+    {
+        ArgumentNullException.ThrowIfNull(reader);
+        return [.. AllDecisions(reader).Where(decision => decision.Chain == chain
+            && decision.Action != AccountDecisionAction.Undo)];
+    }
+
+    /// <summary>Makes a user's merge into a conclusion that merges, so that the clusters are built from both.</summary>
+    /// <param name="decision">The merge.</param>
+    /// <returns>The conclusion.</returns>
+    private static AccountEvidence UserEvidence(AccountDecision decision) => new(
+        decision.Sequence, User, decision.Chain, [], decision.Accounts, EvidenceStrength.Merge,
+        "Du godkände att adresserna har samma ägare; en bedömning, inte ett faktum."
+            + (decision.Reason is { Length: > 0 } reason ? " Skäl: " + reason : string.Empty),
+        decision.JournalSequence, decision.RecordedUtc);
+
+    /// <summary>Checks and orders the accounts of a decision.</summary>
+    /// <param name="chain">The chain.</param>
+    /// <param name="accounts">The accounts.</param>
+    /// <returns>Each once, by text.</returns>
+    /// <exception cref="ArgumentException">Fewer than two, or one on another chain.</exception>
+    private static List<ChainAddress> Members(Chain chain, IReadOnlyList<ChainAddress> accounts)
+    {
+        var members = accounts.Distinct().OrderBy(account => account.Value, StringComparer.Ordinal).ToList();
+        return members.Count >= 2 && members.All(account => account.Chain == chain)
+            ? members
+            : throw new ArgumentException("A decision is about two or more accounts on its chain.", nameof(accounts));
+    }
+
+    /// <summary>Seals a decision about account clusters.</summary>
+    /// <param name="transaction">The case's write transaction.</param>
+    /// <param name="action">What was decided.</param>
+    /// <param name="chain">The chain.</param>
+    /// <param name="accounts">The accounts.</param>
+    /// <param name="origin">What a merge came from.</param>
+    /// <param name="undoes">The decision undone.</param>
+    /// <param name="reason">Why.</param>
+    /// <param name="journal">The journal entry.</param>
+    /// <returns>The decision as sealed.</returns>
+    private static AccountDecision AppendDecision(
+        ICaseTransaction transaction,
+        AccountDecisionAction action,
+        Chain chain,
+        IReadOnlyList<ChainAddress> accounts,
+        string? origin,
+        long? undoes,
+        string? reason,
+        JournalEntry journal)
+    {
+        var note = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
+        var record = transaction.AppendSealed(ClusteringSchema.AccountDecisionsChain,
+        [
+            action.ToString(), chain.ToString(),
+            JsonSerializer.Serialize(accounts.Select(account => account.Value), Json), origin, undoes, note,
+            journal.Sequence, journal.Utc.ToString("O", CultureInfo.InvariantCulture),
+        ]);
+        return new AccountDecision(
+            record.Sequence, action, chain, accounts, origin, undoes, note, journal.Sequence, journal.Utc);
+    }
+
+    /// <summary>Reads every decision about account clusters, marking those a later one undid.</summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <returns>The decisions, in sequence order.</returns>
+    /// <exception cref="CaseException"><see cref="CaseError.Corrupt"/> when a record cannot be read back.</exception>
+    private static List<AccountDecision> AllDecisions(ICaseReader reader)
+    {
+        using var command = reader.CreateCommand(
+            """
+            SELECT sequence, action, chain, accounts, origin, undoes, reason, journal_sequence, recorded_utc
+            FROM clustering_account_decisions ORDER BY sequence
+            """);
+        using var row = command.ExecuteReader();
+        var decisions = new List<AccountDecision>();
+        while (row.Read())
+        {
+            if (!Enum.TryParse<AccountDecisionAction>(row.GetString(1), out var action) || !Enum.IsDefined(action)
+                || int.TryParse(row.GetString(1), out _)
+                || !Enum.TryParse<Chain>(row.GetString(2), out var chain) || !Enum.IsDefined(chain))
+            {
+                throw new CaseException(CaseError.Corrupt);
+            }
+
+            decisions.Add(new AccountDecision(
+                row.GetInt64(0), action, chain,
+                [.. EvidenceStore.Deserialize<List<string>>(row.GetString(3)).Select(text => Account(chain, text))],
+                row.IsDBNull(4) ? null : row.GetString(4),
+                row.IsDBNull(5) ? null : row.GetInt64(5),
+                row.IsDBNull(6) ? null : row.GetString(6),
+                row.GetInt64(7),
+                EvidenceStore.ParseTime(row.GetString(8))));
+        }
+
+        var undone = decisions.Where(d => d.Action == AccountDecisionAction.Undo).Select(d => d.Undoes).ToHashSet();
+        return [.. decisions.Select(decision => decision with { IsUndone = undone.Contains(decision.Sequence) })];
     }
 
     /// <summary>Seals the new conclusions under one journal entry that says what was found.</summary>

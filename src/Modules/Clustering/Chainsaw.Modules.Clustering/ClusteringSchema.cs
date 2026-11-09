@@ -24,6 +24,18 @@ internal sealed class ClusteringSchema : ICaseSchemaContributor
     /// <summary>The table of the account heuristics' conclusions.</summary>
     public const string AccountEvidenceTable = "clustering_account_evidence";
 
+    /// <summary>The sealed chain of the user's decisions about account clusters: merges, splits and their undoing.</summary>
+    public const string AccountDecisionsChain = "clustering.account_decisions";
+
+    /// <summary>The table of the user's decisions about account clusters.</summary>
+    public const string AccountDecisionsTable = "clustering_account_decisions";
+
+    /// <summary>The sealed columns of a decision about account clusters, in order.</summary>
+    public static readonly IReadOnlyList<string> AccountDecisionColumns =
+    [
+        "action", "chain", "accounts", "origin", "undoes", "reason", "journal_sequence", "recorded_utc",
+    ];
+
     /// <summary>The sealed columns of an account heuristic's conclusion, in order.</summary>
     public static readonly IReadOnlyList<string> AccountEvidenceColumns =
     [
@@ -277,6 +289,22 @@ internal sealed class ClusteringSchema : ICaseSchemaContributor
         ) STRICT;
         """;
 
+    /// <summary>The eighth version: the user's decisions about account clusters.</summary>
+    private const string Version8 = """
+        CREATE TABLE clustering_account_decisions (
+            sequence INTEGER PRIMARY KEY,
+            action TEXT NOT NULL,
+            chain TEXT NOT NULL,
+            accounts TEXT NOT NULL,
+            origin TEXT,
+            undoes INTEGER,
+            reason TEXT,
+            journal_sequence INTEGER NOT NULL,
+            recorded_utc TEXT NOT NULL,
+            hash BLOB NOT NULL
+        ) STRICT;
+        """;
+
     /// <inheritdoc/>
     public string Module => ModuleName;
 
@@ -290,6 +318,7 @@ internal sealed class ClusteringSchema : ICaseSchemaContributor
         new(5, "Slutsatser som hålls tillbaka och besluten om dem (besluten förseglade)", Version5),
         new(6, "Slutsatser som inte dras medan en tx är borta (arbetsläge)", Version6),
         new(7, "Klustringen av konton på Ethereum (förseglad)", Version7),
+        new(8, "Användarens beslut om kontokluster (förseglade)", Version8),
     ];
 
     /// <inheritdoc/>
@@ -297,6 +326,7 @@ internal sealed class ClusteringSchema : ICaseSchemaContributor
     [
         new(EvidenceChain, EvidenceTable, EvidenceColumns),
         new(AccountEvidenceChain, AccountEvidenceTable, AccountEvidenceColumns),
+        new(AccountDecisionsChain, AccountDecisionsTable, AccountDecisionColumns),
         new(SplitsChain, SplitsTable, SplitColumns),
         new(SplitUndosChain, SplitUndosTable, SplitUndoColumns),
         new(MergesChain, MergesTable, MergeColumns),

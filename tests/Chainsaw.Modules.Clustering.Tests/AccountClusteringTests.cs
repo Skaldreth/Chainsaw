@@ -205,9 +205,72 @@ public sealed class AccountClusteringTests : IDisposable
     }
 
     [Fact]
+    public void An_approved_proposal_merges_as_the_user_s_judgement_and_its_undoing_takes_it_back()
+    {
+        var victims = new[] { Address(3), Address(4) };
+        var proposed = Analyse([.. victims.SelectMany(victim => new[]
+        {
+            Ether(Address(1), victim, 4_000, 0), Ether(victim, Scammer, 3_990, 5),
+        })]);
+        var accounts = proposed.Proposals[0].Accounts;
+
+        var merge = _harness.Case.Write(transaction =>
+            _harness.Accounts.Merge(transaction, Chain.Ethereum, accounts, "checks.decisions:1", "Samma person."));
+        var merged = Read();
+
+        var cluster = Assert.Single(merged.Clusters);
+        Assert.Equal(accounts.OrderBy(account => account.Value), cluster.Members);
+        Assert.Contains(cluster.Evidence, evidence => evidence.Heuristic == new HeuristicId("user", 1));
+        Assert.DoesNotContain(merged.Proposals, proposal => proposal.Accounts.All(cluster.Members.Contains));
+        Assert.Equal(ClusteringJournalKinds.AccountsMerged, _harness.Case.ReadJournal().Last().Kind);
+
+        _harness.Case.Write(transaction =>
+        {
+            _harness.Accounts.Undo(transaction, merge.Sequence, null);
+            return 0;
+        });
+
+        Assert.Empty(Read().Clusters);
+        Assert.True(Assert.Single(_harness.Case.Read(reader =>
+            _harness.Accounts.Decisions(reader, Chain.Ethereum))).IsUndone);
+        Assert.True(_harness.Verify().IsIntact);
+    }
+
+    [Fact]
+    public void A_split_keeps_two_accounts_apart_until_it_is_undone()
+    {
+        var transfers = Sweeps(Address(3), Address(4), Address(5));
+        Analyse(transfers, services: [Hot]);
+
+        var split = _harness.Accounts.Split(_harness.Case, Hot.ToChainAddress(), Address(3).ToChainAddress(), null);
+
+        Assert.Equal(Members([Address(4), Address(5), Hot]), Assert.Single(Read().Clusters).Members);
+        Assert.Equal(ClusteringJournalKinds.AccountsSplit, _harness.Case.ReadJournal().Last().Kind);
+        Assert.Throws<ArgumentException>(() => _harness.Case.Write(transaction => _harness.Accounts.Merge(
+            transaction, Chain.Ethereum, [Hot.ToChainAddress(), Address(3).ToChainAddress()], "checks.decisions:2",
+            null)));
+
+        _harness.Case.Write(transaction =>
+        {
+            _harness.Accounts.Undo(transaction, split.Sequence, "Fel.");
+            return 0;
+        });
+
+        Assert.Equal(4, Assert.Single(Read().Clusters).Members.Count);
+    }
+
+    [Fact]
+    public void A_split_needs_two_accounts_on_one_chain() =>
+        Assert.Throws<ArgumentException>(() => _harness.Accounts.Split(
+            _harness.Case, Hot.ToChainAddress(), Hot.ToChainAddress(), null));
+
+    [Fact]
     public void Only_chains_on_Ethereum_s_machine_are_analysed() =>
         Assert.Throws<ArgumentException>(() => _harness.Accounts.Analyse(
             _harness.Case, Chain.Bitcoin, Activity([], [], [], [], [])));
+
+    private AccountClusteringRun Read() =>
+        _harness.Case.Read(reader => _harness.Accounts.Read(reader, Chain.Ethereum));
 
     private AccountClusteringRun Analyse(
         List<EthereumTransfer> transfers,
