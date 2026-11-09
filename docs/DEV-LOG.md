@@ -4193,3 +4193,21 @@ topp.
   behållet prov som åldras, ärenden som flyttats ur planen, sammanslagning av lika svar, luckor hos mycket aktiva
   adresser, svårigheten på höjden, realtid för Ethereum och egen nod, och resten under Bitcoin-källan (prestanda,
   jämförelse mellan källor, svarshuvuden).
+- **Rättat efter den oberoende granskningen** (0 C, 2 I, 6 M, alla rättade):
+  - **I1:** `Forbid` stänger säkert: en `exits.bin` som inte går att läsa eller ändra tas bort hel, och kastar bara om
+    inte heller det går; `RemoveAsync` släpper också den valda utgången i kopian (`Follow(null)`); reglaget går efter
+    användarens avsikt. Tester med en trasig fil.
+  - **I2:** `InBlockVerified` är ersatt av `InBlockCheck` (`NotChecked`, `SourceOnly`, `ConfirmedElsewhere`): blockets
+    hash vid höjden frågas av en annan endpoint i fas (`FetchAsync(…, except:)`, `bitcoin.block-height`), och det som
+    bara vilar på en källa sägs så. powLimit beskrivs ärligt (svårighet 1 säger inget om kedjan). Kontrollpunkter i koden
+    står i BACKLOG.
+  - **M1:** `VerifyInBlockAsync` kontrollerar bytes först, vägrar en tx på 64 bytes utan vittnesdata, kräver att
+    bevisets djup och plats passar blockets antal tx (blocket kontrollerat mot sitt huvud) och vägrar en dubblerad nod
+    som egen plats (CVE-2012-2459).
+  - **M2:** testnet har mainnets gräns `0x1d00ffff`; signet (eget värde saknas) står i BACKLOG.
+  - **M3:** nyheterna knuffar högst var 30:e sekund, tror inte på ett hopp över tre block eller en omöjlig höjd, och
+    en misslyckad höjd håller sin minut oavsett nyheter.
+  - **M4:** en träff flyttas bara på en fullständig kontroll i fas och högst en gång per tio minuter (dämpning).
+  - **M5:** en hopslagen post skrivs om under samma id med den senaste kontrollens tid; finns två filer efter en krasch
+    läses den nyaste och båda tas bort vid införandet.
+  - **M6:** `exits.bin` tas bort när valvet skapas på nytt (`FirstRunViewModel`).

@@ -88,6 +88,9 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
     /// <inheritdoc/>
     public BitcoinNetwork Network => _options.Network;
 
+    /// <summary>A transaction's size that could pass for an inner node of the merkle tree (two hashes).</summary>
+    private const int InnerNodeSize = 64;
+
     /// <summary>Gets the network whose work limit a header must meet, or none when the check is turned off.</summary>
     private BitcoinNetwork? WorkLimit => _options.CheckWorkLimit ? _options.Network : null;
 
@@ -183,35 +186,103 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
     {
         ArgumentNullException.ThrowIfNull(@case);
         ArgumentNullException.ThrowIfNull(txid);
-        var lookup = await GetTransactionAsync(@case, txid, LookupMode.AsNeeded, cancellationToken)
-            .ConfigureAwait(false);
-        if (lookup.Value is not { Block: { } block } transaction)
+
+        // The bytes first: the txid must be the transaction's own, and a 64-byte transaction could pass for an inner
+        // node of the tree, so it is never checked this way.
+        var lookup = await VerifyTransactionAsync(@case, txid, cancellationToken).ConfigureAwait(false);
+        if (lookup.Value is not { Block: { } at } transaction)
         {
             return lookup;
         }
 
-        var header = await _lookups.LookupAsync(@case, HeaderQuery(block.Hash), LookupMode.AsNeeded, cancellationToken)
-            .ConfigureAwait(false);
-        var proof = await _lookups.LookupAsync(@case, MerkleQuery(txid), LookupMode.AsNeeded, cancellationToken)
-            .ConfigureAwait(false);
-        var origins = lookup.Origins.Concat(header.Origins).Concat(proof.Origins)
-            .DistinctBy(origin => origin.Sequence).OrderBy(origin => origin.Sequence).ToList();
-        if (header.Value is not { } read || proof.Value is not { } path)
+        if (!transaction.BytesVerified || StrippedSize(transaction) == InnerNodeSize)
         {
-            var problem = header.Value is null ? header.Problem : proof.Problem;
-            var note = $"Beviset för att tx:en ligger i blocket kunde inte hämtas, så det är inte kontrollerat. {problem}";
-            return lookup with { Origins = origins, Notes = [.. lookup.Notes, note.TrimEnd()] };
+            return Unchecked(lookup, transaction.BytesVerified
+                ? "Tx:en är 64 bytes och kan förväxlas med en nod i trädet, så den kontrolleras inte mot blocket."
+                : "Tx:ens egna bytes kunde inte kontrolleras, så den är inte kontrollerad mot blocket.");
         }
 
-        if (path.Height != block.Height || path.RootFrom(txid) != read.MerkleRoot)
+        var block = await GetBlockAsync(@case, at.Hash, cancellationToken).ConfigureAwait(false);
+        var proof = await _lookups.LookupAsync(@case, MerkleQuery(txid), LookupMode.AsNeeded, cancellationToken)
+            .ConfigureAwait(false);
+        var origins = Merged(lookup.Origins, block.Origins, proof.Origins);
+        if (block.Value is not { HeaderVerified: true } read || proof.Value is not { } path)
+        {
+            var problem = block.Value is { HeaderVerified: true } ? proof.Problem : block.Problem;
+            return Unchecked(lookup with { Origins = origins },
+                $"Beviset för att tx:en ligger i blocket kunde inte hämtas, så det är inte kontrollerat. {problem}");
+        }
+
+        if (path.Height != at.Height || !path.Fits(read.TransactionCount) || path.RootFrom(txid) != read.MerkleRoot)
         {
             return new BitcoinLookup<BitcoinTransaction>(LookupStatus.Failed, null, origins,
                 "Källans bevis för att tx:en ligger i blocket leder inte till blockets eget huvud, som är sparat i "
                 + "ärendet; tx:ens block används inte som kontrollerat.");
         }
 
-        return lookup with { Value = transaction with { InBlockVerified = true }, Origins = origins };
+        var answeredBy = block.Origins.LastOrDefault()?.EndpointId;
+        var confirmation = await ConfirmBlockAsync(@case, read, answeredBy, cancellationToken).ConfigureAwait(false);
+        origins = Merged(origins, confirmation.Origins);
+        return lookup with
+        {
+            Value = transaction with { InBlock = confirmation.Level },
+            Origins = origins,
+            Notes = confirmation.Note is { } note ? [.. lookup.Notes, note] : lookup.Notes,
+        };
     }
+
+    /// <summary>
+    /// Asks another endpoint in step with the chain for the block's hash at its height, so that a block is not one
+    /// source's alone: a header that meets only the network's easiest target says nothing about the chain.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="block">The block, checked against its header.</param>
+    /// <param name="answeredBy">The endpoint that gave the block, which is not asked.</param>
+    /// <param name="cancellationToken">Stops the lookup.</param>
+    /// <returns>How far the block is checked, the responses, and what to say when it is not confirmed.</returns>
+    private async Task<(InBlockCheck Level, IReadOnlyList<ResponseOrigin> Origins, string? Note)> ConfirmBlockAsync(
+        ICase @case, BitcoinBlock block, Guid? answeredBy, CancellationToken cancellationToken)
+    {
+        var height = block.Height.ToString(CultureInfo.InvariantCulture);
+        var query = new LookupQuery<string>(
+            ResponseKinds.BlockAtHeight,
+            height,
+            $"block-height/{height}",
+            body => EsploraParser.ParseTipHash(body).Value,
+            _ => new ResponseIndex([], block.Height),
+            _ => null,
+            _ => null);
+        var other = await _lookups.FetchAsync(
+                @case, query, null, cancellationToken, inStep: true, except: answeredBy ?? Guid.Empty)
+            .ConfigureAwait(false);
+        if (other.Value == block.Hash.Value)
+        {
+            return (InBlockCheck.ConfirmedElsewhere, other.Origins, null);
+        }
+
+        var note = other.Value is null
+            ? "Blocket vilar bara på en källas svar: ingen annan endpoint i fas kunde bekräfta det."
+            : "En annan endpoint i fas har ett annat block på samma höjd, så blocket vilar bara på en källas svar.";
+        return (InBlockCheck.SourceOnly, other.Origins, note);
+    }
+
+    /// <summary>Gives a transaction's size without its witness data, the bytes its txid is the hash of.</summary>
+    /// <param name="transaction">The transaction.</param>
+    /// <returns>The size: weight is four times it, less what the witness adds once.</returns>
+    private static int StrippedSize(BitcoinTransaction transaction) => (transaction.Weight - transaction.Size) / 3;
+
+    /// <summary>Gives a lookup as it is, with a note on why it is not checked against its block.</summary>
+    /// <param name="lookup">The lookup.</param>
+    /// <param name="note">Why.</param>
+    /// <returns>The lookup with the note.</returns>
+    private static BitcoinLookup<BitcoinTransaction> Unchecked(BitcoinLookup<BitcoinTransaction> lookup, string note) =>
+        lookup with { Notes = [.. lookup.Notes, note.TrimEnd()] };
+
+    /// <summary>Merges responses, once each, in their order in the case.</summary>
+    /// <param name="parts">The responses.</param>
+    /// <returns>The merged list.</returns>
+    private static List<ResponseOrigin> Merged(params IEnumerable<ResponseOrigin>[] parts) =>
+        [.. parts.SelectMany(part => part).DistinctBy(origin => origin.Sequence).OrderBy(origin => origin.Sequence)];
 
     /// <inheritdoc/>
     public Task<BitcoinLookup<BitcoinAddressSummary>> GetAddressSummaryAsync(

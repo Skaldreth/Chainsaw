@@ -63,8 +63,11 @@ internal sealed record MerkleProof(long Height, IReadOnlyList<string> Branch, lo
     /// it, on the left or the right by the place, and hashed twice with SHA-256, as Bitcoin builds the tree.
     /// </summary>
     /// <param name="txid">The transaction.</param>
-    /// <returns>The root, as Bitcoin shows hashes.</returns>
-    public string RootFrom(Txid txid)
+    /// <returns>
+    /// The root, as Bitcoin shows hashes, or <see langword="null"/> when the proof uses the duplicated last node on the
+    /// right-hand side (CVE-2012-2459): a node's copy stands only to its own right, never as a place of its own.
+    /// </returns>
+    public string? RootFrom(Txid txid)
     {
         ArgumentNullException.ThrowIfNull(txid);
         var hash = Internal(txid.Value);
@@ -72,12 +75,35 @@ internal sealed record MerkleProof(long Height, IReadOnlyList<string> Branch, lo
         foreach (var beside in Branch)
         {
             var other = Internal(beside);
-            hash = (place & 1) == 1 ? Twice([.. other, .. hash]) : Twice([.. hash, .. other]);
+            var onTheRight = (place & 1) == 1;
+            if (onTheRight && other.AsSpan().SequenceEqual(hash))
+            {
+                return null;
+            }
+
+            hash = onTheRight ? Twice([.. other, .. hash]) : Twice([.. hash, .. other]);
             place >>= 1;
         }
 
         Array.Reverse(hash);
         return Convert.ToHexStringLower(hash);
+    }
+
+    /// <summary>
+    /// Says whether the proof's depth and place fit a block with this many transactions: the tree has
+    /// <c>ceil(log2(n))</c> levels, and the place is one of the block's.
+    /// </summary>
+    /// <param name="transactions">How many transactions the block has.</param>
+    /// <returns><see langword="true"/> when they fit.</returns>
+    public bool Fits(int transactions)
+    {
+        var depth = 0;
+        while ((1L << depth) < transactions)
+        {
+            depth++;
+        }
+
+        return transactions > 0 && Branch.Count == depth && Position < transactions;
     }
 
     /// <summary>Gives a hash in the byte order Bitcoin hashes it in (reversed from how it is shown).</summary>

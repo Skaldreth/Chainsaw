@@ -200,7 +200,10 @@ public sealed class VerificationTests : IDisposable
         Assert.True(BlockHeaderReader.WithinLimit(0x1d00ffff, BitcoinNetwork.Mainnet));
         Assert.False(BlockHeaderReader.WithinLimit(0x1d01ffff, BitcoinNetwork.Mainnet));
         Assert.False(BlockHeaderReader.WithinLimit(0x207fffff, BitcoinNetwork.Testnet));
-        Assert.True(BlockHeaderReader.WithinLimit(0x1e0377ae, BitcoinNetwork.Testnet));
+        Assert.True(BlockHeaderReader.WithinLimit(0x1d00ffff, BitcoinNetwork.Testnet));
+
+        // Signet's easier limit is not testnet's; Chainsaw has no network value for signet.
+        Assert.False(BlockHeaderReader.WithinLimit(0x1e0377ae, BitcoinNetwork.Testnet));
     }
 
     [Fact]

@@ -36,11 +36,10 @@ public sealed record BitcoinTransaction(
     public bool BytesVerified { get; init; }
 
     /// <summary>
-    /// Gets whether Chainsaw has checked that the transaction is in its block: the source's merkle proof, sealed in
-    /// the case, leads from the txid to the merkle root in the block's own header, which meets its target. That the
-    /// block is on the chain with the most work still rests on the sources.
+    /// Gets how far Chainsaw has checked that the transaction is in its block (<see cref="InBlockCheck"/>); what it
+    /// says is exactly what was checked, never more.
     /// </summary>
-    public bool InBlockVerified { get; init; }
+    public InBlockCheck InBlock { get; init; }
 
     /// <summary>Gets whether the transaction is in a block.</summary>
     public bool IsConfirmed => Block is not null;
@@ -55,4 +54,24 @@ public sealed record BitcoinTransaction(
 
     /// <summary>Gets the sum of the outputs.</summary>
     public Satoshi TotalOut => Outputs.Aggregate(Satoshi.Zero, (sum, output) => sum + output.Amount);
+}
+
+/// <summary>How far Chainsaw has checked that a transaction is in its block, said exactly as it was checked.</summary>
+public enum InBlockCheck
+{
+    /// <summary>Not checked.</summary>
+    NotChecked,
+
+    /// <summary>
+    /// The source's merkle proof leads from the transaction's own bytes to the merkle root in the block's own header,
+    /// and the proof's depth fits the block's transactions; but the block itself rests only on that source's answer:
+    /// the header's work is only checked against the network's easiest target, which anyone can meet.
+    /// </summary>
+    SourceOnly,
+
+    /// <summary>
+    /// As <see cref="SourceOnly"/>, and another endpoint in step with the chain gave the same block hash at that
+    /// height, so the block is not one source's alone.
+    /// </summary>
+    ConfirmedElsewhere,
 }

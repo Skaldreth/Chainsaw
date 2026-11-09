@@ -54,6 +54,9 @@ internal static class ResponseKinds
     /// <summary>The newest block's hash, <c>/blocks/tip/hash</c>.</summary>
     public const string TipHash = "bitcoin.tip-hash";
 
+    /// <summary>The hash of the block at a height, <c>/block-height/:height</c>, asked to confirm a block.</summary>
+    public const string BlockAtHeight = "bitcoin.block-height";
+
     /// <summary>The proof that a transaction is in its block, <c>/tx/:txid/merkle-proof</c>.</summary>
     public const string MerkleProof = "bitcoin.merkle-proof";
 }

@@ -92,9 +92,11 @@ public interface IBitcoinSource
         ICase @case, Txid txid, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Checks that a transaction is in the block the source says it is in: the source's merkle proof
-    /// (<c>/tx/:txid/merkle-proof</c>) and the block's own header are fetched (each sealed in the case) and Chainsaw
-    /// computes the root from the txid itself. Then <see cref="BitcoinTransaction.InBlockVerified"/> is set. A
+    /// Checks that a transaction is in the block the source says it is in: its own bytes are checked first
+    /// (<see cref="VerifyTransactionAsync"/>), the block is checked against its own header, the source's merkle proof
+    /// (<c>/tx/:txid/merkle-proof</c>) must lead from the txid to the header's root with the depth the block's
+    /// transactions give, and another endpoint in step is asked for the block's hash at the height. Each response is
+    /// sealed in the case, and <see cref="BitcoinTransaction.InBlock"/> says exactly how far it was checked. A
     /// transaction not in a block has nothing to check and is given as it is.
     /// </summary>
     /// <param name="case">The open case.</param>

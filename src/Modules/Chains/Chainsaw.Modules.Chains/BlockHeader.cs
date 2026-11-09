@@ -33,14 +33,8 @@ internal static class BlockHeaderReader
     /// <summary>The largest exponent of a compact target that still fits 256 bits.</summary>
     private const int MaximumExponent = 32;
 
-    /// <summary>Mainnet's (and testnet's) easiest target, powLimit, in compact form.</summary>
-    internal const uint MainnetLimitBits = 0x1d00ffff;
-
-    /// <summary>
-    /// The easiest target of the test networks Chainsaw reads (signet's, which is easier than testnet's), in compact
-    /// form.
-    /// </summary>
-    internal const uint TestLimitBits = 0x1e0377ae;
+    /// <summary>The easiest target, powLimit, of mainnet and of testnet (3 and 4), in compact form.</summary>
+    internal const uint LimitBits = 0x1d00ffff;
 
     /// <summary>Reads a header given as hex text (as from <c>/block/:hash/header</c>).</summary>
     /// <param name="body">The response's bytes.</param>
@@ -131,16 +125,18 @@ internal static class BlockHeaderReader
     }
 
     /// <summary>
-    /// Checks that a compact target is no easier than the network's limit (powLimit): a header that met an easier
-    /// target than the network ever allows carries less work than it claims (granskningen etapp 15, M2).
+    /// Checks that a compact target is no easier than the network's limit (powLimit, difficulty 1). It only refuses a
+    /// header that could never be on the network; difficulty 1 is cheap to meet, so it says nothing about whether the
+    /// block is on the chain (that is why a block's hash is confirmed by another endpoint, <see cref="InBlockCheck"/>).
+    /// Signet has its own, easier limit and no network value of its own in Chainsaw; its headers are refused.
     /// </summary>
     /// <param name="bits">The compact target.</param>
     /// <param name="network">The network.</param>
     /// <returns><see langword="true"/> when it is within the limit.</returns>
     public static bool WithinLimit(uint bits, BitcoinNetwork network)
     {
-        var limit = network == BitcoinNetwork.Mainnet ? MainnetLimitBits : TestLimitBits;
-        return Target(bits) is { } target && target <= Target(limit);
+        _ = network;
+        return Target(bits) is { } target && target <= Target(LimitBits);
     }
 
     /// <summary>

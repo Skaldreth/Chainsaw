@@ -166,10 +166,11 @@ internal sealed class SourceLookups
     /// <param name="preferInStep">
     /// Whether endpoints in step with the chain are asked when some are known to be, and the others only when none is.
     /// </param>
+    /// <param name="except">An endpoint not to ask, as when its own answer is to be confirmed by another.</param>
     /// <returns>The answer.</returns>
     public async Task<BitcoinLookup<T>> FetchAsync<T>(
         ICase @case, LookupQuery<T> query, (T Value, StoredResponse Response)? stored,
-        CancellationToken cancellationToken, bool inStep = false, bool preferInStep = false)
+        CancellationToken cancellationToken, bool inStep = false, bool preferInStep = false, Guid? except = null)
         where T : class
     {
         var fetchedBy = CurrentOperator(out var noOperator);
@@ -182,6 +183,12 @@ internal sealed class SourceLookups
         if (preferInStep && !inStep && plan is { Off: false, Endpoints.Count: 0 })
         {
             plan = _sources.Plan(_chain);
+        }
+
+        if (except is { } passedOver)
+        {
+            // Another endpoint than the one whose answer is to be confirmed.
+            plan = plan with { Endpoints = [.. plan.Endpoints.Where(each => each.Endpoint.Id != passedOver)] };
         }
 
         if (plan.Off)
