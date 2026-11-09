@@ -1,6 +1,7 @@
 using Chainsaw.Modules.Network.Contracts;
 using Chainsaw.Modules.Security.Contracts;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 
 namespace Chainsaw.App.ViewModels;
 
@@ -42,6 +43,12 @@ public sealed partial class LockViewModel : ObservableObject
 
     /// <summary>What the lock screen says when the field was empty.</summary>
     public const string EmptyKeyText = "Skriv huvudnyckeln.";
+
+    /// <summary>
+    /// What the lock screen says when the master key was changed but no one named it (decided 2026-11-09): the name
+    /// in the operator profile was not there to be read.
+    /// </summary>
+    public const string KeyChangedUnnamedText = "Huvudnyckeln ändrades. Du blir nu utloggad.";
 
     /// <summary>The vault the master key opens.</summary>
     private readonly IVault _vault;
@@ -90,6 +97,17 @@ public sealed partial class LockViewModel : ObservableObject
     /// <summary>Gets or sets whether a link waits for the unlock (sketch LN1a); the gate follows the link inbox.</summary>
     [ObservableProperty]
     public partial bool HasWaitingLink { get; set; }
+
+    /// <summary>
+    /// Gets what the lock screen says about a master-key change whose answer could not be shown because Chainsaw
+    /// locked meanwhile, or an empty text. It stays until the next unlock or until it is dismissed.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasNotice))]
+    public partial string NoticeText { get; private set; } = string.Empty;
+
+    /// <summary>Gets whether <see cref="NoticeText"/> is shown.</summary>
+    public bool HasNotice => NoticeText.Length > 0;
 
     /// <summary>Gets why the last attempt failed, or an empty text.</summary>
     [ObservableProperty]
@@ -144,6 +162,23 @@ public sealed partial class LockViewModel : ObservableObject
     /// <summary>Closes <em>Om Chainsaw</em> (Esc, ×, a click on the dark).</summary>
     public void CloseAbout() => IsAboutOpen = false;
 
+    /// <summary>
+    /// Gives the words for a master-key change that completed while or after Chainsaw locked (decided 2026-11-09).
+    /// </summary>
+    /// <param name="name">The name in the operator profile of the one who changed it, or <see langword="null"/>.</param>
+    /// <returns><em>Huvudnyckeln ändrades av … Du blir nu utloggad.</em>, or the words without a name.</returns>
+    public static string KeyChangedText(string? name) => string.IsNullOrWhiteSpace(name)
+        ? KeyChangedUnnamedText
+        : $"Huvudnyckeln ändrades av {name.Trim()}. Du blir nu utloggad.";
+
+    /// <summary>Shows a notice on the lock screen until the next unlock or until it is dismissed.</summary>
+    /// <param name="text">The words.</param>
+    public void ShowNotice(string text) => NoticeText = text;
+
+    /// <summary>Dismisses the notice (its ×).</summary>
+    [RelayCommand]
+    public void DismissNotice() => NoticeText = string.Empty;
+
     /// <summary>Opens the vault with what is written in the field.</summary>
     /// <param name="entry">The field; it is emptied, and the key is cleared when the vault has answered.</param>
     /// <returns><see langword="true"/> when the vault was opened.</returns>
@@ -167,6 +202,7 @@ public sealed partial class LockViewModel : ObservableObject
             IsBusy = true;
             ErrorText = string.Empty;
             await Task.Run(() => _vault.Unlock(masterKey));
+            NoticeText = string.Empty;
             return true;
         }
         catch (VaultException exception)
@@ -192,7 +228,7 @@ public sealed partial class LockViewModel : ObservableObject
         }
     }
 
-    /// <summary>Forgets the last error, as when the lock screen is shown again.</summary>
+    /// <summary>Forgets the last error, as when the lock screen is shown again; a notice stays.</summary>
     public void Reset() => ErrorText = string.Empty;
 
     /// <summary>Gives the line about the way out: through Windows, or the exit's state.</summary>

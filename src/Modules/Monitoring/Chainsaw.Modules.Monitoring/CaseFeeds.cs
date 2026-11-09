@@ -17,6 +17,42 @@ internal static class FeedTexts
     public const string Incomplete =
         "Källan gav inte hela historiken för {0} ner till block {1}; resten kan ha missats.";
 
+    /// <summary>
+    /// When a check waits for the source to place a transaction (TRON's token history): it stays at its block and goes
+    /// on when the source answers; nothing is missed.
+    /// </summary>
+    public const string Waiting =
+        "Väntar på källan för tx {1} hos {0}; kontrollen står kvar vid block {2} och fortsätter när källan svarar.";
+
+    /// <summary>
+    /// When an endpoint's final answer for a transaction lacked the event of a token Chainsaw knows: the answer is not
+    /// believed, the transaction is asked of another endpoint, and the check stays at its block until it is placed.
+    /// </summary>
+    public const string Disputed =
+        "Källan {2} gav ingen Transfer-händelse för en känd token i tx {1} hos {0}; tx:en frågas hos en annan källa "
+        + "och kontrollen står kvar vid block {3} tills överföringen kan placeras.";
+
+    /// <summary>
+    /// As <see cref="Disputed"/>, when no other endpoint is switched on: the same one is asked again at a time.
+    /// </summary>
+    public const string DisputedNoOther =
+        "Källan {2} gav ingen Transfer-händelse för en känd token i tx {1} hos {0}; ingen annan källa för TRON är "
+        + "påslagen, så den frågas igen hos {2} {4}, och kontrollen står kvar vid block {3} tills överföringen kan "
+        + "placeras.";
+
+    /// <summary>When a check left out an unknown token's transfer whose final tx holds no readable event.</summary>
+    public const string Unplaced =
+        "{1} TRC-20-överföringar av okända tokens till eller från {0} har ingen läsbar Transfer-händelse i sin tx och "
+        + "räknas inte.";
+
+    /// <summary>
+    /// When a check read transactions whose movements could not all be read (on Solana, value a program moved without
+    /// an instruction the node parses): what could be read is counted, and the rest is said, not missed in silence.
+    /// </summary>
+    public const string Unexplained =
+        "{1} tx till eller från {0} flyttade mer än källan kunde läsa ({2}); det som kunde läsas räknas, resten syns "
+        + "inte i bevakningen.";
+
     /// <summary>When an address on a watch is not one the chain knows.</summary>
     public const string NotAnAddress = "{0} är ingen adress på kedjan.";
 
@@ -51,11 +87,11 @@ internal static class FeedTexts
 }
 
 /// <summary>
-/// Reads a Bitcoin address's newest transactions for a check through <see cref="IBitcoinSource"/> with
-/// <see cref="LookupMode.InStep"/>: only an endpoint in step with the chain answers, and every response is sealed in
-/// the case.
+/// Reads an address's newest transactions on a UTXO chain (Bitcoin or Litecoin) for a check through
+/// <see cref="IBitcoinSource"/> with <see cref="LookupMode.InStep"/>: only an endpoint in step with the chain answers,
+/// and every response is sealed in the case.
 /// </summary>
-/// <param name="source">Bitcoin's source.</param>
+/// <param name="source">The chain's source: Bitcoin's or Litecoin's.</param>
 /// <param name="case">The open case.</param>
 internal sealed class BitcoinCaseFeed(IBitcoinSource source, ICase @case) : IWatchFeed
 {
@@ -63,7 +99,8 @@ internal sealed class BitcoinCaseFeed(IBitcoinSource source, ICase @case) : IWat
     public async Task<WatchFeedPage> ReadAsync(
         ChainAddress address, Asset? asset, long downTo, CancellationToken cancellationToken = default)
     {
-        if (!BitcoinAddress.TryParse(address.Value, out var bitcoin))
+        if (address.Chain != source.Network.ChainOf()
+            || !BitcoinAddress.TryParse(address.Chain, address.Value, out var bitcoin))
         {
             return new WatchFeedPage(
                 WatchFeedStatus.Failed, [], [], false, FeedTexts.Format(FeedTexts.NotAnAddress, address.Value));
@@ -90,7 +127,7 @@ internal sealed class BitcoinCaseFeed(IBitcoinSource source, ICase @case) : IWat
                     status, transactions, origins, false, status == WatchFeedStatus.Read ? null : lookup.Problem);
             }
 
-            transactions.AddRange(read.Transactions.Select(Of));
+            transactions.AddRange(read.Transactions.Select(tx => Of(tx, address.Chain)));
             var oldest = read.Transactions.Where(tx => tx.Block is not null).Select(tx => tx.Block!.Height)
                 .DefaultIfEmpty(long.MinValue).Min();
             if (read.NextAfter is null || oldest <= downTo)
@@ -112,37 +149,80 @@ internal sealed class BitcoinCaseFeed(IBitcoinSource source, ICase @case) : IWat
         };
     }
 
-    /// <summary>Gives a Bitcoin transaction in the check's form: one flow from its inputs to its outputs.</summary>
+    /// <summary>
+    /// Gives a transaction on a UTXO chain in the check's form: one flow from its inputs to its outputs, counted in the
+    /// chain's own coin (bitcoin, litecoin or zcash, all in units of 10⁻⁸); money into a Zcash pool is an outgoing leg
+    /// without an address.
+    /// </summary>
     /// <param name="transaction">The transaction.</param>
+    /// <param name="chain">The chain it is on: Bitcoin, Litecoin or Zcash.</param>
     /// <returns>The check's form.</returns>
-    public static WatchTransaction Of(BitcoinTransaction transaction)
+    public static WatchTransaction Of(BitcoinTransaction transaction, Chain chain = Chain.Bitcoin)
     {
         ArgumentNullException.ThrowIfNull(transaction);
+        var coin = chain.NativeAsset();
         var from = transaction.Inputs.Select(input => new WatchLeg(
-            input.Address is { } address ? new ChainAddress(Chain.Bitcoin, address.Value) : null,
-            AssetAmount.Of(input.Amount ?? Satoshi.Zero)));
+            input.Address?.ToChainAddress(), new AssetAmount(coin, (input.Amount ?? Satoshi.Zero).Value)));
         var to = transaction.Outputs.Select(output => new WatchLeg(
-            output.Address is { } address ? new ChainAddress(Chain.Bitcoin, address.Value) : null,
-            AssetAmount.Of(output.Amount)));
+            output.Address?.ToChainAddress(), new AssetAmount(coin, output.Amount.Value)))
+            .Concat(PoolLeg(transaction, chain));
         var block = transaction.Block is { } at ? new WatchBlock(at.Height, at.Hash.Value, at.Time) : null;
-        return new WatchTransaction(Chain.Bitcoin, transaction.Txid.Value, block, [new WatchFlow([.. from], [.. to])]);
+        return new WatchTransaction(chain, transaction.Txid.Value, block, [new WatchFlow([.. from], [.. to])]);
+    }
+
+    /// <summary>
+    /// The most a Zcash transaction's transparent inputs may pay beyond its transparent outputs before the rest is read
+    /// as money into a shielded pool, when the pools' own amounts are not at hand (an address's page): 0.01 ZEC, far
+    /// above a fee by ZIP 317 (5 000 zatoshi per action).
+    /// </summary>
+    public const long MostZcashFee = 1_000_000;
+
+    /// <summary>
+    /// Gives the leg of money that goes into a shielded pool, as an outgoing leg without an address, so that a watch
+    /// sees money that leaves the watched addresses for the pool (t→z): the pool's own amount when the transaction
+    /// carries it, otherwise, on Zcash, what the inputs pay beyond the outputs when it is more than a fee (the fee is
+    /// then counted with it).
+    /// </summary>
+    /// <param name="transaction">The transaction.</param>
+    /// <param name="chain">The chain it is on.</param>
+    /// <returns>The leg, or none.</returns>
+    private static IEnumerable<WatchLeg> PoolLeg(BitcoinTransaction transaction, Chain chain)
+    {
+        var into = transaction.Shielded?.IntoPool.Value ?? ExcessOnZcash(transaction, chain);
+        return into > 0 ? [new WatchLeg(null, new AssetAmount(chain.NativeAsset(), into))] : [];
+    }
+
+    /// <summary>What a Zcash transaction's inputs pay beyond its outputs, when more than a fee; otherwise 0.</summary>
+    /// <param name="transaction">The transaction.</param>
+    /// <param name="chain">The chain it is on.</param>
+    /// <returns>The excess in zatoshi.</returns>
+    private static long ExcessOnZcash(BitcoinTransaction transaction, Chain chain)
+    {
+        if (chain != Chain.Zcash || transaction.IsCoinbase)
+        {
+            return 0;
+        }
+
+        var excess = transaction.Inputs.Sum(input => input.Amount?.Value ?? 0) - transaction.TotalOut.Value;
+        return excess > MostZcashFee ? excess : 0;
     }
 }
 
 /// <summary>
-/// Reads an Ethereum address's newest movements for a check through <see cref="IEthereumSource"/> with
-/// <see cref="LookupMode.InStep"/>: the histories the watched asset needs (ether in the transactions and the internal
-/// ones, tokens in the ERC-20 transfers), each sealed in the case; a block whose hash a history lacks is looked up.
+/// Reads an account chain's address's newest movements for a check (Ethereum's or TRON's) through its
+/// <see cref="IAccountSource"/> with <see cref="LookupMode.InStep"/>: the histories the watched asset needs (the coin in
+/// the transactions and the internal ones, tokens in the token transfers), each sealed in the case; a block whose hash
+/// a history lacks is looked up.
 /// </summary>
-/// <param name="source">Ethereum's source.</param>
+/// <param name="source">The chain's source.</param>
 /// <param name="case">The open case.</param>
-internal sealed class EthereumCaseFeed(IEthereumSource source, ICase @case) : IWatchFeed
+internal sealed class EthereumCaseFeed(IAccountSource source, ICase @case) : IWatchFeed
 {
     /// <inheritdoc/>
     public async Task<WatchFeedPage> ReadAsync(
         ChainAddress address, Asset? asset, long downTo, CancellationToken cancellationToken = default)
     {
-        if (!EthereumAddress.TryParse(address.Value, out var ethereum))
+        if (address.Chain != source.Chain || !EthereumAddress.TryParse(source.Chain, address.Value, out var ethereum))
         {
             return new WatchFeedPage(
                 WatchFeedStatus.Failed, [], [], false, FeedTexts.Format(FeedTexts.NotAnAddress, address.Value));
@@ -154,9 +234,11 @@ internal sealed class EthereumCaseFeed(IEthereumSource source, ICase @case) : IW
         var status = WatchFeedStatus.Read;
         long? completeAbove = null;
         var unknown = false;
+        var notBefore = await NotBeforeAsync(downTo, origins, cancellationToken).ConfigureAwait(false);
         foreach (var history in HistoriesFor(asset))
         {
-            var (read, above) = await ReadHistoryAsync(ethereum, history, downTo, transfers, origins, problems,
+            var (read, above) = await ReadHistoryAsync(
+                ethereum, history, new HistoryFloor(downTo, notBefore), transfers, origins, problems,
                 cancellationToken).ConfigureAwait(false);
             status = (WatchFeedStatus)Math.Max((int)status, (int)read);
             if (above is { } height)
@@ -194,7 +276,8 @@ internal sealed class EthereumCaseFeed(IEthereumSource source, ICase @case) : IW
 
         var transactions = transfers.Values
             .GroupBy(transfer => transfer.Transaction.Value, StringComparer.Ordinal)
-            .Select(group => Of(group.Key, [.. group.OrderBy(t => t.Kind).ThenBy(t => t.Position)], hashes))
+            .Select(group => Of(
+                source.Chain, group.Key, [.. group.OrderBy(t => t.Kind).ThenBy(t => t.Position)], hashes))
             .ToList();
         return new WatchFeedPage(
             status, transactions, origins, completeAbove is not null,
@@ -220,30 +303,34 @@ internal sealed class EthereumCaseFeed(IEthereumSource source, ICase @case) : IW
     /// </summary>
     /// <param name="address">The address.</param>
     /// <param name="history">The history.</param>
-    /// <param name="downTo">The block below which nothing is needed.</param>
+    /// <param name="floor">The block below which nothing is needed, and its time when the source pages by time.</param>
     /// <param name="transfers">The movements so far, each once.</param>
     /// <param name="origins">The sealed responses so far.</param>
     /// <param name="problems">What went wrong so far.</param>
     /// <param name="cancellationToken">Stops the reading.</param>
     /// <returns>
     /// How it went, and for a partial read the block above which it is complete (<see langword="null"/> when it
-    /// reached back to <paramref name="downTo"/>).
+    /// reached back to the floor's block).
     /// </returns>
     private async Task<(WatchFeedStatus Status, long? CompleteAbove)> ReadHistoryAsync(
         EthereumAddress address,
         EthereumHistory history,
-        long downTo,
+        HistoryFloor floor,
         Dictionary<(string, EthereumTransferKind, long), EthereumTransfer> transfers,
         List<long> origins,
         List<string> problems,
         CancellationToken cancellationToken)
     {
+        var downTo = floor.Block;
         long? atOrBelow = null;
         var lowest = long.MaxValue;
         for (var page = 0; page < WatchRules.MaximumPages; page++)
         {
-            var lookup = await source.GetAddressHistoryAsync(
-                @case, address, history, atOrBelow, LookupMode.InStep, cancellationToken).ConfigureAwait(false);
+            var lookup = await (floor.Time is { } time
+                ? source.GetRecentHistoryAsync(
+                    @case, address, history, atOrBelow, LookupMode.InStep, time, cancellationToken)
+                : source.GetAddressHistoryAsync(
+                    @case, address, history, atOrBelow, LookupMode.InStep, cancellationToken)).ConfigureAwait(false);
             var status = FeedTexts.StatusOf(lookup);
 
             // Only an answer the check rests on is cited; a failed or stood-in response is not (principle 1).
@@ -264,15 +351,38 @@ internal sealed class EthereumCaseFeed(IEthereumSource source, ICase @case) : IW
 
             foreach (var transfer in read.Transfers)
             {
-                transfers.TryAdd((transfer.Transaction.Value, transfer.Kind, transfer.Position), transfer);
+                if (IsWatched(transfer))
+                {
+                    transfers.TryAdd((transfer.Transaction.Value, transfer.Kind, transfer.Position), transfer);
+                }
+
                 lowest = Math.Min(lowest, transfer.Block?.Height ?? lowest);
+            }
+
+            if (read.Unexplained.Count > 0)
+            {
+                problems.Add(FeedTexts.Format(
+                    FeedTexts.Unexplained, address.Value, read.Unexplained.Count,
+                    EthereumTxHash.BriefList(read.Unexplained)));
+            }
+
+            if (read.Unplaced > 0)
+            {
+                problems.Add(FeedTexts.Format(FeedTexts.Unplaced, address.Value, read.Unplaced));
             }
 
             if (read.IsIncomplete)
             {
-                // The source has not finished reading the history: nothing below its newest page is trusted yet.
-                problems.Add(FeedTexts.Format(FeedTexts.Incomplete, address.Value, downTo + 1));
-                return (WatchFeedStatus.Partial, lowest == long.MaxValue ? null : lowest);
+                // The source has not finished reading the history: nothing below its newest page is trusted yet. On
+                // TRON it is waiting to place a transaction, which is said as waiting, not as something missed.
+                problems.AddRange(WaitingTexts(read, address, downTo));
+
+                // On TRON a movement the source could not place has no block yet, and on Solana a transaction that
+                // could not be had is not read at all, so it may lie anywhere on the page: the check stays where it
+                // was until the page can be read whole.
+                return source.Chain is Chain.Tron or Chain.Solana || lowest == long.MaxValue
+                    ? (WatchFeedStatus.Partial, null)
+                    : (WatchFeedStatus.Partial, lowest);
             }
 
             if (read.IsCutShort)
@@ -282,7 +392,7 @@ internal sealed class EthereumCaseFeed(IEthereumSource source, ICase @case) : IW
                 return (WatchFeedStatus.Partial, read.Transfers.Select(t => t.Block?.Height).Max() ?? lowest);
             }
 
-            if (read.NextAtOrBelow is not { } next || next <= downTo)
+            if (read.NextAtOrBelow is not { } next || ReachedBelow(read, next, floor))
             {
                 return (WatchFeedStatus.Read, null);
             }
@@ -294,6 +404,122 @@ internal sealed class EthereumCaseFeed(IEthereumSource source, ICase @case) : IW
         problems.Add(FeedTexts.Format(FeedTexts.CutShort, address.Value, WatchRules.MaximumPages, downTo + 1, reached));
         return (WatchFeedStatus.Partial, lowest == long.MaxValue ? null : lowest);
     }
+
+    /// <summary>
+    /// Says what an incomplete page waits for: each transaction whose final answer lacked a known token's event with the
+    /// endpoint that gave it, the other transactions it waits for with their ids shortened, or that the history was
+    /// not given whole.
+    /// </summary>
+    /// <param name="read">The incomplete page.</param>
+    /// <param name="address">The address.</param>
+    /// <param name="downTo">The block the check stays at.</param>
+    /// <returns>The texts.</returns>
+    private static IEnumerable<string> WaitingTexts(EthereumAddressPage read, EthereumAddress address, long downTo)
+    {
+        if (read.Waiting.Count == 0)
+        {
+            yield return FeedTexts.Format(FeedTexts.Incomplete, address.Value, downTo + 1);
+            yield break;
+        }
+
+        foreach (var disputed in read.Disputed)
+        {
+            yield return disputed.AskedAgainAt is not null
+                ? FeedTexts.Format(FeedTexts.DisputedNoOther, address.Value, disputed.Transaction.Brief(),
+                    disputed.Endpoint, downTo, disputed.AskedAgainText)
+                : FeedTexts.Format(
+                    FeedTexts.Disputed, address.Value, disputed.Transaction.Brief(), disputed.Endpoint, downTo);
+        }
+
+        var plain = read.Waiting.Where(hash => read.Disputed.All(disputed => disputed.Transaction != hash)).ToList();
+        if (plain.Count > 0)
+        {
+            yield return FeedTexts.Format(FeedTexts.Waiting, address.Value, EthereumTxHash.BriefList(plain), downTo);
+        }
+    }
+
+    /// <summary>
+    /// Says whether a page has gone back to the block the check reads to. Ethereum's next page starts at a block, so
+    /// its start says it; TRON's starts at a time, so the floor block's time says it, or else the oldest block among the
+    /// page's movements and fees (a page without one pages on, as far as <see cref="WatchRules.MaximumPages"/> reach).
+    /// </summary>
+    /// <param name="read">The page.</param>
+    /// <param name="next">Where the next page starts, in the source's unit.</param>
+    /// <param name="floor">The block the check reads to, and its time when known.</param>
+    /// <returns><see langword="true"/> when nothing older is needed.</returns>
+    private bool ReachedBelow(EthereumAddressPage read, long next, HistoryFloor floor)
+    {
+        if (!PagesByTime)
+        {
+            return next <= floor.Block;
+        }
+
+        if (floor.Time is { } time && next < time.ToUnixTimeMilliseconds())
+        {
+            return true;
+        }
+
+        var oldest = read.Transfers.Select(transfer => transfer.Block?.Height)
+            .Concat(read.Fees.Select(fee => fee.Block?.Height))
+            .Min();
+        return oldest is { } height && height <= floor.Block;
+    }
+
+    /// <summary>
+    /// Gets whether the chain's sources page by time (TRON); Ethereum's, BSC's and Solana's page by block or slot.
+    /// </summary>
+    private bool PagesByTime => source.Chain == Chain.Tron;
+
+    /// <summary>
+    /// Says whether a movement can be a hit: the chain's own coin, the coin wrapped (WETH, WBNB), or a token Chainsaw
+    /// knows by its contract (<see cref="KnownTokens"/>: USDT and USDC on Ethereum, TRON and BSC, DAI and WBTC on
+    /// Ethereum, whether their issuer can freeze them or not). On every account chain a token Chainsaw does not know is left out: anyone can make a contract send one
+    /// to any address (spam, address poisoning, a token that calls itself USDT), and on TRON a whole transaction does
+    /// not give its decimals, so a hit on it could never be checked. A watch for every asset means the coin and the
+    /// tokens Chainsaw knows, as the node's holdings do.
+    /// </summary>
+    /// <param name="transfer">The movement.</param>
+    /// <returns><see langword="true"/> when it is watched.</returns>
+    private static bool IsWatched(EthereumTransfer transfer) =>
+        transfer.Amount.Asset.Kind == AssetKind.Native || KnownTokens.IsKnown(transfer.Amount.Asset)
+        || KnownTokens.IsWrappedNative(transfer.Amount.Asset);
+
+    /// <summary>
+    /// Gives the time of the block a check reads back to, on a chain whose sources page by time (TRON), so that the
+    /// source does not look up each older entry of a page; <see langword="null"/> on Ethereum. When the block could not
+    /// be had, the earliest time, so that every entry is read but still only in the tokens a check can use.
+    /// </summary>
+    /// <param name="downTo">The block.</param>
+    /// <param name="origins">The sealed responses so far; the block's is added.</param>
+    /// <param name="cancellationToken">Stops the lookup.</param>
+    /// <returns>The block's time, or <see langword="null"/>.</returns>
+    private async Task<DateTimeOffset?> NotBeforeAsync(
+        long downTo, List<long> origins, CancellationToken cancellationToken)
+    {
+        if (!PagesByTime)
+        {
+            return null;
+        }
+
+        var block = await source.GetBlockAsync(@case, downTo, LookupMode.InStep, cancellationToken)
+            .ConfigureAwait(false);
+        if (block.Value is not { } found)
+        {
+            // The check still asks for its own page, so that only the tokens it can use are looked up; the page is
+            // then read whole in time.
+            return DateTimeOffset.MinValue;
+        }
+
+
+        origins.AddRange(block.Origins.Select(origin => origin.Sequence));
+        return found.Time;
+    }
+
+    /// <summary>Where a check reads back to: a block, and its time on a chain whose sources page by time.</summary>
+    /// <param name="Block">The block below which nothing is needed.</param>
+    /// <param name="Time">Its time, or <see langword="null"/> when not needed or not known.</param>
+    private readonly record struct HistoryFloor(long Block, DateTimeOffset? Time);
+
 
     /// <summary>Looks up the hash of every block a movement lacks it for, in step with the chain.</summary>
     /// <param name="transfers">The movements.</param>
@@ -342,30 +568,38 @@ internal sealed class EthereumCaseFeed(IEthereumSource source, ICase @case) : IW
     }
 
     /// <summary>
-    /// Gives an Ethereum transaction's movements in the check's form: one flow per movement. A block whose hash is not
-    /// known is left out, so that the transaction waits for a check that knows it (a hit is sealed with its hash).
+    /// Gives an account chain's transaction's movements in the check's form: one flow per movement. A block whose hash
+    /// is not known is left out, so that the transaction waits for a check that knows it (a hit is sealed with its
+    /// hash).
     /// </summary>
+    /// <param name="chain">The chain.</param>
     /// <param name="hash">The transaction's hash.</param>
     /// <param name="transfers">Its movements.</param>
     /// <param name="hashes">The blocks' hashes.</param>
     /// <returns>The check's form.</returns>
     private static WatchTransaction Of(
-        string hash, IReadOnlyList<EthereumTransfer> transfers, IReadOnlyDictionary<long, string> hashes)
+        Chain chain, string hash, IReadOnlyList<EthereumTransfer> transfers, IReadOnlyDictionary<long, string> hashes)
     {
         var at = transfers.Select(transfer => transfer.Block).OfType<EthereumBlockReference>().FirstOrDefault();
         var block = at is not null && hashes.TryGetValue(at.Height, out var blockHash)
             ? new WatchBlock(at.Height, blockHash, at.Time)
             : null;
-        return Of(hash, block, transfers);
+        return Of(chain, hash, block, transfers);
     }
 
-    /// <summary>Gives an Ethereum transaction in the check's form: one flow per movement of value.</summary>
+    /// <summary>
+    /// Gives an account chain's transaction (Ethereum or TRON) in the check's form: one flow per movement of value,
+    /// with the addresses on the transaction's own chain.
+    /// </summary>
+    /// <param name="chain">The chain.</param>
     /// <param name="hash">The transaction's hash.</param>
     /// <param name="block">Its block, or <see langword="null"/> when it is not in a known block.</param>
     /// <param name="transfers">Its movements.</param>
     /// <returns>The check's form.</returns>
-    public static WatchTransaction Of(string hash, WatchBlock? block, IEnumerable<EthereumTransfer> transfers) =>
-        new(Chain.Ethereum, hash, block, [.. transfers.Select(transfer => new WatchFlow(
-            [new WatchLeg(new ChainAddress(Chain.Ethereum, transfer.From.Value), transfer.Amount)],
-            [new WatchLeg(new ChainAddress(Chain.Ethereum, transfer.To.Value), transfer.Amount)]))]);
+    public static WatchTransaction Of(
+        Chain chain, string hash, WatchBlock? block, IEnumerable<EthereumTransfer> transfers) =>
+        new(chain, hash, block, [.. transfers.Select(transfer => new WatchFlow(
+            [new WatchLeg(transfer.From.ToChainAddress(), transfer.Amount)],
+            [new WatchLeg(transfer.To.ToChainAddress(), transfer.Amount)]))]);
+
 }

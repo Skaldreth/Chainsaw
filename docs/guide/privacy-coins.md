@@ -35,5 +35,6 @@ avancerade metoder, och de ger sannolikheter, aldrig visshet.
 Pengar som går till en privacy coin avslutar spåret med orsaken **Privacy coin**, i rött. Spåret slutar aldrig tyst:
 det står varför (se [Varför ett spår tar slut](sparet-tar-slut.md)).
 
-Att föreslå troliga uttag ur en skyddad pool ur belopp och tid är **inte byggt än**. Datamodellen är byggd så att det
-kan läggas till som en analys med namn och version, som de andra förslagen, och visas streckat som en kandidat.
+Zcashs genomskinliga del och Litecoin spåras i grafen. Pengar in i Zcashs pooler eller Litecoins MWEB tar slut där,
+med beloppet in och ut som fakta, och `shielded-pool v1` föreslår troliga vägar ut ur poolen ur belopp och tid, som
+streckade kandidater (se [Ut ur en skyddad pool](skyddade-pooler.md) och [Zcash](zcash.md)). Monero är inte byggt än.

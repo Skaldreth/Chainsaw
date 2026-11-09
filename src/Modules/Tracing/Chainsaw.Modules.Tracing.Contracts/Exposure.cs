@@ -77,7 +77,11 @@ public enum ExposureRest
 /// <summary>What to read the exposure of, and how.</summary>
 /// <param name="Graph">The graph: its actors, and the transfers between them as facts from the chain.</param>
 /// <param name="Subject">The node whose exposure is read, a cluster or an address.</param>
-/// <param name="Asset">The asset whose transfers are followed; amounts in different assets are never added.</param>
+/// <param name="Asset">
+/// The subject's asset, whose transfers are the money; amounts in different assets are never added. Money that goes
+/// through a swap on an account chain is followed into the other asset and counted by its value in this one
+/// (<see cref="SwapValue"/>).
+/// </param>
 /// <param name="Direction">Paid out or got.</param>
 /// <param name="Depth">How many hops are followed, from 1 (only direct) to <see cref="MaxDepth"/>.</param>
 /// <param name="Method">The tracing method that says how much of an actor's money goes on with each transfer.</param>
@@ -94,6 +98,12 @@ public sealed record ExposureRequest(
     TracingMethodKind Method,
     IReadOnlySet<string> Services)
 {
+    /// <summary>
+    /// Gets the case's rates for the swaps' price check, as in the trace (<see cref="SwapValue.CheckPrice"/>): a swap
+    /// with an absurd price is no swap, and the money goes on to the pool. <see langword="null"/> tests no price.
+    /// </summary>
+    public SwapPricing? Pricing { get; init; }
+
     /// <summary>The deepest the analysis follows: the rings of the view (sketch EP1b).</summary>
     public const int MaxDepth = 3;
 
@@ -118,7 +128,27 @@ public sealed record ExposureReach(
     int Hops,
     IReadOnlyList<string> Path,
     IReadOnlyList<string> PathEdges,
-    IReadOnlyList<ChainTransactionRef> Transactions);
+    IReadOnlyList<ChainTransactionRef> Transactions)
+{
+    /// <summary>
+    /// Gets the swaps on the way, where the money's value followed into another asset by <see cref="SwapValue"/>;
+    /// empty when the way went through none.
+    /// </summary>
+    public IReadOnlyList<ExposureSwap> Swaps { get; init; } = [];
+}
+
+/// <summary>A swap on the way to a service, with how much of what went into it was the subject's money.</summary>
+/// <param name="Swap">The swap.</param>
+/// <param name="Share">
+/// The subject's share of what went in (read out) or came out (read in), for example <c>62,2 %</c>, as a conclusion
+/// by the method; the same share of the other side follows the value.
+/// </param>
+public sealed record ExposureSwap(TokenSwap Swap, string Share)
+{
+    /// <summary>Writes the swap's step, for example <c>0x… (62,2 %)</c>.</summary>
+    /// <returns>The step.</returns>
+    public override string ToString() => $"{Swap.Transaction.Value} ({Share})";
+}
 
 /// <summary>How much of the subject's money moved along one of the graph's lines, by the method.</summary>
 /// <param name="EdgeKey">The line.</param>
@@ -157,13 +187,22 @@ public sealed record ExposureResult(
 
     /// <summary>
     /// The analysis's version; raised whenever it may give other amounts. Version 2 stops money where the graph's trace
-    /// stops it: at a link to another chain, a transaction where the trail ends, and a spend that does not agree.
+    /// stops it: at a link to another chain, a transaction where the trail ends, and a spend that does not agree;
+    /// version 3 follows the value through a swap on an account chain by <see cref="SwapValue"/>, as the trace does.
     /// </summary>
-    public const int AnalysisVersion = 2;
+    public const int AnalysisVersion = 4;
 
-    /// <summary>Gets the analysis's name and version, for example <c>exposure v2</c>.</summary>
+    /// <summary>Gets the analysis's name and version, for example <c>exposure v4</c>.</summary>
     public static string Analysis { get; } =
         AnalysisName + " v" + AnalysisVersion.ToString(CultureInfo.InvariantCulture);
+
+    /// <summary>
+    /// What <em>Varför?</em> adds about a way through a swap: the exposure does not deduct the part that stays in the
+    /// pool when the values in and out differ, which the graph's trace does.
+    /// </summary>
+    public const string PoolNotDeducted =
+        " Poolens del dras inte av här när värdena in och ut skiljer (det gör spåret i grafen), så andelen kan vara "
+        + "något för stor.";
 
     /// <summary>Gets what reached no service, all reasons together.</summary>
     public AssetAmount Unknown => Rest.Values.Aggregate(AssetAmount.Zero(Total.Asset), (sum, part) => sum + part);
@@ -194,12 +233,30 @@ public sealed record ExposureResult(
             ? "."
             : string.Create(CultureInfo.InvariantCulture,
                 $", genom {reach.Transactions.Count} tx: {string.Join(", ", reach.Transactions.Select(t => t.Id))}."));
+        if (reach.Swaps.Count > 0)
+        {
+            text.Append(CultureInfo.InvariantCulture,
+                $" Vägen går genom {reach.Swaps.Count} swap(par), i tx {string.Join(", ", reach.Swaps)} med "
+                + $"ämnets andel av det som {SwapSides().Known} inom parentes; där följer värdet med enligt "
+                + $"{SwapValue.Analysis}: samma andel av det som {SwapSides().Other}, räknat i {Total.Asset.Symbol}.");
+            text.Append(PoolNotDeducted);
+        }
+
         text.Append(reach.Amount.Asset.Chain.Model() == LedgerModel.Utxo
             ? " Metoden följer varje mynt genom tx:erna, som i grafen."
             : " Varje aktör räknas som en plånbok där metoden säger hur mycket som följer med varje överföring.");
         text.Append(" Det är en bedömning, inte ett faktum på kedjan.");
         return text.ToString();
     }
+
+    /// <summary>
+    /// Gives a swap's sides as the explanation names them: paid out, the subject's share is of what went in and the
+    /// same share of what came out follows; got, the other way round.
+    /// </summary>
+    /// <returns>The side whose share is known, and the side that follows it, in Swedish.</returns>
+    private (string Known, string Other) SwapSides() => Direction == ExposureDirection.Out
+        ? ("gick in", "kom ut")
+        : ("kom ut", "gick in");
 
     /// <summary>Divides two whole numbers as a share, exactly enough for a percentage.</summary>
     /// <param name="part">The part.</param>

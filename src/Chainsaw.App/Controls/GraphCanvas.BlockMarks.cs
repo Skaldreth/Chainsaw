@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Media;
 using Chainsaw.App.Graph;
+using Chainsaw.Modules.Chains.Contracts;
 using static Chainsaw.App.Controls.Freezing;
 
 namespace Chainsaw.App.Controls;
@@ -32,6 +33,15 @@ public sealed partial class GraphCanvas
 
     /// <summary>Where the open box's <em>?</em> stood on screen, so that a click on it opens the Guide.</summary>
     private Rect? _markGuide;
+
+    /// <summary>The open or hovered mark's box on screen as last drawn, so that a press in it does not close it.</summary>
+    private Rect? _markFrame;
+
+    /// <summary>
+    /// Where the open box's links in the rows <em>Ersatt av …</em> stood on screen, with their line and replacer, so
+    /// that a click on one follows that replacer or takes the choice back.
+    /// </summary>
+    private readonly List<(Rect Area, string EdgeKey, Txid Replacer)> _markReplacementLinks = [];
 
     /// <summary>
     /// Draws a line's block mark in the corner of its amount, and strikes the amount through when the transaction is
@@ -82,6 +92,8 @@ public sealed partial class GraphCanvas
     private void DrawBlockMarkBox(DrawingContext dc)
     {
         _markGuide = null;
+        _markReplacementLinks.Clear();
+        _markFrame = null;
         var model = _model!;
         var key = _hoveredMark ?? model.OpenBlockMark;
         if (key is null || !model.BlockMarksByLine.TryGetValue(key, out var mark)
@@ -92,10 +104,12 @@ public sealed partial class GraphCanvas
 
         var at = _viewport.ToScreen(new GraphPoint(centre.X, centre.Y));
         var foot = Wrapped(mark.Foot, MarkBoxWidth - (2 * MarkBoxPadding));
-        var height = 40 + (mark.Rows.Count * MarkRowHeight) + foot.Height + 18;
+        var rows = mark.Rows.Count + mark.Replacements.Count;
+        var height = 40 + (rows * MarkRowHeight) + foot.Height + 18;
         var left = Math.Min(at.X + 16, ActualWidth - MarkBoxWidth - 8);
         var top = Math.Clamp(at.Y - 12, 8, Math.Max(8, ActualHeight - height - 8));
         var frame = new Rect(left, top, MarkBoxWidth, height);
+        _markFrame = frame;
         DrawFloatingBox(dc, frame);
         dc.PushClip(new RectangleGeometry(frame, CardRadius, CardRadius));
         DrawMarkBoxHead(dc, mark, frame);
@@ -103,6 +117,12 @@ public sealed partial class GraphCanvas
         foreach (var row in mark.Rows)
         {
             DrawMarkRow(dc, row, frame, rowTop);
+            rowTop += MarkRowHeight;
+        }
+
+        foreach (var replacement in mark.Replacements)
+        {
+            DrawReplacementRow(dc, replacement, key, frame, rowTop);
             rowTop += MarkRowHeight;
         }
 
@@ -169,20 +189,71 @@ public sealed partial class GraphCanvas
         dc.DrawText(when, new Point(frame.Right - MarkBoxPadding - when.Width, middle - (when.Height / 2)));
     }
 
-    /// <summary>Takes a press on a block mark (opens or closes its box) or on the open box's <em>?</em>.</summary>
+    /// <summary>
+    /// Draws the row that names what replaced a gone transaction (<em>Ersatt av …</em>) with its block, and the link
+    /// that follows it, or takes the choice back, at the right, only while it can be used (principle 7).
+    /// </summary>
+    /// <param name="dc">Where to draw.</param>
+    /// <param name="replacement">The row.</param>
+    /// <param name="edgeKey">The line the box belongs to.</param>
+    /// <param name="frame">The box.</param>
+    /// <param name="top">The row's top.</param>
+    private void DrawReplacementRow(
+        DrawingContext dc, BlockMarkReplacement replacement, string edgeKey, Rect frame, double top)
+    {
+        dc.DrawLine(PenOf(Ink("Brush.Card.Rule"), 1), new Point(frame.X, top), new Point(frame.Right, top));
+        var middle = top + (MarkRowHeight / 2);
+        var left = frame.X + MarkBoxPadding;
+        DrawScreenGlyph(dc, "Icon.ArrowRight", Ink("Brush.Text"), new Point(left, middle - 6.5), 13);
+        var linkLeft = frame.Right - MarkBoxPadding;
+        if (_model!.CanChooseReplacement(replacement))
+        {
+            var link = Text(replacement.LinkText, 11.5, Ink("Brush.Accent"), FontWeights.SemiBold);
+            linkLeft -= link.Width;
+            dc.DrawText(link, new Point(linkLeft, middle - (link.Height / 2)));
+            _markReplacementLinks.Add(
+                (new Rect(linkLeft - 6, top, link.Width + 12, MarkRowHeight), edgeKey, replacement.Replacer));
+        }
+
+        var room = Math.Max(1, linkLeft - 10 - (left + 23));
+        var text = CachedFitted(replacement.Text, 12, Ink("Brush.Text"), FontWeights.Normal, room);
+        dc.DrawText(text, new Point(left + 23, middle - (text.Height / 2)));
+    }
+
+    /// <summary>
+    /// Takes a press on a block mark (opens or closes its box), on the open box's <em>?</em> or in the box (which
+    /// leaves it open). A press anywhere else closes an open box and goes on to the graph as usual.
+    /// </summary>
     /// <param name="screen">The press on screen.</param>
     /// <param name="surface">The press on the surface.</param>
-    /// <returns><see langword="true"/> when a mark took the press.</returns>
+    /// <returns><see langword="true"/> when a mark or its box took the press.</returns>
     private bool PressBlockMark(GraphPoint screen, GraphPoint surface)
     {
-        if (_markGuide is { } guide && guide.Contains(new Point(screen.X, screen.Y)))
+        var point = new Point(screen.X, screen.Y);
+        if (_markGuide is { } guide && guide.Contains(point))
         {
             _model!.OpenBlockMarkGuide();
             return true;
         }
 
+        foreach (var link in _markReplacementLinks.Where(link => link.Area.Contains(point)))
+        {
+            _ = _model!.ChooseReplacementAsync(link.EdgeKey, link.Replacer);
+            return true;
+        }
+
+        if (_model!.OpenBlockMark is not null && _markFrame is { } frame && frame.Contains(point))
+        {
+            return true;
+        }
+
         if (MarkAt(surface) is not { } key)
         {
+            if (_model.OpenBlockMark is not null)
+            {
+                _model.ToggleBlockMark(null);
+            }
+
             return false;
         }
 

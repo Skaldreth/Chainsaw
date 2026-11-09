@@ -110,6 +110,7 @@ public static class ReportSelection
         if (trails.Count > 0)
         {
             conclusions.Add(MethodConclusion(scene.MethodText));
+            conclusions.AddRange(SwapConclusions(scene, trails));
         }
 
         return new ReportMaterial(
@@ -292,12 +293,55 @@ public static class ReportSelection
         {
             LabelSource.Own => $"egen etikett {day}",
             LabelSource.SanctionList => $"{origin.SourceName}{version}, kontrollerad {day}",
-            LabelSource.OpenSource => $"öppen källa {origin.SourceName}{version}, hämtad {day}",
+            LabelSource.OpenSource => $"öppen källa {origin.SourceName}{version}{LicenseOf(origin)}, läst {day}",
             LabelSource.Behaviour => $"beteende enligt {origin.SourceName}{version}, {day}",
             LabelSource.Provider => $"{origin.SourceName}{version}, hämtad {day}",
             _ => $"{origin.SourceName}{version}, {day}",
         };
         return origin.IsFromOtherCase ? "från ett annat ärende: " + what : what;
+    }
+
+    /// <summary>
+    /// Gives the licence of an open source Chainsaw knows, so that the report gives the attribution its licence asks
+    /// for (Ransomwhere: CC BY 4.0).
+    /// </summary>
+    /// <param name="origin">The origin.</param>
+    /// <returns>The licence after a comma, or nothing.</returns>
+    private static string LicenseOf(LabelOrigin origin) =>
+        OpenSourceLicenses.Of(origin) is { } license ? $" ({license})" : string.Empty;
+
+    /// <summary>
+    /// Says, for each swap on the trails, what the rule <see cref="SwapValue"/> did there (sketch SW1a): that the
+    /// traced value follows into the new asset, with the share, or that the trail ends in the swap by the user's
+    /// choice. The choice's reason never comes along, since it is the user's free text.
+    /// </summary>
+    /// <param name="scene">The graph shown, with its trace.</param>
+    /// <param name="trails">The trails.</param>
+    /// <returns>The conclusions, in chain order of the swaps.</returns>
+    private static IEnumerable<ReportConclusion> SwapConclusions(GraphScene scene, IReadOnlyList<ReportTrail> trails)
+    {
+        var steps = trails.SelectMany(trail => trail.Steps).Select(step => step.Transaction)
+            .ToHashSet(StringComparer.Ordinal);
+        foreach (var conversion in scene.Snapshot.AccountTrace?.Swaps ?? [])
+        {
+            var swap = conversion.Swap;
+            if (!steps.Contains(swap.Transaction.Value))
+            {
+                continue;
+            }
+
+            var pill = SwapMarks.Of(swap).Text;
+            var venue = swap.Venue is { } known ? $" genom {known.Name}" : string.Empty;
+            yield return conversion.Follows
+                ? new ReportConclusion(
+                    $"Värdet följer med genom swappen ({pill}) i tx {swap.Transaction.Value}.",
+                    $"{SwapValue.Analysis}: {conversion.ShareText} av det som gick in var spårat enligt "
+                        + $"{conversion.Method}, och samma andel av det som kom ut{venue} räknas som spårat; "
+                        + (conversion.Price ?? SwapValue.CheckPrice(swap, null)).Summary)
+                : new ReportConclusion(
+                    $"Spåret slutar i swappen ({pill}) i tx {swap.Transaction.Value}.",
+                    $"utredaren valde att värdet inte följer med genom swappen ({SwapValue.Analysis} gäller annars)");
+        }
     }
 
     /// <summary>Says that the traced amounts are counted by the method, and so are a judgement.</summary>

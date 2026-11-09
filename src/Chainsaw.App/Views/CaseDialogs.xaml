@@ -809,7 +809,7 @@
                                                    Foreground="{StaticResource Brush.TextDim}" VerticalAlignment="Center" />
                                         <TextBlock Text="Arbetskopian" FontSize="14" FontWeight="SemiBold" Margin="10,0,0,0" />
                                     </DockPanel>
-                                    <TextBlock Text="{x:Static vm:CaseBranchViewModel.CopyHint}"
+                                    <TextBlock Text="{Binding CopyHint}"
                                                Style="{StaticResource Dialog.Hint}" Margin="0,6,0,0" />
                                     <Grid Margin="0,10,0,0" Visibility="{Binding ChoosesCopy, Converter={StaticResource Visible}}">
                                         <TextBox x:Name="BranchNumberBox" Style="{StaticResource TextBox.Field}" Height="32"

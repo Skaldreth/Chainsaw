@@ -8,9 +8,13 @@ namespace Chainsaw.Modules.Pricing;
 
 /// <summary>
 /// Bitstamp's public price history (<c>GET /api/v2/ohlc/{market}/</c>), open without an API key, with candles of a
-/// minute, an hour or a day back to 2011 for BTC/USD and BTC/EUR, and for ETH, USDT and USDC (on Ethereum) in dollars
-/// and euro. One request asks for one candle: <c>step</c> is the length in seconds, <c>limit=1</c> and <c>start</c>
-/// the candle's start as Unix time.
+/// minute, an hour or a day back to 2011 for BTC/USD and BTC/EUR, and for ETH, TRX, LTC, BNB, USDT and USDC (on
+/// Ethereum, USDT on TRON, both on BSC and both on Solana) in dollars and euro (markets read 2026-11-09: <c>ltceur</c>,
+/// <c>bnbeur</c> and <c>soleur</c> among them; <c>soleur</c> answers from 2022 on, nothing for May 2022 and a candle
+/// for September 2022), and ZEC, whose <c>zeceur</c> has candles only from 2026-03-31 and trades thinly (days with
+/// volume 0, read 2026-11-09), so a ZEC rate is often missing and that is said. One request asks for one candle:
+/// <c>step</c> is the length in seconds,
+/// <c>limit=1</c> and <c>start</c> the candle's start as Unix time.
 /// </summary>
 /// <param name="baseUri">The API's base address, for example <c>https://www.bitstamp.net/api/v2/</c>.</param>
 internal sealed class BitstampRateSource(Uri baseUri) : ICryptoRateSource
@@ -29,18 +33,31 @@ internal sealed class BitstampRateSource(Uri baseUri) : ICryptoRateSource
 
     /// <summary>
     /// The tokens Bitstamp has markets for, recognised by chain and contract (never by symbol), with Bitstamp's code
-    /// for each: USDT and USDC on Ethereum, the stablecoins it lists against dollars and euro
-    /// (<c>usdtusd</c>, <c>usdteur</c>, <c>usdcusd</c>, <c>usdceur</c>).
+    /// for each: USDT and USDC on Ethereum and USDT on TRON, the stablecoins it lists against dollars and euro
+    /// (<c>usdtusd</c>, <c>usdteur</c>, <c>usdcusd</c>, <c>usdceur</c>). Bitstamp's USDT is Tether's token whatever
+    /// chain it is issued on, so the same market prices it on Ethereum and on TRON. On BSC, USDT and USDC are
+    /// Binance's bridged tokens, each backed one to one by the token it bridges; Bitstamp has no market of their own,
+    /// so they are priced by the token they stand for, which the rate's source says (principle 2: a rate is a
+    /// judgement with its source). On Solana, USDT and USDC are Tether's and Circle's own tokens (their mints'
+    /// authorities are the issuers'), priced by the same markets.
     /// </summary>
     private static readonly Dictionary<Asset, string> Tokens = new()
     {
         [KnownTokens.EthereumUsdt] = "USDT",
         [KnownTokens.EthereumUsdc] = "USDC",
+        [KnownTokens.TronUsdt] = "USDT",
+        [KnownTokens.BscUsdt] = "USDT",
+        [KnownTokens.BscUsdc] = "USDC",
+        [KnownTokens.SolanaUsdt] = "USDT",
+        [KnownTokens.SolanaUsdc] = "USDC",
     };
 
     /// <inheritdoc/>
     public bool Supports(Chain chain, FiatCurrency quote) =>
-        chain is Chain.Bitcoin or Chain.Ethereum && HasQuote(quote);
+        chain is Chain.Bitcoin or Chain.Ethereum or Chain.Tron or Chain.Litecoin or Chain.Bsc or Chain.Zcash
+            or Chain.Solana
+        && HasQuote(quote);
+
 
     /// <inheritdoc/>
     public bool Supports(Asset asset, FiatCurrency quote)
@@ -70,6 +87,40 @@ internal sealed class BitstampRateSource(Uri baseUri) : ICryptoRateSource
         ReadOnlySpan<byte> body, Asset asset, FiatCurrency quote, PriceResolution resolution,
         DateTimeOffset periodStart) =>
         Read(body, CodeOf(asset), quote, periodStart);
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// Bitstamp answers <c>ohlc</c> with the periods from <c>start</c> on; a market that began later answers with its
+    /// first periods, which then all start after the period asked about. Not checked against Bitstamp's documentation
+    /// (BACKLOG); without such periods the answer is never taken as final.
+    /// </remarks>
+    public bool HistoryStartsAfter(
+        ReadOnlySpan<byte> body, Asset asset, FiatCurrency quote, PriceResolution resolution,
+        DateTimeOffset periodStart)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+        try
+        {
+            using var document = JsonDocument.Parse(body.ToArray());
+            var data = Property(document.RootElement, "data", JsonValueKind.Object);
+            if (!string.Equals(MarketOf(data), $"{CodeOf(asset)}/{quote.Code()}", StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            var starts = Property(data, "ohlc", JsonValueKind.Array).EnumerateArray()
+                .Select(item => Number(Property(item, "timestamp")))
+                .ToList();
+            var end = periodStart.ToUnixTimeSeconds() + resolution.Seconds();
+            return starts.Count > 0 && starts.Min() >= end;
+        }
+        catch (Exception exception) when (exception is JsonException or InvalidOperationException
+            or FormatException or OverflowException or KeyNotFoundException or RateFormatException
+            or NotSupportedException)
+        {
+            return false;
+        }
+    }
 
     /// <summary>Gets whether Bitstamp quotes its markets in a currency: dollars and euro.</summary>
     /// <param name="quote">The currency.</param>

@@ -6,6 +6,7 @@ using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Network.Contracts;
 using Chainsaw.Modules.Security.Contracts;
+using Chainsaw.SharedKernel;
 
 namespace Chainsaw.Modules.Chains;
 
@@ -30,13 +31,35 @@ internal sealed class RawResponseStore(TimeZoneInfo timeZone, string chainName)
     {
     }
 
-    /// <summary>Gives a Bitcoin network's name in the tables.</summary>
+    /// <summary>Gives a UTXO network's name in the tables: Bitcoin's networks, Litecoin's or Zcash's.</summary>
     /// <param name="network">The network.</param>
     /// <returns>For example <c>bitcoin-mainnet</c>.</returns>
-    public static string NameOf(BitcoinNetwork network) => "bitcoin-" + network.ToString().ToLowerInvariant();
+    public static string NameOf(BitcoinNetwork network) => network switch
+    {
+        BitcoinNetwork.Litecoin => LitecoinChainName,
+        BitcoinNetwork.Zcash => ZcashChainName,
+        _ => "bitcoin-" + network.ToString().ToLowerInvariant(),
+    };
+
+    /// <summary>Litecoin's main network in the tables.</summary>
+    public const string LitecoinChainName = "litecoin-mainnet";
+
+    /// <summary>Zcash's main network in the tables.</summary>
+    public const string ZcashChainName = "zcash-mainnet";
 
     /// <summary>Gets the chain's name in the tables, for example <c>bitcoin-mainnet</c>.</summary>
     public string ChainName { get; } = chainName;
+
+    /// <summary>
+    /// Gets the chain of unspent outputs whose transaction ids the indexes hold, so that an id read back carries it:
+    /// Litecoin or Zcash by their names, otherwise Bitcoin (whose indexes are the only others with txids).
+    /// </summary>
+    private Chain UtxoChain { get; } = chainName switch
+    {
+        LitecoinChainName => Chain.Litecoin,
+        ZcashChainName => Chain.Zcash,
+        _ => Chain.Bitcoin,
+    };
 
     /// <summary>The columns read back, in order.</summary>
     private const string SelectColumns =
@@ -168,7 +191,7 @@ internal sealed class RawResponseStore(TimeZoneInfo timeZone, string chainName)
         using var rows = command.ExecuteReader();
         while (rows.Read())
         {
-            if (Txid.TryParse(rows.GetString(0), out var txid))
+            if (Txid.TryParse(UtxoChain, rows.GetString(0), out var txid))
             {
                 txids.Add(txid);
             }
@@ -349,6 +372,63 @@ internal sealed class RawResponseStore(TimeZoneInfo timeZone, string chainName)
         return found;
     }
 
+    /// <summary>
+    /// Gives the hosts of the sealed answers the lookup took as the source not knowing a transaction, after an answer,
+    /// read from the sealed addresses, so that what the case knew then is what counts.
+    /// </summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <param name="txid">The transaction.</param>
+    /// <param name="after">The answer they came after.</param>
+    /// <returns>The hosts, each once, in lower case.</returns>
+    public IReadOnlyList<string> NotFoundHosts(ICaseReader reader, Txid txid, long after)
+    {
+        using var command = reader.CreateCommand(
+            $"""
+            SELECT DISTINCT r.url FROM chains_not_found n
+                JOIN {ChainsSchema.RawResponsesTable} r ON r.sequence = n.sequence AND r.chain = n.chain
+                    AND r.kind = n.kind AND r.subject = n.subject AND r.status_code = $gone
+            WHERE n.chain = $chain AND n.kind = $kind AND n.subject = $txid AND n.sequence > $after
+            """);
+        Add(command, "$chain", ChainName);
+        Add(command, "$kind", ResponseKinds.Transaction);
+        Add(command, "$txid", txid.Value);
+        Add(command, "$gone", NotFoundStatus);
+        Add(command, "$after", after);
+        return HostsOf(command);
+    }
+
+    /// <summary>
+    /// Gives the hosts every sealed answer on the chain came from, read from the sealed addresses: the sources the case
+    /// has heard from, whatever is switched on now.
+    /// </summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <returns>The hosts, each once, in lower case.</returns>
+    public IReadOnlyList<string> AnsweringHosts(ICaseReader reader)
+    {
+        using var command = reader.CreateCommand(
+            $"SELECT MIN(url) FROM {ChainsSchema.RawResponsesTable} WHERE chain = $chain GROUP BY endpoint_id");
+        Add(command, "$chain", ChainName);
+        return HostsOf(command);
+    }
+
+    /// <summary>Reads the hosts of the addresses a command gives in its first column.</summary>
+    /// <param name="command">The command.</param>
+    /// <returns>The hosts, each once, in lower case.</returns>
+    private static List<string> HostsOf(DbCommand command)
+    {
+        var hosts = new HashSet<string>(StringComparer.Ordinal);
+        using var rows = command.ExecuteReader();
+        while (rows.Read())
+        {
+            if (Uri.TryCreate(rows.GetString(0), UriKind.Absolute, out var url))
+            {
+                hosts.Add(url.Host.ToLowerInvariant());
+            }
+        }
+
+        return [.. hosts.Order(StringComparer.Ordinal)];
+    }
+
     /// <summary>Says whether a lookup took a sealed answer as the source not knowing what was asked.</summary>
     /// <param name="reader">The case's reader.</param>
     /// <param name="sequence">The answer's number.</param>
@@ -429,7 +509,6 @@ internal sealed class RawResponseStore(TimeZoneInfo timeZone, string chainName)
             """);
         Add(command, "$chain", ChainName);
         Add(command, "$at", at.ToUnixTimeSeconds());
-        var fastest = (long)pace.Fastest.TotalSeconds;
         long? lowest = null;
         using var rows = command.ExecuteReader();
         while (rows.Read())
@@ -440,13 +519,22 @@ internal sealed class RawResponseStore(TimeZoneInfo timeZone, string chainName)
             }
 
             var received = rows.GetInt64(1);
-            var height = Math.Min(rows.GetInt64(0), (received - pace.Made.ToUnixTimeSeconds()) / fastest);
-            var made = ((received - at.ToUnixTimeSeconds()) / fastest) + 1 + Burst;
+            var height = Math.Min(rows.GetInt64(0), BlocksIn(received - pace.Made.ToUnixTimeSeconds(), pace.Fastest));
+            var made = BlocksIn(received - at.ToUnixTimeSeconds(), pace.Fastest) + 1 + Burst;
             lowest = Math.Max(lowest ?? 0, Math.Max(0, height - made));
         }
 
         return lowest;
     }
+
+    /// <summary>
+    /// Gives how many blocks a chain can make at most in some seconds at its fastest pace, counted in ticks, so that a
+    /// pace under a second (BSC's) is never rounded to zero.
+    /// </summary>
+    /// <param name="seconds">The seconds.</param>
+    /// <param name="fastest">The shortest time between blocks.</param>
+    /// <returns>The blocks.</returns>
+    private static long BlocksIn(long seconds, TimeSpan fastest) => seconds * TimeSpan.TicksPerSecond / fastest.Ticks;
 
     /// <summary>
     /// Gives the highest block the indexes show. The indexes are not sealed, so a height only counts when its row
@@ -502,7 +590,7 @@ internal sealed class RawResponseStore(TimeZoneInfo timeZone, string chainName)
                         continue;
                     }
 
-                    var most = (rows.GetInt64(1) - known.Made.ToUnixTimeSeconds()) / (long)known.Fastest.TotalSeconds;
+                    var most = BlocksIn(rows.GetInt64(1) - known.Made.ToUnixTimeSeconds(), known.Fastest);
                     height = Math.Min(height, Math.Max(0, most));
                 }
 
@@ -612,7 +700,7 @@ internal sealed class RawResponseStore(TimeZoneInfo timeZone, string chainName)
             while (rows.Read())
             {
                 transactions.Add((
-                    Txid.Parse(rows.GetString(0)), rows.IsDBNull(1) ? null : rows.GetInt64(1),
+                    Txid.Parse(UtxoChain, rows.GetString(0)), rows.IsDBNull(1) ? null : rows.GetInt64(1),
                     rows.IsDBNull(2) ? null : rows.GetString(2)));
             }
         }

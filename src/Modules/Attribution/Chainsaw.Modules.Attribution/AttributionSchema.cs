@@ -51,6 +51,19 @@ internal sealed class AttributionSchema : ICaseSchemaContributor
         "label_sequence", "case_number", "journal_sequence", "recorded_utc",
     ];
 
+    /// <summary>The sealed chain of labels on transactions.</summary>
+    public const string TransactionLabelsChain = "attribution.transaction_labels";
+
+    /// <summary>The table of labels on transactions.</summary>
+    public const string TransactionLabelsTable = "attribution_transaction_labels";
+
+    /// <summary>The sealed columns of a label on a transaction or of its taking back, in order.</summary>
+    public static readonly IReadOnlyList<string> TransactionLabelColumns =
+    [
+        "action", "label_sequence", "chain", "transaction_id", "kind", "name", "set_by", "set_utc", "reason", "note",
+        "journal_sequence", "recorded_utc",
+    ];
+
     /// <summary>The first version of the table.</summary>
     private const string Version1 = """
         CREATE TABLE attribution_labels (
@@ -115,6 +128,29 @@ internal sealed class AttributionSchema : ICaseSchemaContributor
         ) STRICT;
         """;
 
+    /// <summary>
+    /// The fourth version: labels on transactions (for example a known swap or bridge), in a chain of their own so that
+    /// the labels on addresses sealed before keep their hashes.
+    /// </summary>
+    private const string Version4 = """
+        CREATE TABLE attribution_transaction_labels (
+            sequence INTEGER PRIMARY KEY,
+            action TEXT NOT NULL,
+            label_sequence INTEGER,
+            chain TEXT NOT NULL,
+            transaction_id TEXT NOT NULL,
+            kind TEXT NOT NULL,
+            name TEXT,
+            set_by TEXT NOT NULL,
+            set_utc TEXT NOT NULL,
+            reason TEXT,
+            note TEXT,
+            journal_sequence INTEGER NOT NULL,
+            recorded_utc TEXT NOT NULL,
+            hash BLOB NOT NULL
+        ) STRICT;
+        """;
+
     /// <inheritdoc/>
     public string Module => ModuleName;
 
@@ -124,6 +160,7 @@ internal sealed class AttributionSchema : ICaseSchemaContributor
             new(1, "Etiketter med ursprung och tillbakatagningar", Version1),
             new(2, "Underleverantörernas svar", Version2),
             new(3, "Ärendet varje kopia från biblioteket sattes i", Version3),
+            new(4, "Etiketter på transaktioner", Version4),
         ];
 
     /// <inheritdoc/>
@@ -132,5 +169,6 @@ internal sealed class AttributionSchema : ICaseSchemaContributor
         new(LabelsChain, LabelsTable, LabelColumns),
         new(ResponsesChain, ResponsesTable, ResponseColumns),
         new(LabelCasesChain, LabelCasesTable, LabelCaseColumns),
+        new(TransactionLabelsChain, TransactionLabelsTable, TransactionLabelColumns),
     ];
 }

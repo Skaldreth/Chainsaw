@@ -72,7 +72,7 @@ internal sealed class FakeGate : IWatchGate
 }
 
 /// <summary>Bitcoin's source from a table of synthetic pages; records every lookup and its mode.</summary>
-internal sealed class FakeBitcoinSource : IBitcoinSource
+internal class FakeBitcoinSource : IBitcoinSource
 {
     /// <summary>The pages of each address, first page first.</summary>
     public Dictionary<string, List<BitcoinAddressPage>> Pages { get; } = [];
@@ -85,7 +85,7 @@ internal sealed class FakeBitcoinSource : IBitcoinSource
 
     public int TipAsked { get; private set; }
 
-    public BitcoinNetwork Network => BitcoinNetwork.Mainnet;
+    public virtual BitcoinNetwork Network => BitcoinNetwork.Mainnet;
 
     /// <summary>Puts the transactions on an address as one page, newest first.</summary>
     public void Holds(BitcoinAddress address, params BitcoinTransaction[] transactions) =>
@@ -112,6 +112,16 @@ internal sealed class FakeBitcoinSource : IBitcoinSource
         var page = index < 0 ? new BitcoinAddressPage(address, after, [], null) : pages[index];
         return Task.FromResult(new BitcoinLookup<BitcoinAddressPage>(LookupStatus.Fetched, page, [Origin(7)], null));
     }
+
+    public Task<BitcoinLookup<BitcoinTip>> GetTipHeightAsync(
+        ICase @case, LookupMode mode, CancellationToken cancellationToken = default)
+    {
+        TipModes.Add(mode);
+        return GetTipHeightAsync(@case, cancellationToken);
+    }
+
+    /// <summary>The modes the height was asked in.</summary>
+    public List<LookupMode> TipModes { get; } = [];
 
     public Task<BitcoinLookup<BitcoinTip>> GetTipHeightAsync(ICase @case, CancellationToken cancellationToken = default)
     {
@@ -165,7 +175,7 @@ internal sealed class FakeBitcoinSource : IBitcoinSource
 }
 
 /// <summary>Ethereum's source from a table of synthetic movements; records every history asked for.</summary>
-internal sealed class FakeEthereumSource : IEthereumSource
+internal class FakeEthereumSource : IEthereumSource
 {
     public Dictionary<(string, EthereumHistory), List<EthereumTransfer>> Histories { get; } = [];
 
@@ -174,6 +184,9 @@ internal sealed class FakeEthereumSource : IEthereumSource
     public List<(string Address, EthereumHistory History, LookupMode Mode)> Asked { get; } = [];
 
     public List<(long Height, LookupMode Mode)> BlocksAsked { get; } = [];
+
+    /// <summary>Gets or sets the transactions every page says the source could not read whole.</summary>
+    public IReadOnlyList<EthereumTxHash> Unexplained { get; set; } = [];
 
     public void Holds(EthereumAddress address, EthereumHistory history, params EthereumTransfer[] transfers) =>
         Histories[(address.Value, history)] = [.. transfers];
@@ -184,7 +197,10 @@ internal sealed class FakeEthereumSource : IEthereumSource
     {
         Asked.Add((address.Value, history, mode));
         var transfers = Histories.GetValueOrDefault((address.Value, history)) ?? [];
-        var page = new EthereumAddressPage(address, history, atOrBelow, transfers, [], null, false, false);
+        var page = new EthereumAddressPage(address, history, atOrBelow, transfers, [], null, false, false)
+        {
+            Unexplained = Unexplained,
+        };
         return Task.FromResult(new BitcoinLookup<EthereumAddressPage>(
             LookupStatus.Fetched, page, [FakeBitcoinSource.Origin(11)], null));
     }
@@ -205,8 +221,128 @@ internal sealed class FakeEthereumSource : IEthereumSource
         CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
     public Task<BitcoinLookup<EthereumTip>> GetTipHeightAsync(
+        ICase @case, LookupMode mode, CancellationToken cancellationToken = default) =>
+        GetTipHeightAsync(@case, cancellationToken);
+
+    public Task<BitcoinLookup<EthereumTip>> GetTipHeightAsync(
         ICase @case, CancellationToken cancellationToken = default) =>
         Task.FromResult(new BitcoinLookup<EthereumTip>(LookupStatus.Fetched, new EthereumTip(21_000_100), [], null));
+}
+
+/// <summary>
+/// TRON's source from a table of synthetic movements, as <see cref="FakeEthereumSource"/>: its pages start at a time,
+/// and its blocks are asked for their hash.
+/// </summary>
+internal sealed class FakeTronSource : ITronSource
+{
+    public Dictionary<(string, EthereumHistory), List<EthereumTransfer>> Histories { get; } = [];
+
+    public Dictionary<long, string> BlockHashes { get; } = [];
+
+    public Dictionary<string, EthereumTransaction> Transactions { get; } = [];
+
+    public List<(string Address, EthereumHistory History, LookupMode Mode)> Asked { get; } = [];
+
+    public long Tip { get; set; } = 80_000_100;
+
+    /// <summary>Gets or sets whether every page says the source could not read it whole (a lookup that failed).</summary>
+    public bool Incomplete { get; set; }
+
+    /// <summary>
+    /// Gets or sets the endpoint whose final answer lacked a known token's event, for an incomplete page that also
+    /// waits for such a transaction; <see langword="null"/> for none.
+    /// </summary>
+    public string? DisputedBy { get; set; }
+
+    /// <summary>Gets or sets when the same endpoint is asked again, when no other is switched on.</summary>
+    public DateTimeOffset? AskedAgainAt { get; set; }
+
+    /// <summary>The transaction a disputed answer is about.</summary>
+    public static EthereumTxHash DisputedTransaction { get; } = EthereumTxHash.Parse(Chain.Tron, new string('f', 64));
+
+    public void Holds(EthereumAddress address, EthereumHistory history, params EthereumTransfer[] transfers) =>
+        Histories[(address.Value, history)] = [.. transfers];
+
+    public long PageStartOf(EthereumBlockReference block) => block.Time.ToUnixTimeMilliseconds();
+
+    /// <summary>The transactions an incomplete page waits for.</summary>
+    private List<EthereumTxHash> Waiting()
+    {
+        List<EthereumTxHash> waiting = [EthereumTxHash.Parse(Chain.Tron, new string('e', 64))];
+        if (DisputedBy is not null)
+        {
+            waiting.Add(DisputedTransaction);
+        }
+
+        return waiting;
+    }
+
+    public Task<BitcoinLookup<EthereumAddressPage>> GetAddressHistoryAsync(
+        ICase @case, EthereumAddress address, EthereumHistory history, long? atOrBelow = null,
+        LookupMode mode = LookupMode.AsNeeded, CancellationToken cancellationToken = default)
+    {
+        Asked.Add((address.Value, history, mode));
+        var transfers = Histories.GetValueOrDefault((address.Value, history)) ?? [];
+        var page = new EthereumAddressPage(address, history, atOrBelow, transfers, [], null, false, Incomplete)
+        {
+            Waiting = Incomplete ? Waiting() : [],
+            Disputed = Incomplete && DisputedBy is { } endpoint
+                ? [new EthereumDisputedAnswer(DisputedTransaction, endpoint) {
+                    AskedAgainAt = AskedAgainAt,
+                    AskedAgainText = AskedAgainAt is null ? string.Empty : "kl. 12:34",
+                }]
+                : [],
+        };
+
+        return Task.FromResult(new BitcoinLookup<EthereumAddressPage>(
+            LookupStatus.Fetched, page, [FakeBitcoinSource.Origin(21)], null));
+
+    }
+
+    public Task<BitcoinLookup<EthereumBlockReference>> GetBlockAsync(
+        ICase @case, long height, LookupMode mode = LookupMode.AsNeeded, CancellationToken cancellationToken = default) =>
+        Task.FromResult(BlockHashes.TryGetValue(height, out var hash)
+            ? new BitcoinLookup<EthereumBlockReference>(
+                LookupStatus.Fetched, new EthereumBlockReference(height, hash, DateTimeOffset.UnixEpoch),
+                [FakeBitcoinSource.Origin(22)], null)
+            : new BitcoinLookup<EthereumBlockReference>(LookupStatus.Failed, null, [], "Inget block."));
+
+    public Task<BitcoinLookup<EthereumTransaction>> GetTransactionAsync(
+        ICase @case, EthereumTxHash hash, LookupMode mode = LookupMode.AsNeeded,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(Transactions.TryGetValue(hash.Value, out var transaction)
+            ? new BitcoinLookup<EthereumTransaction>(
+                LookupStatus.Fetched, transaction, [FakeBitcoinSource.Origin(23)], null)
+            : new BitcoinLookup<EthereumTransaction>(LookupStatus.NotFound, null, [], null));
+
+    /// <summary>Gets the answers a doubted transaction gets when asked again, by its id.</summary>
+    public Dictionary<string, EthereumTransaction> AskedAgain { get; } = [];
+
+    /// <summary>Gets the transactions asked again because their answer was doubted.</summary>
+    public List<string> Doubted { get; } = [];
+
+    public async Task<BitcoinLookup<EthereumTransaction>> GetDoubtedTransactionAsync(
+        ICase @case, EthereumTxHash hash, LookupMode mode = LookupMode.AsNeeded,
+        CancellationToken cancellationToken = default)
+    {
+        Doubted.Add(hash.Value);
+        if (AskedAgain.TryGetValue(hash.Value, out var again))
+        {
+            return new BitcoinLookup<EthereumTransaction>(
+                LookupStatus.Fetched, again, [FakeBitcoinSource.Origin(24)], null);
+        }
+
+        var lookup = await GetTransactionAsync(@case, hash, mode, cancellationToken);
+        return lookup with { Notes = ["Frågas igen hos trongrid.example kl. 12:00."] };
+    }
+
+    public Task<BitcoinLookup<EthereumTip>> GetTipHeightAsync(
+        ICase @case, CancellationToken cancellationToken = default) =>
+        Task.FromResult(new BitcoinLookup<EthereumTip>(LookupStatus.Fetched, new EthereumTip(Tip), [], null));
+
+    public Task<BitcoinLookup<EthereumTip>> GetTipHeightAsync(
+        ICase @case, LookupMode mode, CancellationToken cancellationToken = default) =>
+        GetTipHeightAsync(@case, cancellationToken);
 }
 
 /// <summary>A feed from a table of transactions per address, for the check without the case.</summary>
@@ -288,4 +424,32 @@ internal sealed class FakeProtector : IUserDataProtector
 
         return data;
     }
+}
+
+/// <summary>Litecoin's source, as Bitcoin's fake on Litecoin's network.</summary>
+internal sealed class FakeLitecoinSource : FakeBitcoinSource, ILitecoinSource
+{
+    public override BitcoinNetwork Network => BitcoinNetwork.Litecoin;
+}
+
+/// <summary>Zcash's source, as Bitcoin's fake on Zcash's network.</summary>
+internal sealed class FakeZcashSource : FakeBitcoinSource, IZcashSource
+{
+    public override BitcoinNetwork Network => BitcoinNetwork.Zcash;
+}
+
+/// <summary>BSC's source, as Ethereum's fake on BSC.</summary>
+internal sealed class FakeBscSource : FakeEthereumSource, IBscSource
+{
+    public Chain Chain => Chain.Bsc;
+
+    public long PageStartOf(EthereumBlockReference block) => block.Height;
+}
+
+/// <summary>Solana's source, as Ethereum's fake on Solana: its pages go back by slot.</summary>
+internal sealed class FakeSolanaSource : FakeEthereumSource, ISolanaSource
+{
+    public Chain Chain => Chain.Solana;
+
+    public long PageStartOf(EthereumBlockReference block) => block.Height;
 }

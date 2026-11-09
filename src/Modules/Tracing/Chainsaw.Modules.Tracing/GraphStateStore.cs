@@ -1,4 +1,5 @@
 using System.Data.Common;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text.Json;
 using Chainsaw.Modules.Cases.Contracts;
@@ -17,11 +18,41 @@ internal static class GraphStateStore
     /// <summary>The kind of a start point or expansion at a transaction.</summary>
     public const string TransactionKind = "transaction";
 
+    /// <summary>The kind of a start point or expansion at a Litecoin address.</summary>
+    public const string LitecoinAddressKind = "litecoin-address";
+
+    /// <summary>The kind of a start point or expansion at a Litecoin transaction.</summary>
+    public const string LitecoinTransactionKind = "litecoin-transaction";
+
+    /// <summary>The kind of a start point or expansion at a transparent Zcash address.</summary>
+    public const string ZcashAddressKind = "zcash-address";
+
+    /// <summary>The kind of a start point or expansion at a Zcash transaction.</summary>
+    public const string ZcashTransactionKind = "zcash-transaction";
+
     /// <summary>The kind of a start point or expansion at an Ethereum address.</summary>
     public const string EthereumAddressKind = "ethereum-address";
 
     /// <summary>The kind of a start point or expansion at an Ethereum transaction.</summary>
     public const string EthereumTransactionKind = "ethereum-transaction";
+
+    /// <summary>The kind of a start point or expansion at a TRON address.</summary>
+    public const string TronAddressKind = "tron-address";
+
+    /// <summary>The kind of a start point or expansion at a TRON transaction.</summary>
+    public const string TronTransactionKind = "tron-transaction";
+
+    /// <summary>The kind of a start point or expansion at an address on BSC.</summary>
+    public const string BscAddressKind = "bsc-address";
+
+    /// <summary>The kind of a start point or expansion at a transaction on BSC.</summary>
+    public const string BscTransactionKind = "bsc-transaction";
+
+    /// <summary>The kind of a start point or expansion at a Solana address.</summary>
+    public const string SolanaAddressKind = "solana-address";
+
+    /// <summary>The kind of a start point or expansion at a Solana transaction.</summary>
+    public const string SolanaTransactionKind = "solana-transaction";
 
     /// <summary>The action of a sealed record that links a coin to another chain.</summary>
     public const string LinkAction = "link";
@@ -36,6 +67,8 @@ internal static class GraphStateStore
         new(ReadStartPoints(reader), ReadExpansions(reader), ReadLinks(reader), ReadPositions(reader))
         {
             Picked = ReadPicked(reader),
+            SwapStops = SwapStopStore.ReadInForce(reader),
+            Replacements = ReplacementFollowStore.ReadInForce(reader),
         };
 
     /// <summary>Remembers that actors were picked out of their piles; one picked already stays as it was.</summary>
@@ -91,17 +124,21 @@ internal static class GraphStateStore
     {
         if (startPoint.Address is { } address)
         {
-            return (AddressKind, address.Value);
+            return (UtxoKind(address.Chain, address: true), address.Value);
         }
 
         if (startPoint.Txid is { } txid)
         {
-            return (TransactionKind, txid.Value);
+            return (UtxoKind(txid.Chain, address: false), txid.Value);
         }
 
-        return startPoint.EthereumAddress is { } account
-            ? (EthereumAddressKind, account.Value)
-            : (EthereumTransactionKind, startPoint.EthereumTransaction!.Value);
+        if (startPoint.EthereumAddress is { } account)
+        {
+            return (AccountKind(account.Chain, address: true), account.Value);
+        }
+
+        var hash = startPoint.EthereumTransaction!;
+        return (AccountKind(hash.Chain, address: false), hash.Value);
     }
 
     /// <summary>Says whether a start point is stored.</summary>
@@ -177,7 +214,7 @@ internal static class GraphStateStore
 
         expansion = expansion with { FirstExpandedUtc = expansion.FirstExpandedUtc ?? expansion.ExpandedUtc };
 
-        IEnumerable<string> brought = kind is EthereumAddressKind or EthereumTransactionKind
+        IEnumerable<string> brought = AccountChainOf(kind) is not null
             ? expansion.EthereumTransactions.Select(hash => hash.Value)
             : expansion.Transactions.Select(txid => txid.Value);
 
@@ -295,16 +332,41 @@ internal static class GraphStateStore
     /// <param name="to">The other chain's transaction.</param>
     /// <param name="reason">Why.</param>
     /// <param name="journal">The journal entry that records it.</param>
+    /// <param name="origin">The approved suggestion it comes from, or <see langword="null"/> when made by hand.</param>
     /// <returns>The link.</returns>
     public static CrossChainLink SealLink(
-        ICaseTransaction transaction, Outpoint from, ChainTransactionRef to, string reason, JournalEntry journal)
+        ICaseTransaction transaction,
+        Outpoint from,
+        ChainTransactionRef to,
+        string reason,
+        JournalEntry journal,
+        CrossChainOrigin? origin = null)
     {
         var record = transaction.AppendSealed(
             TracingSchema.CrossChainChain,
-            [LinkAction, null, from.Txid.Value, (long)from.Index, to.Chain.ToString(), to.Id, reason,
-                journal.Sequence, Text(journal.Utc)]);
-        return new CrossChainLink(record.Sequence, from, to, reason, journal.Sequence, journal.Utc);
+            [LinkAction, null, CoinText(from.Txid), (long)from.Index, to.Chain.ToString(), to.Id, reason,
+                journal.Sequence, Text(journal.Utc), origin?.ToString()]);
+        return new CrossChainLink(record.Sequence, from, to, reason, journal.Sequence, journal.Utc)
+        {
+            Origin = origin,
+        };
     }
+
+    /// <summary>
+    /// Writes a coin's transaction as a link's or a choice's record stores it (<see cref="Txid.Stored"/>): Bitcoin's
+    /// txid as it is, as always, and another UTXO chain's with the chain before it. A movement's kind is never a
+    /// chain's name, so the two never mix.
+    /// </summary>
+    /// <param name="txid">The transaction.</param>
+    /// <returns>The stored text.</returns>
+    public static string CoinText(Txid txid) => txid.Stored;
+
+    /// <summary>Reads a coin's transaction as <see cref="CoinText"/> wrote it.</summary>
+    /// <param name="text">The stored text.</param>
+    /// <param name="txid">The transaction, when the text is one.</param>
+    /// <returns><see langword="true"/> when the text is a coin's transaction on a UTXO chain.</returns>
+    public static bool TryReadCoinText(string text, [NotNullWhen(true)] out Txid? txid) =>
+        Txid.TryParseStored(text, out txid);
 
     /// <summary>
     /// Seals a link from an Ethereum movement to another chain. The movement is stored in the same columns as a coin:
@@ -316,25 +378,40 @@ internal static class GraphStateStore
     /// <param name="to">The other chain's transaction.</param>
     /// <param name="reason">Why.</param>
     /// <param name="journal">The journal entry that records it.</param>
+    /// <param name="origin">The approved suggestion it comes from, or <see langword="null"/> when made by hand.</param>
     /// <returns>The link.</returns>
     public static CrossChainLink SealLink(
-        ICaseTransaction transaction, AccountSeed from, ChainTransactionRef to, string reason, JournalEntry journal)
+        ICaseTransaction transaction,
+        AccountSeed from,
+        ChainTransactionRef to,
+        string reason,
+        JournalEntry journal,
+        CrossChainOrigin? origin = null)
     {
         var record = transaction.AppendSealed(
             TracingSchema.CrossChainChain,
             [LinkAction, null, MovementText(from), from.Position, to.Chain.ToString(), to.Id, reason,
-                journal.Sequence, Text(journal.Utc)]);
+                journal.Sequence, Text(journal.Utc), origin?.ToString()]);
         return new CrossChainLink(record.Sequence, null, to, reason, journal.Sequence, journal.Utc)
         {
             FromTransfer = from,
+            Origin = origin,
         };
     }
 
-    /// <summary>Writes an Ethereum movement's kind and transaction as the link's record stores them.</summary>
+    /// <summary>
+    /// Writes an account movement's kind and transaction as the link's record stores them. Ethereum's hash begins
+    /// with <c>0x</c> and TRON's does not; BSC's is written as Ethereum's, so it carries its chain before it; Solana's
+    /// is a signature in Base58, which neither is.
+    /// </summary>
     /// <param name="from">The movement.</param>
-    /// <returns>For example <c>token:0x…</c>.</returns>
+    /// <returns>For example <c>token:0x…</c>, or <c>token:bsc:0x…</c> on BSC.</returns>
     private static string MovementText(AccountSeed from) =>
-        from.Kind.ToString().ToLowerInvariant() + ":" + from.Transaction.Value;
+        from.Kind.ToString().ToLowerInvariant() + ":"
+        + (from.Transaction.Chain == Chain.Bsc ? BscMovementPrefix : string.Empty) + from.Transaction.Value;
+
+    /// <summary>What a stored movement's hash on BSC begins with.</summary>
+    private const string BscMovementPrefix = "bsc:";
 
     /// <summary>Reads where a stored link's money left: a coin, or an Ethereum movement.</summary>
     /// <param name="text">The stored txid or movement.</param>
@@ -342,14 +419,38 @@ internal static class GraphStateStore
     /// <returns>The coin or the movement.</returns>
     private static (Outpoint? Coin, AccountSeed? Movement) ReadFrom(string text, long index)
     {
-        var colon = text.IndexOf(':', StringComparison.Ordinal);
-        if (colon < 0)
+        if (TryReadCoinText(text, out var txid))
         {
-            return (new Outpoint(Txid.Parse(text), checked((int)index)), null);
+            return (new Outpoint(txid, checked((int)index)), null);
         }
 
+        var colon = text.IndexOf(':', StringComparison.Ordinal);
+
         var kind = Enum.Parse<EthereumTransferKind>(text[..colon], ignoreCase: true);
-        return (null, new AccountSeed(EthereumTxHash.Parse(text[(colon + 1)..]), kind, index));
+        // Ethereum's hashes begin with 0x and TRON's do not, and BSC's carry their chain, so the text says its chain.
+        var hash = text[(colon + 1)..];
+        return (null, new AccountSeed(MovementHash(hash), kind, index));
+    }
+
+    /// <summary>Reads a stored movement's transaction on its chain.</summary>
+    /// <param name="hash">The stored hash, after the kind.</param>
+    /// <returns>The transaction.</returns>
+    private static EthereumTxHash MovementHash(string hash)
+    {
+        if (hash.StartsWith(BscMovementPrefix, StringComparison.Ordinal))
+        {
+            return EthereumTxHash.Parse(Chain.Bsc, hash[BscMovementPrefix.Length..]);
+        }
+
+        if (EthereumTxHash.TryParse(hash, out var ethereum))
+        {
+            return ethereum;
+        }
+
+        // A Solana signature is Base58 (up to 88 characters), which no TRON id (64 hex digits) is.
+        return EthereumTxHash.TryParse(Chain.Solana, hash, out var solana)
+            ? solana
+            : EthereumTxHash.Parse(Chain.Tron, hash);
     }
 
     /// <summary>
@@ -366,9 +467,10 @@ internal static class GraphStateStore
         transaction.AppendSealed(
             TracingSchema.CrossChainChain,
             [UnlinkAction, link.Sequence,
-                link.From is { } coin ? coin.Txid.Value : MovementText(link.FromTransfer!),
+                link.From is { } coin ? CoinText(coin.Txid) : MovementText(link.FromTransfer!),
                 link.From is { } output ? output.Index : link.FromTransfer!.Position,
-                link.To.Chain.ToString(), link.To.Id, reason ?? string.Empty, journal.Sequence, Text(journal.Utc)]);
+                link.To.Chain.ToString(), link.To.Id, reason ?? string.Empty, journal.Sequence, Text(journal.Utc),
+                null]);
     }
 
     /// <summary>Reads the start points.</summary>
@@ -382,13 +484,16 @@ internal static class GraphStateStore
         var startPoints = new List<TraceStartPoint>();
         while (rows.Read())
         {
-            var subject = rows.GetString(1);
-            startPoints.Add(rows.GetString(0) switch
+            var (kind, subject) = (rows.GetString(0), rows.GetString(1));
+            startPoints.Add(kind switch
             {
-                AddressKind => TraceStartPoint.ForAddress(BitcoinAddress.Parse(subject)),
-                EthereumAddressKind => TraceStartPoint.ForEthereumAddress(EthereumAddress.Parse(subject)),
-                EthereumTransactionKind => TraceStartPoint.ForEthereumTransaction(EthereumTxHash.Parse(subject)),
-                _ => TraceStartPoint.ForTransaction(Txid.Parse(subject)),
+                AddressKind or LitecoinAddressKind or ZcashAddressKind =>
+                    TraceStartPoint.ForAddress(BitcoinAddress.Parse(UtxoChainOf(kind), subject)),
+                EthereumAddressKind or TronAddressKind or BscAddressKind or SolanaAddressKind =>
+                    TraceStartPoint.ForEthereumAddress(EthereumAddress.Parse(AccountChainOf(kind)!.Value, subject)),
+                EthereumTransactionKind or TronTransactionKind or BscTransactionKind or SolanaTransactionKind =>
+                    TraceStartPoint.ForEthereumTransaction(EthereumTxHash.Parse(AccountChainOf(kind)!.Value, subject)),
+                _ => TraceStartPoint.ForTransaction(Txid.Parse(UtxoChainOf(kind), subject)),
             });
         }
 
@@ -420,25 +525,35 @@ internal static class GraphStateStore
                 : new ExpansionHoldBack(
                     rows.IsDBNull(6) ? transactions.Count : checked((int)rows.GetInt64(6)),
                     rows.IsDBNull(7) ? null : rows.GetInt64(7));
+            var utxo = AccountChainOf(kind) is null ? UtxoChainOf(kind) : Chain.Bitcoin;
+            var coins = AccountChainOf(kind) is null
+                ? transactions.Select(txid => Txid.Parse(utxo, txid)).ToList()
+                : [];
             expansions.Add((kind switch
             {
-                AddressKind => new Expansion(
-                    BitcoinAddress.Parse(subject), null, [.. transactions.Select(Txid.Parse)], complete, utc),
-                EthereumAddressKind => new Expansion(null, null, [], complete, utc)
+                AddressKind or LitecoinAddressKind or ZcashAddressKind => new Expansion(
+                    BitcoinAddress.Parse(utxo, subject), null, coins, complete, utc),
+                EthereumAddressKind or TronAddressKind or BscAddressKind or SolanaAddressKind =>
+                    new Expansion(null, null, [], complete, utc)
                 {
-                    EthereumAddress = EthereumAddress.Parse(subject),
-                    EthereumTransactions = [.. transactions.Select(EthereumTxHash.Parse)],
+                    EthereumAddress = EthereumAddress.Parse(AccountChainOf(kind)!.Value, subject),
+                    EthereumTransactions = AccountHashes(kind, transactions),
                 },
-                EthereumTransactionKind => new Expansion(null, null, [], complete, utc)
-                {
-                    EthereumTransaction = EthereumTxHash.Parse(subject),
-                    EthereumTransactions = [.. transactions.Select(EthereumTxHash.Parse)],
-                },
-                _ => new Expansion(null, Txid.Parse(subject), [.. transactions.Select(Txid.Parse)], complete, utc),
+                EthereumTransactionKind or TronTransactionKind or BscTransactionKind or SolanaTransactionKind =>
+                    new Expansion(null, null, [], complete, utc)
+                    {
+                        EthereumTransaction = EthereumTxHash.Parse(AccountChainOf(kind)!.Value, subject),
+                        EthereumTransactions = AccountHashes(kind, transactions),
+                    },
+                _ => new Expansion(null, Txid.Parse(utxo, subject), coins, complete, utc),
             }) with
             {
                 HeldBack = heldBack,
-                Chosen = [.. (JsonSerializer.Deserialize<List<string>>(rows.GetString(8)) ?? []).Select(Txid.Parse)],
+                Chosen =
+                [
+                    .. (JsonSerializer.Deserialize<List<string>>(rows.GetString(8)) ?? [])
+                        .Select(txid => Txid.Parse(utxo, txid)),
+                ],
                 FirstExpandedUtc = rows.IsDBNull(9) ? utc : Time(rows, 9),
             });
         }
@@ -459,7 +574,7 @@ internal static class GraphStateStore
     {
         using var command = reader.CreateCommand("""
             SELECT sequence, action, link_sequence, from_txid, from_output, to_chain, to_id, reason, journal_sequence,
-                   recorded_utc
+                   recorded_utc, origin
             FROM tracing_cross_chain ORDER BY sequence
             """);
         using var rows = command.ExecuteReader();
@@ -485,6 +600,7 @@ internal static class GraphStateStore
                 Time(rows, 9))
             {
                 FromTransfer = movement,
+                Origin = CrossChainOrigin.Parse(rows.IsDBNull(10) ? null : rows.GetString(10)),
             });
         }
 
@@ -532,17 +648,88 @@ internal static class GraphStateStore
     /// <returns>The kind.</returns>
     private static string KindOf(Expansion expansion)
     {
-        if (expansion.Address is not null)
+        if (expansion.Address is { } address)
         {
-            return AddressKind;
+            return UtxoKind(address.Chain, address: true);
         }
 
-        if (expansion.Txid is not null)
+        if (expansion.Txid is { } txid)
         {
-            return TransactionKind;
+            return UtxoKind(txid.Chain, address: false);
         }
 
-        return expansion.EthereumAddress is not null ? EthereumAddressKind : EthereumTransactionKind;
+        return expansion.EthereumAddress is { } account
+            ? AccountKind(account.Chain, address: true)
+            : AccountKind(expansion.EthereumTransaction!.Chain, address: false);
+    }
+
+    /// <summary>Gives the kind of a start point or expansion on an account chain.</summary>
+    /// <param name="chain">The chain: Ethereum or TRON.</param>
+    /// <param name="address">Whether it is at an address; otherwise at a transaction.</param>
+    /// <returns>The kind.</returns>
+    /// <exception cref="ArgumentException">The chain is not an account chain Chainsaw reads.</exception>
+    private static string AccountKind(Chain chain, bool address) => (chain, address) switch
+    {
+        (Chain.Ethereum, true) => EthereumAddressKind,
+        (Chain.Ethereum, false) => EthereumTransactionKind,
+        (Chain.Tron, true) => TronAddressKind,
+        (Chain.Tron, false) => TronTransactionKind,
+        (Chain.Bsc, true) => BscAddressKind,
+        (Chain.Bsc, false) => BscTransactionKind,
+        (Chain.Solana, true) => SolanaAddressKind,
+        (Chain.Solana, false) => SolanaTransactionKind,
+        _ => throw new ArgumentException("Not an account chain Chainsaw reads.", nameof(chain)),
+    };
+
+    /// <summary>
+    /// Gives the kind of a start point or expansion on a UTXO chain: Bitcoin's kinds as they always were, and
+    /// Litecoin's and Zcash's with the chain before them.
+    /// </summary>
+    /// <param name="chain">The chain: Bitcoin, Litecoin or Zcash.</param>
+    /// <param name="address">Whether it is at an address; otherwise at a transaction.</param>
+    /// <returns>The kind.</returns>
+    /// <exception cref="ArgumentException">The chain is not a UTXO chain Chainsaw reads.</exception>
+    private static string UtxoKind(Chain chain, bool address) => (chain, address) switch
+    {
+        (Chain.Bitcoin, true) => AddressKind,
+        (Chain.Bitcoin, false) => TransactionKind,
+        (Chain.Litecoin, true) => LitecoinAddressKind,
+        (Chain.Litecoin, false) => LitecoinTransactionKind,
+        (Chain.Zcash, true) => ZcashAddressKind,
+        (Chain.Zcash, false) => ZcashTransactionKind,
+        _ => throw new ArgumentException("Not a UTXO chain Chainsaw reads.", nameof(chain)),
+    };
+
+    /// <summary>Gives the UTXO chain a stored kind that is not an account chain's is on.</summary>
+    /// <param name="kind">The kind.</param>
+    /// <returns>Litecoin or Zcash for their kinds, otherwise Bitcoin.</returns>
+    private static Chain UtxoChainOf(string kind) => kind switch
+    {
+        LitecoinAddressKind or LitecoinTransactionKind => Chain.Litecoin,
+        ZcashAddressKind or ZcashTransactionKind => Chain.Zcash,
+        _ => Chain.Bitcoin,
+    };
+
+    /// <summary>Gives the account chain a stored kind is on.</summary>
+    /// <param name="kind">The kind.</param>
+    /// <returns>The chain, or <see langword="null"/> for Bitcoin's kinds.</returns>
+    private static Chain? AccountChainOf(string kind) => kind switch
+    {
+        EthereumAddressKind or EthereumTransactionKind => Chain.Ethereum,
+        TronAddressKind or TronTransactionKind => Chain.Tron,
+        BscAddressKind or BscTransactionKind => Chain.Bsc,
+        SolanaAddressKind or SolanaTransactionKind => Chain.Solana,
+        _ => null,
+    };
+
+    /// <summary>Reads the stored transactions of an expansion on an account chain.</summary>
+    /// <param name="kind">The expansion's kind.</param>
+    /// <param name="transactions">The stored transactions.</param>
+    /// <returns>The transactions on the kind's chain.</returns>
+    private static List<EthereumTxHash> AccountHashes(string kind, IEnumerable<string> transactions)
+    {
+        var chain = AccountChainOf(kind)!.Value;
+        return [.. transactions.Select(hash => EthereumTxHash.Parse(chain, hash))];
     }
 
     /// <summary>Writes a time the way the module stores times: round-trip ISO 8601.</summary>

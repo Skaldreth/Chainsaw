@@ -2,6 +2,7 @@
 using Chainsaw.Modules.Attribution.Contracts;
 using Chainsaw.Modules.Monitoring.Contracts;
 using Chainsaw.Modules.Tracing.Contracts;
+using Chainsaw.SharedKernel;
 
 namespace Chainsaw.App.TestData;
 
@@ -13,14 +14,19 @@ namespace Chainsaw.App.TestData;
 /// Some parts are expanded from the start and some are left for the user to expand: the hub (more than 50
 /// transactions, so some are held back, and many counterparties), the victim's address (paid out from an exchange),
 /// the CoinJoin's outputs and the scammer's second wallet (the new victim's payment that the watch caught). The
-/// user's own work is there too, so that its marks and history can be seen at once: a split, decided suggestions, an
-/// approved wallet, an edited comment, and a comment and an area in the trash. Everything is made up and nothing goes
-/// out: the chain, the rates and the sanction list are answered on this computer.
+/// obfuscation the checks recognise is there: dust, a look-alike of Sydbörsen's deposit, many hops with a pause, a
+/// split whose parts meet, a possible PayJoin, a spend that is gone and replaced (with a change conclusion that rests on
+/// it and is held back), Sydbörsen's sweeps into a hot wallet without a label, two victims' money going the same way
+/// through the mixer to Sydbörsen, a run of alike amounts, and a payment to the swap service whose continuation on
+/// Ethereum is suggested. The user's own work is there too, so that its marks and history can be seen at once: a
+/// split, decided suggestions, an approved wallet, an edited comment, a label on a transaction, and a comment and an
+/// area in the trash. Everything is made up and nothing goes out: the chain, the rates, the sanction lists and the
+/// open source are answered on this computer.
 /// </remarks>
 public static class TestStory
 {
     /// <summary>The story's version, in the journal and as the made-up labels' source version.</summary>
-    public const string Version = "2";
+    public const string Version = "5";
 
     /// <summary>The made-up open source the test case's labels come from.</summary>
     public const string LabelSource = "testdata (påhittad)";
@@ -33,6 +39,9 @@ public static class TestStory
 
     /// <summary>The colleague's case's title.</summary>
     public const string ColleagueTitle = "Kollegans ärende: påhittade data";
+
+    /// <summary>The names of the two victims whose money goes the same way through the mixer to Sydbörsen.</summary>
+    private static readonly string[] PatternVictimNames = ["Fjärde offret", "Femte offret"];
 
     /// <summary>The output of the hub's payment that goes to the swap service.</summary>
     private const int SwapOutput = 4;
@@ -60,17 +69,27 @@ public static class TestStory
         [
             new StartPointStep(TestStoryChain.VictimPayment),
 
+            // Before anything is looked up, so that the newest block comes between the answers that a spend is gone.
+            new LagStep(),
+
             // Before anything else looks the cash-out up, so that the first answer is the orphaned block's.
             new ReorganisationStep(TestStoryChain.PeelHops[^1], actors.Exchange),
+            new ReplacedStep(TestStoryChain.ReplacedSpend),
             .. Labels(actors),
             .. Expansions(),
             new SanctionCheckStep(),
+            new OpenSourceCheckStep(),
+            new TransactionLabelStep(TestStoryChain.Join, LabelKind.SwapBridge, "Bytaren (samlad insättning)"),
             new ShareLabelsStep(),
-            new LinkOtherChainStep(TestStoryChain.HubPayment, SwapOutput, "eth:bytarens-swap"),
+            new LinkOtherChainStep(
+                TestStoryChain.HubPayment, SwapOutput,
+                new ChainTransactionRef(Chain.Tron, TestTronChain.Id(TestTronChain.SwapPayout))),
+            .. OnTron(),
+            .. OnEthereum(),
             new WatchStep(actors.Consolidated, "Bedragarens andra plånbok", WatchDirection.In),
             new WatchCheckStep(),
             new ChecksStep(),
-            new DecideStep(actors.MixerOut1, LabelReason),
+            new DecideStep(actors.MixerOut1, TestStoryChain.Distribution, LabelReason),
             new SplitStep(actors.TopUp, "Påhittad uppbrytning: påfyllnaden kom från en tx som delades med andra."),
             new OwnAreaStep(
                 "Uttagsvägar", [actors.Exchange, actors.NoKycExchange],
@@ -81,6 +100,9 @@ public static class TestStory
                 "Påhittad kommentar som slängts: *gammal tanke om Sydbörsen*.", new NodePosition(360, -200)),
             new ThrownAreaStep(
                 "Spelsajterna", [actors.Gambling, actors.GiftCard], "Påhittad egen yta som slängts i soptunnan."),
+
+            // Last, since every expansion runs the clustering again on everything in the graph.
+            new HeldBackStep(TestStoryChain.ReusedDeposit),
         ];
     }
 
@@ -115,6 +137,7 @@ public static class TestStory
         new LabelStep(actors.SouthExchange, LabelKind.Exchange, "Sydbörsen"),
         new LabelStep(actors.SouthExchange2, LabelKind.Exchange, "Sydbörsen"),
         new LabelStep(actors.NoKycExchange, LabelKind.NoKycExchange, "Snabbväxlaren"),
+        new LabelStep(actors.NoKycDeposit, LabelKind.NoKycExchange, "Snabbväxlaren"),
         new LabelStep(actors.Nested, LabelKind.NestedService, "Inbäddade tjänsten"),
         new LabelStep(actors.Otc, LabelKind.OtcP2P, "Torgväxlaren"),
         new LabelStep(actors.Atm, LabelKind.CryptoAtm, "Automaten Centralen"),
@@ -123,22 +146,55 @@ public static class TestStory
         new LabelStep(actors.Merchant, LabelKind.Merchant, "Elbutiken"),
         new LabelStep(actors.GiftCard, LabelKind.GiftCard, "Kortkungen"),
         new LabelStep(actors.Darknet, LabelKind.Darknet, "Skuggtorget"),
-        new LabelStep(actors.Darknet, LabelKind.Sanctioned, "Skuggtorget"),
         new LabelStep(actors.Mixer, LabelKind.Mixer, "Blandaren"),
         new LabelStep(actors.SecondMixer, LabelKind.Mixer, "Virveln"),
 
-        // A made-up former sanction beside the mixer, as Tornado Cash's on Ethereum: the toned-down mark.
-        new LabelStep(actors.Mixer, LabelKind.FormerlySanctioned, "Påhittad lista 2022-08-08 – 2025-03-21"),
         new LabelStep(actors.Swap, LabelKind.SwapBridge, "Bytaren"),
+
+        // The two victims whose money goes the same way, so that the pattern rules never count them as actors.
+        .. actors.PatternVictims.Select((victim, index) =>
+            new LabelStep(victim, LabelKind.Victim, PatternVictimNames[index]) { Own = true }),
+        new LabelStep(actors.PatternDeposit, LabelKind.Exchange, "Sydbörsen"),
 
         // A supplier's report of fraud (as from Chainabuse): a red mark beside the node's own sort.
         new LabelStep(actors.Scammer, LabelKind.Reported, "Nätfiske"),
     ];
 
     /// <summary>
+    /// Gives the part on TRON (round 8): the swap service's payout of USDT to the scammer, labelled as the made-up
+    /// open source names it, the scammer's TRON address as a start point, and the scammer and the mule expanded, so
+    /// that USDT reaches Sydbörsen's deposit on TRON with its snowflake (Tether can freeze it there).
+    /// </summary>
+    /// <returns>The steps.</returns>
+    private static IEnumerable<ITestStep> OnTron() =>
+    [
+        new AccountLabelStep(TestTronChain.Swap, LabelKind.SwapBridge, "Bytaren (TRON)"),
+        new AccountLabelStep(TestTronChain.Exchange, LabelKind.Exchange, "Sydbörsen (TRON)"),
+        new AccountStartPointStep(TestTronChain.Scammer),
+        new AccountExpandStep(TestTronChain.Scammer),
+        new AccountExpandStep(TestTronChain.Mule),
+    ];
+
+    /// <summary>
+    /// Gives the part on Ethereum: the scammer's Ethereum address as a start point, expanded, so that the victim's USDT,
+    /// the swap to ether through Uniswap's router (its pill with the router and the price check) and the ether into
+    /// Tornado Cash can be seen; the known contracts are then labelled, so that Tornado Cash is a mixer and a former
+    /// sanction, and the scammer's USDT left over has its snowflake.
+    /// </summary>
+    /// <returns>The steps.</returns>
+    private static IEnumerable<ITestStep> OnEthereum() =>
+    [
+        new AccountStartPointStep(TestEthereumChain.Scammer),
+        new AccountExpandStep(TestEthereumChain.Scammer),
+        new KnownContractsStep(),
+    ];
+
+    /// <summary>
     /// Gives the expansions made from the start: the money from the victim through the consolidation, the change, the
     /// distribution (which brings the mixer's payout, the CoinJoin and the hub's payment), the mixer's payout (on to an
-    /// exchange and into a second mixer), the whole peel chain, and the miner's reward with the shared transaction.
+    /// exchange and into a second mixer), the whole peel chain, the miner's reward with the shared transaction, the
+    /// hops after the CoinJoin with the split and the parts that meet, the dust, the poisoning, and the customers'
+    /// payments into Sydbörsen with the sweeps that empty them.
     /// </summary>
     /// <returns>The steps.</returns>
     private static IEnumerable<ITestStep> Expansions() =>
@@ -150,6 +206,28 @@ public static class TestStory
         new ExpandStep(TestStoryChain.MixerPayout),
         .. TestStoryChain.PeelHops.SkipLast(1).Select(hop => new ExpandStep(hop)),
         new ExpandStep(TestStoryChain.MinerReward),
+        .. TestStoryChain.PostMixHops.Select(hop => new ExpandStep(hop)),
+        new ExpandStep(TestStoryChain.Split),
+        new ExpandStep(TestStoryChain.Dusting),
+        new ExpandStep(TestStoryChain.Poisoning),
+        .. TestStoryChain.SouthPayments.Select(payment => new ExpandStep(payment)),
+        .. PatternExpansions(),
+        new ExpandStep(TestStoryChain.ReusedDeposit),
+    ];
+
+    /// <summary>
+    /// Gives the expansions of the patterns' part (<see cref="TestStoryChain"/>, <c>AlikeWays</c>): the two victims'
+    /// payments (which bring the deposits into the mixer), the mixer's payout (which brings each way's first hop, the
+    /// first alike amount and the payment to the swap service), the hops before each way's last, and the alike amounts
+    /// before the last.
+    /// </summary>
+    /// <returns>The steps.</returns>
+    private static IEnumerable<ITestStep> PatternExpansions() =>
+    [
+        .. TestStoryChain.PatternVictimPayments.Select(payment => new ExpandStep(payment)),
+        new ExpandStep(TestStoryChain.PatternPayout),
+        .. TestStoryChain.PatternHops.SelectMany(hops => hops.SkipLast(1)).Select(hop => new ExpandStep(hop)),
+        .. TestStoryChain.StructuringPayments.SkipLast(1).Select(payment => new ExpandStep(payment)),
     ];
 }
 #endif

@@ -20,14 +20,15 @@ internal sealed class ClusteringService : IClusteringService
     private const int JournalSummaryLength = 1_000;
 
     /// <summary>
-    /// Every registered version of the analyses for Bitcoin, grouped by name in the order the names were first
+    /// Every registered version of the analyses for the UTXO chains, grouped by name in the order the names were first
     /// registered, highest version first; the first that a case has not drawn back runs.
     /// </summary>
     private readonly IReadOnlyList<IReadOnlyList<IUtxoHeuristic>> _versions;
 
     /// <summary>
-    /// Takes the analyses and keeps those registered for Bitcoin; two for Bitcoin with the same name and version are
-    /// refused, and so is one for Bitcoin that does not implement the UTXO contract.
+    /// Takes the analyses and keeps those registered for a UTXO chain (Bitcoin, Litecoin, Zcash); two with the same
+    /// name and version are refused, and so is one that does not implement the UTXO contract. Each runs only on the
+    /// transactions of the chains its scope covers.
     /// </summary>
     /// <param name="heuristics">The analyses for every model and chain, in the order they run.</param>
     /// <exception cref="ArgumentException">An analysis for Bitcoin is not valid, or two are the same.</exception>
@@ -40,14 +41,15 @@ internal sealed class ClusteringService : IClusteringService
             throw new ArgumentException($"{unscoped.Id} is registered without a scope.", nameof(heuristics));
         }
 
-        var forBitcoin = all.Where(heuristic => heuristic.Scope.Covers(Chain.Bitcoin)).ToList();
-        if (forBitcoin.FirstOrDefault(heuristic => heuristic is not IUtxoHeuristic) is { } misfit)
+        var forUtxo = all.Where(heuristic => heuristic.Scope.Model == LedgerModel.Utxo).ToList();
+        if (forUtxo.FirstOrDefault(heuristic => heuristic is not IUtxoHeuristic) is { } misfit)
         {
             throw new ArgumentException(
-                $"{misfit.Id} is registered for Bitcoin but does not implement the UTXO contract.", nameof(heuristics));
+                $"{misfit.Id} is registered for a UTXO chain but does not implement the UTXO contract.",
+                nameof(heuristics));
         }
 
-        var utxo = forBitcoin.Cast<IUtxoHeuristic>().ToList();
+        var utxo = forUtxo.Cast<IUtxoHeuristic>().ToList();
         if (utxo.Select(heuristic => heuristic.Id).Distinct().Count() != utxo.Count)
         {
             throw new ArgumentException("Two analyses have the same name and version.", nameof(heuristics));
@@ -853,7 +855,7 @@ internal sealed class ClusteringService : IClusteringService
     }
 
     /// <summary>
-    /// Runs every analysis over one transaction. When one of them fails, nothing about the transaction is used: a
+    /// Runs every analysis whose scope covers the transaction's chain over it. When one of them fails, nothing about the transaction is used: a
     /// failed CoinJoin analysis must never let the other analyses merge a CoinJoin's inputs.
     /// </summary>
     /// <param name="running">The analyses that run in the case (<see cref="Running"/>).</param>
@@ -864,7 +866,7 @@ internal sealed class ClusteringService : IClusteringService
         IReadOnlyList<IUtxoHeuristic> running, BitcoinTransaction transaction, KnownTransactions known)
     {
         var results = new List<HeuristicResult>(running.Count);
-        foreach (var heuristic in running)
+        foreach (var heuristic in running.Where(heuristic => heuristic.Scope.Covers(transaction.Txid.Chain)))
         {
             try
             {

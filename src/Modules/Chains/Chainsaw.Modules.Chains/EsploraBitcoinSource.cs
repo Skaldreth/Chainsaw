@@ -12,7 +12,7 @@ namespace Chainsaw.Modules.Chains;
 /// through <see cref="IExitHttp"/>. Every response is sealed in the case before it is used; an answer that cannot
 /// have changed is taken from the case without asking; without an exit the case answers and says what is missing.
 /// </summary>
-internal sealed class EsploraBitcoinSource : IBitcoinSource
+internal class EsploraBitcoinSource : IBitcoinSource
 {
     /// <summary>
     /// How old the newest known height may be before a lookup that depends on depth asks for a new one.
@@ -39,6 +39,9 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
 
     /// <summary>Answers the lookups through the endpoints and the case.</summary>
     private readonly SourceLookups _lookups;
+
+    /// <summary>The chains' endpoints, for which endpoint gave an answer.</summary>
+    private readonly ChainSources _sources;
 
     /// <summary>Creates the source with the default endpoints in memory only, as a test or a tool does.</summary>
     /// <param name="http">The only way out.</param>
@@ -70,6 +73,7 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
         ChainSources sources, IOperatorProfileStore operators, IClock clock, BitcoinSourceOptions options,
         TimeZoneInfo timeZone)
     {
+        _sources = sources;
         _clock = clock;
         _options = options;
         _parser = new EsploraParser(options.Network);
@@ -80,13 +84,24 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
         }
 
         _lookups = new SourceLookups(
-            Chain.Bitcoin, "Bitcoin", operators, sources, _store, options.SafeConfirmations,
+            options.Network.ChainOf(), options.Network.ChainOf().ToString(), operators, sources, _store,
+            options.SafeConfirmations,
             async (_, @case, cancellationToken) => await RefreshHeightAsync(@case, cancellationToken)
                 .ConfigureAwait(false));
     }
 
     /// <inheritdoc/>
     public BitcoinNetwork Network => _options.Network;
+
+    /// <summary>What is said of a Litecoin block's header, whose work Chainsaw does not compute.</summary>
+    public const string LitecoinWorkText =
+        "Blockhuvudet hashar till blocket; dess arbete kontrolleras inte på Litecoin (scrypt).";
+
+    /// <summary>A transaction's size that could pass for an inner node of the merkle tree (two hashes).</summary>
+    private const int InnerNodeSize = 64;
+
+    /// <summary>Gets the network whose work limit a header must meet, or none when the check is turned off.</summary>
+    private BitcoinNetwork? WorkLimit => _options.CheckWorkLimit ? _options.Network : null;
 
     /// <inheritdoc/>
     public Task<BitcoinLookup<BitcoinAddressPage>> GetAddressTransactionsAsync(
@@ -103,7 +118,7 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
         if (address.Network != Network)
         {
             return Task.FromResult(SourceLookups.Refused<BitcoinAddressPage>(
-                "Adressen hör till ett annat Bitcoin-nät än källan. Inget skickades."));
+                "Adressen hör till en annan kedja eller ett annat nät än källan. Inget skickades."));
         }
 
         var segment = Uri.EscapeDataString(address.Value);
@@ -125,6 +140,7 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
     {
         ArgumentNullException.ThrowIfNull(@case);
         ArgumentNullException.ThrowIfNull(txid);
+        txid = txid.On(Network.ChainOf());
         var query = new LookupQuery<BitcoinTransaction>(
             ResponseKinds.Transaction,
             txid.Value,
@@ -150,6 +166,8 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
     public async Task<BitcoinLookup<BitcoinTransaction>> VerifyTransactionAsync(
         ICase @case, Txid txid, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(txid);
+        txid = txid.On(Network.ChainOf());
         var lookup = await GetTransactionAsync(@case, txid, LookupMode.AsNeeded, cancellationToken)
             .ConfigureAwait(false);
         if (lookup.Value is not { BytesVerified: false })
@@ -173,6 +191,193 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
     }
 
     /// <inheritdoc/>
+    public async Task<BitcoinLookup<BitcoinTransaction>> VerifyInBlockAsync(
+        ICase @case, Txid txid, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(txid);
+        txid = txid.On(Network.ChainOf());
+
+        // The bytes first: the txid must be the transaction's own, and a 64-byte transaction could pass for an inner
+        // node of the tree, so it is never checked this way.
+        var lookup = await VerifyTransactionAsync(@case, txid, cancellationToken).ConfigureAwait(false);
+        if (lookup.Value is not { Block: { } at } transaction)
+        {
+            return lookup;
+        }
+
+        if (!transaction.BytesVerified || StrippedSize(transaction) == InnerNodeSize)
+        {
+            return Unchecked(lookup, transaction.BytesVerified
+                ? "Tx:en är 64 bytes och kan förväxlas med en nod i trädet, så den kontrolleras inte mot blocket."
+                : "Tx:ens egna bytes kunde inte kontrolleras, så den är inte kontrollerad mot blocket.");
+        }
+
+        var block = await GetBlockAsync(@case, at.Hash, cancellationToken).ConfigureAwait(false);
+        var proof = await _lookups.LookupAsync(@case, MerkleQuery(txid), LookupMode.AsNeeded, cancellationToken)
+            .ConfigureAwait(false);
+        var origins = Merged(lookup.Origins, block.Origins, proof.Origins);
+        if (block.Value is not { HeaderVerified: true } read || proof.Value is not { } path)
+        {
+            var problem = block.Value is { HeaderVerified: true } ? proof.Problem : block.Problem;
+            return Unchecked(lookup with { Origins = origins },
+                $"Beviset för att tx:en ligger i blocket kunde inte hämtas, så det är inte kontrollerat. {problem}");
+        }
+
+        if (path.Height != at.Height || !path.Fits(read.TransactionCount) || path.RootFrom(txid) != read.MerkleRoot)
+        {
+            return new BitcoinLookup<BitcoinTransaction>(LookupStatus.Failed, null, origins,
+                "Källans bevis för att tx:en ligger i blocket leder inte till blockets eget huvud, som är sparat i "
+                + "ärendet; tx:ens block används inte som kontrollerat.");
+        }
+
+        var answeredBy = block.Origins.LastOrDefault()?.EndpointId;
+        var confirmation = await ConfirmBlockAsync(@case, read, answeredBy, cancellationToken).ConfigureAwait(false);
+        origins = Merged(origins, confirmation.Origins);
+        return lookup with
+        {
+            Value = transaction with { InBlock = confirmation.Level },
+            Origins = origins,
+            Notes = confirmation.Note is { } note ? [.. lookup.Notes, note] : lookup.Notes,
+        };
+    }
+
+    /// <summary>
+    /// Confirms the block a transaction is in: by the user's own node first, when one is on (it has checked every
+    /// block's work itself, so its word that this block is at the height in its chain makes the block more than one
+    /// source's); otherwise, or when the own node cannot answer, by another endpoint in step with the chain, so that a
+    /// block is not one source's alone: a header that meets only the network's easiest target says nothing about the
+    /// chain. An own node that has another block at the height is said, and the block then rests on one source. Only
+    /// Bitcoin Core gives <see cref="InBlockCheck.ConfirmedByOwnNode"/>; another local endpoint confirms by name, as
+    /// another endpoint does.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="block">The block, checked against its header.</param>
+    /// <param name="answeredBy">The endpoint that gave the block, which is not asked as another endpoint.</param>
+    /// <param name="cancellationToken">Stops the lookup.</param>
+    /// <returns>How far the block is checked, the responses, and what to say when it is not confirmed.</returns>
+    private async Task<(InBlockCheck Level, IReadOnlyList<ResponseOrigin> Origins, string? Note)> ConfirmBlockAsync(
+        ICase @case, BitcoinBlock block, Guid? answeredBy, CancellationToken cancellationToken)
+    {
+        var query = BlockAtHeightQuery(block.Height);
+        var own = HasOwnNode(query.Path)
+            ? await _lookups.FetchAsync(@case, query, null, cancellationToken, ownNodeOnly: true).ConfigureAwait(false)
+            : null;
+        var ownNode = own?.Origins.LastOrDefault();
+        if (own?.Value == block.Hash.Value && ownNode is not null)
+        {
+            // Only Bitcoin Core is a node that has checked every block itself; another local endpoint (an electrs) is
+            // said by name as a local endpoint, as confirmation by another endpoint.
+            return ownNode.Source == BitcoinCoreApi.Code
+                ? (InBlockCheck.ConfirmedByOwnNode, own.Origins,
+                    WithWork($"Blockets hash vid höjden bekräftades av den egna noden, {ownNode.Endpoint}."))
+                : (InBlockCheck.ConfirmedElsewhere, own.Origins,
+                    WithWork($"Blockets hash vid höjden bekräftades av en lokal endpoint, {ownNode.Endpoint}."));
+        }
+
+        if (own?.Value is not null)
+        {
+            return (InBlockCheck.SourceOnly, own.Origins, WithWork(
+                "Den egna noden har ett annat block på samma höjd, så blocket vilar bara på en källas svar."));
+        }
+
+        var elsewhere = await ConfirmElsewhereAsync(@case, block, answeredBy, query, cancellationToken)
+            .ConfigureAwait(false);
+        return own is null
+            ? elsewhere
+            : (elsewhere.Level, Merged(own.Origins, elsewhere.Origins),
+                $"Den egna noden kunde inte bekräfta blocket. {own.Problem} {elsewhere.Note}".Trim());
+    }
+
+    /// <summary>The lookup of the hash of the block at a height, asked to confirm a block.</summary>
+    /// <param name="height">The block's height.</param>
+    /// <returns>The query.</returns>
+    private static LookupQuery<string> BlockAtHeightQuery(long height)
+    {
+        var text = height.ToString(CultureInfo.InvariantCulture);
+        return new LookupQuery<string>(
+            ResponseKinds.BlockAtHeight,
+            text,
+            $"block-height/{text}",
+            body => EsploraParser.ParseTipHash(body).Value,
+            _ => new ResponseIndex([], height),
+            _ => null);
+    }
+
+    /// <summary>Gets whether one of the user's own nodes that can answer a path is on for the chain.</summary>
+    /// <param name="path">The lookup's path.</param>
+    /// <returns><see langword="true"/> when there is one.</returns>
+    private bool HasOwnNode(string path) =>
+        _sources.Plan(Network.ChainOf()).Endpoints.Any(planned => planned.Endpoint.Local && planned.Api.Answers(path));
+
+    /// <summary>
+    /// Asks another endpoint in step with the chain for the block's hash at its height, so that a block is not one
+    /// source's alone.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="block">The block, checked against its header.</param>
+    /// <param name="answeredBy">The endpoint that gave the block, which is not asked.</param>
+    /// <param name="query">The lookup of the hash at the block's height.</param>
+    /// <param name="cancellationToken">Stops the lookup.</param>
+    /// <returns>How far the block is checked, the responses, and what to say when it is not confirmed.</returns>
+    private async Task<(InBlockCheck Level, IReadOnlyList<ResponseOrigin> Origins, string? Note)> ConfirmElsewhereAsync(
+        ICase @case, BitcoinBlock block, Guid? answeredBy, LookupQuery<string> query,
+        CancellationToken cancellationToken)
+    {
+        var other = await _lookups.FetchAsync(
+                @case, query, null, cancellationToken, inStep: true, except: answeredBy ?? Guid.Empty)
+            .ConfigureAwait(false);
+        // Another endpoint, by id and by host: two addresses of one service are not two answers. It is still not an
+        // independent source (it may read the same node), so it is said as another endpoint, by name.
+        var confirmedBy = other.Origins.LastOrDefault(origin => origin.Url.Host != AnsweringHost(block, answeredBy));
+        if (other.Value == block.Hash.Value && confirmedBy is not null)
+        {
+            return (InBlockCheck.ConfirmedElsewhere, other.Origins,
+                WithWork($"Blockets hash vid höjden bekräftades av en annan endpoint, {confirmedBy.Endpoint}."));
+        }
+
+        var note = other.Value is null
+            ? "Blocket vilar bara på en källas svar: ingen annan endpoint i fas kunde bekräfta det."
+            : "En annan endpoint i fas har ett annat block på samma höjd, så blocket vilar bara på en källas svar.";
+        return (InBlockCheck.SourceOnly, other.Origins, WithWork(note));
+    }
+
+    /// <summary>Adds to what is said of a block, on Litecoin, that its header's work is not checked.</summary>
+    /// <param name="note">What is said.</param>
+    /// <returns>The note, on Litecoin with <see cref="LitecoinWorkText"/> after it.</returns>
+    private string WithWork(string note) =>
+        Network == BitcoinNetwork.Litecoin ? note + " " + LitecoinWorkText : note;
+
+    /// <summary>Gives a transaction's size without its witness data, the bytes its txid is the hash of.</summary>
+    /// <param name="transaction">The transaction.</param>
+    /// <returns>The size: weight is four times it, less what the witness adds once.</returns>
+    private static int StrippedSize(BitcoinTransaction transaction) => (transaction.Weight - transaction.Size) / 3;
+
+    /// <summary>Gives the host of the endpoint that gave a block, so that another address of it is not taken as another.</summary>
+    /// <param name="block">The block.</param>
+    /// <param name="answeredBy">The endpoint that gave it, if known.</param>
+    /// <returns>The host, or an empty text when it is not known.</returns>
+    private string AnsweringHost(BitcoinBlock block, Guid? answeredBy)
+    {
+        _ = block;
+        return _sources.Get(Chain.Bitcoin).Endpoints
+            .FirstOrDefault(each => each.Endpoint.Id == answeredBy)?.Endpoint.Address.Host ?? string.Empty;
+    }
+
+    /// <summary>Gives a lookup as it is, with a note on why it is not checked against its block.</summary>
+    /// <param name="lookup">The lookup.</param>
+    /// <param name="note">Why.</param>
+    /// <returns>The lookup with the note.</returns>
+    private static BitcoinLookup<BitcoinTransaction> Unchecked(BitcoinLookup<BitcoinTransaction> lookup, string note) =>
+        lookup with { Notes = [.. lookup.Notes, note.TrimEnd()] };
+
+    /// <summary>Merges responses, once each, in their order in the case.</summary>
+    /// <param name="parts">The responses.</param>
+    /// <returns>The merged list.</returns>
+    private static List<ResponseOrigin> Merged(params IEnumerable<ResponseOrigin>[] parts) =>
+        [.. parts.SelectMany(part => part).DistinctBy(origin => origin.Sequence).OrderBy(origin => origin.Sequence)];
+
+    /// <inheritdoc/>
     public Task<BitcoinLookup<BitcoinAddressSummary>> GetAddressSummaryAsync(
         ICase @case, BitcoinAddress address, CancellationToken cancellationToken = default)
     {
@@ -181,7 +386,7 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
         if (address.Network != Network)
         {
             return Task.FromResult(SourceLookups.Refused<BitcoinAddressSummary>(
-                "Adressen hör till ett annat Bitcoin-nät än källan. Inget skickades."));
+                "Adressen hör till en annan kedja eller ett annat nät än källan. Inget skickades."));
         }
 
         var query = new LookupQuery<BitcoinAddressSummary>(
@@ -200,6 +405,7 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
     {
         ArgumentNullException.ThrowIfNull(@case);
         ArgumentNullException.ThrowIfNull(txid);
+        txid = txid.On(Network.ChainOf());
         // The transaction's own outputs say which can never be spent (OP_RETURN), which never wait for a spend.
         var transaction = await Task.Run(
             () => @case.Read(reader => StoredTransaction(reader, txid)?.Value), cancellationToken)
@@ -208,7 +414,7 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
         // One entry per output: a list of another length is not this transaction's, and is never taken as settled.
         IReadOnlyList<BitcoinOutputSpend> Parse(byte[] body)
         {
-            var spends = EsploraParser.ParseOutputSpends(body);
+            var spends = _parser.ParseOutputSpends(body);
             return transaction is null || spends.Count == transaction.Outputs.Count
                 ? spends
                 : throw new EsploraFormatException("The spends are not one per output of the transaction.");
@@ -220,8 +426,197 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
             $"tx/{txid.Value}/outspends",
             Parse,
             _ => ResponseIndex.None,
-            spends => SettledAt(spends, transaction));
+            spends => SettledAt(spends, transaction),
+            Changed: SpendChange);
         return await _lookups.LookupAsync(@case, query, mode, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc/>
+    public async Task<BitcoinLookup<TransactionReplacement>> GetReplacementAsync(
+        ICase @case, Txid txid, LookupMode mode = LookupMode.CaseOnly, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(txid);
+        txid = txid.On(Network.ChainOf());
+
+        // Everything the case holds is read at once: the transaction and the newest answer about each transaction
+        // whose coins it spent.
+        var read = await Task.Run(() => @case.Read(reader => ReadReplacement(reader, txid)), cancellationToken)
+            .ConfigureAwait(false);
+        if (read is not { } known)
+        {
+            return new BitcoinLookup<TransactionReplacement>(LookupStatus.NotInCase, null, [],
+                "Ärendet har inte tx:en, så det går inte att säga vad som spenderar dess mynt. Inget skickades.");
+        }
+
+        var answers = new Dictionary<Txid, BitcoinLookup<IReadOnlyList<BitcoinOutputSpend>>>();
+        var problems = new List<string>();
+        var status = LookupStatus.FromCase;
+        var asked = 0;
+        foreach (var (previous, stored) in known.Previous)
+        {
+            var answer = stored is { } found
+                ? new BitcoinLookup<IReadOnlyList<BitcoinOutputSpend>>(
+                    LookupStatus.FromCase, found.Value, [found.Response.Origin], null)
+                : null;
+            var ask = mode != LookupMode.CaseOnly && !Settled(known.Transaction, previous, txid, answer?.Value);
+            if (ask && asked < MostReplacedPrevious)
+            {
+                // Asked of another host than those that said the transaction is gone, when one can be, so that the
+                // answer can confirm what they said.
+                asked++;
+                answer = await _lookups.FetchAsync(
+                        @case, ReplacedSpendsQuery(previous), stored, cancellationToken, mode == LookupMode.InStep,
+                        preferNotHosts: known.GoneHosts)
+                    .ConfigureAwait(false);
+                status = Worse(status, answer.Status);
+                problems.AddRange(answer.Problem is { } problem ? [problem] : []);
+            }
+
+            if (answer is { Value: not null })
+            {
+                answers[previous] = answer;
+            }
+        }
+
+        if (answers.Count < known.Previous.Count && asked == MostReplacedPrevious)
+        {
+            var count = known.Previous.Count.ToString(CultureInfo.InvariantCulture);
+            problems.Add($"Frågat om {MostReplacedPrevious} av {count} tx som mynten kom ur; resten vid nästa uppslag.");
+        }
+
+        var coins = known.Transaction.Inputs
+            .Where(input => input is { IsCoinbase: false, PreviousTxid: not null })
+            .Select(input => CoinOf(input, txid, answers.GetValueOrDefault(input.PreviousTxid!)))
+            .ToList();
+        var origins = answers.Values.SelectMany(answer => answer.Origins).DistinctBy(origin => origin.Sequence);
+        var said = problems.Distinct().ToList();
+        var replacement = new TransactionReplacement(txid, coins)
+        {
+            PreviousCount = known.Previous.Count,
+            PreviousAnswered = answers.Count,
+        };
+        return new BitcoinLookup<TransactionReplacement>(
+            status, replacement, SourceLookups.Ordered(origins), said.Count == 0 ? null : string.Join(" ", said));
+    }
+
+    /// <summary>
+    /// The most transactions whose coins a gone transaction spent that one lookup asks about, so that one with very many
+    /// inputs does not send a request for each at once; the rest are asked at the next lookup.
+    /// </summary>
+    internal const int MostReplacedPrevious = 20;
+
+    /// <summary>What the case holds about a gone transaction's coins, read at once.</summary>
+    /// <param name="Transaction">The gone transaction.</param>
+    /// <param name="Previous">
+    /// Each transaction whose coins it spent, with the newest sealed answer about who spends them, those without an
+    /// answer first, so that a lookup capped at <see cref="MostReplacedPrevious"/> asks about new ones each time.
+    /// </param>
+    /// <param name="GoneHosts">The hosts whose sealed answers said the source does not know the transaction.</param>
+    private sealed record ReplacementReading(
+        BitcoinTransaction Transaction,
+        IReadOnlyList<(Txid Previous, (IReadOnlyList<BitcoinOutputSpend> Value, StoredResponse Response)? Stored)>
+            Previous,
+        IReadOnlySet<string> GoneHosts);
+
+    /// <summary>Reads a gone transaction and the newest answers about the coins it spent, in one reading.</summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <param name="txid">The gone transaction.</param>
+    /// <returns>The reading, or <see langword="null"/> when the case does not hold the transaction.</returns>
+    private ReplacementReading? ReadReplacement(ICaseReader reader, Txid txid)
+    {
+        if (StoredTransaction(reader, txid)?.Value is not { } transaction)
+        {
+            return null;
+        }
+
+        var previous = transaction.Inputs
+            .Where(input => input is { IsCoinbase: false, PreviousTxid: not null })
+            .Select(input => input.PreviousTxid!)
+            .Distinct()
+            .Select(each => (each, SourceLookups.StoredAs(
+                _store.Latest(reader, ResponseKinds.ReplacedSpends, each.Value),
+                body => _parser.ParseOutputSpends(body))))
+            .OrderBy(each => each.Item2 is null ? 0 : 1)
+            .ToList();
+        var goneHosts = _store.NotFoundHosts(reader, txid, 0).ToHashSet(StringComparer.Ordinal);
+        return new ReplacementReading(transaction, previous, goneHosts);
+    }
+
+    /// <summary>
+    /// The lookup of who spends a transaction's outputs, asked only to find what replaced a gone transaction that spent
+    /// some of them, and sealed under its own kind, apart from the answers the graph follows.
+    /// </summary>
+    /// <param name="txid">The transaction whose outputs the gone one spent.</param>
+    /// <returns>The query.</returns>
+    private LookupQuery<IReadOnlyList<BitcoinOutputSpend>> ReplacedSpendsQuery(Txid txid) => new(
+        ResponseKinds.ReplacedSpends,
+        txid.Value,
+        $"tx/{txid.Value}/outspends",
+        body => _parser.ParseOutputSpends(body),
+        _ => ResponseIndex.None,
+        _ => null);
+
+    /// <summary>
+    /// Says whether the case's answer settles every coin the gone transaction spent from one transaction: another
+    /// transaction in a block spends each. An unspent coin, or one whose spender is unconfirmed (it may have been
+    /// replaced in turn), is asked about again.
+    /// </summary>
+    /// <param name="gone">The gone transaction.</param>
+    /// <param name="previous">The transaction whose coins it spent.</param>
+    /// <param name="txid">The gone transaction's id.</param>
+    /// <param name="spends">The case's answer, or <see langword="null"/>.</param>
+    /// <returns><see langword="true"/> when nothing need be asked.</returns>
+    private static bool Settled(
+        BitcoinTransaction gone, Txid previous, Txid txid, IReadOnlyList<BitcoinOutputSpend>? spends) =>
+        spends is not null
+        && gone.Inputs.Where(input => input.PreviousTxid == previous)
+            .All(input => spends.FirstOrDefault(spend => spend.Index == input.PreviousIndex)?.SpentBy is
+                { Block: not null } by && by.Txid != txid);
+
+    /// <summary>Gives the worse of two lookups' statuses: a fetch over the case, and a failure over both.</summary>
+    /// <param name="so">The status so far.</param>
+    /// <param name="next">The next lookup's status.</param>
+    /// <returns>The status to give.</returns>
+    private static LookupStatus Worse(LookupStatus so, LookupStatus next) => (so, next) switch
+    {
+        (LookupStatus.FromCase, _) => next,
+        (LookupStatus.Fetched, LookupStatus.FromCase or LookupStatus.Fetched) => LookupStatus.Fetched,
+        (LookupStatus.Fetched, _) => next,
+        _ => so,
+    };
+
+    /// <summary>Reads what one coin of a gone transaction is now, from the answer about its transaction.</summary>
+    /// <param name="input">The gone transaction's input that spent the coin.</param>
+    /// <param name="gone">The gone transaction.</param>
+    /// <param name="answer">The answer, or <see langword="null"/> when there is none.</param>
+    /// <returns>The coin.</returns>
+    private static ReplacedCoin CoinOf(
+        BitcoinInput input, Txid gone, BitcoinLookup<IReadOnlyList<BitcoinOutputSpend>>? answer)
+    {
+        var index = input.PreviousIndex!.Value;
+        var spend = answer?.Value?.FirstOrDefault(each => each.Index == index);
+
+        // A fresh answer is sealed last; one that falls back on the case's answer gives that one first.
+        long? sequence = answer switch
+        {
+            _ when spend is null => null,
+            { Origins.Count: 0 } => null,
+            { Status: LookupStatus.Fetched } => answer.Origins[^1].Sequence,
+            _ => answer!.Origins[0].Sequence,
+        };
+        var state = spend switch
+        {
+            null => ReplacedCoinState.NotAsked,
+            { SpentBy: null } => ReplacedCoinState.Unspent,
+            { SpentBy: { } by } when by.Txid == gone => ReplacedCoinState.SpentByItself,
+            _ => ReplacedCoinState.SpentByOther,
+        };
+        var spender = state == ReplacedCoinState.SpentByOther ? spend!.SpentBy : null;
+        var host = sequence is { } at
+            ? answer!.Origins.First(origin => origin.Sequence == at).Url.Host.ToLowerInvariant()
+            : null;
+        return new ReplacedCoin(input.Index, input.PreviousTxid!, index, state, spender, sequence) { Host = host };
     }
 
     /// <inheritdoc/>
@@ -255,18 +650,39 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
             return lookup with { Origins = origins, Notes = [.. lookup.Notes, note.TrimEnd()] };
         }
 
-        return BlockHeaderReader.Compare(block, header.Value) is null
-            ? lookup with { Value = block with { HeaderVerified = true }, Origins = origins }
-            : new BitcoinLookup<BitcoinBlock>(LookupStatus.Failed, null, origins,
-                "Källans uppgifter om blocket stämmer inte med blockets eget huvud, som är sparat i ärendet; de "
-                + "används inte.");
+        if (BlockHeaderReader.Compare(block, header.Value) is null)
+        {
+            return lookup with { Value = block with { HeaderVerified = true }, Origins = origins };
+        }
+
+        if (lookup.Status == LookupStatus.FromCase)
+        {
+            // The description in the case contradicts the header, and neither ever changes: the description is
+            // fetched again rather than refused for good (granskningen etapp 15, M3), and checked once more.
+            var again = await _lookups.FetchAsync(@case, query, null, cancellationToken).ConfigureAwait(false);
+            origins = [.. origins.Concat(again.Origins).DistinctBy(origin => origin.Sequence)
+                .OrderBy(origin => origin.Sequence)];
+            if (again.Value is { } fresh && BlockHeaderReader.Compare(fresh, header.Value) is null)
+            {
+                return again with { Value = fresh with { HeaderVerified = true }, Origins = origins };
+            }
+        }
+
+        return new BitcoinLookup<BitcoinBlock>(LookupStatus.Failed, null, origins,
+            "Källans uppgifter om blocket stämmer inte med blockets eget huvud, som är sparat i ärendet; de "
+            + "används inte.");
     }
 
     /// <inheritdoc/>
     public Task<BitcoinLookup<BitcoinTip>> GetTipHeightAsync(ICase @case, CancellationToken cancellationToken = default)
+        => GetTipHeightAsync(@case, LookupMode.AsNeeded, cancellationToken);
+
+    /// <inheritdoc/>
+    public Task<BitcoinLookup<BitcoinTip>> GetTipHeightAsync(
+        ICase @case, LookupMode mode, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(@case);
-        return _lookups.LookupAsync(@case, TipQuery(), LookupMode.AsNeeded, cancellationToken);
+        return _lookups.LookupAsync(@case, TipQuery(), mode, cancellationToken);
     }
 
     /// <inheritdoc/>
@@ -370,7 +786,8 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
     /// <returns>The change, or <see langword="null"/> when its block is the same or it is not confirmed.</returns>
     private BlockChange? BlockChangeOf(ICaseReader reader, Txid txid)
     {
-        var gone = _store.NotFound(reader, txid)
+        var notFound = _store.NotFound(reader, txid);
+        var gone = notFound
             .Select(each => new BlockAnswer(
                 new BlockSighting(null, null, each.ReceivedLocal, each.Sequence) { Endpoint = each.Endpoint },
                 each.EndpointId,
@@ -378,9 +795,27 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
         var answers = Sightings(reader, txid)
             .Select(each => new BlockAnswer(each.Sighting, each.EndpointId, IsGone: false))
             .Concat(gone);
-        return BlockChangeRule.Compare(answers, _store, reader) is { } change
-            ? new BlockChange(txid, change.Kind, change.Before, change.Now)
-            : null;
+        if (BlockChangeRule.Compare(answers, _store, reader) is not { } change)
+        {
+            return null;
+        }
+
+        if (change.Kind != BlockChangeKind.Gone)
+        {
+            return new BlockChange(txid, change.Kind, change.Before, change.Now) { Chain = Network.ChainOf() };
+        }
+
+        // The hosts that said it is gone since the case last saw it in a block, and every host the case has heard
+        // from on the chain, both from the sealed addresses: what the case knew, not what is switched on now.
+        var goneHosts = _store.NotFoundHosts(reader, txid, change.Before.Sequence);
+        var single = _store.AnsweringHosts(reader).Count <= 1;
+        return new BlockChange(txid, change.Kind, change.Before, change.Now)
+        {
+            Chain = Network.ChainOf(),
+            GoneHosts = goneHosts,
+            IsSingleSource = single,
+            IsCorroborated = goneHosts.Count >= 2 || single,
+        };
     }
 
     /// <summary>Reads every sealed answer that has a transaction, oldest first, with where it put it.</summary>
@@ -434,6 +869,19 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
         _ => null,
         NeverChanges: true);
 
+    /// <summary>
+    /// The lookup of a transaction's merkle proof, which holds once its block is deep, like the transaction itself.
+    /// </summary>
+    /// <param name="txid">The transaction.</param>
+    /// <returns>The query.</returns>
+    private LookupQuery<MerkleProof> MerkleQuery(Txid txid) => new(
+        ResponseKinds.MerkleProof,
+        txid.Value,
+        $"tx/{txid.Value}/merkle-proof",
+        body => MerkleProof.Parse(body),
+        proof => new ResponseIndex([], proof.Height),
+        proof => proof.Height);
+
     /// <summary>The lookup of a block's header, which never changes.</summary>
     /// <param name="hash">The block.</param>
     /// <returns>The query.</returns>
@@ -441,7 +889,8 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
         ResponseKinds.BlockHeader,
         hash.Value,
         $"block/{hash.Value}/header",
-        body => BlockHeaderReader.ParseHex(body, hash),
+        body => BlockHeaderReader.ParseHex(
+            body, hash, WorkLimit, workIsDoubleSha256: _options.Network != BitcoinNetwork.Litecoin),
         _ => ResponseIndex.None,
         _ => null,
         NeverChanges: true);
@@ -485,6 +934,49 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
             CultureInfo.InvariantCulture, $"Tx:en låg tidigare i block {earlier.Height} ({earlier.Hash})");
         return $"{earlierText} men {where}: blocket är inte längre en del av kedjan enligt källan (en omorganisation). "
             + "Båda svaren är sparade i ärendet.";
+    }
+
+    /// <summary>
+    /// Says when an output the case knew to be spent is now spent by another transaction, or by the same one in
+    /// another block, or is unspent again: the chain was reorganised or the spending transaction was replaced (etapp
+    /// 15, the answer about spent outputs compared with the last). An output first seen spent is no change.
+    /// </summary>
+    /// <param name="before">The case's last answer.</param>
+    /// <param name="now">The new answer.</param>
+    /// <returns>What changed, in Swedish, or <see langword="null"/>.</returns>
+    internal static string? SpendChange(IReadOnlyList<BitcoinOutputSpend> before, IReadOnlyList<BitcoinOutputSpend> now)
+    {
+        var changes = new List<string>();
+        foreach (var earlier in before)
+        {
+            if (earlier.SpentBy is not { } was)
+            {
+                continue;
+            }
+
+            var later = now.FirstOrDefault(each => each.Index == earlier.Index)?.SpentBy;
+            if (later is null)
+            {
+                changes.Add(string.Create(CultureInfo.InvariantCulture,
+                    $"utgång {earlier.Index} spenderades av {was.Txid} men är nu ospenderad"));
+            }
+            else if (later.Txid != was.Txid)
+            {
+                changes.Add(string.Create(CultureInfo.InvariantCulture,
+                    $"utgång {earlier.Index} spenderades av {was.Txid} men nu av {later.Txid}"));
+            }
+            else if (was.Block is { } block && later.Block?.Hash != block.Hash)
+            {
+                changes.Add(string.Create(CultureInfo.InvariantCulture,
+                    $"utgång {earlier.Index} spenderas av samma tx, men den låg i block {block.Height} och ligger nu "
+                    + $"{(later.Block is { } moved ? $"i block {moved.Height}" : "inte i något block")}"));
+            }
+        }
+
+        return changes.Count == 0
+            ? null
+            : "Enligt källan har " + string.Join("; ", changes)
+                + " (en omorganisation eller en ersatt tx). Båda svaren är sparade i ärendet.";
     }
 
     /// <summary>The lookup of the chain's height, which always changes.</summary>
@@ -531,7 +1023,7 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
             {
                 var found = SourceLookups.StoredAs(
                     _store.Latest(reader, ResponseKinds.OutputSpends, transaction.Txid.Value),
-                    body => EsploraParser.ParseOutputSpends(body));
+                    body => _parser.ParseOutputSpends(body));
                 var height = found is { } spends ? _store.KnownHeight(reader, spends.Response.Origin.Sequence) : null;
                 return (found, height);
             }),

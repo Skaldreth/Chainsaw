@@ -188,6 +188,9 @@ fortsättningen själv (belopp och tid hos swap-tjänster, bryggornas egna händ
   - **En egen nod på det lokala nätet tillåts** (till exempel `https://esplora.lan`): bara en endpoint som användaren
     själv lagt till och uttryckligen märkt som lokal får ha en adress på datorn eller ett privat nät, fortfarande bara
     https. Uppslagen till den lämnar aldrig det egna nätet; alla andra uppslag går som förut genom utgången (princip 4).
+    En egen **Bitcoin Core** (JSON-RPC bakom en TLS-proxy, bara som lokal) svarar på höjd, blockhash, blockhuvud och
+    tx:ens bytes, och adresserna frågas av en egen electrs med Esplora-API; en tx vars block den egna noden har på
+    höjden är *bekräftad av den egna noden* (2026-11-09).
 
 ### Öppna med en adress
 
@@ -286,7 +289,9 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   organisationens publika nyckel, som är inbyggd i Chainsaw. Den privata nyckeln har bara administratören, och den finns
   aldrig i repot. Glöms huvudnyckeln går valvet inte att återställa (det skapas på nytt), men ärendena kan öppnas av
   administratören.
-  - **Konstruktionen:** ECIES på P-384. Ett nytt tillfälligt nyckelpar per kuvert, ECDH mot den publika nyckeln,
+  - **Konstruktionen:** ECIES på P-384. Det tillfälliga nyckelparet och nonce härleds ur filnyckeln, ärendets id och
+    fingeravtrycket (användarens beslut 2026-11-09), så att kuvertet byggs om och jämförs byte för byte vid varje
+    öppning och skrivs på nytt med en rad i journalen när det saknas eller inte håller. ECDH mot den publika nyckeln,
     HKDF-SHA384 till en AES-256-GCM-nyckel som lindar filnyckeln. Ärendets id, nyckelns fingeravtryck (SHA-256 av den
     publika nyckeln i kanonisk DER-form) och den tillfälliga nyckeln är bundna som HKDF-info och associerad data.
   - **Den publika nyckeln** ligger i `src/Modules/Cases/Chainsaw.Modules.Cases/organization-recovery-key.pem`, en
@@ -295,7 +300,9 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
     inbyggda nyckeln öppnas (äldre ärenden och bytt nyckel). Kuvert för andra nycklar ligger kvar, eftersom en äldre
     version eller en annan organisations Chainsaw annars skulle ta bort en nyare nyckels kuvert. En röjd nyckel
     **återkallas** med en rad `REVOKED <fingeravtryck>` i samma fil, och dess kuvert tas bort ur varje ärende som
-    öppnas; kopior gjorda före det har dem kvar. Kuvert i ett okänt format sparas orörda och hindrar aldrig öppningen.
+    öppnas; kopior gjorda före det har dem kvar. Kuvert i ett okänt format sparas orörda och hindrar aldrig öppningen; bara när huvudet är fullt och
+    återställningskuvertet behöver plats tas okända kuvert, andra nycklars kuvert och kopior bort först, med en rad i
+    journalen.
   - **Verktyget** `tools/Chainsaw.Recovery` (`keygen`, `fingerprint`, `check`, `open`) är administratörens. Den
     privata nyckeln skyddas med lösenord (krypterad PKCS #8, PBKDF2-HMAC-SHA512 med 600 000 iterationer och
     AES-256), skrivs aldrig över och aldrig i ett git-repo. Hur nyckeln skapas, förvaras och används står i
@@ -403,6 +410,9 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
 - **Panorering** (användarens beslut 2026-11-07): höger- och mittknappen panorerar grafen, också över en nod, och
   ytan glider vidare och saktar in när man släpper i farten, som i Gawk. Ett högerklick utan rörelse öppnar nodens meny.
   Vänsterknappen drar noder och väljer. **Grafen använder ytan**: många motparter sprids ut, aldrig i en lång kolumn.
+  **Ett klick bredvid stänger de små panelerna** (användarens beslut 2026-11-08): menyn, formulären vid noden,
+  Bevaka, den egna ytans formulär, frågan före sortering, soptunnans varning, bildspråkets ruta och rutan *Bytte block*
+  stängs utan att något sparas när man klickar någon annanstans i grafen, och klicket gör samtidigt det det annars gör.
 - **Delete slänger** den valda noden, eller de valda, i soptunnan, var som helst i grafen och också i högen
   (användarens beslut 2026-11-07), med samma varning som när man drar dit något som har kopplingar vidare.
 - **Den tomma grafen guidar, GR6c** (användarens beslut 2026-11-07): utan ärende står
@@ -492,8 +502,10 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   det man slängde. Soptunnan har en **egen vy** med allt som slängts, som ett träd: det man slängde överst och det som
   följde med under, i flera led. Formen är **SO1a** (användarens beslut 2026-11-07): ikonen växer till en rund
   yta i hörnet med en ringvåg när man är framme, varningen är en liten ruta vid soptunnan med trädet, och det som följer
-  med blir streckat medan resten tonas ner. Vyn är en indragen trädlista per slängning med *Lägg tillbaka* (grenen eller
-  en del) och *Lägg tillbaka allt*. En linje till något i soptunnan blir en kort stump, och soptunnan använder inte
+  med blir streckat medan resten tonas ner. **Vyn är SO2a** (användarens beslut 2026-11-08): ett kort per slängning med det slängda
+  som små noder lagda som en kortlek, när, vem och hur många, och trädet med grenlinjer som fälls ut; *Lägg tillbaka*
+  syns på hovring (kortet för hela slängningen, en rund ikon på raden för grenen), ärendena från startsidan är rutor
+  och en hög har korten bakom sig, och en tom soptunna är en stor ikon nersänkt i ytan. En linje till något i soptunnan blir en kort stump, och soptunnan använder inte
   rött, som betyder risk. **Bevakat slängs inte i tysthet** (användarens beslut 2026-11-07): ligger det som slängs
   under bevakning, eller har det bevakningar längre ner i grenen, frågar Chainsaw först om bevakningarna (en eller
   flera) ska avslutas innan det går i soptunnan. I startvyn kan man slänga ärenden. Bildspråkets *?* flyttas till nedre högra
@@ -552,8 +564,9 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   - **FL1a** (vald och byggd 2026-11-08): vyn Flöde är en Sankey med en kolumn per hopp från vänster till höger, varje band delat
     i trådar i färgen för var pengarna till sist hamnade, det som ligger kvar som en stump, och spårningsmetoden som
     räknar om delningen.
-  - **PL1b** (vald 2026-11-08): att ångra en godkänd plånbok (Ctrl+Z eller *Ångra* i KF2b) bekräftas i grafen, där
-    klustret öppnas som ett kort med adresserna och en liten ruta under som i IN1b; panelen säger *Bekräfta i grafen*.
+  - **PL1b** (vald 2026-11-08, byggd 2026-11-09): att ångra en godkänd plånbok (Ctrl+Z eller *Ångra* i KF2b)
+    bekräftas i grafen, där klustret öppnas som ett kort med adresserna och en liten ruta under som i IN1b; panelen
+    säger *Bekräfta i grafen*.
   - **SW1a** (vald 2026-11-08): valet per swap görs i pillret ₮ → Ξ, som fälls ut på plats till *Följer* och *Följer
     inte*; följer värdet är linjen efter streckad i accent, annars grå med ett stopp och en person-markering.
   - **VT1a** (vald 2026-11-08): *Byt filnyckel* i fliken *Kuvert* (ÄR1b); korten får *Lindas om* eller *Faller
@@ -671,7 +684,7 @@ Canvas: https://claude.ai/artifact/LVMLEqgJteM68jjc7vuq1h. **Den är uppdelad i 
 | **Inställningar** | ST1a (dialog som i Gawk), ST1b (vy); KL1a, KL1b (källornas endpoints) | ST1a vald och byggd (etapp 19); KL1a vald, ersatt av KL2b (vald 2026-11-08 utan linjerna vid raderna och byggd, med Chainabuse under *Etiketter*) |
 | **Bevakning** | BV1a (lista med formulär), BV1b (tidslinje med händelser); BV2a (vaktlinje), BV2b (båge vid porten); BV3a, BV3b (Bevaka, enklare och vid noden) | BV1a och BV2a valda, med animerade ringar vid träff; BV3a vald |
 | **Begäran** | BG1a (i inspektören), BG1b (vyn Begäran); export till Markdown | BG1b vald och byggd |
-| **Soptunnan** | SO1a, SO1b (släppytan, varningen och vyn) | SO1a vald |
+| **Soptunnan** | SO1a, SO1b (släppytan, varningen och vyn); SO2a, SO2b (vyn omgjord: kort per slängning eller lista och bild, tomt läge med nersänkt ikon) | SO1a vald; SO2a vald och byggd 2026-11-08 (vyn) |
 | **Ärendeväljaren** | ÄV1a (i titelraden), ÄV1b (panel) | ÄV1a vald |
 | **Kontroller och förslag** | KF1a (lista att gå igenom), KF1b (områden bakom aktörerna, också för plånböcker, tid och egna ytor); KF2a, KF2b (omgjorda, professionellare) | KF1a byggd i etapp 22, ersätts av KF2b (vald 2026-11-08), med områdena från KF1b |
 | **Meddelanden** | TO1a (toastern nere till höger) | TO1a godkänd och byggd |

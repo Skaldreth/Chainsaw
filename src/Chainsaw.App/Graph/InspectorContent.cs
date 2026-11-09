@@ -467,8 +467,9 @@ public sealed record InspectorContent(
     {
         GraphNodeKind.Address when node.Accounts.Count > 0 =>
         [
-            .. node.Accounts.Where(account => account.Chain == Chain.Ethereum)
-                .Select(account => ExpansionRequest.ForEthereumAddress(EthereumAddress.Parse(account.Value))),
+            .. node.Accounts.Where(account => account.Chain.Model() == LedgerModel.Account)
+                .Select(account => ExpansionRequest.ForEthereumAddress(
+                    EthereumAddress.Parse(account.Chain, account.Value))),
         ],
         GraphNodeKind.Address or GraphNodeKind.Cluster =>
             [.. node.GraphAddresses.Select(address => ExpansionRequest.ForAddress(address))],
@@ -555,6 +556,8 @@ public sealed record InspectorContent(
         why.AddRange(model.Ends.Select(end =>
             EndLine($"{end.Reason.Describe()}: {end.Explanation} ({end.Source})", end.Reason)));
         why.AddRange(TraceWhy(scene, node));
+        why.AddRange(RefusedSwapWhy(scene, refusal => model.Accounts.Contains(refusal.Swap.Account)
+            || model.Accounts.Contains(refusal.Counterparty)));
         why.AddRange(ExpansionWhy(model));
         if (model.Hop is { } hop)
         {
@@ -601,16 +604,35 @@ public sealed record InspectorContent(
                 GuideTopic.Methods);
         }
 
+        var viaSwap = scene.Edges
+            .Where(edge => edge.Edge.To == node.Key && edge.TracedEdge?.Amount.RestsOnSwap == true)
+            .Select(edge => edge.Traced.Asset)
+            .ToHashSet();
         foreach (var amount in node.TracedIns)
         {
-            yield return new WhyLine(
-                $"Spårat hit: {AmountWithMark(amount)} enligt {method}, räknat för sig per tillgång i "
-                + "kontomodellen. Det är en bedömning enligt metoden, inte ett faktum på kedjan.",
-                GuideTopic.AccountModel);
+            yield return viaSwap.Contains(amount.Asset)
+                ? new WhyLine(
+                    $"Spårat hit: {AmountWithMark(amount)} enligt {method}, av ett värde som följt med genom en swap "
+                    + $"enligt {SwapValue.Analysis}. Det är en bedömning, inte ett faktum på kedjan.",
+                    GuideTopic.Swaps)
+                : new WhyLine(
+                    $"Spårat hit: {AmountWithMark(amount)} enligt {method}, räknat för sig per tillgång i "
+                    + "kontomodellen. Det är en bedömning enligt metoden, inte ett faktum på kedjan.",
+                    GuideTopic.AccountModel);
         }
 
-        var ends = (scene.Snapshot.Trace?.Ends ?? []).Concat(scene.Snapshot.AccountTrace?.Ends ?? []);
-        foreach (var end in ends.Where(end => end.NodeKey == node.Key)
+        var ends = (scene.Snapshot.Trace?.Ends ?? []).Concat(scene.Snapshot.AccountTrace?.Ends ?? []).ToList();
+        var swapped = ends.Count(end => end.NodeKey == node.Key && end.Reason == TrailEndReason.Swapped);
+        if (swapped > 0)
+        {
+            // The same money can go through several swaps here, back and forth, so the amounts are never added.
+            yield return new WhyLine(
+                $"Gick in i {swapped} swap(par) här och följer med i den nya tillgången enligt {SwapValue.Analysis}; "
+                + "samma pengar kan gå genom flera swappar, så beloppen läggs inte ihop. Det är inget slut på spåret.",
+                GuideTopic.Swaps);
+        }
+
+        foreach (var end in ends.Where(end => end.NodeKey == node.Key && end.Reason != TrailEndReason.Swapped)
             .GroupBy(end => (end.Reason, end.Amount.Amount.Asset)))
         {
             var amount = end.Skip(1).Aggregate(end.First().Amount.Amount, (sum, item) => sum + item.Amount.Amount);
@@ -665,10 +687,70 @@ public sealed record InspectorContent(
             yield return new WhyLine(
                 $"Swap i tx {swap.Transaction}: adressen skickade {AmountText.WithUnit(swap.Sold)} och fick "
                 + $"{AmountText.WithUnit(swap.Bought)} tillbaka i samma tx{VenueText(swap)}. Pengarna bytte token men "
-                + "inte ägare, så det är inget slut på spåret. Att det var en swap är en läsning av rörelserna; "
-                + "spårningen följer inte bytet än, utan räknar varje tillgång för sig.",
-                GuideTopic.Tokens);
+                + "inte ägare. Att det var en swap är en läsning av rörelserna. " + SwapChoiceWhy(edge, swap),
+                GuideTopic.Swaps);
         }
+    }
+
+    /// <summary>
+    /// Says why a transaction that would be a swap is none (SW1a): a counterparty is one the trail must reach, by a
+    /// label or Chainsaw's list, so the money goes on to it as a payment and no choice is asked for.
+    /// </summary>
+    /// <param name="scene">The scene.</param>
+    /// <param name="concerns">Which refusals the chosen thing concerns.</param>
+    /// <returns>The answers.</returns>
+    private static IEnumerable<WhyLine> RefusedSwapWhy(GraphScene scene, Func<SwapRefusal, bool> concerns) =>
+        scene.Snapshot.Graph.Account.RefusedSwaps.Where(concerns).Select(refusal => new WhyLine(
+            $"Ingen swap i tx {refusal.Swap.Transaction.Value}: motparten "
+                + $"{GraphScene.Shorten(refusal.Counterparty.Value)}"
+                + $" har {refusal.Why}, och dit ska spåret nå. Pengarna följer med som en vanlig betalning.",
+            GuideTopic.Swaps));
+
+    /// <summary>Says whether a refused swap's transaction is on a line from or to the account that would swap.</summary>
+    /// <param name="refusal">The refused swap.</param>
+    /// <param name="edge">The line.</param>
+    /// <returns><see langword="true"/> when it is.</returns>
+    private static bool IsOnLine(SwapRefusal refusal, EdgeView edge)
+    {
+        var account = GraphScene.AccountKey(refusal.Swap.Account);
+        return (edge.Edge.From == account || edge.Edge.To == account)
+            && edge.Edge.Transfers.Any(transfer => transfer.Transaction.Id == refusal.Swap.Transaction.Value);
+    }
+
+    /// <summary>
+    /// Says what the rule <see cref="SwapValue"/> did at a swap (sketch SW1a): the steps when the traced value
+    /// follows, the user's choice when it does not, or that no traced money reached it.
+    /// </summary>
+    /// <param name="edge">The line.</param>
+    /// <param name="swap">One of its swaps.</param>
+    /// <returns>The answer.</returns>
+    private static string SwapChoiceWhy(EdgeView edge, TokenSwap swap)
+    {
+        var price = edge.SwapPrice is { } check && check.Swap.Equals(swap) ? " " + check.Explain() : string.Empty;
+        if (edge.SwapPrice is { IsUnreasonable: true } absurd && absurd.Swap.Equals(swap))
+        {
+            return absurd.Explain();
+        }
+
+        return ChoiceWhy(edge, swap) + price;
+    }
+
+    /// <summary>Says what the user chose at a swap, or what the rule did there.</summary>
+    /// <param name="edge">The line.</param>
+    /// <param name="swap">One of its swaps.</param>
+    /// <returns>The answer.</returns>
+    private static string ChoiceWhy(EdgeView edge, TokenSwap swap)
+    {
+        if (edge.SwapStops.FirstOrDefault(stop => stop.Is(swap)) is { } stop)
+        {
+            var reason = stop.Reason is null ? string.Empty : $" ({stop.Reason})";
+            return $"Spåret slutar i swappen: du valde {NodeHistory.Short(stop.RecordedUtc)} att värdet inte följer "
+                + $"med{reason}. Valet kan tas tillbaka i pillret eller under Historik.";
+        }
+
+        return edge.SwapConversions.FirstOrDefault(found => found.Swap == swap) is { } conversion
+            ? conversion.Explain()
+            : $"Värdet följer med enligt {SwapValue.Analysis} (förval), men inga spårade pengar nådde swappen.";
     }
 
     /// <summary>Says which known exchange a swap went through, when Chainsaw knows the contract.</summary>
@@ -724,6 +806,26 @@ public sealed record InspectorContent(
         }
     }
 
+    /// <summary>
+    /// Writes why a line continues on another chain: the user's judgement with when, and the approved suggestion it
+    /// came from (the analysis with its version and the decision) when it did not come by hand, and the reason only
+    /// when one was given.
+    /// </summary>
+    /// <param name="link">The link.</param>
+    /// <returns>The answer, in Swedish.</returns>
+    public static string LinkWhy(CrossChainLink link)
+    {
+        ArgumentNullException.ThrowIfNull(link);
+        var origin = link.Origin is { } made
+            ? string.Create(
+                CultureInfo.InvariantCulture, $", ett godkänt förslag ur {made.Analysis} (beslut {made.Decision})")
+            : string.Empty;
+        var reason = string.IsNullOrWhiteSpace(link.Reason) ? string.Empty : ": " + link.Reason.Trim().TrimEnd('.');
+        return $"Fortsätter på {link.To.Chain}: användarens bedömning "
+            + $"{link.RecordedUtc.UtcDateTime:yyyy-MM-dd HH:mm} UTC{origin}{reason}. Beloppet är det som lämnade "
+            + $"{link.FromChain}, inte det som kom fram på den andra kedjan.";
+    }
+
     /// <summary>Answers <em>Varför?</em> for a line: the facts it sums, the traced part and what is uncertain.</summary>
     /// <param name="scene">The scene.</param>
     /// <param name="edge">The line.</param>
@@ -736,11 +838,7 @@ public sealed record InspectorContent(
         {
             why.AddRange(scene.Snapshot.Graph.CrossChainLinks
                 .Where(link => InspectorForms.Carries(model, link))
-                .Select(link => new WhyLine(
-                    $"Fortsätter på {link.To.Chain}: användarens bedömning "
-                    + $"{link.RecordedUtc.UtcDateTime:yyyy-MM-dd HH:mm} UTC: {link.Reason}. Beloppet är det som "
-                    + $"lämnade {link.FromChain}, inte det som kom fram på den andra kedjan.",
-                    GuideTopic.TrailEnds)));
+                .Select(link => new WhyLine(LinkWhy(link), GuideTopic.CrossChain)));
         }
         else
         {
@@ -755,12 +853,22 @@ public sealed record InspectorContent(
             if (account)
             {
                 why.AddRange(EthereumWhy(edge));
+                why.AddRange(RefusedSwapWhy(scene, refusal => IsOnLine(refusal, edge)));
             }
 
             why.Add(ValueWhy(edge));
         }
 
         why.Add(TracedWhy(scene, edge));
+        if (edge.TracedEdge?.Amount.Replaced is [_, ..] replaced)
+        {
+            var gone = string.Join(", ", replaced.Select(txid => GraphScene.Shorten(txid.Value)));
+            why.Add(new WhyLine(
+                $"Följer ersättaren: tx {gone} finns inte längre, och du valde att spåret följer tx:en som spenderar "
+                + "samma mynt i stället. Det är din bedömning, inte ett faktum på kedjan.",
+                GuideTopic.GoneTransaction));
+        }
+
         if (edge.Dash == EdgeDash.Uncertain)
         {
             why.Add(new WhyLine(

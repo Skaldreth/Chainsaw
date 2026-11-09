@@ -127,6 +127,82 @@ public interface ITracingService
     /// <returns>The links and their taking back.</returns>
     IReadOnlyList<CrossChainLinkHistoryEntry> GetCrossChainHistory(ICase @case);
 
+    /// <summary>
+    /// Chooses that the traced value does not follow through a swap (sketch SW1a, <em>Följer inte</em>): the user's
+    /// judgement, sealed with who and when, with a line in the journal. The trail then ends in the swap.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="swap">The swap, from <see cref="AccountGraph.Swaps"/>.</param>
+    /// <param name="reason">Why, at most 1 000 characters; optional (the user's decision 2026-11-07).</param>
+    /// <returns>The choice, or the one already in force when the swap is already not followed.</returns>
+    /// <exception cref="ArgumentException">The reason is too long, or the swap is not in the case's graph.</exception>
+    /// <exception cref="CaseException">
+    /// <see cref="CaseError.NoOperatorProfile"/> or <see cref="CaseError.Closed"/>.
+    /// </exception>
+    SwapStop StopAtSwap(ICase @case, TokenSwap swap, string? reason);
+
+    /// <summary>
+    /// Takes back a choice that the value does not follow through a swap, so that it follows again (the default).
+    /// Nothing is removed: the choice stays sealed, and a new sealed record of the taking back says it no longer
+    /// counts (sketch AN1b).
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="stop">The choice.</param>
+    /// <param name="reason">Why, at most 1 000 characters; optional.</param>
+    /// <returns><see langword="true"/> when the choice was in force and is now taken back.</returns>
+    /// <exception cref="ArgumentException">The reason is too long.</exception>
+    /// <exception cref="CaseException">
+    /// <see cref="CaseError.NoOperatorProfile"/> or <see cref="CaseError.Closed"/>.
+    /// </exception>
+    bool FollowSwap(ICase @case, SwapStop stop, string? reason);
+
+    /// <summary>
+    /// Reads every choice not to follow a swap, also those taken back, each with its taking back, oldest first
+    /// (sketch AN1b, <em>Historik</em>).
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <returns>The choices and their taking back.</returns>
+    IReadOnlyList<SwapStopHistoryEntry> GetSwapStopHistory(ICase @case);
+
+    /// <summary>
+    /// Chooses that the trace follows the transaction that spends the coins of a transaction the source no longer
+    /// knows (sketch GR9a, <em>Ersatt av</em>): the user's judgement that the replacer carries the same money on,
+    /// sealed with who and when, with a line in the journal. The replacer is fetched through the exit (sealed like
+    /// every answer) and comes into the graph; the trace then goes on through it, drawn dashed (principle 2).
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="gone">The transaction that is gone, as <see cref="TraceGraph.Gone"/> names it.</param>
+    /// <param name="replacer">One of the transactions the case knows spends its coins now.</param>
+    /// <param name="reason">Why, at most 1 000 characters; optional (the user's decision 2026-11-07).</param>
+    /// <param name="cancellationToken">Stops the lookup of the replacer.</param>
+    /// <returns>The choice, or the one already in force for the same replacer.</returns>
+    /// <exception cref="ArgumentException">
+    /// The reason is too long, the transaction is not gone, or the case does not know the replacer spends its coins.
+    /// </exception>
+    /// <exception cref="ReplacementUnavailableException">
+    /// The replacer could not be had from the source or the case; the message says why.
+    /// </exception>
+    /// <exception cref="CaseException">
+    /// <see cref="CaseError.NoOperatorProfile"/> or <see cref="CaseError.Closed"/>.
+    /// </exception>
+    Task<ReplacementFollow> FollowReplacementAsync(
+        ICase @case, Txid gone, Txid replacer, string? reason, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Takes back a choice to follow a replacer, so that the trail ends at the gone transaction again. Nothing is
+    /// removed: the choice stays sealed, and a new sealed record of the taking back says it no longer counts (sketch
+    /// AN1b). The replacer leaves the graph unless an expansion brought it in too; its sealed answers stay in the case.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="follow">The choice.</param>
+    /// <param name="reason">Why, at most 1 000 characters; optional.</param>
+    /// <returns><see langword="true"/> when the choice was in force and is now taken back.</returns>
+    /// <exception cref="ArgumentException">The reason is too long.</exception>
+    /// <exception cref="CaseException">
+    /// <see cref="CaseError.NoOperatorProfile"/> or <see cref="CaseError.Closed"/>.
+    /// </exception>
+    bool TakeBackReplacement(ICase @case, ReplacementFollow follow, string? reason);
+
     /// <summary>Remembers where the user placed a node in a layout (ordinary data, no journal).</summary>
     /// <param name="case">The open case.</param>
     /// <param name="nodeKey">The node's key from <see cref="GraphNode.Key"/>.</param>
@@ -224,9 +300,10 @@ public interface ITracingService
         TraceGraph graph, TraceRequest request, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Traces money through the account part of the graph (Ethereum) by a method, one asset at a time: from the seeds,
-    /// through every account whose history the graph has read, to where it stops. Every account's share is checked
-    /// (<c>AccountChecks.Run</c>), so a method that creates or loses money is refused.
+    /// Traces money through the account part of the graph (Ethereum) by a method, per asset: from the seeds, through
+    /// every account whose history the graph has read, to where it stops; through a swap the traced value follows into
+    /// the other asset by <see cref="SwapValue"/>, unless the user chose that it does not (<see cref="SwapStop"/>).
+    /// Every account's share is checked (<c>AccountChecks.Run</c>), so a method that creates or loses money is refused.
     /// </summary>
     /// <param name="graph">The graph.</param>
     /// <param name="request">The method and the seeds.</param>
@@ -414,6 +491,21 @@ public static class TracingJournalKinds
 
     /// <summary>The user took back a link to another chain.</summary>
     public const string CrossChainUnlinked = "tracing.cross-chain-unlinked";
+
+    /// <summary>The user chose that the traced value does not follow through a swap (sketch SW1a).</summary>
+    public const string SwapStopped = "tracing.swap-stopped";
+
+    /// <summary>The user took back a choice not to follow a swap, so that the value follows it again.</summary>
+    public const string SwapFollowed = "tracing.swap-followed";
+
+    /// <summary>
+    /// The user chose that the trace follows the transaction that replaced one the source no longer knows (sketch
+    /// GR9a, <em>Ersatt av</em>).
+    /// </summary>
+    public const string ReplacementFollowed = "tracing.replacement-followed";
+
+    /// <summary>The user took back a choice to follow a replacer, so that the trail ends at the gone one again.</summary>
+    public const string ReplacementTakenBack = "tracing.replacement-taken-back";
 
     /// <summary>The user changed the tracing method the graph's amounts are counted by.</summary>
     public const string MethodChanged = "tracing.method-changed";

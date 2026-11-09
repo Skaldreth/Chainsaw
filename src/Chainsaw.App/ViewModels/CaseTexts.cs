@@ -54,13 +54,7 @@ public static class CaseTexts
     /// <summary>Gives a chain's name in Swedish text.</summary>
     /// <param name="chain">The chain.</param>
     /// <returns>The name, for example <c>TRON</c>.</returns>
-    public static string ChainName(Chain chain) => chain switch
-    {
-        Chain.Bitcoin => "Bitcoin",
-        Chain.Ethereum => "Ethereum",
-        Chain.Tron => "TRON",
-        _ => chain.ToString(),
-    };
+    public static string ChainName(Chain chain) => chain.DisplayName();
 
     /// <summary>Says what a start point is: <c>Bitcoin-adress</c>, or that its chain is not built yet.</summary>
     /// <param name="startPoint">The recognised start point.</param>
@@ -72,8 +66,20 @@ public static class CaseTexts
             return "Känns inte igen som adress eller tx";
         }
 
+        if (startPoint.IsShielded)
+        {
+            return chain == Chain.Zcash
+                ? "Skyddad Zcash-adress · spåret tar slut här"
+                : "MWEB-adress · spåret tar slut här";
+        }
+
         var what = ChainName(chain) + (startPoint.Kind == StartPointKind.Address ? "-adress" : "-tx");
-        return startPoint.IsSupported ? what : what + " · inte byggt än";
+        if (startPoint.IsSupported)
+        {
+            return what;
+        }
+
+        return startPoint.CanFetch ? what + " · spåras inte i grafen än" : what + " · inte byggt än";
     }
 
     /// <summary>Shortens an address or a txid for a line: the first eight and the last seven characters.</summary>

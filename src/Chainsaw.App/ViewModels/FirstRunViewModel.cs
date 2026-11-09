@@ -40,6 +40,9 @@ public sealed partial class FirstRunViewModel : ObservableObject
     /// <summary>The connection to the exit, which the file's row connects; none in some tests.</summary>
     private readonly IExitConnection? _connection;
 
+    /// <summary>The exits kept for the background, or <see langword="null"/>.</summary>
+    private readonly IBackgroundExits? _backgroundExits;
+
     /// <summary>The exit stored in this setup, or <see langword="null"/>.</summary>
     private Guid? _exitId;
 
@@ -51,6 +54,9 @@ public sealed partial class FirstRunViewModel : ObservableObject
     /// <param name="way">The way out and the exit's state, for the route; none in some tests.</param>
     /// <param name="settings">The settings, where the way out chosen is applied and saved; none in some tests.</param>
     /// <param name="connection">The connection to the exit, which the file's row connects; none in some tests.</param>
+    /// <param name="backgroundExits">
+    /// The exits kept for the background, removed when the vault is created anew; none in some tests.
+    /// </param>
     public FirstRunViewModel(
         IVault vault,
         IOperatorProfileStore profiles,
@@ -58,8 +64,10 @@ public sealed partial class FirstRunViewModel : ObservableObject
         CaseWorkflow workflow,
         ExitWay? way = null,
         SettingsViewModel? settings = null,
-        IExitConnection? connection = null)
+        IExitConnection? connection = null,
+        IBackgroundExits? backgroundExits = null)
     {
+        _backgroundExits = backgroundExits;
         _vault = vault;
         _profiles = profiles;
         _exits = exits;
@@ -559,6 +567,19 @@ public sealed partial class FirstRunViewModel : ObservableObject
         }
     }
 
+    /// <summary>Removes the exits' copies kept for the background; one that cannot be removed now is left.</summary>
+    private void ForgetBackgroundExits()
+    {
+        try
+        {
+            _backgroundExits?.Clear();
+        }
+        catch (IOException)
+        {
+            // Held for a moment: the background reads no exit the new vault selects, and turning it off removes it.
+        }
+    }
+
     /// <summary>Creates the vault, after checking the two fields.</summary>
     /// <param name="masterKey">The master key.</param>
     /// <param name="repeat">The master key written again.</param>
@@ -580,6 +601,10 @@ public sealed partial class FirstRunViewModel : ObservableObject
         try
         {
             await Task.Run(() => _vault.Create(masterKey));
+
+            // A new vault has none of the old exits: a copy kept for the background from the old vault must go, so
+            // that the background never goes out through an exit the new vault does not know (review round 3, M6).
+            await Task.Run(ForgetBackgroundExits);
             return true;
         }
         catch (VaultException exception)

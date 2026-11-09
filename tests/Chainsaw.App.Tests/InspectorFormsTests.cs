@@ -146,6 +146,33 @@ internal sealed class TestGraphEditor : IGraphEditor
     public Task<UndoOutcome> UndoMergesAsync(ICase @case, IReadOnlyList<long> merges, string? reason) =>
         Undo("merge", string.Join(",", merges), reason);
 
+    /// <summary>Gets the swaps the user chose not to follow, in order.</summary>
+    public List<TokenSwap> SwapStops { get; } = [];
+
+    public Task StopAtSwapAsync(ICase @case, TokenSwap swap, string? reason)
+    {
+        SwapStops.Add(swap);
+        return Failure is { } failure ? Task.FromException(failure) : Task.CompletedTask;
+    }
+
+    public Task<UndoOutcome> FollowSwapAsync(ICase @case, SwapStop stop, string? reason) =>
+        Undo("swap", stop.Sequence.ToString(System.Globalization.CultureInfo.InvariantCulture), reason);
+
+    /// <summary>Gets the replacers the user chose to follow, in order.</summary>
+    public List<(Txid Gone, Txid Replacer)> FollowedReplacements { get; } = [];
+
+    public Task<ReplacementFollow> FollowReplacementAsync(ICase @case, Txid gone, Txid replacer)
+    {
+        FollowedReplacements.Add((gone, replacer));
+        return Failure is { } failure
+            ? Task.FromException<ReplacementFollow>(failure)
+            : Task.FromResult(new ReplacementFollow(
+                FollowedReplacements.Count, gone, replacer, null, 1, DateTimeOffset.UnixEpoch));
+    }
+
+    public Task<UndoOutcome> TakeBackReplacementAsync(ICase @case, ReplacementFollow follow) =>
+        Undo("replacement", follow.Sequence.ToString(System.Globalization.CultureInfo.InvariantCulture), null);
+
     /// <summary>Gets or sets what undoing merges would merge again; by default nothing, while they hold.</summary>
     public UndoMergePreview? MergePreview { get; set; } = new([MergeSample], [], []);
 
@@ -740,20 +767,21 @@ public sealed class InspectorFormsTests
         Assert.False(rig.Forms.IsOpen);
     }
 
-    /// <summary>A chain that is not built is shown toned and cannot be chosen.</summary>
+    /// <summary>
+    /// Every chain the form offers is built now, Solana last among them; choosing one makes it the link's chain.
+    /// </summary>
     [Fact]
-    public void ChainsNotBuiltCannotBeChosen()
+    public void EveryChainOfferedCanBeChosenSolanaToo()
     {
         var rig = new Rig();
         rig.Graph.Choose(GraphSamples.UKey, null);
         rig.Forms.Open(InspectorForm.CrossChain);
-        var litecoin = rig.Forms.Chains.Single(chain => chain.Name == "Litecoin");
+        var solana = rig.Forms.Chains.Single(chain => chain.Name == "Solana");
 
-        rig.Forms.ChooseChain(litecoin);
+        rig.Forms.ChooseChain(solana);
 
-        Assert.False(litecoin.IsBuilt);
-        Assert.Contains(InspectorFormsViewModel.NotBuiltText, litecoin.ToolTip, StringComparison.Ordinal);
-        Assert.Equal(Chain.Ethereum, rig.Forms.TargetChain);
+        Assert.All(rig.Forms.Chains, chain => Assert.True(chain.IsBuilt));
+        Assert.Equal(Chain.Solana, rig.Forms.TargetChain);
         rig.Forms.ChooseChain(rig.Forms.Chains.Single(chain => chain.Name == "TRON"));
         Assert.Equal(Chain.Tron, rig.Forms.TargetChain);
     }
@@ -793,10 +821,11 @@ public sealed class InspectorFormsTests
         Assert.Equal(LabelKind.Victim, kinds[0]);
         Assert.Equal(LabelKind.Unknown, kinds[1]);
         Assert.Equal(LabelKind.Exchange, kinds[2]);
-        Assert.Equal(Enum.GetValues<LabelKind>().Length - 3, kinds.Distinct().Count());
+        Assert.Equal(Enum.GetValues<LabelKind>().Length - 4, kinds.Distinct().Count());
         Assert.DoesNotContain(LabelKind.Sanctioned, kinds);
         Assert.DoesNotContain(LabelKind.Reported, kinds);
         Assert.DoesNotContain(LabelKind.FormerlySanctioned, kinds);
+        Assert.DoesNotContain(LabelKind.PossiblySanctioned, kinds);
         Assert.Equal("CIO v1", InspectorForms.ShortName(new HeuristicId(HeuristicNames.CommonInputOwnership, 1)));
         Assert.Equal("Växel v2", InspectorForms.ShortName(new HeuristicId(HeuristicNames.ChangeAddress, 2)));
     }

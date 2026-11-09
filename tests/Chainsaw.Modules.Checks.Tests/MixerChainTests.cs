@@ -5,7 +5,7 @@ using static Chainsaw.Modules.Checks.Tests.Synthetic;
 
 namespace Chainsaw.Modules.Checks.Tests;
 
-/// <summary>The facit for <c>mixer-chain v1</c>: an output of a mixer that goes into a mixer again.</summary>
+/// <summary>The facit for <c>mixer-chain v2</c>: an output of a mixer that goes into a mixer again.</summary>
 public sealed class MixerChainTests
 {
     private static readonly MixerChainCheck Analysis = new();
@@ -62,7 +62,7 @@ public sealed class MixerChainTests
     {
         var finding = Assert.Single(Run(TwoSteps(Parting.OtherMixer)));
 
-        Assert.Contains("mixer-chain v1", finding.Why, StringComparison.Ordinal);
+        Assert.Contains("mixer-chain v2", finding.Why, StringComparison.Ordinal);
         Assert.Contains("Steg 1: 0,1500 BTC in i mixern (block 900000); trolig utgång 0,14625 BTC", finding.Why,
             StringComparison.Ordinal);
         Assert.Contains("Steg 2: 0,1460 BTC in i en annan mixer", finding.Why, StringComparison.Ordinal);

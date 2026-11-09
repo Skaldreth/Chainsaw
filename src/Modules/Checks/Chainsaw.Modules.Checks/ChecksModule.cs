@@ -1,5 +1,7 @@
 using Chainsaw.Modules.Cases.Contracts;
+using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Checks.Contracts;
+using Chainsaw.Modules.Pricing.Contracts;
 using Chainsaw.SharedKernel;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -25,16 +27,33 @@ public static class ChecksModule
         services.AddSingleton<ICheckAnalysis, MixerOutputsCheck>();
         services.AddSingleton<ICheckAnalysis, MixerPartsCheck>();
         services.AddSingleton<ICheckAnalysis, MixerChainCheck>();
+        services.AddSingleton<ICheckAnalysis, MixerBehaviourCheck>();
         services.AddSingleton<ICheckAnalysis, CoinJoinCheck>();
         services.AddSingleton<ICheckAnalysis, PeelChainCheck>();
         services.AddSingleton<ICheckAnalysis, WalletCheck>();
         services.AddSingleton<ICheckAnalysis, CoinJoinMergeCheck>();
         services.AddSingleton<ICheckAnalysis, ServiceBehaviourCheck>();
+        services.AddSingleton<ICheckAnalysis, NestedServiceCheck>();
         services.AddSingleton<ICheckAnalysis, SplitMergeCheck>();
         services.AddSingleton<ICheckAnalysis, PassThroughCheck>();
         services.AddSingleton<ICheckAnalysis, DustCheck>();
         services.AddSingleton<ICheckAnalysis, PayJoinCheck>();
         services.AddSingleton<ICheckAnalysis, ActiveHoursCheck>();
+        services.AddSingleton<ICheckAnalysis, PatternCheck>();
+        services.AddSingleton<ICheckAnalysis, CrossChainCheck>();
+        services.AddSingleton<ICrossChainLookup>(provider =>
+            provider.GetService<IBitcoinSource>() is { } bitcoin
+            && provider.GetService<IEthereumSource>() is { } ethereum
+                ? new CrossChainLookup(
+                    bitcoin,
+                    ethereum,
+                    provider.GetService<IPriceService>(),
+                    provider.GetService<ITronSource>(),
+                    provider.GetService<ILitecoinSource>(),
+                    provider.GetService<IBscSource>(),
+                    provider.GetService<IClock>())
+                : NoCrossChainLookup.Instance);
+        services.AddSingleton<ICheckAnalysis, ShieldedPoolCheck>();
         services.AddSingleton<ICheckService, CheckService>();
         return services;
     }

@@ -91,6 +91,26 @@ public sealed class InspectorHistoryTests
     }
 
     /// <summary>
+    /// A row whose journal line was added on another computer gets the quiet mark (decision 19); the rest do not.
+    /// </summary>
+    [Fact]
+    public void RowsAddedOnAnotherComputerAreMarked()
+    {
+        var mine = Entry(1, GraphSamples.K1, LabelKind.Exchange, "Börs A", LabelSource.Own, Morning);
+        var theirs = Entry(2, GraphSamples.K1, LabelKind.Mixer, "Mixer X", LabelSource.Own, Morning.AddHours(1));
+        var retraction = new LabelRetraction(3, Who("Max"), Morning.AddHours(2), null, 9);
+        var data = Data(labels: [new(mine, null), new(theirs, retraction)]) with
+        {
+            IsElsewhere = journal => journal is 2 or 9,
+        };
+
+        var rows = NodeHistory.Build(GraphSamples.Scene(), Node(GraphSamples.KKey), data);
+
+        Assert.Equal([false, true, true], rows.Select(row => row.AddedElsewhere));
+        Assert.Equal("Tillagt på en annan dator", NodeHistory.ElsewhereText);
+    }
+
+    /// <summary>
     /// A victim's label and one marked Sprid inte never reached the library, so the form does not say it.
     /// </summary>
     [Fact]

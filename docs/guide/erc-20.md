@@ -14,6 +14,9 @@ Vem som helst kan skapa en token och kalla den USDT. Chainsaw känner därför *
 symbolen, bara på **kontraktets adress**. Riktig USDT på Ethereum är kontraktet `0xdAC1…1ec7`; en token med samma
 symbol men ett annat kontrakt visas med sin egen adress och får aldrig USDT:s märke eller utgivare.
 
+På **TRON** heter samma standard **TRC-20**, och allt i det här avsnittet gäller där också. Riktig USDT på TRON är
+kontraktet `TR7NHq…gjLj6t`. Se [TRON](tron.md).
+
 ## Händelsen Transfer
 
 ![Kontraktet (rutan) håller en rad per adress. En överföring flyttar ett belopp från en rad till en annan: det streckade är det som lämnade den översta raden, och accenten det som kom till den nedersta.](figur:erc20-kontrakt)
@@ -53,5 +56,5 @@ till en DEX och ether tillbaka) har den bytt token. Det ritas som ett litet pill
 slut på spåret: pengarna bytte token men inte ägare. Pillret sätts bara när tx:en själv visar bytet; skickar eller får
 adressen flera tillgångar går det inte att läsa vad som byttes mot vad, och då står inget piller.
 
-Spårningen räknar än så länge varje tillgång för sig, så de spårade USDT:na blir inte spårad ether i bytet. Det står i
-*Varför?* på linjen.
+Genom bytet följer det spårade **värdet** med: lika stor andel av det som kom ut som av det som gick in. Du kan välja
+per swap att det inte följer med. Se [Spåret genom en swap](swappar.md).

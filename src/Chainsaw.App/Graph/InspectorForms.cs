@@ -60,7 +60,7 @@ public sealed record ChainOption(string Name, Chain? Chain)
 /// A coin, or an Ethereum movement, that came into the chosen node and can be linked to another chain. Exactly one of
 /// <see cref="Coin"/> and <see cref="Movement"/> is set.
 /// </summary>
-/// <param name="Coin">The Bitcoin coin, or <see langword="null"/> for an Ethereum movement.</param>
+/// <param name="Coin">The coin on its UTXO chain, or <see langword="null"/> for a movement on an account chain.</param>
 /// <param name="Amount">Its amount.</param>
 /// <param name="Time">When it came, or <see langword="null"/> while unconfirmed.</param>
 public sealed record IncomingCoin(Outpoint? Coin, AssetAmount Amount, DateTimeOffset? Time)
@@ -69,7 +69,7 @@ public sealed record IncomingCoin(Outpoint? Coin, AssetAmount Amount, DateTimeOf
     public AccountSeed? Movement { get; init; }
 
     /// <summary>Gets the chain the money is on.</summary>
-    public Chain Chain => Movement is null ? Chain.Bitcoin : Chain.Ethereum;
+    public Chain Chain => Movement?.Transaction.Chain ?? Coin!.Txid.Chain;
 
     /// <summary>Gets the transaction it came in, as its chain writes it.</summary>
     public string TransactionId => Coin?.Txid.Value ?? Movement!.Transaction.Value;
@@ -108,7 +108,7 @@ public static class InspectorForms
         .. new[] { LabelKind.Victim, LabelKind.Unknown }
             .Concat(Enum.GetValues<LabelKind>()
                 .Where(kind => kind is not (LabelKind.Victim or LabelKind.Unknown or LabelKind.Sanctioned
-                    or LabelKind.Reported or LabelKind.FormerlySanctioned)))
+                    or LabelKind.Reported or LabelKind.FormerlySanctioned or LabelKind.PossiblySanctioned)))
             .Select(kind => new LabelKindOption(kind, VisualLanguage.Of(VisualLanguage.SortOf(kind))))
             .OrderBy(option => option.Kind is LabelKind.Victim or LabelKind.Unknown ? -1 : LegendOrder(option.Look)),
     ];
@@ -118,15 +118,19 @@ public static class InspectorForms
         [LabelBasis.Own, LabelBasis.OpenSource, LabelBasis.Order, LabelBasis.ExchangeAnswer];
 
     /// <summary>
-    /// Gets the chains the form <em>Annan kedja</em> offers: Ethereum and TRON, which a link can name now, and the
-    /// chains that are not built yet, shown toned (CLAUDE.md: never show what does not exist as if it did).
+    /// Gets the chains the form <em>Annan kedja</em> offers: Ethereum, TRON, BSC, Litecoin, Zcash, Solana and Bitcoin
+    /// (last, since a coin on Bitcoin is where most links leave from), which a link can name now; a chain that is not
+    /// built yet would be shown toned (CLAUDE.md: never show what does not exist as if it did).
     /// </summary>
     public static IReadOnlyList<ChainOption> Chains { get; } =
     [
         new("Ethereum", Chain.Ethereum),
         new("TRON", Chain.Tron),
-        new("Litecoin", null),
-        new("Solana", null),
+        new("BSC", Chain.Bsc),
+        new("Litecoin", Chain.Litecoin),
+        new("Zcash", Chain.Zcash),
+        new("Solana", Chain.Solana),
+        new("Bitcoin", Chain.Bitcoin),
     ];
 
     /// <summary>Gives a source's name as the form writes it.</summary>
@@ -224,7 +228,8 @@ public static class InspectorForms
     {
         ArgumentNullException.ThrowIfNull(transfer);
         return new AccountSeed(
-            EthereumTxHash.Parse(transfer.Transaction.Id), transfer.Movement!.Value, transfer.Position);
+            EthereumTxHash.Parse(transfer.Transaction.Chain, transfer.Transaction.Id), transfer.Movement!.Value,
+            transfer.Position);
     }
 
     /// <summary>Says whether a line carries the money a link leaves from.</summary>

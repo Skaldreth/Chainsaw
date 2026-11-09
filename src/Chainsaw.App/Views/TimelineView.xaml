@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:Chainsaw.App.ViewModels"
              xmlns:controls="clr-namespace:Chainsaw.App.Controls"
+             xmlns:graph="clr-namespace:Chainsaw.App.Graph"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              d:DataContext="{d:DesignInstance Type=vm:TimelineViewModel}"
@@ -278,6 +279,14 @@
                                                         <controls:GridIcon Size="13" Foreground="{StaticResource Brush.TextMuted}"
                                                                            Data="{StaticResource Icon.Copy}" />
                                                     </Button>
+                                                    <!-- A small muted laptop: the event was added on another computer. -->
+                                                    <Border Grid.Column="2" VerticalAlignment="Center" Background="Transparent" Padding="4"
+                                                            ToolTip="{x:Static graph:NodeHistory.ElsewhereText}"
+                                                            AutomationProperties.Name="{x:Static graph:NodeHistory.ElsewhereText}"
+                                                            Visibility="{Binding AddedElsewhere, Converter={StaticResource Visible}}">
+                                                        <controls:GridIcon Size="12" Data="{StaticResource Icon.Laptop}"
+                                                                           Foreground="{StaticResource Brush.TextFaint}" />
+                                                    </Border>
                                                 </Grid>
                                             </Border>
                                             <DataTemplate.Triggers>
@@ -306,6 +315,14 @@
                                                            VerticalAlignment="Center" Foreground="{StaticResource Brush.TextMuted}" />
                                                 <TextBlock DockPanel.Dock="Right" Text="{Binding Amount}" FontSize="12" VerticalAlignment="Center"
                                                            Foreground="{StaticResource Brush.Text}" />
+                                                <!-- A small muted laptop: the case event was added on another computer. -->
+                                                <Border DockPanel.Dock="Right" VerticalAlignment="Center" Background="Transparent" Margin="6,0,0,0"
+                                                        ToolTip="{x:Static graph:NodeHistory.ElsewhereText}"
+                                                        AutomationProperties.Name="{x:Static graph:NodeHistory.ElsewhereText}"
+                                                        Visibility="{Binding AddedElsewhere, Converter={StaticResource Visible}}">
+                                                    <controls:GridIcon Size="12" Data="{StaticResource Icon.Laptop}"
+                                                                       Foreground="{StaticResource Brush.TextFaint}" />
+                                                </Border>
                                                 <TextBlock Text="{Binding Name}" FontSize="12" Margin="10,0,8,0" VerticalAlignment="Center"
                                                            TextTrimming="CharacterEllipsis" Foreground="{StaticResource Brush.TextMuted}" />
                                             </DockPanel>

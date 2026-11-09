@@ -13,16 +13,14 @@ namespace Chainsaw.Modules.Monitoring;
 /// </summary>
 /// <param name="check">The check, the same the background process runs.</param>
 /// <param name="gate">Whether lookups may go.</param>
-/// <param name="bitcoin">Bitcoin's source.</param>
-/// <param name="ethereum">Ethereum's source.</param>
+/// <param name="sources">The chains' sources.</param>
 /// <param name="clustering">The clustering, which says a cluster's addresses at each check.</param>
 /// <param name="feeds">The feeds that read a chain through the case's sources.</param>
 /// <param name="clock">The clock.</param>
 internal sealed class MonitoringService(
     IWatchCheck check,
     IWatchGate gate,
-    IBitcoinSource bitcoin,
-    IEthereumSource ethereum,
+    WatchSources sources,
     IClusteringService clustering,
     IWatchFeeds feeds,
     IClock clock) : IMonitoringService
@@ -67,8 +65,83 @@ internal sealed class MonitoringService(
     public IReadOnlyList<WatchHit> GetHits(ICase @case)
     {
         ArgumentNullException.ThrowIfNull(@case);
-        return @case.Read(WatchStore.ReadHits);
+        return Latest(@case.Read(WatchStore.ReadHits));
     }
+
+    /// <summary>
+    /// How long after a hit was sealed (or last moved) a move to another block is believed: about a block's time, so
+    /// that a hit moves at most once per block however the endpoints disagree.
+    /// </summary>
+    internal static readonly TimeSpan MoveDamping = TimeSpan.FromMinutes(10);
+
+    /// <summary>
+    /// Gives each hit as its latest record leaves it: a hit whose transaction moved to another block is sealed again
+    /// with the new block, and is given once, with the block it was in before (<see cref="WatchHit.MovedFrom"/>).
+    /// </summary>
+    /// <param name="records">The hits' records, oldest first.</param>
+    /// <returns>The hits, in the order of their latest records.</returns>
+    internal static IReadOnlyList<WatchHit> Latest(IReadOnlyList<WatchHit> records)
+    {
+        var latest = new Dictionary<string, WatchHit>(StringComparer.Ordinal);
+        foreach (var record in records)
+        {
+            var key = WatchSchedule.Key(record.WatchId, record.Match);
+            latest[key] = latest.TryGetValue(key, out var before) && !SameBlock(before.Match.Block, record.Match.Block)
+                ? record with { MovedFrom = before.Match.Block }
+                : record;
+        }
+
+        return [.. latest.Values.OrderBy(hit => hit.Sequence)];
+    }
+
+    /// <summary>
+    /// Gives the known hits a check found in another block (a reorganisation), when the move can be believed: the
+    /// check read everything fresh from endpoints in step (<see cref="WatchFeedStatus.Read"/>), and the hit has not moved
+    /// within <see cref="MoveDamping"/>, so that endpoints that disagree cannot make it flap between two blocks.
+    /// </summary>
+    /// <param name="watch">The watch.</param>
+    /// <param name="result">The check.</param>
+    /// <param name="known">The block each known hit rests on, by key.</param>
+    /// <param name="sealedAt">When each known hit's latest record was sealed, by key.</param>
+    /// <param name="now">The time now.</param>
+    /// <returns>The moved hits.</returns>
+    private static List<WatchMatch> MovedHits(
+        Watch watch,
+        WatchCheckResult result,
+        IReadOnlyDictionary<string, WatchBlock> known,
+        IReadOnlyDictionary<string, DateTimeOffset> sealedAt,
+        DateTimeOffset now)
+    {
+        if (result.Status != WatchFeedStatus.Read)
+        {
+            return [];
+        }
+
+        return [.. result.Matches.Where(match =>
+        {
+            var key = WatchSchedule.Key(watch.Id, match);
+            return known.TryGetValue(key, out var block) && !SameBlock(block, match.Block)
+                && now - sealedAt[key] >= MoveDamping;
+        })];
+    }
+
+    /// <summary>Says whether two blocks are the same block: the same height and hash, whatever time a source gave.</summary>
+    /// <param name="first">One block.</param>
+    /// <param name="second">The other.</param>
+    /// <returns><see langword="true"/> when they are.</returns>
+    private static bool SameBlock(WatchBlock first, WatchBlock second) =>
+        first.Height == second.Height && string.Equals(first.Hash, second.Hash, HashComparison(first.Hash));
+
+    /// <summary>
+    /// Gives how two block hashes are compared: hex (Bitcoin, Ethereum, TRON) without case, any other (Solana's Base58,
+    /// whose case is part of it) exactly.
+    /// </summary>
+    /// <param name="hash">One of the hashes.</param>
+    /// <returns>The comparison.</returns>
+    private static StringComparison HashComparison(string? hash) =>
+        (hash ?? string.Empty).AsSpan().TrimStart("0x").ContainsAnyExcept("0123456789abcdefABCDEF")
+            ? StringComparison.Ordinal
+            : StringComparison.OrdinalIgnoreCase;
 
     /// <inheritdoc/>
     public IReadOnlyList<WatchTip> GetTips(ICase @case)
@@ -205,7 +278,7 @@ internal sealed class MonitoringService(
     {
         ArgumentNullException.ThrowIfNull(@case);
         return gate.For(chain) == WatchGate.Open
-            ? await WatchSchedule.HeightAsync(bitcoin, ethereum, @case, chain, cancellationToken).ConfigureAwait(false)
+            ? await sources.HeightAsync(@case, chain, cancellationToken).ConfigureAwait(false)
             : null;
     }
 
@@ -223,8 +296,11 @@ internal sealed class MonitoringService(
         var watches = GetWatches(@case).Where(w => w.Chain == chain && w.State == WatchState.Active).ToList();
         Start(@case, watches.Where(watch => watch.StartHeight is null).ToList(), height);
         var outcomes = await CheckTipsAsync(@case, chain, cancellationToken).ConfigureAwait(false);
-        var known = GetHits(@case).Select(hit => WatchSchedule.Key(hit.WatchId, hit.Match))
-            .ToHashSet(StringComparer.Ordinal);
+        var hits = GetHits(@case);
+        var known = hits.ToDictionary(
+            hit => WatchSchedule.Key(hit.WatchId, hit.Match), hit => hit.Match.Block, StringComparer.Ordinal);
+        var sealedAt = hits.ToDictionary(
+            hit => WatchSchedule.Key(hit.WatchId, hit.Match), hit => hit.RecordedUtc, StringComparer.Ordinal);
         var checkedBefore = GetChecked(@case);
         var now = clock.UtcNow;
         var due = watches.Where(watch => watch.StartHeight is not null
@@ -238,10 +314,13 @@ internal sealed class MonitoringService(
                 addresses, watch.Filter, feed, start,
                 WatchSchedule.DownTo(start, checkedBefore.GetValueOrDefault(watch.Id)), cancellationToken)
                 .ConfigureAwait(false);
-            var fresh = result.Matches.Where(match => !known.Contains(WatchSchedule.Key(watch.Id, match))).ToList();
+            var fresh = result.Matches.Where(match => !known.ContainsKey(WatchSchedule.Key(watch.Id, match))).ToList();
+
+            // A known hit found in another block: the chain was reorganised, and that is sealed and said.
+            var moved = MovedHits(watch, result, known, sealedAt, now);
             var problems = notes.Concat(result.Problems).ToList();
-            var hits = Seal(@case, watch, fresh, result, problems, height, now);
-            outcomes.Add(new WatchOutcome(watch.Id, result.Status, hits, problems));
+            var sealedHits = Seal(@case, watch, new SealedMatches(fresh, moved, known), result, problems, height, now);
+            outcomes.Add(new WatchOutcome(watch.Id, result.Status, sealedHits, problems));
         }
 
         return new WatchRun(chain, open, height, outcomes, clock.UtcNow);
@@ -289,7 +368,8 @@ internal sealed class MonitoringService(
             }
 
             var finding = await TipLookup.ReadAsync(
-                check, bitcoin, ethereum, @case, tip, AddressesOf(@case, watch).Addresses.ToHashSet(), filter, start,
+                check, sources, @case, tip, AddressesOf(@case, watch).Addresses.ToHashSet(), filter,
+                start,
                 cancellationToken).ConfigureAwait(false);
             if (finding.Verdict == TipVerdict.Wait)
             {
@@ -417,7 +497,8 @@ internal sealed class MonitoringService(
     public (IReadOnlyList<ChainAddress> Addresses, IReadOnlyList<string> Notes) AddressesOf(ICase @case, Watch watch)
     {
         var anchor = watch.Subject.Anchor;
-        if (watch.Subject.Kind != WatchSubjectKind.Cluster || !BitcoinAddress.TryParse(anchor.Value, out var start))
+        if (watch.Subject.Kind != WatchSubjectKind.Cluster
+            || !BitcoinAddress.TryParse(anchor.Chain, anchor.Value, out var start))
         {
             return ([anchor], []);
         }
@@ -425,8 +506,7 @@ internal sealed class MonitoringService(
         List<ChainAddress> all;
         try
         {
-            all = [.. clustering.GetCluster(@case, start).Addresses
-                .Select(address => new ChainAddress(Chain.Bitcoin, address.Value))];
+            all = [.. clustering.GetCluster(@case, start).Addresses.Select(address => address.ToChainAddress())];
         }
         catch (Exception exception) when (exception is not (OutOfMemoryException or CaseException))
         {
@@ -481,7 +561,7 @@ internal sealed class MonitoringService(
     /// </summary>
     /// <param name="case">The open case.</param>
     /// <param name="watch">The watch.</param>
-    /// <param name="fresh">The new matches.</param>
+    /// <param name="matches">The new matches, and the known ones found in another block.</param>
     /// <param name="result">The check.</param>
     /// <param name="problems">What to say about it.</param>
     /// <param name="height">The chain's height.</param>
@@ -490,7 +570,7 @@ internal sealed class MonitoringService(
     private IReadOnlyList<WatchHit> Seal(
         ICase @case,
         Watch watch,
-        IReadOnlyList<WatchMatch> fresh,
+        SealedMatches matches,
         WatchCheckResult result,
         IReadOnlyList<string> problems,
         long height,
@@ -513,6 +593,8 @@ internal sealed class MonitoringService(
                 ?? watch.StartHeight!.Value;
             WatchStore.WriteChecked(
                 transaction, watch.Id, WatchSchedule.After(previous, result, problems, height, started));
+            SealMoved(transaction, watch, matches, result.Origins);
+            var fresh = matches.Fresh;
             if (fresh.Count == 0)
             {
                 return (IReadOnlyList<WatchHit>)[];
@@ -538,6 +620,54 @@ internal sealed class MonitoringService(
                 WatchStore.SealHit(transaction, watch, match, result.Origins, journal))];
         });
     }
+
+    /// <summary>
+    /// Seals the known hits a check found in another block (a reorganisation of the chain), under one journal line that
+    /// says where each was and where it is now; the old records stay, and the hit rests on its new block from now on.
+    /// </summary>
+    /// <param name="transaction">The case's transaction.</param>
+    /// <param name="watch">The watch.</param>
+    /// <param name="matches">The check's matches, with the blocks the hits were sealed in.</param>
+    /// <param name="origins">The sealed raw responses the new blocks rest on.</param>
+    private static void SealMoved(
+        ICaseTransaction transaction, Watch watch, SealedMatches matches, IReadOnlyList<long> origins)
+    {
+        if (matches.Moved.Count == 0)
+        {
+            return;
+        }
+
+        var moves = matches.Moved
+            .Select(match => (Match: match, Before: matches.Known[WatchSchedule.Key(watch.Id, match)]))
+            .ToList();
+        var journal = transaction.AppendJournal(new JournalDraft(
+            MonitoringJournalKinds.HitMoved,
+            $"Bevakningen av {watch.Subject.Name}: {WatchTexts.Moved(moves)}",
+            JsonSerializer.Serialize(new
+            {
+                watch = watch.Id,
+                moved = moves.Select(move => new
+                {
+                    tx = move.Match.Transaction,
+                    before = new { block = move.Before.Height, hash = move.Before.Hash },
+                    now = new { block = move.Match.Block.Height, hash = move.Match.Block.Hash },
+                }),
+                origins,
+            })));
+        foreach (var (match, _) in moves)
+        {
+            WatchStore.SealHit(transaction, watch, match, origins, journal);
+        }
+    }
+
+    /// <summary>What a check found: new hits, and known hits in another block than they were sealed in.</summary>
+    /// <param name="Fresh">The new matches.</param>
+    /// <param name="Moved">The known matches found in another block.</param>
+    /// <param name="Known">The block each known hit rests on now, by key.</param>
+    private sealed record SealedMatches(
+        IReadOnlyList<WatchMatch> Fresh,
+        IReadOnlyList<WatchMatch> Moved,
+        IReadOnlyDictionary<string, WatchBlock> Known);
 
     /// <summary>Seals a change of a watch in force, with a line in the journal.</summary>
     /// <param name="case">The open case.</param>
@@ -592,10 +722,10 @@ internal sealed class MonitoringService(
         }
 
         IEnumerable<ChainAddress> own = [subject.Anchor];
-        if (subject.Kind == WatchSubjectKind.Cluster && BitcoinAddress.TryParse(subject.Anchor.Value, out var start))
+        if (subject.Kind == WatchSubjectKind.Cluster
+            && BitcoinAddress.TryParse(subject.Anchor.Chain, subject.Anchor.Value, out var start))
         {
-            own = clustering.GetCluster(@case, start).Addresses
-                .Select(member => new ChainAddress(Chain.Bitcoin, member.Value));
+            own = clustering.GetCluster(@case, start).Addresses.Select(member => member.ToChainAddress());
         }
 
         if (own.Any(parties.Contains))
@@ -638,9 +768,10 @@ internal sealed class MonitoringService(
     /// <exception cref="ArgumentException">It is wrong.</exception>
     private static WatchFilter Checked(WatchFilter filter)
     {
-        if (filter.Chain is not (Chain.Bitcoin or Chain.Ethereum))
+        if (!WatchSources.Watchable.Contains(filter.Chain))
         {
-            throw new ArgumentException("Only Bitcoin and Ethereum can be watched yet.", nameof(filter));
+            throw new ArgumentException(
+                "Only Bitcoin, Ethereum, TRON, Litecoin and BSC can be watched yet.", nameof(filter));
         }
 
         var valid = filter.Receivers.Concat(filter.Senders).All(party => IsAddress(filter.Chain, party.Value));
@@ -653,9 +784,10 @@ internal sealed class MonitoringService(
     /// <param name="chain">The chain.</param>
     /// <param name="value">The text.</param>
     /// <returns><see langword="true"/> when it is.</returns>
-    private static bool IsAddress(Chain chain, string value) => chain == Chain.Bitcoin
-        ? BitcoinAddress.TryParse(value, out _)
-        : EthereumAddress.TryParse(value, out _);
+    private static bool IsAddress(Chain chain, string value) => chain.Model() == LedgerModel.Utxo
+        ? BitcoinAddress.TryParse(chain, value, out var address) && address.Value == value
+        : EthereumAddress.TryParse(chain, value, out var account) && account.Value == value;
+
 
     /// <summary>Checks a node.</summary>
     /// <param name="subject">The node.</param>
@@ -670,9 +802,11 @@ internal sealed class MonitoringService(
             throw new ArgumentException("The watched node needs a name, at most 1 000 characters.", nameof(subject));
         }
 
-        if (subject.Anchor.Chain != chain || (subject.Kind == WatchSubjectKind.Cluster && chain != Chain.Bitcoin))
+        if (subject.Anchor.Chain != chain
+            || (subject.Kind == WatchSubjectKind.Cluster && chain.Model() != LedgerModel.Utxo))
         {
-            throw new ArgumentException("The node is on another chain, or a cluster outside Bitcoin.", nameof(subject));
+            throw new ArgumentException(
+                "The node is on another chain, or a cluster outside the UTXO chains.", nameof(subject));
         }
 
         return IsAddress(chain, subject.Anchor.Value)

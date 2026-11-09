@@ -195,6 +195,12 @@ public sealed partial class ChecksViewModel : ObservableObject
     /// <summary>Counts the runs, so that an answer to an older one is dropped.</summary>
     private int _version;
 
+    /// <summary>
+    /// Stops the run in progress when a newer graph comes, so that an older run does not go on asking the sources
+    /// (the cross-chain search) for a graph no longer shown.
+    /// </summary>
+    private CancellationTokenSource _running = new();
+
     /// <summary>The own area the form renames or removes.</summary>
     private OwnArea? _formArea;
 
@@ -616,6 +622,12 @@ public sealed partial class ChecksViewModel : ObservableObject
     [RelayCommand]
     public Task ApproveAsync()
     {
+        if (IsConfirmingInGraph)
+        {
+            // The box in the graph has Enter while a wallet's take-back waits there (sketch PL1b).
+            return Task.CompletedTask;
+        }
+
         if (IsOpen && IsOverview)
         {
             StartReview(null);
@@ -631,7 +643,7 @@ public sealed partial class ChecksViewModel : ObservableObject
     /// <returns>A task that completes when the decision is stored and the checks read again.</returns>
     [RelayCommand]
     public Task DismissAsync() =>
-        IsReview && Selected?.DismissRequests() is { Count: > 0 } requests
+        !IsConfirmingInGraph && IsReview && Selected?.DismissRequests() is { Count: > 0 } requests
             ? DecideAsync(requests)
             : Task.CompletedTask;
 
@@ -867,6 +879,10 @@ public sealed partial class ChecksViewModel : ObservableObject
     public async Task FollowAsync(GraphScene? scene)
     {
         var version = ++_version;
+        _running.Cancel();
+        _running.Dispose();
+        _running = new CancellationTokenSource();
+        var stop = _running.Token;
         _scene = scene;
         if (scene is null || _session.Current is not { } openCase)
         {
@@ -880,7 +896,7 @@ public sealed partial class ChecksViewModel : ObservableObject
         try
         {
             var own = await _source.GetAreasAsync(openCase, CancellationToken.None);
-            var run = await _source.RunAsync(openCase, scene.Snapshot.Graph, CancellationToken.None);
+            var run = await _source.RunAsync(openCase, scene.Snapshot.Graph, stop);
             if (version != _version || _session.Current != openCase)
             {
                 return;
@@ -917,11 +933,12 @@ public sealed partial class ChecksViewModel : ObservableObject
 
     /// <summary>
     /// What the list says when the graph has Ethereum: the analyses are written for the UTXO model (CoinJoin, peel
-    /// chain, the mixer's candidates and the wallets from Clustering) and are not run on an account chain.
+    /// chain, the mixer's candidates and the wallets from Clustering) and are not run on an account chain; only the
+    /// continuation on another chain (<c>cross-chain</c>) weighs payments there.
     /// </summary>
     public const string AccountChainsText =
-        "Kontrollerna gäller UTXO-modellen (Bitcoin) och körs inte på Ethereum än; "
-        + "Ethereum-delen är inte kontrollerad.";
+        "Kontrollerna gäller UTXO-modellen (Bitcoin) och körs inte på Ethereum och TRON än, utom fortsättningen på "
+        + "annan kedja; den delen är annars inte kontrollerad.";
 
     /// <summary>Says, after the status, that the checks did not run on the graph's Ethereum part.</summary>
     /// <param name="scene">The graph.</param>
@@ -962,15 +979,19 @@ public sealed partial class ChecksViewModel : ObservableObject
     private static GuideTopic TopicOf(StoredCheck check) => check.Analysis.Name switch
     {
         "mixer-outputs" => GuideTopic.MixerCandidates,
-        "mixer-parts" or "mixer-chain" => GuideTopic.MixerChain,
+        "shielded-pool" => GuideTopic.ShieldedPool,
+        "mixer-parts" or "mixer-chain" or "mixer-behaviour" => GuideTopic.MixerChain,
         "coinjoin-area" or "coinjoin-merge" => GuideTopic.CoinJoin,
         "peel-chain-area" => GuideTopic.PeelChain,
         "service-behaviour" => GuideTopic.ServiceBehaviour,
+        "nested-service" => GuideTopic.NestedServices,
         "split-merge" => GuideTopic.Splitting,
         "pass-through" => GuideTopic.Layering,
         "dust" => GuideTopic.Dust,
         "payjoin-hint" => GuideTopic.PayJoin,
         "active-hours" => GuideTopic.TimePattern,
+        "pattern" => GuideTopic.Patterns,
+        CheckAnalysisNames.CrossChain => GuideTopic.CrossChain,
         _ => GuideTopic.Areas,
     };
 
@@ -1023,11 +1044,13 @@ public sealed partial class ChecksViewModel : ObservableObject
     /// <summary>
     /// Takes decisions back, sealed in the case, and shows the suggestion again where it waits. Only the decisions
     /// still in force in the case they were made in are taken back: an old <em>Ångra</em> after a newer decision, or
-    /// after another case was opened, does nothing.
+    /// after another case was opened, does nothing. A wallet's approval is first confirmed in the graph (sketch PL1b).
     /// </summary>
     /// <param name="decided">The decisions to take back, with their case.</param>
+    /// <param name="confirmed">Whether the graph has confirmed a wallet's take-back already.</param>
+    /// <param name="reason">The optional reason, sealed with each take-back; <see langword="null"/> when none.</param>
     /// <returns>A task that completes when it is stored and the checks read again.</returns>
-    private async Task TakeBackAsync(MadeDecisions decided)
+    private async Task TakeBackAsync(MadeDecisions decided, bool confirmed = false, string? reason = null)
     {
         if (decided.Case != _session.Current || decided.Decisions.Count == 0)
         {
@@ -1044,7 +1067,13 @@ public sealed partial class ChecksViewModel : ObservableObject
             return;
         }
 
-        if (await StoreAsync(decided.Case, [.. inForce.Select(DecisionRequest.TakeBack)], null) is null)
+        if (!confirmed && AskInGraph(decided with { Decisions = inForce }, key))
+        {
+            return;
+        }
+
+        var requests = inForce.Select(decision => DecisionRequest.TakeBack(decision) with { Reason = reason }).ToList();
+        if (await StoreAsync(decided.Case, requests, null) is null)
         {
             return;
         }
@@ -1212,7 +1241,7 @@ public sealed partial class ChecksViewModel : ObservableObject
             ? new ToastRequest(
                 ToastKind.Success,
                 row.Words.CandidateNoun + " godkänd",
-                $"{chosen.ShortAddress} · {chosen.AmountText} BTC",
+                $"{chosen.ShortAddress} · {chosen.AmountWithUnit}",
                 UndoText)
             : new ToastRequest(ToastKind.Success, "Förslaget godkänt", row.Title, UndoText);
     }
@@ -1519,6 +1548,11 @@ public sealed partial class ChecksViewModel : ObservableObject
         }
 
         var outputs = known.Transaction.Outputs;
+        if (check.Analysis.Name == ShieldedPoolName)
+        {
+            return PoolDeposit(finding.Key, known.Transaction);
+        }
+
         if (OutputIndexOf(finding.Key, finding.Basis[0].Txid) is { } index)
         {
             return outputs.FirstOrDefault(output => output.Index == index && output.Address == finding.Addresses[0])
@@ -1527,6 +1561,28 @@ public sealed partial class ChecksViewModel : ObservableObject
 
         var paid = outputs.Where(output => output.Address == finding.Addresses[0]).ToList();
         return paid.Count == 0 ? null : new Satoshi(paid.Sum(output => output.Amount.Value));
+    }
+
+    /// <summary>The name of the analysis that suggests ways out of a shielded pool.</summary>
+    private const string ShieldedPoolName = "shielded-pool";
+
+    /// <summary>
+    /// Gives what went into a shielded pool in a deposit: the pool's own amount for Zcash (a finding keyed
+    /// <c>txid:pool</c>), or the peg-in's output for MWEB (keyed <c>txid:index</c>).
+    /// </summary>
+    /// <param name="key">The finding's key.</param>
+    /// <param name="deposit">The deposit.</param>
+    /// <returns>The amount, or <see langword="null"/> when the key does not name it.</returns>
+    private static Satoshi? PoolDeposit(string key, BitcoinTransaction deposit)
+    {
+        if (key == deposit.Txid.Value + ":pool")
+        {
+            return deposit.Shielded?.IntoPool;
+        }
+
+        return OutputIndexOf(key, deposit.Txid) is { } index
+            ? deposit.Outputs.FirstOrDefault(output => output.Index == index)?.Amount
+            : null;
     }
 
     /// <summary>Reads the output's index from a finding keyed <c>txid:index</c> on the given transaction.</summary>
@@ -1597,6 +1653,7 @@ public sealed partial class ChecksViewModel : ObservableObject
         _order.Clear();
         _round.Clear();
         _undo = null;
+        ForgetWalletUndo();
         _justDecided.Clear();
         _ranUtc = null;
         Form = AreaFormMode.None;
@@ -1657,7 +1714,7 @@ public sealed partial class ChecksViewModel : ObservableObject
                 : new CheckRowViewModel(check, null, []);
             foreach (var row in shown.Candidates.Where(c => !c.IsDismissed))
             {
-                if (graph.NodeOf(row.Candidate.Address) is { } to && to.Key != from.Key)
+                if (row.Candidate.Address is { } address && graph.NodeOf(address) is { } to && to.Key != from.Key)
                 {
                     lines.Add(new CandidateLine(
                         from.Key, to.Key, row.Candidate.Score, row.ScoreText, row.IsApproved, row.Rank, row.IsChosen));

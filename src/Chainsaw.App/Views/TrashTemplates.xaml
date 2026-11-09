@@ -37,6 +37,52 @@
         </Grid>
     </DataTemplate>
 
+    <!--
+      The node's form at a given size in the trash's view (sketch SO2a), filled with the ground it stands on so that the
+      deck's shapes cover each other: the sort's frame, round for an actor, dashed when the sort is uncertain.
+    -->
+    <Style x:Key="Rect.TrashKind" TargetType="Rectangle">
+        <Setter Property="StrokeThickness" Value="1.5" />
+        <Setter Property="Stroke" Value="{Binding Look.Ink, Converter={x:Static controls:GraphInkConverter.Instance}}" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding Look.IsDashed}" Value="True">
+                <Setter Property="StrokeDashArray" Value="2 2" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- A shape in a card's deck: 26 px, on the card's ground. -->
+    <DataTemplate x:Key="Trash.KindDeck" DataType="{x:Type vm:TrashRowViewModel}">
+        <Grid Width="26" Height="26" VerticalAlignment="Center">
+            <Rectangle x:Name="Frame" Style="{StaticResource Rect.TrashKind}" Fill="#26292D" RadiusX="7" RadiusY="7" />
+            <controls:GridIcon Size="13" HorizontalAlignment="Center" VerticalAlignment="Center"
+                               Foreground="{Binding Look.Ink, Converter={x:Static controls:GraphInkConverter.Instance}}"
+                               Data="{Binding Look.Icon, Converter={x:Static controls:ResourceKeyConverter.Instance}}" />
+        </Grid>
+        <DataTemplate.Triggers>
+            <DataTrigger Binding="{Binding IsRound}" Value="True">
+                <Setter TargetName="Frame" Property="RadiusX" Value="13" />
+                <Setter TargetName="Frame" Property="RadiusY" Value="13" />
+            </DataTrigger>
+        </DataTemplate.Triggers>
+    </DataTemplate>
+
+    <!-- A shape on a row of a card's tree: 22 px, on the tree's ground, so that a branch line ends behind it. -->
+    <DataTemplate x:Key="Trash.KindTree" DataType="{x:Type vm:TrashRowViewModel}">
+        <Grid Width="22" Height="22" VerticalAlignment="Center">
+            <Rectangle x:Name="Frame" Style="{StaticResource Rect.TrashKind}" Fill="#232629" RadiusX="6" RadiusY="6" />
+            <controls:GridIcon Size="12" HorizontalAlignment="Center" VerticalAlignment="Center"
+                               Foreground="{Binding Look.Ink, Converter={x:Static controls:GraphInkConverter.Instance}}"
+                               Data="{Binding Look.Icon, Converter={x:Static controls:ResourceKeyConverter.Instance}}" />
+        </Grid>
+        <DataTemplate.Triggers>
+            <DataTrigger Binding="{Binding IsRound}" Value="True">
+                <Setter TargetName="Frame" Property="RadiusX" Value="11" />
+                <Setter TargetName="Frame" Property="RadiusY" Value="11" />
+            </DataTrigger>
+        </DataTemplate.Triggers>
+    </DataTemplate>
+
     <!-- A quiet button of the trash: a grey frame, brighter on hover (Avbryt, Lägg tillbaka). -->
     <Style x:Key="Button.TrashQuiet" TargetType="Button">
         <Setter Property="Height" Value="28" />

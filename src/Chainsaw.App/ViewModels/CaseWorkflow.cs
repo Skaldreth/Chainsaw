@@ -393,32 +393,65 @@ public sealed partial class CaseWorkflow
     /// <returns>The text.</returns>
     public static string NotBuiltText(ChainStartPoint startPoint) => startPoint.Chain switch
     {
+        _ when startPoint.IsShielded => ShieldedText(startPoint),
+        { } chain when startPoint.CanFetch =>
+            $"{CaseTexts.ChainName(chain)} kan inte spåras i grafen än, så det kan inte bli en startpunkt.",
         { } chain => $"{CaseTexts.ChainName(chain)} är inte byggt än, så det kan inte bli en startpunkt.",
         _ => "Det känns inte igen som en adress eller en tx.",
     };
 
-    /// <summary>Gives the Tracing start point for a Bitcoin or Ethereum start point.</summary>
+    /// <summary>Says why a start point on a chain cannot be traced: not in the graph yet, or not built at all.</summary>
+    /// <param name="startPoint">The start point.</param>
+    /// <returns>The words after the chain's name.</returns>
+    private static string NotTracedWhy(ChainStartPoint startPoint) =>
+        startPoint.CanFetch ? "kan inte spåras i grafen än" : "är inte byggt än";
+
+    /// <summary>What is said of an address in Litecoin's shielded part, MWEB.</summary>
+    public const string MwebText =
+        "Adressen ligger i Litecoins skyddade del (MWEB), där belopp och ägare inte syns: spåret tar slut här.";
+
+    /// <summary>What is said of an address in Zcash's shielded pools.</summary>
+    public const string ZcashShieldedText =
+        "Adressen ligger i Zcash skyddade pool (Sapling, Orchard eller Sprout), där belopp och ägare inte syns: "
+        + "spåret tar slut här.";
+
+    /// <summary>Says what is said of an address in a shielded part, by its chain.</summary>
+    /// <param name="startPoint">The start point, in a shielded part.</param>
+    /// <returns><see cref="ZcashShieldedText"/> on Zcash, otherwise <see cref="MwebText"/>.</returns>
+    public static string ShieldedText(ChainStartPoint startPoint) =>
+        startPoint?.Chain == Chain.Zcash ? ZcashShieldedText : MwebText;
+
+    /// <summary>
+    /// Gives the Tracing start point for a start point on a chain Chainsaw traces: Bitcoin, Litecoin, Zcash's
+    /// transparent part, Ethereum, TRON, BSC or Solana.
+    /// </summary>
     /// <param name="startPoint">The recognised start point.</param>
     /// <returns>The start point, or <see langword="null"/> when its chain is not built.</returns>
     public static TraceStartPoint? ToTrace(ChainStartPoint startPoint)
     {
         ArgumentNullException.ThrowIfNull(startPoint);
-        if (startPoint.Chain == Chain.Ethereum)
+        if (startPoint.Chain is { } chain && chain.Model() == LedgerModel.Account)
         {
-            return startPoint.Kind switch
+            if (startPoint.EthereumAccount is { } address)
             {
-                StartPointKind.Address when EthereumAddress.TryParse(startPoint.Value, out var address) =>
-                    TraceStartPoint.ForEthereumAddress(address),
-                StartPointKind.Transaction when EthereumTxHash.TryParse(startPoint.Value, out var hash) =>
-                    TraceStartPoint.ForEthereumTransaction(hash),
-                _ => null,
-            };
+                return TraceStartPoint.ForEthereumAddress(address);
+            }
+
+            return startPoint.AccountTransaction is { } hash ? TraceStartPoint.ForEthereumTransaction(hash) : null;
         }
 
+        if (startPoint.IsShielded)
+        {
+            return null;
+        }
+
+        // Bitcoin's own reading first, as always; then an address or a transaction on Litecoin or Zcash.
         return startPoint.Bitcoin switch
         {
             { Address: { } address } => TraceStartPoint.ForAddress(address),
             { Txid: { } txid } => TraceStartPoint.ForTransaction(txid),
+            _ when startPoint.UtxoAddress is { } utxo => TraceStartPoint.ForAddress(utxo),
+            _ when startPoint.UtxoTransaction is { } transaction => TraceStartPoint.ForTransaction(transaction),
             _ => null,
         };
     }
@@ -473,9 +506,12 @@ public sealed partial class CaseWorkflow
         }
 
         var chain = CaseTexts.ChainName(startPoint.Chain!.Value);
+        var summary = startPoint.IsShielded
+            ? $"Startpunkt på {chain} noterad: {ShieldedText(startPoint)} {startPoint.Value}"
+            : $"Startpunkt på {chain} noterad, men {chain} {NotTracedWhy(startPoint)}: {startPoint.Value}";
         created.AppendJournal(new JournalDraft(
             AppJournalKinds.StartPointNoted,
-            $"Startpunkt på {chain} noterad, men {chain} är inte byggt än: {startPoint.Value}",
+            summary,
             JsonSerializer.Serialize(new Dictionary<string, string>
             {
                 ["chain"] = startPoint.Chain.Value.ToString(),
@@ -506,12 +542,14 @@ public sealed partial class CaseWorkflow
                 () => attribution.CheckSanctions(created, bitcoin));
         }
 
-        var ethereum = startPoints.Select(each => each.EthereumAccount).OfType<EthereumAddress>().ToList();
-        if (ethereum.Count > 0)
+        foreach (var chain in startPoints.Select(each => each.EthereumAccount).OfType<EthereumAddress>()
+            .GroupBy(account => account.Chain))
         {
-            Try(missed, "sanktionslistan kontrollerades inte för Ethereum",
-                () => attribution.CheckSanctions(created, ethereum));
+            var accounts = chain.ToList();
+            Try(missed, $"sanktionslistan kontrollerades inte för {CaseTexts.ChainName(chain.Key)}",
+                () => attribution.CheckSanctions(created, accounts));
         }
+
     }
 
     /// <summary>Runs one step after the creation, and notes it when it fails.</summary>

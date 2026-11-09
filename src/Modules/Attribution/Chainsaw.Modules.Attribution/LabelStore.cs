@@ -33,7 +33,7 @@ internal static class LabelStore
         var record = transaction.AppendSealed(
             AttributionSchema.LabelsChain,
             [
-                AddAction, null, origin.OriginId, label.Subject.Kind.ToString(), label.Subject.Target.Value,
+                AddAction, null, origin.OriginId, label.Subject.Kind.ToString(), label.Subject.Stored,
                 label.Kind.ToString(), label.Name, origin.Source.ToString(), origin.OriginalSource.ToString(),
                 origin.SourceName, origin.SourceVersion, JsonSerializer.Serialize(origin.SetBy), Text(origin.SetUtc),
                 origin.Reason, origin.Note, label.DoNotSpread ? 1L : 0L, journal.Sequence, Text(journal.Utc),
@@ -56,7 +56,7 @@ internal static class LabelStore
             AttributionSchema.LabelsChain,
             [
                 RetractAction, label.Sequence, label.Origin.OriginId, label.Subject.Kind.ToString(),
-                label.Subject.Target.Value, label.Kind.ToString(), null, null, null, null, null,
+                label.Subject.Stored, label.Kind.ToString(), null, null, null, null, null,
                 JsonSerializer.Serialize(journal.Operator), Text(journal.Utc), reason, null, null, journal.Sequence,
                 Text(journal.Utc),
             ]);
@@ -77,7 +77,7 @@ internal static class LabelStore
             AttributionSchema.LabelsChain,
             [
                 SpreadAction, label.Sequence, label.Origin.OriginId, label.Subject.Kind.ToString(),
-                label.Subject.Target.Value, label.Kind.ToString(), null, null, null, null, null,
+                label.Subject.Stored, label.Kind.ToString(), null, null, null, null, null,
                 JsonSerializer.Serialize(journal.Operator), Text(journal.Utc), null, null, doNotSpread ? 1L : 0L,
                 journal.Sequence, Text(journal.Utc),
             ]);
@@ -194,8 +194,10 @@ internal static class LabelStore
 
     /// <summary>
     /// Reads a stored subject. The text is the address as <see cref="LabelSubject.Target"/> gives it: a text that is
-    /// an Ethereum address (<c>0x</c> and 40 hex digits, which no Bitcoin address can be) is an Ethereum account, any
-    /// other a Bitcoin address, so that a Bitcoin label is stored exactly as before Ethereum could be labelled.
+    /// an Ethereum address (<c>0x</c> and 40 hex digits, which no Bitcoin address can be) is an Ethereum account, one
+    /// that is a TRON address (Base58Check with TRON's version byte 0x41, which no Bitcoin address has) a TRON account,
+    /// one that is 32 bytes in plain Base58 (which no Bitcoin or TRON address decodes to) a Solana account, any other a
+    /// Bitcoin address, so that a Bitcoin label is stored exactly as before other chains could be labelled.
     /// </summary>
     /// <param name="kind">Address or cluster.</param>
     /// <param name="text">The stored address.</param>
@@ -206,9 +208,18 @@ internal static class LabelStore
     /// <exception cref="FormatException">The text is no address.</exception>
     public static LabelSubject Subject(LabelSubjectKind kind, string text)
     {
-        if (!EthereumAddress.TryParse(text, out var account))
+        ArgumentNullException.ThrowIfNull(text);
+        if (text.StartsWith(LabelSubject.BscPrefix, StringComparison.Ordinal))
         {
-            return new LabelSubject(kind, BitcoinAddress.Parse(text));
+            return kind == LabelSubjectKind.Address
+                ? LabelSubject.ForAccount(new ChainAddress(Chain.Bsc, text[LabelSubject.BscPrefix.Length..]))
+                : throw new InvalidDataException("A label on a cluster is on Bitcoin only.");
+        }
+
+        if (!EthereumAddress.TryParse(text, out var account) && !IsTronAddress(text, out account)
+            && !EthereumAddress.TryParseSolana(text, out account, out _))
+        {
+            return new LabelSubject(kind, UtxoAddress(text));
         }
 
         return kind == LabelSubjectKind.Address
@@ -216,7 +227,29 @@ internal static class LabelStore
             : throw new InvalidDataException("A label on a cluster is on Bitcoin only.");
     }
 
+    /// <summary>
+    /// Reads a stored address on a UTXO chain: Bitcoin's first, so that a label stored before Litecoin could be
+    /// labelled reads as it did, and otherwise Litecoin's or Zcash's, whose stored forms (<c>L…</c>, <c>M…</c>,
+    /// <c>ltc1…</c>, <c>t1…</c>, <c>t3…</c>) no Bitcoin address has.
+    /// </summary>
+    /// <param name="text">The stored address.</param>
+    /// <returns>The address.</returns>
+    /// <exception cref="FormatException">The text is no address.</exception>
+    private static BitcoinAddress UtxoAddress(string text) =>
+        BitcoinAddress.TryParse(text, out var bitcoin) ? bitcoin
+            : BitcoinAddress.TryParseOnAnyChain(text, out var other) && other.Value == text ? other
+            : BitcoinAddress.Parse(Chain.Litecoin, text);
+
+    /// <summary>Says whether a stored address is a TRON account, in the Base58Check form a label stores.</summary>
+    /// <param name="text">The stored address.</param>
+    /// <param name="account">The account, or <see langword="null"/>.</param>
+    /// <returns><see langword="true"/> when it is one.</returns>
+    private static bool IsTronAddress(
+        string text, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out EthereumAddress? account) =>
+        EthereumAddress.TryParseTron(text, out account, out _) && account.Value == text;
+
     /// <summary>Gives the identity of a label across cases: its origin and what it says.</summary>
+
     /// <param name="originId">The origin.</param>
     /// <param name="subject">What it is on.</param>
     /// <param name="kind">What it says.</param>

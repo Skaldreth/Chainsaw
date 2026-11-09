@@ -55,29 +55,22 @@ göras på flera trådar. *Väntar på:* provet på Windows med prestanda-HUD:en
 12. **En trolig tjänst** (TJ1b): kontrollen `service-behaviour` är en kontroll, inte ett förslag, så den står inte i
     KF2b-panelen. *Nu:* *Som etikett …* står i inspektören vid noden. Ska svepet bli ett förslag som väntar i panelen?
 
-**Från kodgranskningen 2026-11-08** (DEV-LOG, *Kodgranskningen i sju varv*):
-12. **Bakgrundens plan när bevakning i bakgrunden är av:** planen behåller alla ärendens bevakade adresser och txid:er
-    (under DPAPI) fast inget använder dem. *Förslag:* töm planen när inställningen är av; ärendena kommer tillbaka när
-    de öppnas. *Nu:* planen ligger kvar.
-13. **Windows felrapportering:** en hård krasch kan ge en minnesdump med dekrypterade ärendedata och nycklar som
-    Microsoft kan begära in. *Förslag:* undanta Chainsaw och bakgrundsprocessen (`WerAddExcludedApplication`, per
-    användare). *Nu:* inte undantagna.
-14. **Recall och skärmdumpar** kan spara grafen. *Förslag:* blockera inte (det stoppar också egna skärmdumpar och
-    skärmdelning), skriv om det i Guiden. *Nu:* ingenting.
-15. **Återställningskuvertet kan bytas mot ett giltigt utseende kuvert med skräp** (av en tjuv eller en kollega med
-    delningslösenordet), och Chainsaw och verktyget säger ändå "täckt". *Förslag:* gör kuvertets tillfälliga nyckel
-    härledd ur filnyckeln och ärendets id, så att Chainsaw kan pröva kuvertet vid varje öppning och skriva ett nytt med
-    en journalrad; en egen etapp, eftersom formatet ändras och EC-importen ska provas på Windows först.
-16. **Programmappens rättigheter:** Run-nyckeln startar bakgrundsprocessen och `chainsaw:` startar Chainsaw ur samma
-    mapp, men bara tunneln har en kontrollerad hash. Packas Chainsaw upp i t.ex. `C:\Chainsaw` (där alla inloggade får
-    ändra) kan en annan användare byta ut programmet. *Förslag:* kontrollera mappens rättigheter vid start, registrera
-    då inte Run-nyckeln eller länken och säg var Chainsaw ska installeras.
-17. **Huvudnyckeln byttes medan Chainsaw låstes:** bytet blir klart men användaren får aldrig veta det och kan få "Fel
-    huvudnyckel" med den gamla. Vilken text, och var (låsskärmen eller efter upplåsningen)?
-18. **Konfliktdialogen** ("X gick åt två håll") säger "…fram till kraschen" också när filen bytts ut på disken medan
-    ärendet var öppet. Ny, neutral text?
-19. **Det en kollega har lagt till** i ett delat ärende efter den här datorns ankare godtas som äkta och visas inte som
-    tillagt någon annanstans. Ska raderna efter det egna ankaret märkas?
+**Från Litecoin och BSC 2026-11-09** (DEV-LOG, *Omgång 8b*):
+20. **BSC:s källa:** det finns ingen öppen Blockscout för BSC (Blockscouts egen lista har ingen för kedja 56), BscScans
+    API har gått upp i Etherscans, som för BSC kräver en **betald** nyckel och tar den i adressen, och BSC:s öppna
+    JSON-RPC-noder har ingen historik per adress (allt prövat 2026-11-09). *Nu:* BSC har ingen endpoint från början;
+    användaren lägger till en egen eller köpt Blockscout för BSC under *Källor*, med nyckeln i valvet. Ska Chainsaw
+    tala Etherscans API (v2, `chainid=56`) med en betald nyckel? Det kräver att nyckeln kan skickas i adressen men
+    förseglas utan den (BACKLOG, *Etherscan med API-nyckel*).
+21. **USDT och USDC på BSC** är Binances bryggade tokens (*Binance-Peg*), inte Tethers och Circles egna. *Nu:* de känns
+    igen på kontraktet, har **inte** snöflingan *Kan frysas* (inget känt sätt att frysa dem), och kursen tas från
+    Bitstamps marknad för den token de står för (USDT, USDC). Stämmer det med hur kryptospåraren ser på dem?
+
+**Från Litecoin i grafen och Zcash 2026-11-09** (DEV-LOG, *Omgång 8c*):
+22. **Zcashs förvalda källa** är Zelcores öppna Blockbook (`blockbook.zec.zelcore.io`), ett plånboksföretags, utan
+    nyckel; det var den enda öppna som svarade (BACKLOG, *Flera UTXO-kedjor efter omgång 8c*). Duger den som förval,
+    eller ska Zcash vara utan endpoint tills en egen eller köpt läggs till (som BSC)?
+23. **Ett ärende med flera UTXO-kedjor** spårar bara den första startpunktens kedja och säger det. Räcker det till 1.0?
 
 **Äldre, där sessionen valt det säkraste:**
 - **Återkallade återställningsnycklar** (etapp 9):
@@ -116,16 +109,10 @@ Inget sedan etapp 1 är provat på Windows. Användaren provar efter `docs/TESTE
 
 ### 2. Kvar efter omgång 4
 
-- **Spårningen efter en tx som inte finns** [etapp]: linjerna och aktörerna efter den ritas streckade, men Tracing
-  läser fortfarande det sparade svaret, så de spårade beloppen och *Spårat* räknar med den.
-- **Ersatt av vilken tx** [etapp]: en tx som källan inte längre känner (`404`) visas som *Finns inte längre*; vilken
-  tx som spenderar samma pengar i stället kräver uppslag på de spenderade utgångarna.
-- **Ångra en godkänd plånbok** (PL1b, vald): Ctrl+Z och *Ångra* i KF2b-panelen bekräftas i grafen.
-- **Spåret genom en swap** (SW1a, vald) [etapp]: värdet följer med, och valet per swap i pillret.
-- **En DEX:s router i grafen** [skiss]: listan över kända kontrakt (omgång 2) har Uniswaps, 1inchs och 0x:s routrar,
-  men de får ingen etikett, eftersom ingen sort i bildspråket passar: *Swap eller brygga* avslutar spåret som
-  *Fortsätter på annan kedja*, och ett byte på samma kedja byter inte ägare. Namnet står i *Varför?* för swappen. En
-  egen sort, eller en markering i hörnet, skissas.
+- **En tx som inte finns längre, resterna** (Bitcoin byggt 2026-11-09):
+  - **Ethereum** [etapp]: GR9a ritar en borta Ethereum-tx, men kontomodellens spårning räknar fortfarande med den.
+  - **En obekräftad tx som aldrig låg i ett block** och försvinner ur mempool räknas inte som borta, eftersom
+    regeln (`BlockChangeRule`) jämför med det första svaret i ett block [etapp].
 - **Sökningen:** en etikett från ett annat ärende kan inte säga vilket, eftersom ursprunget saknar ärendenumret
   [etapp].
 - **Begäran:** kontaktvägar till börserna (katalogen är tom tills en väg kan kontrolleras mot sin källa, med källa
@@ -138,17 +125,25 @@ Inget sedan etapp 1 är provat på Windows. Användaren provar efter `docs/TESTE
 Hela `docs/BACKLOG.md` byggs före 1.0, i omgångar där agenterna inte rör samma filer. Varje omgång tar bort det den
 byggt ur BACKLOG; det som skriver i ärendet granskas oberoende.
 1. **Skisserna är valda** (2026-11-08): TL3a, FL1a, PL1b och SW1a (CLAUDE.md, *Valt för 1.0*).
-2. **Ethereum klart:** spårningen genom en swap (när regeln är beslutad), Tornado Cash och kända DEX:ar och bryggor,
-   OFAC:s ETH-adresser, kontoheuristikerna, kontrollerna och plånböckerna på Ethereum, egna ytor, Etherscan med nyckel
+2. **Ethereum klart:** Tornado Cash och kända DEX:ar och bryggor, OFAC:s ETH-adresser, kontoheuristikerna, kontrollerna och plånböckerna på Ethereum, egna ytor, Etherscan med nyckel
    och fynden från etapp 23 och 23b.
-3. **Bitcoin-källan, bevakningen och bakgrunden:** fynden under *Bitcoin-källan*, *Bevakning* och *Bevakning i
-   bakgrunden*, och bevakning i realtid (websocket).
+3. **Bitcoin-källan, bevakningen och bakgrunden:** byggt 2026-11-08 (DEV-LOG, *Omgång 3*): VPN i bakgrunden, nya
+   block i realtid, starten i fas, omorganisationer, merkle-beviset och de andra fynden. Det som är kvar står i
+   BACKLOG med en notering om beslutet det väntar på, och ytorna nedan.
 4. **Klustring, förvirring och kontroller:** tjänster ur beteende, fler tecken för växeln, CoinJoin och peel chain,
    centrala mixers, damm och adressförgiftning, jämna belopp och tidsmönster, och fynden under *Kontroller*.
+   Omgång 5 (2026-11-09, DEV-LOG) byggde trolig mixer, mixer efter mixer med grenar, uppdelning över flera tx, hopp
+   med avgift, tidsmönstret i svensk tid och nästlade tjänster. Kvar:
+   - **Testärendet** [direkt]: `/testdata` visar inte omgång 5:s mönster (en central mixer utan etikett, grenar, en
+     uppdelning över flera tx, hopp med avgift, en nästlad tjänst hos en börs).
+   - **Jämna belopp i fiat** [etapp]: kräver ett synkront kontrakt för ärendets kurser i `Pricing.Contracts` (BACKLOG,
+     *Förvirringstekniker*).
 5. **Attribution och kurser:** EU:s sanktionslista, öppna källor (efter licens), etiketter på tx, och fynden under
    *Attribution* och *Kurser*.
 6. **Säkerhet, ärenden och utgångar:** byggt 2026-11-08 (DEV-LOG, *Omgång 6*). Kvar, som behöver ritas först:
 7. **Vyerna och appen:** byggt 2026-11-08 (DEV-LOG, *Omgång 7*). Kvar, som behöver ritas först:
+   - [skiss] **Trolig mixer eller vidarebetalande tjänst** (`mixer-behaviour`, omgång 5): fyndet ritas i dag som en
+     mixer, rött, som betyder risk. Ska det tvetydiga fallet se annorlunda ut (en annan ton eller en egen ikon)?
    - [skiss] **Fråga om det som kan ha ändrats:** grafen visas bara ur ärendet, så ett mynt som låg kvar står som *kan
      ha flyttats* tills noden expanderas igen. En knapp eller ett kommando som frågar om alla sådana mynt på en gång.
    - [skiss] **En `chainsaw:`-länk i en lapp till något som inte finns i grafen** säger det bara; den kunde bli en
@@ -160,18 +155,69 @@ byggt ur BACKLOG; det som skriver i ärendet granskas oberoende.
    - [skiss] **Ta tillbaka en egen yta i Historik** (KF1b, Z): samma rad och formulär som för en etikett.
    - Resterna i BACKLOG under Exponering, Begäran, Låsskärmen, Historik, Testärendet och *Vyerna efter 1.0* står kvar
      där, med varför.
-8. **TRON med USDT**, sedan **Litecoin**, **BSC**, **Solana** och den genomskinliga delen av **Zcash**.
-9. **Egen nod och eget index**, hitta fortsättningen på en annan kedja själv, och mönsterigenkänning som analys
-   (utan språkmodell, princip 5).
+8. **TRON med USDT** är byggt (omgång 8, DEV-LOG, resterna i BACKLOG under *TRON efter omgång 8*), **Litecoin** och
+   **BSC** (omgång 8b), **Solana** (omgång 8c, DEV-LOG, resterna i BACKLOG under *Solana efter omgång 8c*), och
+   **Litecoin i grafen** och den genomskinliga delen av **Zcash** med förslagen ur de skyddade poolerna (omgång 8c,
+   DEV-LOG, resterna i BACKLOG under *Flera UTXO-kedjor efter omgång 8c*). Litecoin, Zcash och BSC, kvar:
+   - [skiss] **Zcash i ytorna:** startpunktsnodens brickor (GR6c) och ett eget märke; raden i *Nytt ärende* och
+     *Väntar på källan* visar `Z` som text, som `Ł` och `B`.
+   - [skiss] **Summorna på en Litecoin- och Zcash-nod:** grafens summor per aktör räknar bara BTC
+     (`GraphScene.Shown`), som för Ethereum; hur en nod på en annan UTXO-kedja visar sin summa skissas med tokens.
+   - [skiss] **Välja kedja för en `0x`-adress:** en BSC-adress skrivs som Ethereums, så i *Nytt ärende*, i formuläret
+     *Bevaka* och i kommandoraden blir `0x…` Ethereum om inte `bsc:` står före. En väljare (Ethereum, BSC) vid raden
+     eller fältet när texten passar båda.
+   - [skiss] **Startpunktsnodens brickor (GR6c)** visar inte Litecoin och BSC.
+   - [skiss] **Ett eget märke för Litecoin och BSC:** raden i *Nytt ärende* och *Väntar på källan* visar `Ł` och `B`
+     som text, inte en ritad ikon som TRON:s.
+   - **Testärendet** (`/testdata`) har ingen Litecoin-, Zcash- eller BSC-källa än (som TRON:s `TestTronHttp`), så
+     Litecoin i grafen, Zcashs pooler och `shielded-pool v1` syns inte där.
+
+   Solana, kvar:
+   - **Testärendet** (`/testdata`) har ingen Solana-källa än (som TRON:s `TestTronHttp`).
+   - [skiss] **Ett eget märke för Solana:** raden i *Nytt ärende* och *Väntar på källan* visar `S` som text, som `B`
+     för BSC; SOL har stålets färg på kortets baksida som ether.
+   - [skiss] **Startpunktsnodens brickor (GR6c)** visar inte Solana.
+   - [skiss] **Fryst på Solana:** saldot säger redan när ett tokenkonto är fryst (`state: frozen`); en markering
+     *Fryst* bredvid snöflingan skissas med TRON:s.
+   - [skiss] **En tx som inte kunde paras:** en Solana-tx med flera avsändare och mottagare av samma tillgång sägs i
+     inspektörens text; hur den syns i grafen (en streckad nod för tx:en?) skissas först.
+
+   TRON:s ytor som väntar:
+   - [skiss] **Fryst:** Tethers kontrakt på TRON har en svartlista (`isBlackListed`); en adress som står där kunde få
+     en markering *Fryst* bredvid snöflingan *Kan frysas*, med när den lästes och ur vilket svar. Hur den skiljer sig
+     från snöflingan (som bara säger att utgivaren *kan* frysa) och hur ofta den frågas skissas först.
+   - [skiss] **TRON:s brickor i den tomma startpunktsnoden (GR6c):** brickorna Bitcoin-adress, Ethereum-adress,
+     Bitcoin-tx och Ethereum-tx lyser när texten passar, men TRON har ingen bricka än; en TRON-adress läggs ändå till.
+   - [skiss] **TRX:s egen färg på kortets baksida:** TRX har stålets färg som ether (en nod har aldrig båda), och
+     *Väntar på källan* visar `T` för TRON; en egen ton och ett eget märke skissas om det behövs.
+   - [skiss] **TRX:s avgift i inspektören:** TRON bränner TRX för energi och bandbredd (ofta noll med låst TRX);
+     inspektören visar avgiften som på Ethereum, men skillnaden mellan energi och bandbredd syns inte.
+9. **Egen nod och eget index**. Mönsterigenkänningen som analys (`pattern v1`, princip 5) är byggd 2026-11-09
+   (DEV-LOG), och att hitta fortsättningen på en annan kedja själv är byggt som `cross-chain v1` (2026-11-09, DEV-LOG;
+   resterna i BACKLOG under *Cross-chain, efter `cross-chain v1`*). Ytor som väntar:
+   - [skiss] **Mönstrets utseende:** kontrollerna `pattern` ritas i dag som förvirring (sand med mixerns ikon), som
+     inte passar *samma insamling* och *samma väg*. En egen ikon och ton för mönster (och om de ska ha en egen rad i
+     menyn *Områden i grafen*) skissas.
+   - [skiss] **Delarna som liknar varandra:** ett mönster bygger på flera delar av ärendet (två insamlingar, två vägar),
+     men området ritas som ett. Att visa delarna var för sig i KF2b-bilden och i grafen (en ton per del, eller *1 av 2*
+     som stegar mellan delarna) skissas.
+   - [skiss] **Avfärda en kontroll:** en kontroll (*Gjort av sig självt*) har inget beslut, så en falsk träff ur
+     `pattern` står kvar. Att kunna avfärda en kontroll (som ett förslag, med skäl) skissas i KF2b.
+   - [skiss] **Mönstret i rapporten och i Begäran:** om *samma insamling* och *samma väg* ska kunna tas med i
+     rapporten (RP1b) som en egen del.
+   - [skiss] **Fortsättningen på annan kedja i grafen:** en betalning in till en brygga ritar inte sitt förslags
+     kandidater på den andra kedjan (de finns bara i KF2b-panelen), och ett förslag vars betalning in är på Ethereum
+     eller TRON har inget område i grafen, eftersom områdena bara ritas kring Bitcoin-adresser. Hur kandidaterna på
+     den andra kedjan visas vid den lila noden (streckade linjer till noder som inte finns i grafen än) skissas först.
+   - [skiss] **Flödesbilden i KF2b för två tillgångar:** bilden visar banden och beloppen, men ingen avgift i procent
+     (värdet jämförs med kurserna, och skälet säger avgiften); en bild med båda tillgångarna och kronorna skissas.
 
 **Ur omgång 4, ytorna KV1a, HB1a, BU1a, DM1a, HP1a och TJ1b** (byggda 2026-11-08, rester):
-- **Testärendet** (`/testdata`) visar inte de nya kontrollerna och ytorna än [direkt]: damm, en adressförgiftning
-  (en look-alike till Sydbörsen), ett svep till Sydbörsens hot wallet (för *Som etikett …*), en rad med många hopp
-  (fem hopp med en in och en ut, med ett uppehåll på några dygn), en uppdelning med delar som möts och en möjlig
-  PayJoin behöver läggas in i berättelsen (`TestStoryChain`) med stegen som hämtar dem. En slutsats som hålls tillbaka
-  kräver en obekräftad tx som ersätts, som testkedjan inte kan visa än.
-- **Ersatt av** i hovringen av en slutsats som hålls tillbaka (HB1a) väntar på punkten *Ersatt av vilken tx* ovan;
-  nu står bara vilken tx slutsatsen byggde på.
+- **En slutsats hålls aldrig tillbaka av sig själv** (HB1a, fynd 2026-11-09 när testärendet fylldes på): klustringen
+  håller tillbaka en slutsats bara när en körning saknar en tx den bygger på, men Tracing skickar alltid hela grafen,
+  också en tx som källan inte längre känner (den borta tx:en läses ur ärendet som förut). Att en körning lämnar borta
+  tx utanför (och vad grafen då visar för dem) ändrar slutsatserna i ärendet och byggs som en etapp. Testärendet visar
+  HB1a med en körning utan de borta tx:erna sist i berättelsen (`HeldBackStep`), som nästa expansion tar tillbaka.
 - **Förhandsvisningen av ett tillbakadragande** (KV1a) räknar på det som är sparat: det v1 slår ihop i tx som v1
   aldrig kört syns först efter nästa körning. Raden längst ner säger när, men inte vem (det står i journalen).
 - **Dammets linjer** (DM1a) är inte hårfina och prickade och har kvar beloppet; noderna tonas ned och förgiftningens
@@ -181,9 +227,36 @@ byggt ur BACKLOG; det som skriver i ärendet granskas oberoende.
 - **Som etikett …** (TJ1b) står i inspektörens rad med *Varför?* och *Historik*, inte i KF2b-panelen: kontrollen
   `service-behaviour` är en kontroll och inte ett förslag, så den står inte i panelen (*Väntar på dig*, 12). Ingen toast med *Ångra* efter etiketten (den tas tillbaka i Historik).
 
-**Beslutat 2026-11-08** (står i CLAUDE.md): spårningen genom en swap (förvalet följer värdet, utredaren väljer per
-swap; valet i pillret skissas [skiss]), VPN i bakgrunden (byggs i omgång 3) och metoderna för privacy coins
-(omgång 9). **LIFO och poison** väntar på kryptospåraren (`docs/KRYPTOSPARAREN.md`, fråga 1).
+**Ur omgång 3 (Bitcoin-källan, bevakningen och bakgrunden), väntar på en yta** [skiss]:
+- **VPN i bakgrunden per utgång:** i dag en brytare under Inställningar › Nätverk (*Bevaka genom utgången när Chainsaw
+  är stängt*) som gäller den valda utgången. Ska valet stå per rad i utgångarnas tabell (UT3b), och ska det synas
+  vilka utgångar som har en kopia under DPAPI, skissas raden.
+- **En träff som bytt block** (omorganisation, `WatchHit.MovedFrom`, journalraden `monitoring.hit.moved`): träffen
+  vilar nu på sitt nya block, men listan i Bevakning och vaktlinjen säger det inte. Förslag: GR9a:s runda märke med
+  förut och nu.
+- **Kontrollerad mot blocket** (`IBitcoinSource.VerifyInBlockAsync`, `BitcoinTransaction.InBlock`: *bara källans svar*, *bekräftad av en annan endpoint* eller *bekräftad av den egna noden*): beviset
+  finns men inget anropar det; var det visas i inspektören (som *kontrollerad mot bytes*) och om det körs när tx:en
+  visas eller i bakgrunden skissas.
+- **Den egna Bitcoin Core i sidan Källor** (2026-11-09): användarnamnet och lösenordet är i dag en nyckel i valvet
+  skriven `användare:lösenord`, vald i *Lägg till endpoint …* som andra nycklar; ett eget fält för nodens uppgifter (och
+  kakfilen) skissas om det behövs. En egen nod som provats utan utgång (`EndpointProbe.Unreferenced`) syns bara i
+  pricken och dess verktygstips; en egen markering (*inte jämförd med kedjan*) skissas.
+- **Pengar ut ur en CoinJoin som *högst …*** (BACKLOG, *Bevakning*): markeringen och den streckade formen i listan.
+
+**Ur omgång 5 (attribution och kurser), väntar på en yta** [skiss]:
+- **Etikett på en tx:** `ITransactionLabels` finns (förseglad, tas tillbaka, avslutar spåret vid en märkt Bitcoin-tx),
+  men ingen knapp. Var den sätts (ikonlisten vid tx:ens linje eller swap-pillret, en ruta som IN1b) och hur den syns
+  i grafen (en markering på linjen) skissas.
+- **Möjlig sanktion i grafen:** en tvetydig adress på EU:s lista märks `LabelKind.PossiblySanctioned` och syns i
+  inspektören och vyn Etiketter, men har ingen markering i grafen än; en streckad, nedtonad sanktionsmarkering
+  (streckat betyder osäkert) skissas.
+- **Listorna på datorn:** en rad per importerad sanktionslista och öppen källa (namn, datum, hash, antal adresser,
+  licens) med *Ta bort …* (`Remove` finns), till exempel på sidan Källor under *Etiketter* eller i vyn Etiketter; och
+  menyraden *Importera sanktionslista …* tar nu också Ransomwhere, så den kan behöva heta *Importera lista …*.
+
+**Beslutat 2026-11-08** (står i CLAUDE.md): spårningen genom en swap (byggd, SW1a), VPN i bakgrunden (byggd i
+omgång 3) och metoderna för privacy coins (omgång 9). **LIFO och poison** väntar på kryptospåraren
+(`docs/KRYPTOSPARAREN.md`, fråga 1).
 
 ## Före tjänstebruk
 

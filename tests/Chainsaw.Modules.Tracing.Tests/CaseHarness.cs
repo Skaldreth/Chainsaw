@@ -32,6 +32,11 @@ internal sealed class CaseHarness : IDisposable
         services.AddSingleton<IClock>(Clock);
         services.AddSingleton<IBitcoinSource>(Source);
         services.AddSingleton<IEthereumSource>(Ethereum);
+        services.AddSingleton<ITronSource>(Tron);
+        services.AddSingleton<IBscSource>(Bsc);
+        services.AddSingleton<ILitecoinSource>(Litecoin);
+        services.AddSingleton<IZcashSource>(Zcash);
+        services.AddSingleton<ISolanaSource>(Solana);
         services.AddCasesModule(options =>
         {
             options.Directory = _directory;
@@ -65,7 +70,19 @@ internal sealed class CaseHarness : IDisposable
 
     public FakeSource Source { get; } = new();
 
+    /// <summary>Gets Litecoin's fake source.</summary>
+    public FakeSource Litecoin { get; } = new(BitcoinNetwork.Litecoin);
+
+    /// <summary>Gets Zcash's fake source.</summary>
+    public FakeSource Zcash { get; } = new(BitcoinNetwork.Zcash);
+
     public FakeEthereumSource Ethereum { get; } = new();
+
+    public FakeTronSource Tron { get; } = new();
+
+    public FakeBscSource Bsc { get; } = new();
+
+    public FakeSolanaSource Solana { get; } = new();
 
     public FakeLabels Labels { get; } = new();
 
@@ -76,6 +93,9 @@ internal sealed class CaseHarness : IDisposable
     public ITracingService Service { get; }
 
     public IGraphCommentService Comments => _provider.GetRequiredService<IGraphCommentService>();
+
+    /// <summary>Gets where an approved suggestion's links to other chains are sealed.</summary>
+    public ICrossChainLinks Links => _provider.GetRequiredService<ICrossChainLinks>();
 
     public Task<TraceGraph> Load() => Service.LoadAsync(Case);
 

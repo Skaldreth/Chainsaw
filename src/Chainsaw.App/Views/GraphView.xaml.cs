@@ -62,6 +62,7 @@ public partial class GraphView : UserControl
         {
             PlaceOverNode();
             PlaceAreaForm();
+            PlaceWalletUndo();
         };
     }
 
@@ -143,6 +144,11 @@ public partial class GraphView : UserControl
             {
                 PlaceAreaForm();
             }
+
+            if (e.PropertyName == nameof(ChecksViewModel.PendingWalletUndo))
+            {
+                PlaceWalletUndo();
+            }
         };
         model.PropertyChanged += (_, e) =>
         {
@@ -203,6 +209,35 @@ public partial class GraphView : UserControl
     {
         PlaceOverNode();
         PlaceAreaForm();
+        PlaceWalletUndo();
+    }
+
+    /// <summary>
+    /// Puts the card of a wallet whose approval waits to be taken back beside its cluster (sketch PL1b), to the right
+    /// or else to the left, its top at the node's; under the graph's corner when the wallet is not on the graph.
+    /// </summary>
+    private void PlaceWalletUndo()
+    {
+        if (DataContext is not GraphViewModel { Checks.PendingWalletUndo: { } undo })
+        {
+            return;
+        }
+
+        var width = WalletUndoCard.Width;
+        var height = WalletUndoCard.ActualHeight;
+        if (undo.Nodes.Select(Canvas.NodeOnScreen).OfType<Rect>().FirstOrDefault() is not { IsEmpty: false } node)
+        {
+            WalletUndoCard.Margin = new Thickness(Canvas.ActualWidth - width - CornerMargin.Right, AreaFormTop, 0, 0);
+            return;
+        }
+
+        var right = node.Right + FormGap + width <= Canvas.ActualWidth - EdgeSpace;
+        WalletUndoCard.Margin = new Thickness(
+            Within(right ? node.Right + FormGap : node.Left - FormGap - width, EdgeSpace,
+                Canvas.ActualWidth - width - EdgeSpace),
+            Within(node.Top, EdgeSpace, Canvas.ActualHeight - height - EdgeSpace),
+            0,
+            0);
     }
 
     /// <summary>

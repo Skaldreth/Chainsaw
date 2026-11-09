@@ -51,8 +51,37 @@ internal interface ISourceApi
     /// <returns>The request, without a key.</returns>
     ExitRequest Request(Uri address, string path);
 
+    /// <summary>
+    /// Builds a lookup's POST under an endpoint's address, for a sort of API that is asked with a body (a JSON-RPC
+    /// call). A sort that is only asked with GET refuses it.
+    /// </summary>
+    /// <param name="address">The endpoint's base address, ending in <c>/</c>.</param>
+    /// <param name="path">The path under it, which never names a case.</param>
+    /// <param name="body">The body, which never names a case either.</param>
+    /// <returns>The request, without a key.</returns>
+    /// <exception cref="NotSupportedException">The sort is not asked with a body.</exception>
+    ExitRequest Post(Uri address, string path, string body) =>
+        throw new NotSupportedException("The sort of API is only asked with GET.");
+
     /// <summary>Gives the header a key from the vault is sent in.</summary>
     /// <param name="secret">The key.</param>
     /// <returns>The header.</returns>
     ExitCredential Credential(string secret);
+
+    /// <summary>
+    /// Gets whether the sort answers a lookup's path (in the Esplora form the chain's source asks in). A sort that
+    /// answers only some, as the user's own Bitcoin Core does, is passed over for the others, which are asked of the
+    /// chain's other endpoints; every other sort answers all.
+    /// </summary>
+    /// <param name="path">The path under the endpoint's address.</param>
+    /// <returns><see langword="true"/> when it can be asked.</returns>
+    bool Answers(string path) => true;
+
+    /// <summary>
+    /// Reads what a response says beyond its HTTP status, before the lookup reads it as an answer: a JSON-RPC error
+    /// that means the source does not know what was asked, or why it cannot be used, in Swedish.
+    /// </summary>
+    /// <param name="response">The response.</param>
+    /// <returns>The verdict, or <see langword="null"/> to read the response by its status as every source is.</returns>
+    SourceVerdict? Judge(ExitResponse response) => null;
 }

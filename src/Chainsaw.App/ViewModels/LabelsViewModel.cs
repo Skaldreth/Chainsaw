@@ -580,6 +580,7 @@ public sealed partial class LabelsViewModel : ObservableObject
             string.Create(CultureInfo.InvariantCulture, $"{list.Name} · {list.PublishDate:yyyy-MM-dd}"),
         LabelFilter.Sanction => "Ingen lista importerad",
         LabelFilter.Own => "Satta i ärendet",
+        LabelFilter.OpenSource => "Importerade datamängder",
         LabelFilter.Provider => "Underleverantör",
         LabelFilter.Behaviour => "Förslag från analyserna",
         _ => "Genom biblioteket",

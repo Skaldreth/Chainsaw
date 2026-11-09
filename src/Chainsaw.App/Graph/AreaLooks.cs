@@ -56,7 +56,7 @@ public static class AreaLooks
     };
 
     /// <summary>
-    /// Gives an analysis's look: red for mixers, CoinJoin and mixed coins merged, sand for peel chains, splits, many
+    /// Gives an analysis's look: red for mixers, CoinJoin, the shielded pools and mixed coins merged, sand for peel chains, splits, many
     /// hops and dust, else its sort's.
     /// </summary>
     /// <param name="analysis">The analysis's name.</param>
@@ -64,8 +64,9 @@ public static class AreaLooks
     /// <returns>The look.</returns>
     public static AreaLook OfAnalysis(string analysis, AreaSort sort) => analysis switch
     {
-        "mixer-outputs" or "mixer-parts" or "mixer-chain" => new("Icon.Kind.Mixer", AreaTint.Red),
+        "mixer-outputs" or "mixer-parts" or "mixer-chain" or "mixer-behaviour" => new("Icon.Kind.Mixer", AreaTint.Red),
         "coinjoin-area" => new("Icon.Kind.CoinJoin", AreaTint.Red),
+        "shielded-pool" => new("Icon.Kind.Mask", AreaTint.Red),
         "peel-chain-area" => new(PeelIcon, AreaTint.Sand),
         "coinjoin-merge" => new("Icon.Join", AreaTint.Red),
         "split-merge" => new("Icon.Split", AreaTint.Sand),

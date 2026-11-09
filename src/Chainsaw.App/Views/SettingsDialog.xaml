@@ -682,9 +682,24 @@
             </Button>
         </DataTemplate>
 
+        <!--
+          The keyboard's ring around a mode. WPF shows a focus visual only when focus came from the keyboard, so a click
+          on a mode does not leave an accent frame around it (which made the switch look broken).
+        -->
+        <Style x:Key="Sources.ModeFocus">
+            <Setter Property="Control.Template">
+                <Setter.Value>
+                    <ControlTemplate>
+                        <Rectangle RadiusX="7" RadiusY="7" Stroke="{StaticResource Brush.Accent}" StrokeThickness="1.5" />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!-- One of the three modes as an icon: the chosen one on the selected surface, in the accent (Av in cream). -->
         <DataTemplate x:Key="Sources.Mode" DataType="{x:Type vm:SettingsChoice}">
-            <Button x:Name="Mode" Width="34" Height="28" Margin="1,0" Cursor="Hand" FocusVisualStyle="{x:Null}"
+            <Button x:Name="Mode" Width="34" Height="28" Margin="1,0" Cursor="Hand"
+                    FocusVisualStyle="{StaticResource Sources.ModeFocus}"
                     Background="Transparent" Foreground="{StaticResource Brush.TextDim}" CommandParameter="{Binding}"
                     AutomationProperties.Name="{Binding Label}"
                     Command="{Binding DataContext.ChooseModeCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}">
@@ -702,9 +717,6 @@
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="Box" Property="Background" Value="{StaticResource Brush.SurfaceHover}" />
-                            </Trigger>
-                            <Trigger Property="IsKeyboardFocused" Value="True">
-                                <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource Brush.Accent}" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -1764,6 +1776,21 @@
                                             </StackPanel>
                                         </DockPanel>
                                     </Border>
+                                    <!-- VPN in the background (decided 2026-11-08): a plain switch for the selected exit. -->
+                                    <Border Style="{StaticResource Settings.Row}"
+                                            Visibility="{Binding ShowsExitInBackground, Converter={StaticResource Visible}}">
+                                        <DockPanel>
+                                            <Button DockPanel.Dock="Right" Style="{StaticResource Settings.TagSwitch}"
+                                                    Command="{Binding ToggleExitInBackgroundCommand}" Tag="{Binding ExitInBackground}"
+                                                    AutomationProperties.Name="Bevaka genom utgången när Chainsaw är stängt"
+                                                    IsEnabled="{Binding CanExitInBackground}" />
+                                            <StackPanel Margin="0,0,16,0">
+                                                <TextBlock Text="Bevaka genom utgången när Chainsaw är stängt" Style="{StaticResource Settings.RowTitle}" />
+                                                <TextBlock Text="Den valda utgångens WireGuard-fil sparas skyddad för din Windows-användare, utanför valvet. Tas bort när du slår av den här eller bakgrunden."
+                                                           Style="{StaticResource Settings.RowHint}" />
+                                            </StackPanel>
+                                        </DockPanel>
+                                    </Border>
                                     <Border Style="{StaticResource Settings.Row}">
                                         <DockPanel>
                                             <TextBlock DockPanel.Dock="Right" Text="Alltid" Style="{StaticResource Settings.Value}" />
@@ -1817,6 +1844,14 @@
                                             </StackPanel>
                                         </DockPanel>
                                     </Border>
+                                    <!-- Others can change the program folder (decision 16): no Run key, said here. -->
+                                    <DockPanel Margin="0,12,0,0"
+                                               Visibility="{Binding HasProgramFolderWarning, Converter={StaticResource Visible}}">
+                                        <controls:GridIcon DockPanel.Dock="Left" Size="16" Data="{StaticResource Icon.Alert}"
+                                                           Foreground="{StaticResource Brush.Pending}" Margin="0,1,10,0" VerticalAlignment="Top" />
+                                        <TextBlock Text="{Binding ProgramFolderWarning}" FontSize="13.5"
+                                                   Foreground="{StaticResource Brush.Pending}" TextWrapping="Wrap" />
+                                    </DockPanel>
                                     <!-- When a watch hits (sketch BV4a): three ways, each a row with its icon on a tile that is
                                          tinted in the accent while the way is on. -->
                                     <StackPanel Orientation="Horizontal" Margin="0,22,0,6">
@@ -1887,7 +1922,7 @@
                                         </DockPanel>
                                     </Border>
                                     <StackPanel Orientation="Horizontal" Margin="0,14,0,0"
-                                                Visibility="{Binding WatchesInBackground, Converter={StaticResource Visible}}">
+                                                Visibility="{Binding StartsWithWindows, Converter={StaticResource Visible}}">
                                         <controls:GridIcon Size="14" Data="{StaticResource Icon.Pin}" Foreground="{StaticResource Brush.TextDim}"
                                                            Margin="0,0,8,0" VerticalAlignment="Center" />
                                         <TextBlock Text="Gäller också när Chainsaw är stängt. Bakgrunden startar med Windows." FontSize="13"
@@ -1945,6 +1980,14 @@
                                             </StackPanel>
                                         </DockPanel>
                                     </Border>
+                                    <!-- Others can change the program folder (decision 16): no link, said here. -->
+                                    <DockPanel Margin="0,12,0,0"
+                                               Visibility="{Binding HasProgramFolderWarning, Converter={StaticResource Visible}}">
+                                        <controls:GridIcon DockPanel.Dock="Left" Size="16" Data="{StaticResource Icon.Alert}"
+                                                           Foreground="{StaticResource Brush.Pending}" Margin="0,1,10,0" VerticalAlignment="Top" />
+                                        <TextBlock Text="{Binding ProgramFolderWarning}" FontSize="13.5"
+                                                   Foreground="{StaticResource Brush.Pending}" TextWrapping="Wrap" />
+                                    </DockPanel>
                                 </StackPanel>
 
                                 <!-- ===== Kurser: the currency, the resolution and the sources ===== -->
@@ -2149,8 +2192,8 @@
                                 <DockPanel Visibility="{Binding IsBuilt, Converter={StaticResource Visible}}">
                                     <!-- The chain's name, and the mode as three icons with its name beside. -->
                                     <DockPanel DockPanel.Dock="Top" Height="36">
-                                        <Border DockPanel.Dock="Right" Padding="3" CornerRadius="10" BorderThickness="1.5"
-                                                BorderBrush="{StaticResource Brush.Border}" Background="{StaticResource Brush.Background}"
+                                        <Border DockPanel.Dock="Right" Padding="2" CornerRadius="10" BorderThickness="1"
+                                                BorderBrush="{StaticResource Brush.BorderStrong}" Background="{StaticResource Brush.Background}"
                                                 VerticalAlignment="Center">
                                             <ItemsControl ItemsSource="{Binding ModeChoices}" ItemTemplate="{StaticResource Sources.Mode}"
                                                           ItemsPanel="{StaticResource Settings.Options}" Focusable="False"

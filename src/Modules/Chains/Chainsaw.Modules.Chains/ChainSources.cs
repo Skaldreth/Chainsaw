@@ -34,7 +34,8 @@ internal sealed record SourcePlan(bool Off, IReadOnlyList<PlannedEndpoint> Endpo
 /// <summary> The chains' endpoints, their modes and their probes (sketch KL1a), kept in <c>sources.json</c> in the
 /// program's data. Every probe goes the endpoint's way (<see cref="SendAsync"/>) and asks only for the chain's height
 /// (and, in the form that adds an endpoint, the hash of the block at that height); nothing is probed while the vault is
-/// locked, and a round in which the exit refused is not kept. The lookups ask the endpoints in the order <see
+/// locked, and in a round in which the exit refused only the user's own nodes are kept (they never leave the own
+/// network), unmeasured against the chain. The lookups ask the endpoints in the order <see
 /// cref="Plan"/> gives, each at its own pace (<see cref="Pacer"/>). An endpoint marked as the user's own node is asked
 /// straight in the user's own network through <see cref="ILocalHttp"/>, and every other through <see cref="IExitHttp"/>
 /// (<see cref="SendAsync"/>); nothing else chooses the way.
@@ -49,6 +50,18 @@ internal sealed class ChainSources : IChainSources
     /// not behind for an ordinary lookup, since the information comes in step by step (decided 2026-11-07).
     /// </summary>
     public const int HeightMargin = 1;
+
+    /// <summary>
+    /// How many of Solana's slots below the highest an endpoint may be and still count as answering right: about 30
+    /// seconds of finalized slots, which advance some 2.5 a second, so that two endpoints probed a moment apart are not
+    /// taken for one behind the other.
+    /// </summary>
+    public const int SolanaHeightMargin = 75;
+
+    /// <summary>Gives how far below the highest an endpoint of a chain may be and still answer right.</summary>
+    /// <param name="chain">The chain.</param>
+    /// <returns><see cref="SolanaHeightMargin"/> on Solana, otherwise <see cref="HeightMargin"/>.</returns>
+    public static int HeightMarginOf(Chain chain) => chain == Chain.Solana ? SolanaHeightMargin : HeightMargin;
 
     /// <summary>How long an endpoint that failed a lookup is passed over first; each new failure doubles it.</summary>
     public static readonly TimeSpan FirstPause = TimeSpan.FromMinutes(1);
@@ -66,8 +79,11 @@ internal sealed class ChainSources : IChainSources
     /// <summary>How a probe's words begin when the endpoint asked Chainsaw to wait.</summary>
     private const string AskedText = "Bad Chainsaw vänta";
 
-    /// <summary>The sorts of API, by code.</summary>
-    private readonly IReadOnlyDictionary<string, ISourceApi> _apis;
+    /// <summary>
+    /// The sorts of API, by chain and code: one code (Blockscout's) can be spoken for more than one chain, each with
+    /// its own defaults and chain name.
+    /// </summary>
+    private readonly IReadOnlyDictionary<(Chain Chain, string Code), ISourceApi> _apis;
 
     /// <summary>The only way out.</summary>
     private readonly IExitHttp _http;
@@ -121,7 +137,7 @@ internal sealed class ChainSources : IChainSources
     {
         ArgumentNullException.ThrowIfNull(apis);
         ArgumentNullException.ThrowIfNull(options);
-        _apis = apis.ToDictionary(api => api.Info.Code, StringComparer.Ordinal);
+        _apis = apis.ToDictionary(api => (api.Info.Chain, api.Info.Code));
         _http = http;
         _local = local;
         _delay = delay ?? Task.Delay;
@@ -204,7 +220,7 @@ internal sealed class ChainSources : IChainSources
             var order = Order(state);
             var chosen = inStep ? [.. order.Where(endpoint => InStep(state, endpoint))] : order;
             var now = _clock.UtcNow;
-            return new SourcePlan(false, [.. chosen.Select((e, index) => new PlannedEndpoint(e, _apis[e.Api])
+            return new SourcePlan(false, [.. chosen.Select((e, index) => new PlannedEndpoint(e, _apis[(chain, e.Api)])
             {
                 Tier = state.Mode == SourceMode.Priority ? index : Tier(state, e, now),
             })])
@@ -226,10 +242,20 @@ internal sealed class ChainSources : IChainSources
     /// <exception cref="ExitNotConnectedException">Through the exit, and it does not allow lookups now.</exception>
     /// <exception cref="ExitException">The request failed.</exception>
     public Task<ExitResponse> SendAsync(
-        SourceEndpoint endpoint, ExitRequest request, CancellationToken cancellationToken) =>
-        endpoint.Local
-            ? SendToOwnNodeAsync(endpoint, request, cancellationToken)
+        SourceEndpoint endpoint, ExitRequest request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(endpoint);
+        if (endpoint.Local)
+        {
+            return SendToOwnNodeAsync(endpoint, request, cancellationToken);
+        }
+
+        // A sort spoken only by the own node never goes through the exit, whatever made the endpoint (its user name
+        // and password would leave the user's own network).
+        return _apis.TryGetValue((endpoint.Chain, endpoint.Api), out var api) && api.Info.LocalOnly
+            ? Task.FromException<ExitResponse>(new ExitException(ExitError.RequestFailed))
             : _http.SendAsync(request, cancellationToken);
+    }
 
     /// <summary>
     /// Sends a request straight to the user's own node with the endpoint's pinned certificate, if any (sketch KL3b),
@@ -538,7 +564,8 @@ internal sealed class ChainSources : IChainSources
                 return ProbeRun.Off;
             }
 
-            endpoints = [.. state.Endpoints.Where(e => e.Enabled).Select(e => new PlannedEndpoint(e, _apis[e.Api]))];
+            endpoints = [.. state.Endpoints.Where(e => e.Enabled)
+                .Select(e => new PlannedEndpoint(e, _apis[(chain, e.Api)]))];
             if (endpoints.Count == 0)
             {
                 return ProbeRun.NoneOn;
@@ -553,28 +580,57 @@ internal sealed class ChainSources : IChainSources
             round = ++state.Round;
         }
 
-        EndpointProbe[] probes;
-        try
-        {
-            probes = await Task.WhenAll(endpoints.Select(planned => ProbeOneAsync(
-                planned.Endpoint, planned.Api, withHash: false, cancellationToken))).ConfigureAwait(false);
-        }
-        catch (ExitException exception) when (IsTheWayOuts(exception))
-        {
-            // The exit did not allow lookups (or stopped allowing them): nothing more is sent, and the round says
-            // nothing about the endpoints, so the earlier results stand.
-            return ProbeRun.NotSent;
-        }
-
+        // The block's hash is asked too (KL2b), so that the card shows it with the height; an endpoint whose hash
+        // does not come still counts by its height. Each endpoint is tried for itself, so that the exit's refusal stops
+        // only those asked through it: the user's own node is reached in the own network and tried all the same.
+        var tried = await Task.WhenAll(endpoints.Select(planned => ProbeThroughAsync(planned, cancellationToken)))
+            .ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
+        var probes = tried.Select(each => each.Probe).OfType<EndpointProbe>().ToArray();
         if (IsLocked || probes.Any(probe => probe.Problem == LockedText))
         {
             // The vault locked during the round: what was not sent says nothing about the endpoints.
             return ProbeRun.NotSent;
         }
 
-        Keep(chain, round, probes);
-        return ProbeRun.Probed;
+        if (!tried.Any(each => each.WayOutClosed))
+        {
+            Keep(chain, round, probes);
+            return ProbeRun.Probed;
+        }
+
+        // The exit did not allow lookups (or stopped allowing them): the round says nothing about the endpoints asked
+        // through it, so their earlier results stand; the own nodes' are kept, unmeasured against the chain.
+        var own = endpoints.Where(planned => planned.Endpoint.Local).Select(planned => planned.Endpoint.Id).ToHashSet();
+        var owned = probes.Where(probe => own.Contains(probe.EndpointId)).ToArray();
+        if (owned.Length == 0)
+        {
+            return ProbeRun.NotSent;
+        }
+
+        KeepOwn(chain, round, owned);
+        return ProbeRun.OwnNodesOnly;
+    }
+
+    /// <summary>
+    /// Tries one endpoint of a round, saying whether the way out refused it: nothing was sent, or what was sent was
+    /// cut, which says nothing about the endpoint.
+    /// </summary>
+    /// <param name="planned">The endpoint and its sort of API.</param>
+    /// <param name="cancellationToken">Stops the probe.</param>
+    /// <returns>The probe, or <see langword="null"/> and <see langword="true"/> when the way out refused it.</returns>
+    private async Task<(EndpointProbe? Probe, bool WayOutClosed)> ProbeThroughAsync(
+        PlannedEndpoint planned, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return (await ProbeOneAsync(planned.Endpoint, planned.Api, ProbeHash.Optional, cancellationToken)
+                .ConfigureAwait(false), false);
+        }
+        catch (ExitException exception) when (IsTheWayOuts(exception))
+        {
+            return (null, true);
+        }
     }
 
     /// <inheritdoc/>
@@ -591,16 +647,38 @@ internal sealed class ChainSources : IChainSources
         try
         {
             var key = string.IsNullOrWhiteSpace(apiKey) ? null : apiKey.Trim();
+
+            // An address that is already an endpoint follows that endpoint's pace (etapp 25, M): Prova never asks it
+            // faster than the lookups may.
+            var known = Known(chain, checkedAddress);
             var candidate = new SourceEndpoint(
-                Guid.Empty, chain, SourceAddress.NameOf(checkedAddress), checkedAddress, sort.Info.Code, key, true)
+                known?.Id ?? Guid.Empty, chain, SourceAddress.NameOf(checkedAddress), checkedAddress,
+                sort.Info.Code, key, true)
             {
                 Local = local,
+                Interval = known?.Interval ?? (local ? SourcePace.Local : SourcePace.Public),
             };
-            return await ProbeOneAsync(candidate, sort, withHash: true, cancellationToken).ConfigureAwait(false);
+            var probe = await ProbeOneAsync(candidate, sort, ProbeHash.Required, cancellationToken)
+                .ConfigureAwait(false);
+            return probe with { EndpointId = Guid.Empty };
         }
         catch (ExitException exception) when (IsTheWayOuts(exception))
         {
             return NotSent(Guid.Empty, exception.Message);
+        }
+    }
+
+    /// <summary>Finds the endpoint a chain already has at an address.</summary>
+    /// <param name="chain">The chain.</param>
+    /// <param name="address">The address.</param>
+    /// <returns>The endpoint, or <see langword="null"/> when the address is not one of its endpoints.</returns>
+    private SourceEndpoint? Known(Chain chain, Uri address)
+    {
+        lock (_gate)
+        {
+            return _chains.TryGetValue(chain, out var state)
+                ? state.Endpoints.FirstOrDefault(endpoint => endpoint.Address == address)
+                : null;
         }
     }
 
@@ -658,8 +736,7 @@ internal sealed class ChainSources : IChainSources
     /// <returns><see langword="true"/> when it is.</returns>
     private static bool InStep(ChainState state, SourceEndpoint endpoint) =>
         !state.FailedSince.ContainsKey(endpoint.Id)
-        && state.Probes.GetValueOrDefault(endpoint.Id) is { Outcome: ProbeOutcome.Answered } probe
-        && (probe.BlocksBehind ?? 0) == 0;
+        && state.Probes.GetValueOrDefault(endpoint.Id) is { IsInStep: true };
 
     /// <summary>
     /// Gets whether an endpoint can be shown as the one used (★): it did not fail its probe or a lookup since. An
@@ -690,12 +767,13 @@ internal sealed class ChainSources : IChainSources
     /// (<see cref="LookupMode.InStep"/>).
     /// </summary>
     /// <param name="probes">The round's probes.</param>
+    /// <param name="margin">How far below the highest is not behind (<see cref="HeightMarginOf"/>).</param>
     /// <returns>The probes with those behind marked.</returns>
-    internal static EndpointProbe[] Ranked(EndpointProbe[] probes)
+    internal static EndpointProbe[] Ranked(EndpointProbe[] probes, int margin = HeightMargin)
     {
         var highest = probes.Where(p => p.Outcome == ProbeOutcome.Answered).Max(p => p.Height);
         return [.. probes.Select(probe => probe.Outcome == ProbeOutcome.Answered && probe.Height < highest
-            ? highest - probe.Height > HeightMargin
+            ? highest - probe.Height > margin
                 ? probe with
                 {
                     Outcome = ProbeOutcome.Behind,
@@ -715,12 +793,12 @@ internal sealed class ChainSources : IChainSources
     /// </summary>
     /// <param name="endpoint">The endpoint, with <see cref="Guid.Empty"/> as id when it is not added yet.</param>
     /// <param name="api">Its sort of API.</param>
-    /// <param name="withHash">Whether to ask for the block's hash too.</param>
+    /// <param name="hashMode">Whether to ask for the block's hash too, and whether the probe fails without it.</param>
     /// <param name="cancellationToken">Stops the probe.</param>
     /// <returns>What it answered.</returns>
     /// <exception cref="ExitNotConnectedException">The exit does not allow lookups; nothing was sent.</exception>
     private async Task<EndpointProbe> ProbeOneAsync(
-        SourceEndpoint endpoint, ISourceApi api, bool withHash, CancellationToken cancellationToken)
+        SourceEndpoint endpoint, ISourceApi api, ProbeHash hashMode, CancellationToken cancellationToken)
     {
         var (id, address, apiKey) = (endpoint.Id, endpoint.Address, endpoint.ApiKey);
         var at = _clock.UtcNow;
@@ -759,7 +837,7 @@ internal sealed class ChainSources : IChainSources
         }
 
         string? hash = null;
-        if (withHash)
+        if (hashMode != ProbeHash.None)
         {
             if (IsLocked)
             {
@@ -772,18 +850,67 @@ internal sealed class ChainSources : IChainSources
                 return NotSent(id, hashKeyProblem!, at);
             }
 
-            var (read, hashProblem) = await AskAsync(endpoint, hashRequest, api.ReadHash, null, cancellationToken)
+            var (read, hashProblem) = await AskHashAsync(endpoint, hashRequest, api, hashMode, cancellationToken)
                 .ConfigureAwait(false);
-            if (read is null)
+            if (read is null && hashMode == ProbeHash.Required)
             {
                 return new EndpointProbe(id, ProbeOutcome.Failed, answer.Value, null, answer.Duration, at,
                     "Höjden kom, men inte blockets hash: " + hashProblem);
             }
 
-            hash = read.Value.Value;
+            hash = read?.Value;
         }
 
         return new EndpointProbe(id, ProbeOutcome.Answered, answer.Value, hash, answer.Duration, at, null);
+    }
+
+    /// <summary>
+    /// Asks for the block's hash at the height. A known endpoint's turn is waited for again, as for any request, and in a
+    /// round (<see cref="ProbeHash.Optional"/>) a hash that does not come leaves the probe as its height made it.
+    /// </summary>
+    /// <param name="endpoint">The endpoint.</param>
+    /// <param name="request">The request for the hash.</param>
+    /// <param name="api">Its sort of API.</param>
+    /// <param name="hashMode">Whether the hash is required.</param>
+    /// <param name="cancellationToken">Stops the probe.</param>
+    /// <returns>The hash, or why it did not come.</returns>
+    private async Task<((string Value, TimeSpan Duration)? Answer, string? Problem)> AskHashAsync(
+        SourceEndpoint endpoint, ExitRequest request, ISourceApi api, ProbeHash hashMode,
+        CancellationToken cancellationToken)
+    {
+        EndpointTurn? turn = null;
+        if (endpoint.Id != Guid.Empty)
+        {
+            // A second request to a known endpoint waits for its turn too.
+            (var mayAsk, turn) = await TurnAsync(endpoint, api, cancellationToken).ConfigureAwait(false);
+            if (!mayAsk)
+            {
+                return (null, PacedText);
+            }
+        }
+
+        try
+        {
+            return await AskAsync(endpoint, request, api.ReadHash, turn, cancellationToken).ConfigureAwait(false);
+        }
+        catch (ExitException) when (hashMode == ProbeHash.Optional && !cancellationToken.IsCancellationRequested)
+        {
+            // The height counted; a hash cut off by the way out says nothing more about the endpoint.
+            return (null, null);
+        }
+    }
+
+    /// <summary>Whether a probe asks for the block's hash at the height, and whether it needs it.</summary>
+    private enum ProbeHash
+    {
+        /// <summary>Only the height.</summary>
+        None,
+
+        /// <summary>The hash too, but the probe stands on its height without it (the round at start).</summary>
+        Optional,
+
+        /// <summary>The hash too, and without it the probe fails (the form's <em>Prova</em>).</summary>
+        Required,
     }
 
     /// <summary>
@@ -830,7 +957,9 @@ internal sealed class ChainSources : IChainSources
             return null;
         }
 
-        var same = string.Equals(first.Value, genesis, StringComparison.OrdinalIgnoreCase);
+        // Base58 (Solana's genesis hash) is case sensitive; hex hashes are compared without case.
+        var comparison = api.Info.Chain == Chain.Solana ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
+        var same = string.Equals(first.Value, genesis, comparison);
         NoteChain(endpoint, same);
         return same
             ? null
@@ -988,6 +1117,12 @@ internal sealed class ChainSources : IChainSources
             return (null, AskedText + ".");
         }
 
+        if (_apis.TryGetValue((endpoint.Chain, endpoint.Api), out var api) && api.Judge(response) is { } verdict)
+        {
+            // What the source's own answer says beyond its status, as Bitcoin Core's JSON-RPC errors.
+            return (null, verdict.Problem ?? "Svaret gick inte att läsa som kedjans svar.");
+        }
+
         if (!response.IsSuccess)
         {
             return (null, $"Svarade med status {response.StatusCode.ToString(CultureInfo.InvariantCulture)}.");
@@ -1028,6 +1163,14 @@ internal sealed class ChainSources : IChainSources
             return null;
         }
 
+        if (key is not null && IsNodeKey(key) != api.Info.LocalOnly)
+        {
+            // The own node's password is never sent to another sort (as a bearer token through the exit, say, from
+            // an edited sources.json), and the own node takes only a key made for it.
+            problem = $"API-nyckeln {apiKey} hör till en annan sorts källa och skickas inte hit. Inget skickades.";
+            return null;
+        }
+
         var credential = key is null ? null : api.Credential(key.Secret);
         if (credential is not { IsWellFormed: true })
         {
@@ -1037,6 +1180,15 @@ internal sealed class ChainSources : IChainSources
 
         return request with { Credential = credential };
     }
+
+    /// <summary>
+    /// Tells whether a key in the vault is the user's own node's user name and password: its identifier names the
+    /// sort, <see cref="BitcoinCoreApi.Code"/>, so that it can only ever be sent to the own node.
+    /// </summary>
+    /// <param name="key">The key.</param>
+    /// <returns><see langword="true"/> when it is.</returns>
+    internal static bool IsNodeKey(ApiKey key) =>
+        string.Equals(key.Identifier, BitcoinCoreApi.Code, StringComparison.Ordinal);
 
     /// <summary>A probe that sent nothing.</summary>
     /// <param name="id">The endpoint.</param>
@@ -1061,9 +1213,15 @@ internal sealed class ChainSources : IChainSources
             throw new ArgumentException(problem, nameof(address));
         }
 
-        if (api is null || !_apis.TryGetValue(api, out var sort) || sort.Info.Chain != chain)
+        if (api is null || !_apis.TryGetValue((chain, api), out var sort))
         {
             throw new ArgumentException("The sort of API is not one Chainsaw speaks for the chain.", nameof(api));
+        }
+
+        if (sort.Info.LocalOnly && !local)
+        {
+            // Its user name and password must never leave the user's own network, nor go through the exit.
+            throw new ArgumentException("The sort of API is spoken only by the user's own node.", nameof(local));
         }
 
         return (checkedAddress!, sort);
@@ -1123,13 +1281,56 @@ internal sealed class ChainSources : IChainSources
                 .Select(probe => new EndpointProbe(Guid.Empty, ProbeOutcome.Answered,
                     probe.Height + probe.BlocksBehind, null, null, probe.At, null));
             state.Probes.Clear();
-            foreach (var probe in Ranked([.. merged, .. references]).Where(probe => probe.EndpointId != Guid.Empty))
+            var ranked = Ranked([.. merged, .. references], HeightMarginOf(chain));
+            foreach (var probe in ranked.Where(probe => probe.EndpointId != Guid.Empty))
             {
                 state.Probes[probe.EndpointId] = probe;
             }
 
             foreach (var probe in probes.Where(probe => !IsWait(probe)))
             {
+                state.FailedSince.Remove(probe.EndpointId);
+            }
+
+            state.ProbedAt = _clock.UtcNow;
+        }
+
+        Tell(chain);
+    }
+
+    /// <summary>
+    /// Keeps the probes of the user's own nodes from a round the exit refused, unless a newer round has started since.
+    /// Only their entries change: the other endpoints' earlier probes stand as they were. An own node that answered is
+    /// marked <see cref="EndpointProbe.Unreferenced"/>, and behind when it is lower than the highest height the earlier
+    /// probes knew by more than <see cref="HeightMargin"/>; it is never in step until a round with the exit measures it.
+    /// A probe that only waited keeps the earlier one.
+    /// </summary>
+    /// <param name="chain">The chain.</param>
+    /// <param name="round">The round.</param>
+    /// <param name="probes">The own nodes' probes.</param>
+    private void KeepOwn(Chain chain, int round, EndpointProbe[] probes)
+    {
+        lock (_gate)
+        {
+            var state = State(chain);
+            if (state.Round != round)
+            {
+                return;
+            }
+
+            var mine = probes.Select(probe => probe.EndpointId).ToHashSet();
+            var known = state.Probes.Values
+                .Where(probe => !mine.Contains(probe.EndpointId) && probe is { Height: not null, Unreferenced: false }
+                    && probe.Outcome is ProbeOutcome.Answered or ProbeOutcome.Behind)
+                .Select(probe => new EndpointProbe(Guid.Empty, ProbeOutcome.Answered,
+                    probe.Height + (probe.BlocksBehind ?? 0), null, null, probe.At, null));
+            foreach (var probe in probes.Where(probe => !IsWait(probe)))
+            {
+                var measured = Ranked([probe, .. known], HeightMarginOf(chain))
+                    .First(each => each.EndpointId == probe.EndpointId);
+                state.Probes[probe.EndpointId] = measured.Height is null
+                    ? measured
+                    : measured with { Unreferenced = true };
                 state.FailedSince.Remove(probe.EndpointId);
             }
 

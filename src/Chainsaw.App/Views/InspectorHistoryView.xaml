@@ -102,6 +102,14 @@
                             <DockPanel x:Name="Head" ToolTip="{Binding Event.ToolTip}">
                                 <TextBlock Text="{Binding Event.TimeText}" DockPanel.Dock="Right" FontSize="11"
                                            Foreground="{StaticResource Brush.TextFaint}" Margin="8,2,0,0" />
+                                <!-- A small muted laptop: the row's journal line was added on another computer. -->
+                                <Border DockPanel.Dock="Right" Margin="8,3,0,0" VerticalAlignment="Top" Background="Transparent"
+                                        ToolTip="{x:Static graph:NodeHistory.ElsewhereText}"
+                                        AutomationProperties.Name="{x:Static graph:NodeHistory.ElsewhereText}"
+                                        Visibility="{Binding Event.AddedElsewhere, Converter={StaticResource Visible}}">
+                                    <controls:GridIcon Size="12" Data="{StaticResource Icon.Laptop}"
+                                                       Foreground="{StaticResource Brush.TextFaint}" />
+                                </Border>
                                 <StackPanel>
                                     <TextBlock x:Name="Title" Text="{Binding Event.Text}" FontSize="12.5"
                                                TextWrapping="Wrap" Foreground="{StaticResource Brush.Text}" />

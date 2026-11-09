@@ -145,6 +145,29 @@ public sealed class GraphEditorTests
         _checks.Answer = 0;
         Assert.False((await Editor.UndoMergesAsync(_case, [3], null)).Done);
     }
+
+    /// <summary>
+    /// A link an approved suggestion made is taken back through the checks, which take the approval back with it.
+    /// </summary>
+    [Fact]
+    public async Task TakingBackAnApprovedLinkGoesThroughTheChecks()
+    {
+        var link = new Modules.Tracing.Contracts.CrossChainLink(
+            9,
+            new Modules.Tracing.Contracts.Outpoint(GraphSamples.Tx[0], 0),
+            new Modules.Tracing.Contracts.ChainTransactionRef(SharedKernel.Chain.Tron, new string('a', 64)),
+            string.Empty,
+            1,
+            DateTimeOffset.UnixEpoch)
+        {
+            Origin = new Modules.Tracing.Contracts.CrossChainOrigin("cross-chain v1", 4),
+        };
+
+        var outcome = await Editor.UnlinkAsync(_case, link, "Fel");
+
+        Assert.True(outcome.Done);
+        Assert.Equal((9L, (string?)"Fel"), Assert.Single(_checks.LinksTakenBack));
+    }
 }
 
 /// <summary>A Checks module that only answers what undoing merges takes back.</summary>
@@ -175,6 +198,16 @@ internal sealed class TestCheckService : Modules.Checks.Contracts.ICheckService
     {
         TakenBack.Add(([.. mergeSequences], reason));
         return Answer;
+    }
+
+    /// <summary>Gets the links asked to be taken back through their approval, with the reason.</summary>
+    public List<(long Link, string? Reason)> LinksTakenBack { get; } = [];
+
+    public bool TakeBackLink(
+        Modules.Cases.Contracts.ICase @case, Modules.Tracing.Contracts.CrossChainLink link, string? reason)
+    {
+        LinksTakenBack.Add((link.Sequence, reason));
+        return Answer > 0;
     }
 
     public IReadOnlyList<Modules.Checks.Contracts.OwnArea> GetAreas(Modules.Cases.Contracts.ICase @case) => [];

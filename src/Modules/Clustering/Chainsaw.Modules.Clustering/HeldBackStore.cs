@@ -40,7 +40,7 @@ internal static class HeldBackStore
         {
             using var insert = transaction.CreateCommand(
                 "INSERT INTO clustering_held_back (txid, missing) VALUES ($txid, $missing)");
-            insert.AddParameter("$txid", txid.Value).AddParameter("$missing", Serialize(missing));
+            insert.AddParameter("$txid", txid.Stored).AddParameter("$missing", Serialize(missing));
             insert.ExecuteNonQuery();
         }
     }
@@ -94,7 +94,7 @@ internal static class HeldBackStore
     {
         object?[] values =
         [
-            txid.Value, Serialize(missing), JsonSerializer.Serialize(addresses.Select(address => address.Value)),
+            txid.Stored, Serialize(missing), JsonSerializer.Serialize(addresses.Select(address => address.Value)),
             choice.ToString(), reason, undoes, journal.Sequence, journal.Utc.ToString("O", CultureInfo.InvariantCulture),
         ];
         var record = transaction.AppendSealed(ClusteringSchema.HeldBackDecisionsChain, values);
@@ -154,7 +154,7 @@ internal static class HeldBackStore
     /// <param name="txids">The transactions.</param>
     /// <returns>The JSON.</returns>
     private static string Serialize(IReadOnlyList<Txid> txids) =>
-        JsonSerializer.Serialize(txids.Select(txid => txid.Value));
+        JsonSerializer.Serialize(txids.Select(txid => txid.Stored));
 
     /// <summary>Reads transaction ids from a JSON array.</summary>
     /// <param name="json">The JSON.</param>

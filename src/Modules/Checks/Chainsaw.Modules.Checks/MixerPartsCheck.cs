@@ -270,7 +270,7 @@ internal sealed class MixerPartsCheck : ICheckAnalysis
             $"{count} delar · {CheckText.Btc(best.Sum)} av {CheckText.Btc(deposited)} in · avgift "
                 + CheckText.Percent(best.Fee),
             why,
-            [deposit.Output.Address!, .. candidates.Select(candidate => candidate.Address).Distinct()],
+            [deposit.Output.Address!, .. candidates.Select(candidate => candidate.Address).OfType<BitcoinAddress>().Distinct()],
             [],
             [
                 CheckBasis.Of(deposit.Transaction),

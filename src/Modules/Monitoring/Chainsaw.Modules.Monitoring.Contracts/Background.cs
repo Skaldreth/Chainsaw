@@ -280,7 +280,10 @@ public interface IBackgroundStatusFile
 public sealed record BackgroundProgress(
     Guid CaseId, string WatchId, long? StartHeight, WatchChecked? Checked, IReadOnlyList<string> Alerted);
 
-/// <summary>The background process's progress, protected for the Windows user; only it writes it.</summary>
+/// <summary>
+/// The background process's progress, protected for the Windows user; only it writes it, but Chainsaw empties it when
+/// the background watching is turned off.
+/// </summary>
 public interface IBackgroundProgressFile
 {
     /// <summary>Reads the progress.</summary>
@@ -346,6 +349,15 @@ public interface IWatchFeeds
     /// <param name="chain">The chain.</param>
     /// <returns>The feed, or <see langword="null"/> for a chain that cannot be watched yet.</returns>
     IWatchFeed? For(ICase @case, Chain chain);
+
+    /// <summary>Asks a chain's height through its source; only an answer fetched now counts.</summary>
+    /// <param name="case">The case the response is sealed in.</param>
+    /// <param name="chain">The chain.</param>
+    /// <param name="cancellationToken">Stops the lookup.</param>
+    /// <returns>
+    /// The height, or <see langword="null"/> when it could not be had or the chain cannot be watched.
+    /// </returns>
+    Task<long?> GetHeightAsync(ICase @case, Chain chain, CancellationToken cancellationToken = default);
 }
 
 /// <summary>When a watch is due and how far a check leaves it, written once for Chainsaw and the background.</summary>
@@ -377,29 +389,37 @@ public static class WatchSchedule
         return newBlock && now - last.CheckedUtc >= pace.Interval() - Tolerance;
     }
 
-    /// <summary>Asks a chain's height through its source, as the open Chainsaw and the background both do.</summary>
-    /// <param name="bitcoin">Bitcoin's source.</param>
-    /// <param name="ethereum">Ethereum's source.</param>
+    /// <summary>
+    /// Asks a chain's height through its source, as the open Chainsaw and the background both do, only of an endpoint
+    /// in step with the chain (<see cref="LookupMode.InStep"/>): a watch never starts or counts from a height one a
+    /// block behind gave. The chain is asked through the contract of its model: a UTXO chain's source (Bitcoin,
+    /// Litecoin) or an account chain's (Ethereum, TRON, BSC).
+    /// </summary>
+    /// <param name="utxo">The source of a UTXO chain, or <see langword="null"/>.</param>
+    /// <param name="account">The source of an account chain, or <see langword="null"/>.</param>
     /// <param name="case">The case the response is sealed in.</param>
-    /// <param name="chain">The chain.</param>
     /// <param name="cancellationToken">Stops the lookup.</param>
-    /// <returns>The height, or <see langword="null"/> when it was not fetched or the chain cannot be watched.</returns>
+    /// <returns>
+    /// The height, or <see langword="null"/> when it was not fetched or neither source is given (the chain cannot be
+    /// watched).
+    /// </returns>
     public static async Task<long?> HeightAsync(
-        IBitcoinSource bitcoin, IEthereumSource ethereum, ICase @case, Chain chain, CancellationToken cancellationToken)
+        IBitcoinSource? utxo, IAccountSource? account, ICase @case, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(bitcoin);
-        ArgumentNullException.ThrowIfNull(ethereum);
-        switch (chain)
+        if (utxo is not null)
         {
-            case Chain.Bitcoin:
-                var tip = await bitcoin.GetTipHeightAsync(@case, cancellationToken).ConfigureAwait(false);
-                return tip.Status == LookupStatus.Fetched ? tip.Value?.Height : null;
-            case Chain.Ethereum:
-                var height = await ethereum.GetTipHeightAsync(@case, cancellationToken).ConfigureAwait(false);
-                return height.Status == LookupStatus.Fetched ? height.Value?.Height : null;
-            default:
-                return null;
+            var tip = await utxo.GetTipHeightAsync(@case, LookupMode.InStep, cancellationToken).ConfigureAwait(false);
+            return tip.Status == LookupStatus.Fetched ? tip.Value?.Height : null;
         }
+
+        if (account is null)
+        {
+            return null;
+        }
+
+        var height = await account.GetTipHeightAsync(@case, LookupMode.InStep, cancellationToken)
+            .ConfigureAwait(false);
+        return height.Status == LookupStatus.Fetched ? height.Value?.Height : null;
     }
 
     /// <summary>Gives the block a check reads back to: the last read-through height less the look-back.</summary>

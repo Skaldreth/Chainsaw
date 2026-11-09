@@ -19,13 +19,14 @@ namespace Chainsaw.App.TestData.Tests;
 public sealed class TestCaseTests : IDisposable
 {
     /// <summary>
-    /// What the built graph cannot show yet: Kan frysas needs USDT or USDC on Ethereum, whose made-up source is not
-    /// built (TODO). The start point and the watch are drawn by the graph from the trace and the watches, not as a
-    /// badge, so they are checked on their own below. An exported request's mark is drawn from the case's exports, not
-    /// from the scene.
+    /// What the built graph does not show as a badge: the start point and the watch are drawn by the graph from the
+    /// trace and the watches, so they are checked on their own below, and an exported request's mark is drawn from the
+    /// case's exports, not from the scene. Kan frysas is there since round 8: USDT on TRON.
     /// </summary>
+    // Tidigare sanktionerad is there since the made-up Ethereum part: Tornado Cash on Chainsaw's list of contracts.
     private static readonly NodeBadge[] NotAsBadges =
-        [NodeBadge.CanBeFrozen, NodeBadge.StartPoint, NodeBadge.Watched, NodeBadge.RequestExported];
+        [NodeBadge.StartPoint, NodeBadge.Watched, NodeBadge.RequestExported];
+
 
     private readonly Harness _harness = new();
 
@@ -40,6 +41,9 @@ public sealed class TestCaseTests : IDisposable
         {
             Assert.Equal(transaction.Txid, TestTransaction.DisplayHash(transaction.Bytes));
             Assert.True(transaction.Fee >= 0, transaction.Label);
+            Assert.All(
+                transaction.Inputs.Where(input => !input.IsCoinbase),
+                input => Assert.True(chain.Find(input.PreviousTxid!)!.Height <= transaction.Height, transaction.Label));
         });
         Assert.Equal(TestStoryChain.Tip, chain.Tip);
         Assert.NotNull(chain.BlockAt(TestStoryChain.First));

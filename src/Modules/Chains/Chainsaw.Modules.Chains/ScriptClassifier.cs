@@ -68,7 +68,8 @@ internal static class ScriptClassifier
                 BitcoinAddress.FromHash(BitcoinScriptType.PayToScriptHash, hash, network));
         }
 
-        if (TryReadWitness(script, out var version, out var program))
+        // Zcash has no witness programs; there such a script is only non-standard.
+        if (network != BitcoinNetwork.Zcash && TryReadWitness(script, out var version, out var program))
         {
             var address = BitcoinAddress.FromWitness(version, program, network);
             return (address.Type, address);

@@ -70,13 +70,46 @@ public interface IGraphChainState
     /// <param name="cancellationToken">Stops the reading.</param>
     /// <returns>The reading.</returns>
     Task<ChainMarksReading> ReadMarksAsync(ICase @case, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Asks which transaction spends the coins of a gone Bitcoin transaction now (sketch GR9a, <em>Ersatt av</em>):
+    /// only the coins go out, through the exit, and every answer is sealed in the case (principles 1 and 4).
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="txid">The gone transaction.</param>
+    /// <param name="cancellationToken">Stops the lookups.</param>
+    /// <returns>
+    /// How the lookup went: <see cref="LookupStatus.Fetched"/> when a new answer was sealed, so that the graph is read
+    /// again; <see cref="LookupStatus.FromCase"/> when the case already knew; otherwise why nothing could be asked.
+    /// </returns>
+    Task<LookupStatus> AskReplacementAsync(ICase @case, Txid txid, CancellationToken cancellationToken) =>
+        Task.FromResult(LookupStatus.Failed);
+
+    /// <summary>
+    /// Reads from the case which transactions spend the coins of some transactions now, sending nothing: what replaced
+    /// each, as far as the sealed answers say.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="txids">The transactions.</param>
+    /// <param name="cancellationToken">Stops the reading.</param>
+    /// <returns>The replacers of each transaction that has any.</returns>
+    Task<IReadOnlyDictionary<Txid, IReadOnlyList<Txid>>> ReadReplacersAsync(
+        ICase @case, IReadOnlyCollection<Txid> txids, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyDictionary<Txid, IReadOnlyList<Txid>>>(new Dictionary<Txid, IReadOnlyList<Txid>>());
 }
 
 /// <summary>The graph's way to the chains' balances, rates and block changes (<see cref="IGraphChainState"/>).</summary>
 /// <param name="bitcoin">Bitcoin's source.</param>
 /// <param name="ethereum">Ethereum's source.</param>
 /// <param name="prices">The rates.</param>
-public sealed class GraphChainState(IBitcoinSource bitcoin, IEthereumSource ethereum, IPriceService prices)
+/// <param name="tron">TRON's source, or <see langword="null"/> where it is not registered.</param>
+/// <param name="bsc">BSC's source, or <see langword="null"/> where it is not registered.</param>
+/// <param name="litecoin">Litecoin's source, or <see langword="null"/> where it is not registered.</param>
+/// <param name="zcash">Zcash's source, or <see langword="null"/> where it is not registered.</param>
+/// <param name="solana">Solana's source, or <see langword="null"/> where it is not registered.</param>
+public sealed class GraphChainState(
+    IBitcoinSource bitcoin, IEthereumSource ethereum, IPriceService prices, ITronSource? tron = null,
+    IBscSource? bsc = null, ILitecoinSource? litecoin = null, IZcashSource? zcash = null, ISolanaSource? solana = null)
     : IGraphChainState
 {
     /// <summary>The most addresses of a cluster whose balance is asked for, so that a large one is not asked one by one.</summary>
@@ -95,8 +128,21 @@ public sealed class GraphChainState(IBitcoinSource bitcoin, IEthereumSource ethe
         ArgumentNullException.ThrowIfNull(node);
         return node.Chain switch
         {
-            Chain.Bitcoin => await BitcoinAsync(@case, node.GraphAddresses, cancellationToken).ConfigureAwait(false),
-            Chain.Ethereum => await EthereumAsync(@case, node.Accounts, cancellationToken).ConfigureAwait(false),
+            Chain.Bitcoin => await UtxoAsync(@case, bitcoin, node.GraphAddresses, cancellationToken)
+                .ConfigureAwait(false),
+            Chain.Litecoin when litecoin is not null => await UtxoAsync(
+                @case, litecoin, node.GraphAddresses, cancellationToken).ConfigureAwait(false),
+            Chain.Zcash when zcash is not null => await UtxoAsync(@case, zcash, node.GraphAddresses, cancellationToken)
+                .ConfigureAwait(false),
+            Chain.Ethereum => await EthereumAsync(@case, ethereum, node.Accounts, cancellationToken)
+                .ConfigureAwait(false),
+            Chain.Tron when tron is not null => await EthereumAsync(@case, tron, node.Accounts, cancellationToken)
+                .ConfigureAwait(false),
+            Chain.Bsc when bsc is not null => await EthereumAsync(@case, bsc, node.Accounts, cancellationToken)
+                .ConfigureAwait(false),
+            Chain.Solana when solana is not null => await EthereumAsync(
+                    @case, solana, node.Accounts, cancellationToken)
+                .ConfigureAwait(false),
             _ => new NodeHoldings([], null, null, false, NoAddressText),
         };
     }
@@ -125,9 +171,68 @@ public sealed class GraphChainState(IBitcoinSource bitcoin, IEthereumSource ethe
         ArgumentNullException.ThrowIfNull(@case);
         var onBitcoin = await bitcoin.GetBlockChangesAsync(@case, cancellationToken).ConfigureAwait(false);
         var onEthereum = await ethereum.GetBlockChangesAsync(@case, cancellationToken).ConfigureAwait(false);
+        IReadOnlyList<BlockChange> onTron = tron is null
+            ? []
+            : await tron.GetBlockChangesAsync(@case, cancellationToken).ConfigureAwait(false);
+        IReadOnlyList<BlockChange> onBsc = bsc is null
+            ? []
+            : await bsc.GetBlockChangesAsync(@case, cancellationToken).ConfigureAwait(false);
+        IReadOnlyList<BlockChange> onLitecoin = litecoin is null
+            ? []
+            : await litecoin.GetBlockChangesAsync(@case, cancellationToken).ConfigureAwait(false);
         var tip = await bitcoin.GetTipAsync(@case, LookupMode.CaseOnly, cancellationToken).ConfigureAwait(false);
-        return new ChainMarksReading([.. onBitcoin, .. onEthereum], tip.Value);
+        return new ChainMarksReading([.. onBitcoin, .. onEthereum, .. onTron, .. onBsc, .. onLitecoin], tip.Value);
     }
+
+    /// <inheritdoc/>
+    public async Task<IReadOnlyDictionary<Txid, IReadOnlyList<Txid>>> ReadReplacersAsync(
+        ICase @case, IReadOnlyCollection<Txid> txids, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(txids);
+        var replacers = new Dictionary<Txid, IReadOnlyList<Txid>>();
+        foreach (var txid in txids)
+        {
+            if (SourceOf(txid) is not { } source)
+            {
+                continue;
+            }
+
+            var lookup = await source.GetReplacementAsync(@case, txid, LookupMode.CaseOnly, cancellationToken)
+                .ConfigureAwait(false);
+            if (lookup.Value is { Replacers.Count: > 0 } replacement)
+            {
+                replacers[txid] = replacement.Replacers;
+            }
+        }
+
+        return replacers;
+    }
+
+    /// <inheritdoc/>
+    public async Task<LookupStatus> AskReplacementAsync(ICase @case, Txid txid, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(txid);
+        if (SourceOf(txid) is not { } source)
+        {
+            return LookupStatus.Failed;
+        }
+
+        var lookup = await source.GetReplacementAsync(@case, txid, LookupMode.AsNeeded, cancellationToken)
+            .ConfigureAwait(false);
+        return lookup.Status;
+    }
+
+    /// <summary>Gives the source of a transaction's own UTXO chain, which knows what replaced it there.</summary>
+    /// <param name="txid">The transaction.</param>
+    /// <returns>The source, or <see langword="null"/> where the chain's source is not registered.</returns>
+    private IBitcoinSource? SourceOf(Txid txid) => txid.Chain switch
+    {
+        Chain.Litecoin => litecoin,
+        Chain.Zcash => zcash,
+        _ => bitcoin,
+    };
 
     /// <summary>
     /// Gives today's rate of one asset: the newest hour that has ended, or, when the source has none for it yet, the
@@ -169,19 +274,21 @@ public sealed class GraphChainState(IBitcoinSource bitcoin, IEthereumSource ethe
     /// each, less what was spent, in blocks; what waits in the mempool is not counted until it is confirmed.
     /// </summary>
     /// <param name="case">The open case.</param>
+    /// <param name="source">The UTXO chain's source: Bitcoin's, Litecoin's or Zcash's.</param>
     /// <param name="addresses">The addresses.</param>
     /// <param name="cancellationToken">Stops the lookups.</param>
-    /// <returns>The balance.</returns>
-    private async Task<NodeHoldings> BitcoinAsync(
-        ICase @case, IReadOnlyList<BitcoinAddress> addresses, CancellationToken cancellationToken)
+    /// <returns>The balance, in the chain's coin.</returns>
+    private static async Task<NodeHoldings> UtxoAsync(
+        ICase @case, IBitcoinSource source, IReadOnlyList<BitcoinAddress> addresses, CancellationToken cancellationToken)
     {
         if (addresses.Count == 0)
         {
             return new NodeHoldings([], null, null, false, NoAddressText);
         }
 
+        var coin = source.Network.ChainOf().NativeAsset();
         var left = Satoshi.Zero;
-        var pending = AssetAmount.Zero(Asset.Bitcoin);
+        var pending = AssetAmount.Zero(coin);
         DateTimeOffset? fetched = null;
         var outdated = false;
         string? problem = addresses.Count > MostAddresses
@@ -189,21 +296,21 @@ public sealed class GraphChainState(IBitcoinSource bitcoin, IEthereumSource ethe
             : null;
         foreach (var address in addresses.Take(MostAddresses))
         {
-            var lookup = await bitcoin.GetAddressSummaryAsync(@case, address, cancellationToken).ConfigureAwait(false);
+            var lookup = await source.GetAddressSummaryAsync(@case, address, cancellationToken).ConfigureAwait(false);
             if (lookup.Value is not { } summary)
             {
                 return new NodeHoldings([], null, null, false, lookup.Problem ?? NoAddressText);
             }
 
             left += summary.Confirmed.Funded - summary.Confirmed.Spent;
-            pending += summary.Mempool.Funded.ToAmount() - summary.Mempool.Spent.ToAmount();
+            pending += new AssetAmount(coin, summary.Mempool.Funded.Value - summary.Mempool.Spent.Value);
             outdated |= lookup.Status == LookupStatus.FromCaseMayBeOutdated;
             var at = lookup.Origins.Count > 0 ? lookup.Origins[^1].ReceivedLocal : (DateTimeOffset?)null;
             fetched = Older(fetched, at);
         }
 
-        var tip = await bitcoin.GetTipAsync(@case, cancellationToken).ConfigureAwait(false);
-        AssetAmount[] held = left.Value > 0 ? [AssetAmount.Of(left)] : [];
+        var tip = await source.GetTipAsync(@case, cancellationToken).ConfigureAwait(false);
+        AssetAmount[] held = left.Value > 0 ? [new AssetAmount(coin, left.Value)] : [];
         return new NodeHoldings(held, tip.Value, fetched, outdated, problem)
         {
             Pending = pending.IsZero ? null : pending,
@@ -211,28 +318,31 @@ public sealed class GraphChainState(IBitcoinSource bitcoin, IEthereumSource ethe
     }
 
     /// <summary>
-    /// Reads what an account on Ethereum holds: its ether and the tokens whose issuer Chainsaw knows (USDT, USDC);
-    /// another token is a contract's own claim, and anyone can send one to any address, so it is left out.
+    /// Reads what an account on an account chain (Ethereum or TRON) holds: its coin and the tokens whose issuer
+    /// Chainsaw knows (USDT, USDC); another token is a contract's own claim, and anyone can send one to any address,
+    /// so it is left out.
     /// </summary>
     /// <param name="case">The open case.</param>
+    /// <param name="source">The chain's source.</param>
     /// <param name="accounts">The node's accounts; the first is asked.</param>
     /// <param name="cancellationToken">Stops the lookups.</param>
     /// <returns>The balance.</returns>
-    private async Task<NodeHoldings> EthereumAsync(
-        ICase @case, IReadOnlyList<ChainAddress> accounts, CancellationToken cancellationToken)
+    private static async Task<NodeHoldings> EthereumAsync(
+        ICase @case, IAccountSource source, IReadOnlyList<ChainAddress> accounts, CancellationToken cancellationToken)
     {
-        if (accounts.Count == 0 || !EthereumAddress.TryParse(accounts[0].Value, out var address))
+        if (accounts.Count == 0 || !EthereumAddress.TryParse(source.Chain, accounts[0].Value, out var address))
         {
             return new NodeHoldings([], null, null, false, NoAddressText);
         }
 
-        var lookup = await ethereum.GetBalanceAsync(@case, address, cancellationToken).ConfigureAwait(false);
+        var lookup = await source.GetBalanceAsync(@case, address, cancellationToken).ConfigureAwait(false);
         if (lookup.Value is not { } balance)
         {
             return new NodeHoldings([], null, null, false, lookup.Problem ?? NoAddressText);
         }
 
-        var tip = await ethereum.GetTipAsync(@case, cancellationToken).ConfigureAwait(false);
+        var tip = await source.GetTipAsync(@case, cancellationToken).ConfigureAwait(false);
+
         var held = new[] { balance.Ether }
             .Concat(balance.Tokens.Where(token => KnownTokens.IssuerOf(token.Asset) is not null))
             .Where(amount => !amount.IsZero)

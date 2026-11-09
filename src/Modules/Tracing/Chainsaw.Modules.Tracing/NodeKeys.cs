@@ -31,15 +31,24 @@ internal static class NodeKeys
     /// <returns>The key, for example <c>account:Ethereum:0x…</c>.</returns>
     public static string Account(ChainAddress address) => GraphPile.AccountKey(address);
 
-    /// <summary>The key of a transaction's node.</summary>
+    /// <summary>
+    /// The key of a transaction's node: on Bitcoin as it always was, and on another UTXO chain with the chain
+    /// before the txid, since the same hex on two chains names two transactions.
+    /// </summary>
     /// <param name="txid">The transaction.</param>
-    /// <returns>The key.</returns>
-    public static string Transaction(Txid txid) => "tx:" + txid.Value;
+    /// <returns>The key, for example <c>tx:4a5e…</c> or <c>tx:litecoin:4a5e…</c>.</returns>
+    public static string Transaction(Txid txid) => "tx:" + ChainPart(txid) + txid.Value;
 
-    /// <summary>The key of a coin without an address.</summary>
+    /// <summary>The key of a coin without an address, with the chain as for a transaction.</summary>
     /// <param name="coin">The coin.</param>
-    /// <returns>The key.</returns>
-    public static string Coin(Outpoint coin) => "coin:" + coin;
+    /// <returns>The key, for example <c>coin:4a5e…:0</c> or <c>coin:zcash:4a5e…:0</c>.</returns>
+    public static string Coin(Outpoint coin) => "coin:" + ChainPart(coin.Txid) + coin;
+
+    /// <summary>Gives what a key holds before a txid: nothing on Bitcoin, otherwise the chain and a colon.</summary>
+    /// <param name="txid">The transaction.</param>
+    /// <returns>For example <c>litecoin:</c>.</returns>
+    private static string ChainPart(Txid txid) =>
+        txid.Chain == Chain.Bitcoin ? string.Empty : txid.Chain.ToString().ToLowerInvariant() + ":";
 
     /// <summary>The key of a transaction on another chain.</summary>
     /// <param name="reference">The transaction.</param>

@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Chainsaw.Modules.Attribution.Contracts;
@@ -9,18 +8,15 @@ namespace Chainsaw.Modules.Attribution;
 
 /// <summary>
 /// The imported sanction lists in the application data folder. Each list is kept as the exact bytes the user
-/// imported, named by its SHA-256, next to a small description; a list is read again, and its hash and date checked,
-/// before any hit is taken from it, so that a changed file is noticed rather than trusted.
+/// imported, named by its kind and SHA-256, next to a small description; a list is read again, and its hash and date
+/// checked, before any hit is taken from it, so that a changed file is noticed rather than trusted.
 /// </summary>
 /// <param name="options">Where the lists live.</param>
 /// <param name="clock">The clock for when a list is imported.</param>
 internal sealed class SanctionLists(AttributionOptions options, IClock clock) : ISanctionLists
 {
-    /// <summary>The largest file that is read (the real list is some tens of megabytes).</summary>
+    /// <summary>The largest file that is read (the real lists are some tens of megabytes).</summary>
     public const int MaximumLength = 256 * 1024 * 1024;
-
-    /// <summary>The start of a stored list's file names.</summary>
-    private const string FilePrefix = "ofac-sdn-";
 
     /// <summary>The extension of a stored list.</summary>
     private const string ListExtension = ".xml";
@@ -28,30 +24,45 @@ internal sealed class SanctionLists(AttributionOptions options, IClock clock) : 
     /// <summary>The extension of a stored list's description.</summary>
     private const string DescriptionExtension = ".json";
 
-    /// <summary>Guards the files and the loaded list.</summary>
+    /// <summary>The kinds of list Chainsaw reads, each with its name, its files' prefix and its reader.</summary>
+    private static readonly IReadOnlyList<ListKind> Kinds =
+    [
+        new(OfacSdnParser.ListName, "ofac-sdn-", "sdnList", OfacSdnParser.Parse),
+        new(EuFsfParser.ListName, "eu-fsf-", EuFsfParser.RootName, EuFsfParser.Parse),
+    ];
+
+    /// <summary>Guards the files and the loaded lists.</summary>
     private readonly Lock _gate = new();
 
-    /// <summary>The list loaded for lookups, by its hash, or <see langword="null"/>.</summary>
-    private LoadedList? _loaded;
+    /// <summary>The lists whose file has lost its hash, not read again until imported or removed.</summary>
+    private readonly HashSet<string> _broken = new(StringComparer.Ordinal);
 
-    /// <summary>
-    /// The stored lists as last read from the folder, or <see langword="null"/> until they are read; only an import
-    /// changes them, and every hit is still checked against the file's hash when the list is loaded.
-    /// </summary>
-    private IReadOnlyList<SanctionListInfo>? _listing;
+    /// <summary>The lists loaded for lookups, by their hash.</summary>
+    private readonly Dictionary<string, LoadedList> _loaded = new(StringComparer.Ordinal);
+
+    /// <summary>The stored lists, read again when the folder has changed; created on first use.</summary>
+    private FolderSnapshot<SanctionListInfo>? _listing;
 
     /// <inheritdoc/>
-    public SanctionListInfo? Current => List().FirstOrDefault();
+    public SanctionListInfo? Current => CurrentLists.FirstOrDefault();
+
+    /// <inheritdoc/>
+    public IReadOnlyList<SanctionListInfo> CurrentLists =>
+    [
+        .. List().GroupBy(list => list.Name, StringComparer.Ordinal).Select(group => group.First())
+            .OrderByDescending(list => list.PublishDate).ThenByDescending(list => list.ImportedUtc),
+    ];
 
     /// <inheritdoc/>
     public SanctionListInfo Import(Stream content)
     {
         ArgumentNullException.ThrowIfNull(content);
-        var bytes = ReadAll(content);
-        var parsed = OfacSdnParser.Parse(bytes);
+        var bytes = ListFiles.ReadAll(
+            content, MaximumLength, () => new SanctionListException(SanctionListError.TooLarge));
+        var (kind, parsed) = Parse(bytes);
 
-        // The newest list is the one used, so a date after today (a day's slack for time zones) would shadow
-        // every list imported later.
+        // The newest list of a kind is the one used, so a date after today (a day's slack for time zones) would
+        // shadow every list of that kind imported later.
         if (parsed.PublishDate > DateOnly.FromDateTime(clock.UtcNow.UtcDateTime).AddDays(1))
         {
             throw new SanctionListException(SanctionListError.FutureDate);
@@ -60,23 +71,23 @@ internal sealed class SanctionLists(AttributionOptions options, IClock clock) : 
         var sha = Convert.ToHexStringLower(SHA256.HashData(bytes));
         lock (_gate)
         {
-            if (Describe(sha) is { } existing)
+            if (Describe(kind, sha, repair: false) is { } existing && !_broken.Contains(sha))
             {
                 return existing;
             }
 
+            _broken.Remove(sha);
+            _loaded.Remove(sha);
+
             var info = new SanctionListInfo(
-                OfacSdnParser.ListName,
-                sha,
-                parsed.PublishDate,
-                clock.UtcNow,
-                Counts(parsed),
-                parsed.Skipped);
+                parsed.Name, sha, parsed.PublishDate, clock.UtcNow, Counts(parsed), parsed.Skipped)
+            {
+                Uncertain = UncertainOf(parsed),
+            };
             Directory.CreateDirectory(options.SanctionDirectory);
-            WriteAtomically(PathFor(sha, ListExtension), bytes);
-            WriteAtomically(PathFor(sha, DescriptionExtension), JsonSerializer.SerializeToUtf8Bytes(
-                new StoredDescription(info.PublishDate, info.ImportedUtc, info.AddressesByCurrency, info.Skipped)));
-            _listing = null;
+            ListFiles.WriteAtomically(PathFor(kind, sha, ListExtension), bytes);
+            WriteDescription(kind, info);
+            _listing?.Invalidate();
             return info;
         }
     }
@@ -86,7 +97,209 @@ internal sealed class SanctionLists(AttributionOptions options, IClock clock) : 
     {
         lock (_gate)
         {
-            return _listing ??= ReadListing();
+            _listing ??= new FolderSnapshot<SanctionListInfo>(options.SanctionDirectory, ReadListing);
+            return _listing.Get();
+        }
+    }
+
+    /// <inheritdoc/>
+    public bool Remove(string sha256)
+    {
+        ArgumentNullException.ThrowIfNull(sha256);
+        lock (_gate)
+        {
+            var removed = false;
+            foreach (var kind in Kinds)
+            {
+                var list = PathFor(kind, sha256, ListExtension);
+                if (!IsStoredName(kind, Path.GetFileName(list)) || !File.Exists(list))
+                {
+                    continue;
+                }
+
+                File.Delete(list);
+                File.Delete(PathFor(kind, sha256, DescriptionExtension));
+                removed = true;
+            }
+
+            _loaded.Remove(sha256);
+            _broken.Remove(sha256);
+            _listing?.Invalidate();
+            return removed;
+        }
+    }
+
+    /// <inheritdoc/>
+    public SanctionMatch? Find(BitcoinAddress address)
+    {
+        ArgumentNullException.ThrowIfNull(address);
+        return Current is { } current ? Match(current, list => list.Bitcoin.GetValueOrDefault(address)) : null;
+    }
+
+    /// <inheritdoc/>
+    public SanctionMatch? Find(EthereumAddress address)
+    {
+        ArgumentNullException.ThrowIfNull(address);
+        return Current is { } current ? Match(current, list => list.Ethereum.GetValueOrDefault(address)) : null;
+    }
+
+    /// <inheritdoc/>
+    public IReadOnlyList<SanctionMatch> FindAll(BitcoinAddress address)
+    {
+        ArgumentNullException.ThrowIfNull(address);
+        var key = address.ToChainAddress();
+        return FindMany([key]).Matches.GetValueOrDefault(key) ?? [];
+    }
+
+    /// <inheritdoc/>
+    public IReadOnlyList<SanctionMatch> FindAll(EthereumAddress address)
+    {
+        ArgumentNullException.ThrowIfNull(address);
+        var key = address.ToChainAddress();
+        return FindMany([key]).Matches.GetValueOrDefault(key) ?? [];
+    }
+
+    /// <inheritdoc/>
+    public SanctionLookup FindMany(IReadOnlyCollection<ChainAddress> addresses)
+    {
+        ArgumentNullException.ThrowIfNull(addresses);
+        var usable = new List<LoadedList>();
+        var unusable = new List<SanctionListInfo>();
+        var missing = new List<SanctionListInfo>();
+        foreach (var list in CurrentLists)
+        {
+            switch (TryLoaded(list))
+            {
+                case { Loaded: { } loaded }:
+                    usable.Add(loaded);
+                    break;
+                case { IsMissing: true }:
+                    missing.Add(list);
+                    break;
+                default:
+                    unusable.Add(list);
+                    break;
+            }
+        }
+
+        var matches = new Dictionary<ChainAddress, IReadOnlyList<SanctionMatch>>();
+        foreach (var address in addresses.Distinct())
+        {
+            List<SanctionMatch> found =
+            [
+                .. usable.Select(list => (list.Info, Hits: HitsOn(list, address)))
+                    .Where(pair => pair.Hits is { Count: > 0 })
+                    .Select(pair => new SanctionMatch(pair.Info, pair.Hits!)),
+            ];
+            if (found.Count > 0)
+            {
+                matches[address] = found;
+            }
+        }
+
+        return new SanctionLookup([.. usable.Select(list => list.Info)], unusable, matches) { Missing = missing };
+    }
+
+    /// <summary>Gives a loaded list's entries for an address on its own chain.</summary>
+    /// <param name="list">The list.</param>
+    /// <param name="address">The address with its chain.</param>
+    /// <returns>The entries, or <see langword="null"/> when the list does not name it.</returns>
+    private static IReadOnlyList<SanctionedAddress>? HitsOn(LoadedList list, ChainAddress address) =>
+        address.Chain switch
+        {
+            Chain.Bitcoin when BitcoinAddress.TryParse(address.Value, out var bitcoin) =>
+                list.Bitcoin.GetValueOrDefault(bitcoin),
+            Chain.Ethereum when EthereumAddress.TryParse(address.Value.ToLowerInvariant(), out var account) =>
+                list.Ethereum.GetValueOrDefault(account),
+            // A TRON address is kept on the list as written (OfacSdnParser.EthereumKey), its checksum part of it.
+            Chain.Tron when EthereumAddress.TryParseTron(address.Value, out var tron, out _) =>
+                list.Ethereum.GetValueOrDefault(tron),
+            // Litecoin's, Zcash's and BSC's addresses are keyed on their own chain (OfacSdnParser.BitcoinKey,
+            // EthereumKey).
+            Chain.Litecoin or Chain.Zcash when BitcoinAddress.TryParse(address.Chain, address.Value, out var utxo) =>
+                list.Bitcoin.GetValueOrDefault(utxo),
+            Chain.Bsc when EthereumAddress.TryParse(Chain.Bsc, address.Value.ToLowerInvariant(), out var bsc) =>
+                list.Ethereum.GetValueOrDefault(bsc),
+
+            // A Solana address is kept as written (Base58 is case sensitive), as OfacSdnParser.EthereumKey keys it.
+            Chain.Solana when EthereumAddress.TryParseSolana(address.Value, out var solana, out _) =>
+                list.Ethereum.GetValueOrDefault(solana),
+            _ => null,
+        };
+
+    /// <summary>
+    /// Loads a list for lookups, or says why it cannot be. A list whose file has lost its hash is remembered as broken,
+    /// so that it is never read and hashed again at every lookup (up to 256 MB), until it is imported again or
+    /// removed; one whose file is gone is not, since the next listing follows the folder. The other lists are still
+    /// looked on (the review of round 5, I4 and M-d).
+    /// </summary>
+    /// <param name="info">The list.</param>
+    /// <returns>The loaded list, or whether it is missing rather than broken.</returns>
+    private (LoadedList? Loaded, bool IsMissing) TryLoaded(SanctionListInfo info)
+    {
+        lock (_gate)
+        {
+            if (_broken.Contains(info.Sha256))
+            {
+                return (null, false);
+            }
+
+            try
+            {
+                return (Loaded(info), false);
+            }
+            catch (SanctionListException exception) when (exception.Error == SanctionListError.Tampered)
+            {
+                _broken.Add(info.Sha256);
+                return (null, false);
+            }
+            catch (SanctionListException exception) when (exception.Error == SanctionListError.Missing)
+            {
+                return (null, true);
+            }
+        }
+    }
+
+    /// <summary>Tells the kind of list a file is by its root element, and reads it.</summary>
+    /// <param name="bytes">The file's bytes.</param>
+    /// <returns>The kind and what the list holds.</returns>
+    /// <exception cref="SanctionListException">The file is not a list Chainsaw reads.</exception>
+    private static (ListKind Kind, ParsedSanctionList Parsed) Parse(byte[] bytes)
+    {
+        var root = SanctionXml.RootName(bytes);
+        var kind = Kinds.FirstOrDefault(each => each.Root == root)
+            ?? throw new SanctionListException(SanctionListError.NotSdnList);
+        return (kind, kind.Parse(bytes));
+    }
+
+    /// <summary>Finds hits on a list, loading it when it is not loaded.</summary>
+    /// <param name="info">The list.</param>
+    /// <param name="hits">Gives the loaded list's entries for the address, or <see langword="null"/>.</param>
+    /// <returns>The match, empty when the list does not name the address.</returns>
+    private SanctionMatch Match(SanctionListInfo info, Func<LoadedList, IReadOnlyList<SanctionedAddress>?> hits) =>
+        new(info, hits(Loaded(info)) ?? []);
+
+    /// <summary>Gives a list loaded for lookups, loading it when it is not loaded.</summary>
+    /// <param name="info">The list.</param>
+    /// <returns>The loaded list.</returns>
+    /// <exception cref="SanctionListException"><see cref="SanctionListError.Tampered"/>.</exception>
+    private LoadedList Loaded(SanctionListInfo info)
+    {
+        lock (_gate)
+        {
+            if (!_loaded.TryGetValue(info.Sha256, out var loaded))
+            {
+                // Only the current list of each kind is kept in memory.
+                foreach (var stale in _loaded.Values.Where(list => list.Info.Name == info.Name).ToList())
+                {
+                    _loaded.Remove(stale.Info.Sha256);
+                }
+
+                loaded = Load(info);
+                _loaded[info.Sha256] = loaded;
+            }
+
+            return loaded;
         }
     }
 
@@ -101,9 +314,10 @@ internal sealed class SanctionLists(AttributionOptions options, IClock clock) : 
 
         return
         [
-            .. Directory.EnumerateFiles(options.SanctionDirectory, FilePrefix + "*" + DescriptionExtension)
-                .Select(path => Path.GetFileNameWithoutExtension(path)[FilePrefix.Length..])
-                .Select(Describe)
+            .. Kinds.SelectMany(kind => Directory
+                    .EnumerateFiles(options.SanctionDirectory, kind.Prefix + "*" + ListExtension)
+                    .Where(path => IsStoredName(kind, Path.GetFileName(path)))
+                    .Select(path => Describe(kind, Path.GetFileNameWithoutExtension(path)[kind.Prefix.Length..], true)))
                 .OfType<SanctionListInfo>()
                 .OrderByDescending(info => info.PublishDate)
                 .ThenByDescending(info => info.ImportedUtc)
@@ -111,64 +325,14 @@ internal sealed class SanctionLists(AttributionOptions options, IClock clock) : 
         ];
     }
 
-    /// <inheritdoc/>
-    public SanctionMatch? Find(BitcoinAddress address)
-    {
-        ArgumentNullException.ThrowIfNull(address);
-        return Match(list => list.Bitcoin.GetValueOrDefault(address));
-    }
-
-    /// <inheritdoc/>
-    public SanctionMatch? Find(EthereumAddress address)
-    {
-        ArgumentNullException.ThrowIfNull(address);
-        return Match(list => list.Ethereum.GetValueOrDefault(address));
-    }
-
-    /// <summary>Finds hits on the current list, loading it again when another list has become the current one.</summary>
-    /// <param name="hits">Gives the loaded list's entries for the address, or <see langword="null"/>.</param>
-    /// <returns>The match, or <see langword="null"/> when no list is imported.</returns>
-    private SanctionMatch? Match(Func<LoadedList, IReadOnlyList<SanctionedAddress>?> hits)
-    {
-        var current = Current;
-        if (current is null)
-        {
-            return null;
-        }
-
-        lock (_gate)
-        {
-            if (_loaded?.Info.Sha256 != current.Sha256)
-            {
-                _loaded = Load(current);
-            }
-
-            return new SanctionMatch(current, hits(_loaded) ?? []);
-        }
-    }
-
-    /// <summary>Reads a stored list again and checks it against its hash and date.</summary>
+    /// <summary>Reads a stored list again and checks it against its hash, kind and date.</summary>
     /// <param name="info">The list.</param>
     /// <returns>The list, with its Bitcoin and Ethereum addresses by address.</returns>
     /// <exception cref="SanctionListException"><see cref="SanctionListError.Tampered"/>.</exception>
     private LoadedList Load(SanctionListInfo info)
     {
-        byte[] bytes;
-        try
-        {
-            bytes = File.ReadAllBytes(PathFor(info.Sha256, ListExtension));
-        }
-        catch (Exception exception) when (exception is FileNotFoundException or DirectoryNotFoundException)
-        {
-            throw new SanctionListException(SanctionListError.Tampered, exception);
-        }
-
-        if (Convert.ToHexStringLower(SHA256.HashData(bytes)) != info.Sha256)
-        {
-            throw new SanctionListException(SanctionListError.Tampered);
-        }
-
-        var parsed = OfacSdnParser.Parse(bytes);
+        var kind = Kinds.First(each => each.Name == info.Name);
+        var parsed = ReadStored(kind, info.Sha256);
         if (parsed.PublishDate != info.PublishDate)
         {
             throw new SanctionListException(SanctionListError.Tampered);
@@ -176,6 +340,33 @@ internal sealed class SanctionLists(AttributionOptions options, IClock clock) : 
 
         return new LoadedList(
             info, ByKey(parsed, OfacSdnParser.BitcoinKey), ByKey(parsed, OfacSdnParser.EthereumKey));
+    }
+
+    /// <summary>Reads a stored list's file and checks that it still has its hash and is of its kind.</summary>
+    /// <param name="kind">The kind of list.</param>
+    /// <param name="sha">The list's hash.</param>
+    /// <returns>What the list holds.</returns>
+    /// <exception cref="SanctionListException"><see cref="SanctionListError.Tampered"/>.</exception>
+    private ParsedSanctionList ReadStored(ListKind kind, string sha)
+    {
+        byte[] bytes;
+        try
+        {
+            bytes = File.ReadAllBytes(PathFor(kind, sha, ListExtension));
+        }
+        catch (Exception exception) when (exception is FileNotFoundException or DirectoryNotFoundException)
+        {
+            // Gone since the folder was read (removed meanwhile): not changed, and the next listing shows it.
+            throw new SanctionListException(SanctionListError.Missing, exception);
+        }
+
+        if (Convert.ToHexStringLower(SHA256.HashData(bytes)) != sha)
+        {
+            throw new SanctionListException(SanctionListError.Tampered);
+        }
+
+        var (read, parsed) = Parse(bytes);
+        return read == kind ? parsed : throw new SanctionListException(SanctionListError.Tampered);
     }
 
     /// <summary>Gathers a list's addresses by the key they are looked up by on one chain.</summary>
@@ -194,42 +385,105 @@ internal sealed class SanctionLists(AttributionOptions options, IClock clock) : 
                 group => group.Key,
                 group => (IReadOnlyList<SanctionedAddress>)[.. group.Select(pair => pair.Address)]);
 
-    /// <summary>Reads a stored list's description.</summary>
+    /// <summary>
+    /// Reads a stored list's description. A list whose description is missing or broken is no longer dropped from
+    /// the listing in silence (the review of etapp 8, M5): when <paramref name="repair"/> is set, its file is read
+    /// again, checked against its hash, and the description written anew, with the file's own time as when it was
+    /// imported.
+    /// </summary>
+    /// <param name="kind">The kind of list.</param>
     /// <param name="sha">The list's hash.</param>
-    /// <returns>The list, or <see langword="null"/> when it is not stored or its description cannot be read.</returns>
-    private SanctionListInfo? Describe(string sha)
+    /// <param name="repair">Whether a missing or broken description is written anew from the file.</param>
+    /// <returns>The list, or <see langword="null"/> when it is not stored or cannot be read.</returns>
+    private SanctionListInfo? Describe(ListKind kind, string sha, bool repair)
     {
-        var path = PathFor(sha, DescriptionExtension);
-        if (!File.Exists(path) || !File.Exists(PathFor(sha, ListExtension)))
+        if (!File.Exists(PathFor(kind, sha, ListExtension)))
         {
             return null;
         }
 
+        var path = PathFor(kind, sha, DescriptionExtension);
         try
         {
-            var stored = JsonSerializer.Deserialize<StoredDescription>(File.ReadAllBytes(path));
-            return stored is null
-                ? null
-                : new SanctionListInfo(
-                    OfacSdnParser.ListName,
-                    sha,
-                    stored.PublishDate,
-                    stored.ImportedUtc,
-                    stored.AddressesByCurrency,
-                    stored.Skipped);
+            var stored = File.Exists(path)
+                ? JsonSerializer.Deserialize<StoredDescription>(File.ReadAllBytes(path))
+                : null;
+            if (stored is not null)
+            {
+                return new SanctionListInfo(
+                    kind.Name, sha, stored.PublishDate, stored.ImportedUtc, stored.AddressesByCurrency, stored.Skipped)
+                {
+                    Uncertain = stored.Uncertain,
+                };
+            }
         }
         catch (JsonException)
         {
+            // Written anew below, from the list itself.
+        }
+
+        return repair ? Repair(kind, sha) : null;
+    }
+
+    /// <summary>Writes a stored list's description anew from the list's file.</summary>
+    /// <param name="kind">The kind of list.</param>
+    /// <param name="sha">The list's hash.</param>
+    /// <returns>The list, or <see langword="null"/> when its file no longer has its hash or cannot be read.</returns>
+    private SanctionListInfo? Repair(ListKind kind, string sha)
+    {
+        try
+        {
+            var parsed = ReadStored(kind, sha);
+            var imported = new DateTimeOffset(File.GetLastWriteTimeUtc(PathFor(kind, sha, ListExtension)));
+            var info = new SanctionListInfo(
+                kind.Name, sha, parsed.PublishDate, imported, Counts(parsed), parsed.Skipped)
+            {
+                Uncertain = UncertainOf(parsed),
+            };
+            WriteDescription(kind, info);
+            return info;
+        }
+        catch (Exception exception) when (exception is SanctionListException or IOException
+            or UnauthorizedAccessException)
+        {
+            // A list that has lost its hash is never listed: a hit from it could not be followed back to its file.
             return null;
         }
     }
 
+    /// <summary>Writes a list's description next to it.</summary>
+    /// <param name="kind">The kind of list.</param>
+    /// <param name="info">The list.</param>
+    private void WriteDescription(ListKind kind, SanctionListInfo info) =>
+        ListFiles.WriteAtomically(PathFor(kind, info.Sha256, DescriptionExtension), JsonSerializer.SerializeToUtf8Bytes(
+            new StoredDescription(
+                info.PublishDate, info.ImportedUtc, info.AddressesByCurrency, info.Skipped, info.Uncertain)));
+
+    /// <summary>Says whether a file name is a stored list's: the kind's prefix and a lower-case SHA-256.</summary>
+    /// <param name="kind">The kind of list.</param>
+    /// <param name="fileName">The file's name with its extension.</param>
+    /// <returns><see langword="true"/> when it is.</returns>
+    private static bool IsStoredName(ListKind kind, string fileName)
+    {
+        var sha = Path.GetFileNameWithoutExtension(fileName);
+        return sha.StartsWith(kind.Prefix, StringComparison.Ordinal)
+            && sha.Length == kind.Prefix.Length + 64
+            && sha[kind.Prefix.Length..].All(Uri.IsHexDigit)
+            && sha[kind.Prefix.Length..] == sha[kind.Prefix.Length..].ToLowerInvariant();
+    }
+
     /// <summary>Gives the path of a stored list's file.</summary>
+    /// <param name="kind">The kind of list.</param>
     /// <param name="sha">The list's hash.</param>
     /// <param name="extension">The file's extension.</param>
     /// <returns>The path.</returns>
-    private string PathFor(string sha, string extension) =>
-        Path.Combine(options.SanctionDirectory, FilePrefix + sha + extension);
+    private string PathFor(ListKind kind, string sha, string extension) =>
+        Path.Combine(options.SanctionDirectory, kind.Prefix + sha + extension);
+
+    /// <summary>Counts the addresses whose chain the list does not say for certain.</summary>
+    /// <param name="parsed">The list.</param>
+    /// <returns>The count.</returns>
+    private static int UncertainOf(ParsedSanctionList parsed) => parsed.Addresses.Count(address => address.IsUncertain);
 
     /// <summary>Counts the addresses per currency.</summary>
     /// <param name="parsed">The list.</param>
@@ -238,42 +492,12 @@ internal sealed class SanctionLists(AttributionOptions options, IClock clock) : 
         parsed.Addresses.GroupBy(address => address.Currency).ToDictionary(group => group.Key, group => group.Count()),
         StringComparer.Ordinal);
 
-    /// <summary>Reads a stream to its end, up to <see cref="MaximumLength"/>.</summary>
-    /// <param name="content">The stream.</param>
-    /// <returns>The bytes.</returns>
-    /// <exception cref="SanctionListException"><see cref="SanctionListError.TooLarge"/>.</exception>
-    private static byte[] ReadAll(Stream content)
-    {
-        using var buffer = new MemoryStream();
-        var chunk = new byte[81920];
-        int read;
-        while ((read = content.Read(chunk, 0, chunk.Length)) > 0)
-        {
-            if (buffer.Length + read > MaximumLength)
-            {
-                throw new SanctionListException(SanctionListError.TooLarge);
-            }
-
-            buffer.Write(chunk, 0, read);
-        }
-
-        return buffer.ToArray();
-    }
-
-    /// <summary>Writes a file through a temporary file, so that it is either whole or not there.</summary>
-    /// <param name="path">The file.</param>
-    /// <param name="bytes">The content.</param>
-    private static void WriteAtomically(string path, byte[] bytes)
-    {
-        var temporary = path + "." + Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture) + ".tmp";
-        using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write))
-        {
-            stream.Write(bytes);
-            stream.Flush(flushToDisk: true);
-        }
-
-        File.Move(temporary, path, overwrite: true);
-    }
+    /// <summary>A kind of sanction list.</summary>
+    /// <param name="Name">The list's name, as origins state it.</param>
+    /// <param name="Prefix">The start of its stored files' names.</param>
+    /// <param name="Root">The local name of its root element, which tells it apart.</param>
+    /// <param name="Parse">Reads it.</param>
+    private sealed record ListKind(string Name, string Prefix, string Root, Func<byte[], ParsedSanctionList> Parse);
 
     /// <summary>A list loaded for lookups.</summary>
     /// <param name="Info">The list.</param>
@@ -289,9 +513,11 @@ internal sealed class SanctionLists(AttributionOptions options, IClock clock) : 
     /// <param name="ImportedUtc">When it was imported.</param>
     /// <param name="AddressesByCurrency">The addresses per currency.</param>
     /// <param name="Skipped">Addresses that can never match.</param>
+    /// <param name="Uncertain">Addresses whose chain the list does not say for certain.</param>
     private sealed record StoredDescription(
         DateOnly PublishDate,
         DateTimeOffset ImportedUtc,
         IReadOnlyDictionary<string, int> AddressesByCurrency,
-        int Skipped);
+        int Skipped,
+        int Uncertain = 0);
 }

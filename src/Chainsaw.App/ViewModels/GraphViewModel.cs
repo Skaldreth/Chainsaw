@@ -181,6 +181,7 @@ public sealed partial class GraphViewModel : ObservableObject
         Checks.ShowWanted += (_, nodes) => ShowNodesWanted?.Invoke(this, nodes);
         Checks.ToastWanted += (_, toast) => ToastWanted?.Invoke(this, toast);
         Checks.ClustersChanged += (_, _) => _ = RefreshAsync();
+        Checks.WalletUndoWanted += (_, undo) => ShowWalletUndo(undo);
         Comments = new CommentsViewModel(session, comments ?? NoGraphComments.Instance, trash);
         WireComments();
         WireTidy();
@@ -432,7 +433,10 @@ public sealed partial class GraphViewModel : ObservableObject
     /// </summary>
     public ClusterWhyViewModel ClusterWhy { get; }
 
-    /// <summary>The inspector's way into the modules, also for what the graph reads beside the scene.</summary>
+    /// <summary>
+    /// The inspector's way into the modules, also for what the graph reads beside the scene and for the graph's own
+    /// choices, such as the choice per swap (sketch SW1a).
+    /// </summary>
     private readonly IGraphEditor _editor;
 
     /// <summary>
@@ -768,6 +772,7 @@ public sealed partial class GraphViewModel : ObservableObject
         SelectedNode = node?.Key;
         SelectedEdge = edge?.Key;
         IsLegendOpen = false;
+        LetGoOfWalletUndo();
         _choosing = true;
         try
         {
@@ -1233,6 +1238,7 @@ public sealed partial class GraphViewModel : ObservableObject
         FollowFan();
         ShowTrash();
         TellThrownStartPoints(scene);
+        TellRecalculatedSwaps(scene);
         OnPropertyChanged(nameof(MethodToolTip));
         if (fit)
         {

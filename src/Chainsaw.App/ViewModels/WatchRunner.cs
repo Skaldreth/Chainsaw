@@ -1,4 +1,5 @@
 using Chainsaw.Modules.Cases.Contracts;
+using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Monitoring.Contracts;
 using Chainsaw.SharedKernel;
 
@@ -9,8 +10,10 @@ namespace Chainsaw.App.ViewModels;
 /// that runs when Chainsaw is closed is <c>Chainsaw.Watcher</c>). Every few seconds it looks at the open case's active
 /// watches; for each chain whose gate is open it asks the chain's height at most once a minute (at once for a watch
 /// without a start), and the Monitoring module checks the watches that are due: a new block has come and each watch's
-/// own pace allows. Locked, without an exit or with the chain off, nothing is asked (the module's gate). First in each
-/// round it brings in what the background process saw while Chainsaw was closed. It knows nothing of WPF.
+/// own pace allows. A new block heard of by websocket (<see cref="IBlockNews"/>, where a source has it) makes it ask at
+/// once instead of waiting for the minute. Locked, without an exit or with the chain off, nothing is asked (the
+/// module's gate) and nothing is listened to. First in each round it brings in what the background process saw while
+/// Chainsaw was closed. It knows nothing of WPF.
 /// </summary>
 public sealed class WatchRunner : IDisposable
 {
@@ -38,6 +41,9 @@ public sealed class WatchRunner : IDisposable
     /// <summary>Brings what the background process saw into the open case before the checks, or nothing.</summary>
     private readonly Func<ICase, Task>? _import;
 
+    /// <summary>The chains' news of new blocks, or <see langword="null"/>.</summary>
+    private readonly IBlockNews? _news;
+
     /// <summary>The case the states belong to, so that another case starts afresh.</summary>
     private ICase? _case;
 
@@ -52,11 +58,13 @@ public sealed class WatchRunner : IDisposable
     /// each round, so that it and the checks never write the case's watches at once, and again once a chain's height is
     /// known when a watch on it has no start; none when not given.
     /// </param>
+    /// <param name="news">The chains' news of new blocks, or <see langword="null"/> to ask once a minute only.</param>
     public WatchRunner(
         WatchBoard board,
         IClock clock,
         Func<TimeSpan, CancellationToken, Task>? delay = null,
-        Func<ICase, Task>? import = null)
+        Func<ICase, Task>? import = null,
+        IBlockNews? news = null)
     {
         ArgumentNullException.ThrowIfNull(board);
         ArgumentNullException.ThrowIfNull(clock);
@@ -64,6 +72,7 @@ public sealed class WatchRunner : IDisposable
         _clock = clock;
         _delay = delay ?? Task.Delay;
         _import = import;
+        _news = news;
     }
 
     /// <summary>Starts the loop off the UI thread; it runs until <see cref="Dispose"/>.</summary>
@@ -83,6 +92,12 @@ public sealed class WatchRunner : IDisposable
     {
         if (_board.Case is not { } openCase)
         {
+            // No case open (closed or locked): nothing is listened to either.
+            foreach (var chain in _chains.Keys)
+            {
+                _news?.Release(chain);
+            }
+
             return;
         }
 
@@ -132,9 +147,20 @@ public sealed class WatchRunner : IDisposable
         var source = _board.Source;
         var state = _chains.TryGetValue(chain, out var known) ? known : _chains[chain] = new ChainState();
         var now = _clock.UtcNow;
-        // A new watch starts at once, unless the last ask for the height failed: then the minute holds too.
-        var waits = !unstarted || state.HeightFailed;
-        if (source.Gate(chain) != WatchGate.Open || (waits && now < state.NextHeight))
+        if (source.Gate(chain) != WatchGate.Open)
+        {
+            _news?.Release(chain);
+            return;
+        }
+
+        // A new block heard of asks at once, and so does a new watch, unless the last ask for the height failed: then the
+        // minute holds whatever is heard, so that a source that fails cannot be asked faster by news.
+        _news?.Keep(chain);
+        var heard = _news?.Heard(chain) ?? 0;
+        var nudged = heard != state.Heard;
+        state.Heard = heard;
+        var waits = state.HeightFailed || (!unstarted && !nudged);
+        if (waits && now < state.NextHeight)
         {
             return;
         }
@@ -198,5 +224,8 @@ public sealed class WatchRunner : IDisposable
 
         /// <summary>Gets or sets when the height may be asked next.</summary>
         public DateTimeOffset NextHeight { get; set; } = DateTimeOffset.MinValue;
+
+        /// <summary>Gets or sets how many new blocks had been heard of at the last look.</summary>
+        public long Heard { get; set; }
     }
 }

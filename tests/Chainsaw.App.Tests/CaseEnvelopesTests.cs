@@ -393,6 +393,21 @@ public sealed class CaseEnvelopesTests
         Assert.Equal(CaseBranchViewModel.ApartWords, branch.ApartText);
         Assert.Null(branch.ApartHash);
         Assert.Empty(branch.FileGrowth);
+        Assert.Equal(CaseBranchViewModel.CrashCopyHint, branch.CopyHint);
+    }
+
+    [Fact]
+    public void The_working_copys_branch_says_crash_only_after_a_crash_and_replaced_when_the_file_was_replaced()
+    {
+        var branch = Dialogs().Branch;
+
+        branch.Show(Conflict(), fileReplaced: true);
+        Assert.Equal(
+            "Filen på disken ändrades medan ärendet var öppet; ditt arbete finns i arbetskopian.", branch.CopyHint);
+
+        branch.Show(Conflict());
+        Assert.Equal(
+            "Sparas som ett eget ärende med ditt kuvert. Journalen följer med fram till kraschen.", branch.CopyHint);
     }
 
     [Fact]

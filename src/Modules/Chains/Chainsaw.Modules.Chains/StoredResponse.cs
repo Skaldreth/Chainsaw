@@ -33,6 +33,13 @@ internal static class ResponseKinds
     /// <summary>Who spends a transaction's outputs, <c>/tx/:txid/outspends</c>.</summary>
     public const string OutputSpends = "bitcoin.outspends";
 
+    /// <summary>
+    /// Who spends a transaction's outputs, <c>/tx/:txid/outspends</c>, asked only to find what replaced a transaction
+    /// that is gone and spent some of them (sketch GR9a), and kept apart from <see cref="OutputSpends"/>, which the
+    /// graph follows, so that asking never makes the trace follow the replacer by itself.
+    /// </summary>
+    public const string ReplacedSpends = "bitcoin.replaced-outspends";
+
     /// <summary>A page of an address's transactions, <c>/address/:address/txs[/chain/:after]</c>.</summary>
     public const string AddressTransactions = "bitcoin.address-txs";
 
@@ -53,4 +60,10 @@ internal static class ResponseKinds
 
     /// <summary>The newest block's hash, <c>/blocks/tip/hash</c>.</summary>
     public const string TipHash = "bitcoin.tip-hash";
+
+    /// <summary>The hash of the block at a height, <c>/block-height/:height</c>, asked to confirm a block.</summary>
+    public const string BlockAtHeight = "bitcoin.block-height";
+
+    /// <summary>The proof that a transaction is in its block, <c>/tx/:txid/merkle-proof</c>.</summary>
+    public const string MerkleProof = "bitcoin.merkle-proof";
 }

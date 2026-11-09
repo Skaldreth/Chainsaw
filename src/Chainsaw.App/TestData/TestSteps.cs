@@ -36,6 +36,18 @@ public sealed record TestServices(
 
     /// <summary>Gets the Bitcoin source, for the transaction whose block changed (sketch GR9a), if any.</summary>
     public IBitcoinSource? Bitcoin { get; init; }
+
+    /// <summary>Gets the labels on transactions; none when they are not registered.</summary>
+    public ITransactionLabels? TransactionLabels { get; init; }
+
+    /// <summary>Gets the labels of Chainsaw's known contracts on Ethereum; none when they are not registered.</summary>
+    public IKnownContractLabels? KnownContracts { get; init; }
+
+    /// <summary>
+    /// Gets the cross-chain search, which brings into the case what <c>cross-chain v1</c> weighs (the rates, a memo's
+    /// recipient), as the app does before the checks run; none when it is not registered.
+    /// </summary>
+    public ICrossChainLookup? CrossChain { get; init; }
 }
 
 /// <summary>One build of the test case: the case, the story it is built from, and what did not go as planned.</summary>
@@ -178,19 +190,15 @@ public sealed record ShareLabelsStep : ITestStep
 /// <summary>Links an output to the transaction it continues as on another chain (a swap).</summary>
 /// <param name="Transaction">The story's label for the transaction.</param>
 /// <param name="Output">The output that leaves the chain.</param>
-/// <param name="Seed">What the made-up Ethereum transaction's hash is made from.</param>
-public sealed record LinkOtherChainStep(string Transaction, int Output, string Seed) : ITestStep
+/// <param name="To">The made-up transaction on the other chain (the swap's payout on TRON).</param>
+public sealed record LinkOtherChainStep(string Transaction, int Output, ChainTransactionRef To) : ITestStep
 {
     /// <inheritdoc/>
     public Task RunAsync(TestRun run, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(run);
-        var hash = "0x" + Convert.ToHexStringLower(TestAddress.Hash(Seed));
         run.Services.Tracing.LinkCrossChain(
-            run.Case,
-            new Outpoint(run.TxidOf(Transaction), Output),
-            new ChainTransactionRef(Chain.Ethereum, hash),
-            TestStory.LabelReason);
+            run.Case, new Outpoint(run.TxidOf(Transaction), Output), To, TestStory.LabelReason);
         return Task.CompletedTask;
     }
 }
@@ -238,7 +246,11 @@ public sealed record WatchCheckStep : ITestStep
     }
 }
 
-/// <summary>Runs the checks and suggestions on the graph, so that there is something to decide.</summary>
+/// <summary>
+/// Runs the checks and suggestions on the graph, so that there is something to decide. As the app does, the cross-chain
+/// search first brings into the case what the cross-chain analysis weighs (the rates at the payments' times), here from
+/// the made-up sources only.
+/// </summary>
 public sealed record ChecksStep : ITestStep
 {
     /// <inheritdoc/>
@@ -246,6 +258,16 @@ public sealed record ChecksStep : ITestStep
     {
         ArgumentNullException.ThrowIfNull(run);
         var graph = await run.Services.Tracing.LoadAsync(run.Case, cancellationToken).ConfigureAwait(false);
+        if (run.Services.CrossChain is { } crossChain)
+        {
+            var found = await crossChain.FindAsync(run.Case, graph, LookupMode.AsNeeded, cancellationToken)
+                .ConfigureAwait(false);
+            foreach (var target in found.Targets.Where(target => target.State == CrossChainTargetState.Unreachable))
+            {
+                run.Note($"Fortsättningen på {target.Address.Chain} kunde inte slås upp: {target.Problem}");
+            }
+        }
+
         var checks = run.Services.Checks.Run(run.Case, graph);
         if (!checks.Checks.Any(check => check.Finding.Kind == CheckKind.Suggestion))
         {

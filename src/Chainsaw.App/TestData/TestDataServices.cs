@@ -42,6 +42,24 @@ public static class TestDataServices
                 provider.GetRequiredService<TestChainHttp>(),
                 provider.GetRequiredService<IOperatorProfileStore>(),
                 provider.GetRequiredService<IClock>()))));
+        services.AddSingleton<TestTronChain>();
+        services.AddSingleton(provider => new TestTronHttp(
+            provider.GetRequiredService<TestTronChain>(), provider.GetRequiredService<IClock>()));
+        TryDecorate<ITronSource>(services, (provider, real) => new TestDataTronRouter(
+            real,
+            new Lazy<ITronSource>(() => TestDataTron.Create(
+                provider.GetRequiredService<TestTronHttp>(),
+                provider.GetRequiredService<IOperatorProfileStore>(),
+                provider.GetRequiredService<IClock>()))));
+        services.AddSingleton<TestEthereumChain>();
+        services.AddSingleton(provider => new TestEthereumHttp(
+            provider.GetRequiredService<TestEthereumChain>(), provider.GetRequiredService<IClock>()));
+        TryDecorate<IEthereumSource>(services, (provider, real) => new TestDataEthereumRouter(
+            real,
+            new Lazy<IEthereumSource>(() => TestDataEthereum.Create(
+                provider.GetRequiredService<TestEthereumHttp>(),
+                provider.GetRequiredService<IOperatorProfileStore>(),
+                provider.GetRequiredService<IClock>()))));
         services.AddSingleton(provider => new TestRatesHttp(provider.GetRequiredService<IClock>()));
         TryDecorate<IPriceService>(services, (provider, real) => new TestDataPriceRouter(
             real,
@@ -51,6 +69,8 @@ public static class TestDataServices
                 provider.GetRequiredService<IClock>(),
                 provider.GetRequiredService<IPriceDefaults>()))));
         Decorate<ISanctionLists>(services, (provider, real) => new TestDataSanctionLists(
+            real, provider.GetRequiredService<TestActors>()));
+        TryDecorate<IOpenSourceLists>(services, (provider, real) => new TestDataOpenSources(
             real, provider.GetRequiredService<TestActors>()));
         Decorate<IWatchGate>(services, (_, real) => new TestDataWatchGate(real));
         Decorate<IBackgroundWatches>(services, (_, real) => new TestDataBackgroundWatches(real));
@@ -66,6 +86,9 @@ public static class TestDataServices
             Trash = provider.GetService<IGraphTrash>(),
             Clustering = provider.GetService<IClusteringService>(),
             Bitcoin = provider.GetRequiredService<IBitcoinSource>(),
+            TransactionLabels = provider.GetService<ITransactionLabels>(),
+            KnownContracts = provider.GetService<IKnownContractLabels>(),
+            CrossChain = provider.GetService<ICrossChainLookup>(),
         });
         services.AddSingleton<TestCaseBuilder>();
         services.AddSingleton<IShellCommand, TestDataCommand>();

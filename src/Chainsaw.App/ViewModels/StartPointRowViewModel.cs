@@ -38,6 +38,10 @@ public sealed partial class StartPointRowViewModel : ObservableObject
     {
         Chain.Bitcoin => "₿",
         Chain.Ethereum => "Ξ",
+        Chain.Litecoin => "Ł",
+        Chain.Bsc => "B",
+        Chain.Zcash => "Z",
+        Chain.Solana => "S",
         _ => string.Empty,
     };
 
@@ -90,6 +94,7 @@ public sealed partial class StartPointRowViewModel : ObservableObject
     public string LineText => Preview.State switch
     {
         PreviewState.WaitingForExit => _waiting,
+        PreviewState.NotBuilt when StartPoint.IsShielded => CaseWorkflow.ShieldedText(StartPoint),
         PreviewState.NotBuilt => CaseTexts.ChainName(StartPoint.Chain!.Value) + " hämtas inte, inte byggt än",
         PreviewState.Failed => Preview.Problem,
         PreviewState.NotRecognised => NotRecognisedText,
@@ -102,7 +107,7 @@ public sealed partial class StartPointRowViewModel : ObservableObject
         : string.Empty;
 
     /// <summary>Gets whether the start point can be fetched at all (its chain is built).</summary>
-    public bool CanFetch => StartPoint.IsSupported;
+    public bool CanFetch => StartPoint.CanFetch;
 
     /// <summary>Gets whether the row still wants a lookup: it waits for the exit or was stopped while fetching.</summary>
     public bool WantsFetch => CanFetch && Preview.State is PreviewState.WaitingForExit or PreviewState.Fetching;
@@ -143,6 +148,6 @@ public sealed partial class StartPointRowViewModel : ObservableObject
             return PreviewState.NotRecognised;
         }
 
-        return startPoint.IsSupported ? PreviewState.WaitingForExit : PreviewState.NotBuilt;
+        return startPoint.CanFetch ? PreviewState.WaitingForExit : PreviewState.NotBuilt;
     }
 }

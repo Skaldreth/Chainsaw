@@ -64,6 +64,11 @@ Den är ändå en bedömning, och den går att ändra som klustringens egna samm
 - **Ångra** godkännandet i listan (**Ctrl+Z**) eller sammanslagningen under *Historik* i inspektören. Båda tar
   tillbaka godkännandet och sammanslagningen tillsammans, så att förslaget väntar igen.
 
+Att ångra godkännandet från panelen **bekräftas i grafen**, eftersom det delar ett kluster som grafen står på. Klustret
+väljs i grafen och öppnas som ett **kort med sina adresser**, med en liten ruta under. Panelen säger *Bekräfta i
+grafen*. **Enter** ångrar godkännandet, med ett frivilligt skäl, och **Esc** (eller ett klick på något annat) låter det
+stå. Ångrandet sparas som ett nytt förseglat beslut: godkännandet står kvar i journalen och i *Historik*, överstruket.
+
 Efter godkännandet heter förslaget *Godkänd plånbok*. Kommer det fram en ny adress som hör ihop med plånboken blir den
 ett **nytt förslag**, så att ett godkännande aldrig gäller en adress du inte såg.
 

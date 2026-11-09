@@ -1,4 +1,5 @@
 using Chainsaw.App.Graph;
+using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Checks.Contracts;
 using Chainsaw.Modules.Clustering.Contracts;
@@ -21,6 +22,14 @@ public sealed partial class GraphViewModel
 
     /// <summary>Counts the readings of what is held back, so that an older answer is dropped.</summary>
     private int _heldReads;
+
+    /// <summary>
+    /// What the case knows replaced each transaction a held back conclusion was built on, for its hovering (HB1a).
+    /// </summary>
+    private IReadOnlyDictionary<Txid, IReadOnlyList<Txid>> _heldReplacers = new Dictionary<Txid, IReadOnlyList<Txid>>();
+
+    /// <summary>Gets what the case knows replaced each transaction a held back conclusion was built on.</summary>
+    public IReadOnlyDictionary<Txid, IReadOnlyList<Txid>> HeldReplacers => _heldReplacers;
 
     /// <summary>The analysis whose likely services can become labels (sketch TJ1b).</summary>
     public const string ServiceAnalysis = "service-behaviour";
@@ -103,14 +112,23 @@ public sealed partial class GraphViewModel
     }
 
     /// <summary>
-    /// Writes what hovering a held back mark tells: what is held back, what it was built on, and that the old
-    /// conclusion stands until the user chooses (sketch HB1a).
+    /// Writes what hovering a held back mark tells: what is held back, what it was built on and what replaced that,
+    /// and that the old conclusion stands until the user chooses (sketch HB1a).
     /// </summary>
     /// <param name="held">The conclusion.</param>
+    /// <param name="replacers">
+    /// What the case knows replaced each transaction, from the sealed answers about its coins; none when not given.
+    /// </param>
     /// <returns>The lines.</returns>
-    public static IReadOnlyList<string> HeldBackLines(HeldBackConclusion held)
+    public static IReadOnlyList<string> HeldBackLines(
+        HeldBackConclusion held, IReadOnlyDictionary<Txid, IReadOnlyList<Txid>>? replacers = null)
     {
         ArgumentNullException.ThrowIfNull(held);
+        var replaced = held.Missing
+            .SelectMany(txid => replacers?.GetValueOrDefault(txid) ?? [])
+            .Distinct()
+            .Select(txid => GraphScene.Shorten(txid.Value))
+            .ToList();
         var heuristics = string.Join(
             ", ",
             held.Evidence.Select(evidence => evidence.Heuristic)
@@ -123,6 +141,7 @@ public sealed partial class GraphViewModel
             HeldBackTitle,
             heuristics + " drog slutsatser på en tx som inte finns i senaste körningen.",
             "Byggde på " + missing,
+            .. replaced.Count > 0 ? (string[])[BlockMarks.ReplacedByText + string.Join(", ", replaced)] : [],
             "Den gamla slutsatsen står kvar tills du väljer. Klicka för Historik.",
         ];
     }
@@ -198,6 +217,7 @@ public sealed partial class GraphViewModel
             {
                 _heldBack = [.. held.Where(conclusion => conclusion.IsWaiting)];
                 Redraw?.Invoke(this, EventArgs.Empty);
+                await ReadHeldReplacersAsync(openCase, read);
             }
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
@@ -207,6 +227,34 @@ public sealed partial class GraphViewModel
             {
                 _heldBack = [];
             }
+        }
+    }
+
+    /// <summary>
+    /// Reads what replaced the transactions the held back conclusions were built on, for the hovering's
+    /// <em>Ersatt av …</em> (HB1a): each one the rule says is gone is asked about once per case through the exit,
+    /// and all are then read from the case.
+    /// </summary>
+    /// <param name="openCase">The case.</param>
+    /// <param name="read">The reading it belongs to; a newer one drops it.</param>
+    /// <returns>A task that completes when they are read.</returns>
+    private async Task ReadHeldReplacersAsync(ICase openCase, int read)
+    {
+        if (_chainState is not { } state)
+        {
+            return;
+        }
+
+        // Only a transaction the rule says is gone is asked about; the others are read from the case.
+        var missing = _heldBack.SelectMany(held => held.Missing).Distinct().ToList();
+        var gone = GoneByRule();
+        await AskAsync(state, openCase, [.. missing.Where(txid => gone.Contains(txid.Stored))]);
+
+        var replacers = await state.ReadReplacersAsync(openCase, missing, _work.Token);
+        if (read == _heldReads && _session.Current == openCase)
+        {
+            _heldReplacers = replacers;
+            Redraw?.Invoke(this, EventArgs.Empty);
         }
     }
 }

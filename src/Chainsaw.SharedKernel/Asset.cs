@@ -63,6 +63,17 @@ public sealed record Asset
     /// <summary>Gets tronix, counted in sun (6 decimals).</summary>
     public static Asset Tronix { get; } = new(Chain.Tron, AssetKind.Native, "TRX", 6, null);
 
+    /// <summary>Gets litecoin, counted in litoshi (8 decimals).</summary>
+    public static Asset Litecoin { get; } = new(Chain.Litecoin, AssetKind.Native, "LTC", 8, null);
+
+    /// <summary>Gets BNB, BSC's own coin, counted in wei (18 decimals).</summary>
+    public static Asset Bnb { get; } = new(Chain.Bsc, AssetKind.Native, "BNB", 18, null);
+
+    /// <summary>Gets zcash, counted in zatoshi (8 decimals).</summary>
+    public static Asset Zcash { get; } = new(Chain.Zcash, AssetKind.Native, "ZEC", 8, null);
+    /// <summary>Gets SOL, Solana's own coin, counted in lamports (9 decimals).</summary>
+    public static Asset Sol { get; } = new(Chain.Solana, AssetKind.Native, "SOL", 9, null);
+
     /// <summary>Gets the chain it lives on.</summary>
     public Chain Chain { get; }
 
@@ -89,8 +100,8 @@ public sealed record Asset
         new(chain, AssetKind.Token, symbol, decimals, contract);
 
     /// <summary>
-    /// Writes a contract the way the chain compares it: Ethereum's hex addresses in lower case (the mixed case is only
-    /// a checksum), other chains' as they are, since base58 is case sensitive.
+    /// Writes a contract the way the chain compares it: hex addresses on Ethereum's virtual machine (Ethereum and BSC)
+    /// in lower case (the mixed case is only a checksum), other chains' as they are, since base58 is case sensitive.
     /// </summary>
     /// <param name="chain">The chain.</param>
     /// <param name="contract">The contract, or null.</param>
@@ -98,7 +109,7 @@ public sealed record Asset
     private static string? Normalise(Chain chain, string? contract)
     {
         var trimmed = contract?.Trim();
-        return chain == Chain.Ethereum ? trimmed?.ToLowerInvariant() : trimmed;
+        return chain.IsEvm() ? trimmed?.ToLowerInvariant() : trimmed;
     }
 
     /// <summary>Says whether two assets are the same: the same chain, kind and contract.</summary>

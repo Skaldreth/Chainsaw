@@ -63,6 +63,7 @@ public sealed partial class GateViewModel : ObservableObject
         vault.StateChanged += (_, state) => ui.Post(() => OnVaultChanged(state));
         firstRun.Completed += (_, _) => OnSetupCompleted();
         lockSignal.Requested += (_, _) => Lock();
+        lockSignal.RequestedWithNotice += (_, notice) => LockWithNotice(notice);
         links.WaitingChanged += (_, _) => ui.Post(() => lockScreen.HasWaitingLink = links.HasWaiting);
         if (Mode == GateMode.Unlocked)
         {
@@ -142,6 +143,26 @@ public sealed partial class GateViewModel : ObservableObject
         if (_autoLock.LocksWithWindows)
         {
             OnWindowsLocked();
+        }
+    }
+
+    /// <summary>
+    /// Locks Chainsaw unless the lock screen is already shown, and shows the words on it; before the vault exists
+    /// there is nothing to lock and nothing is shown. An unlock already started on the lock screen is left to finish,
+    /// and clears the words when it succeeds.
+    /// </summary>
+    /// <param name="notice">The words.</param>
+    private void LockWithNotice(string notice)
+    {
+        if (Mode != GateMode.Locked)
+        {
+            Lock();
+        }
+
+        // An unlock that already succeeded, with the new key, needs no notice.
+        if (Mode == GateMode.Locked && _vault.State == VaultState.Locked)
+        {
+            LockScreen.ShowNotice(notice);
         }
     }
 

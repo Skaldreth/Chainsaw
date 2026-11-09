@@ -30,7 +30,9 @@ public static class TracingModule
         services.AddSingleton<ITracingMethod, AccountFifoMethod>();
         services.AddSingleton<ITracingMethod, AccountHaircutMethod>();
         services.AddSingleton<ITrailEndClassifier, CoinJoinTrailEnds>();
+        services.AddSingleton<ITrailEndClassifier, MwebTrailEnds>();
         services.AddSingleton<ITracingService, TracingService>();
+        services.AddSingleton<ICrossChainLinks, CrossChainLinks>();
         services.AddSingleton<IExposureAnalysis, ExposureAnalysis>();
         services.AddSingleton<ICaseSchemaContributor, TrashSchema>();
         services.AddSingleton<IGraphTrash, GraphTrashService>();

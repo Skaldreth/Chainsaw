@@ -6,13 +6,16 @@ public sealed class AttributionOptions
     /// <summary>The name of the sanction lists' folder.</summary>
     private const string SanctionFolder = "Sanktionslistor";
 
+    /// <summary>The name of the open sources' folder.</summary>
+    private const string OpenSourceFolder = "Öppna källor";
+
     /// <summary>The name of the label library's folder.</summary>
     private const string LibraryFolder = "Etiketter";
 
     /// <summary>
     /// Gets or sets the application's data folder; the application uses <c>%LOCALAPPDATA%\Chainsaw</c>, tests a
-    /// temporary folder. The sanction lists live in <c>Sanktionslistor</c> and the label library in <c>Etiketter</c>
-    /// under it; the folders are created when something is first written.
+    /// temporary folder. The sanction lists live in <c>Sanktionslistor</c>, the open sources in <c>Öppna källor</c>
+    /// and the label library in <c>Etiketter</c> under it; the folders are created when something is first written.
     /// </summary>
     public string Directory { get; set; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Chainsaw");
@@ -22,6 +25,9 @@ public sealed class AttributionOptions
 
     /// <summary>Gets the sanction lists' folder.</summary>
     internal string SanctionDirectory => Path.Combine(Directory, SanctionFolder);
+
+    /// <summary>Gets the open sources' folder.</summary>
+    internal string OpenSourceDirectory => Path.Combine(Directory, OpenSourceFolder);
 
     /// <summary>Gets the label library's folder.</summary>
     internal string LibraryDirectory => Path.Combine(Directory, LibraryFolder);

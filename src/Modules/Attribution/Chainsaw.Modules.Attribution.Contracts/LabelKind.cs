@@ -69,6 +69,13 @@ public enum LabelKind
     /// trail. The label's name and reason say which list and the dates.
     /// </summary>
     FormerlySanctioned,
+
+    /// <summary>
+    /// May be on a sanction list: a list names an address of this form, but does not say for certain which chain it
+    /// is on (the EU's list, where several chains share the same forms of address). A possible sanction to look at,
+    /// never a sanction and never an end of the trail; the reason quotes what the list says.
+    /// </summary>
+    PossiblySanctioned,
 }
 
 /// <summary>The colour group of a <see cref="LabelKind"/> in the graph, after what happens to the money.</summary>
@@ -135,6 +142,7 @@ public static class LabelKinds
         LabelKind.Unknown => "Okänd",
         LabelKind.Reported => "Rapporterad",
         LabelKind.FormerlySanctioned => "Tidigare sanktionerad",
+        LabelKind.PossiblySanctioned => "Möjlig sanktion",
         _ => kind.ToString(),
     };
 }

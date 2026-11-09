@@ -92,6 +92,28 @@ public interface IBitcoinSource
         ICase @case, Txid txid, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Checks that a transaction is in the block the source says it is in: its own bytes are checked first
+    /// (<see cref="VerifyTransactionAsync"/>), the block is checked against its own header, the source's merkle proof
+    /// (<c>/tx/:txid/merkle-proof</c>) must lead from the txid to the header's root with the depth the block's
+    /// transactions give, and another endpoint in step is asked for the block's hash at the height. Each response is
+    /// sealed in the case, and <see cref="BitcoinTransaction.InBlock"/> says exactly how far it was checked. A
+    /// transaction not in a block has nothing to check and is given as it is.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="txid">The transaction's id.</param>
+    /// <param name="cancellationToken">Stops the lookups.</param>
+    /// <returns>
+    /// The transaction, checked when the proof and the header could be had, and otherwise unchecked with the reason in
+    /// a note; a proof that does not lead to the header's root is never accepted: the answer is
+    /// <see cref="LookupStatus.Failed"/>. A source that cannot prove it answers <see cref="LookupStatus.Failed"/> and
+    /// sends nothing.
+    /// </returns>
+    Task<BitcoinLookup<BitcoinTransaction>> VerifyInBlockAsync(
+        ICase @case, Txid txid, CancellationToken cancellationToken = default) =>
+        Task.FromResult(new BitcoinLookup<BitcoinTransaction>(
+            LookupStatus.Failed, null, [], "Källan kan inte visa att tx:en ligger i blocket. Inget skickades."));
+
+    /// <summary>
     /// Gets what the source says about an address as a whole: its number of transactions and what it has received
     /// and spent. It always changes, so it is fetched anew (and sealed) every time; offline the case answers.
     /// </summary>
@@ -130,6 +152,23 @@ public interface IBitcoinSource
     /// <param name="cancellationToken">Stops the lookup.</param>
     /// <returns>The height.</returns>
     Task<BitcoinLookup<BitcoinTip>> GetTipHeightAsync(ICase @case, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets the height of the newest block, asking only the endpoints the mode allows: the monitoring asks with
+    /// <see cref="LookupMode.InStep"/>, so that a watch never starts or counts from a height an endpoint a block
+    /// behind gave. A source that has no such choice answers <see cref="LookupMode.AsNeeded"/> as the overload without
+    /// it does, and refuses the other modes rather than ignore them.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="mode">Which endpoints may answer.</param>
+    /// <param name="cancellationToken">Stops the lookup.</param>
+    /// <returns>The height.</returns>
+    /// <exception cref="NotSupportedException">The source cannot ask in the mode.</exception>
+    Task<BitcoinLookup<BitcoinTip>> GetTipHeightAsync(
+        ICase @case, LookupMode mode, CancellationToken cancellationToken = default) =>
+        mode == LookupMode.AsNeeded
+            ? GetTipHeightAsync(@case, cancellationToken)
+            : throw new NotSupportedException("The source cannot ask in that mode.");
 
     /// <summary>
     /// Gets the newest block with its hash (<c>/blocks/tip/hash</c>, always fetched anew) and its height and time from
@@ -172,4 +211,29 @@ public interface IBitcoinSource
     Task<IReadOnlyList<BlockChange>> GetBlockChangesAsync(
         ICase @case, CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyList<BlockChange>>([]);
+
+    /// <summary>
+    /// Gets which transaction spends the coins of a transaction instead (sketch GR9a, <em>Ersatt av</em>): for each
+    /// coin its inputs spent, the source's answer about who spends it now: one <c>/tx/:txid/outspends</c> per
+    /// transaction whose coins it spent, at most twenty, each sealed in the case. Only those transactions' ids are
+    /// sent, never the gone transaction or the case (principle 4). The answers are kept apart from those the graph
+    /// follows (<see cref="GetOutputSpendsAsync"/>), so that asking never makes the trace follow the replacer by
+    /// itself.
+    /// </summary>
+    /// <param name="case">The open case, which must hold the transaction's description.</param>
+    /// <param name="txid">The transaction the source no longer knows.</param>
+    /// <param name="mode">
+    /// <see cref="LookupMode.CaseOnly"/> reads the newest sealed answers and sends nothing; otherwise a transaction's
+    /// coins are asked about again unless the case already knows that other transactions in a block spend them all
+    /// (an unconfirmed replacer may itself have been replaced).
+    /// </param>
+    /// <param name="cancellationToken">Stops the lookups.</param>
+    /// <returns>
+    /// The coins and what spends them; <see cref="LookupStatus.NotInCase"/> when the case does not hold the
+    /// transaction. A source that cannot say answers <see cref="LookupStatus.Failed"/> and sends nothing.
+    /// </returns>
+    Task<BitcoinLookup<TransactionReplacement>> GetReplacementAsync(
+        ICase @case, Txid txid, LookupMode mode = LookupMode.CaseOnly, CancellationToken cancellationToken = default) =>
+        Task.FromResult(new BitcoinLookup<TransactionReplacement>(
+            LookupStatus.Failed, null, [], "Källan kan inte säga vad som ersatte tx:en. Inget skickades."));
 }

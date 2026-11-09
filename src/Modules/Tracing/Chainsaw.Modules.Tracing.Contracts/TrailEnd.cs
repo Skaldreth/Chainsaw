@@ -63,6 +63,40 @@ public enum TrailEndReason
 
     /// <summary>A service that is not known: the money goes on inside it in ways the chain does not show.</summary>
     UnknownService,
+
+    /// <summary>
+    /// Not an end: the traced value went into a swap and follows in the asset that came out
+    /// (<see cref="SwapValue"/>), a judgement; the asset's own trace stops here, and the new asset's goes on.
+    /// </summary>
+    Swapped,
+
+    /// <summary>
+    /// The trail ends in a swap, because the user chose that the traced value does not follow through it
+    /// (<see cref="SwapStop"/>, sketch SW1a).
+    /// </summary>
+    SwapStopped,
+
+    /// <summary>
+    /// The part of the traced value that went into a swap but that what came out was not worth, by the price check
+    /// (<see cref="SwapPriceCheck.KeptShare"/>): it stays in the pool as fees and slippage.
+    /// </summary>
+    KeptBySwapPool,
+
+    /// <summary>
+    /// The money was spent into a transaction that the source no longer knows (sketch GR9a, <em>Finns inte
+    /// längre</em>): it is not in the chain any more, so nothing after it can be followed. What spends the coins now
+    /// is said with the end (<see cref="GoneTransaction"/>); following the replacer is the user's choice
+    /// (<see cref="ReplacementFollow"/>).
+    /// </summary>
+    TransactionGone,
+
+    /// <summary>
+    /// Not an end: the source says it no longer knows the transaction the money was spent into, but what it says does
+    /// not settle it (only one endpoint said so while others could be asked, or its answers about the coins say the
+    /// transaction still spends them). The trace stops here rather than guess either way; asking again, or another
+    /// endpoint, may settle it.
+    /// </summary>
+    GoneUncertain,
 }
 
 /// <summary>Reads what a <see cref="TrailEndReason"/> means for the trace.</summary>
@@ -76,7 +110,8 @@ public static class TrailEndReasons
     /// <param name="reason">The reason.</param>
     /// <returns>Whether the trail ends.</returns>
     public static bool EndsTrail(this TrailEndReason reason) =>
-        reason is not (TrailEndReason.NotExpanded or TrailEndReason.Unspent or TrailEndReason.Conflicting);
+        reason is not (TrailEndReason.NotExpanded or TrailEndReason.Unspent or TrailEndReason.Conflicting
+            or TrailEndReason.Swapped or TrailEndReason.GoneUncertain);
 
     /// <summary>Gives the reason as the user reads it, in Swedish.</summary>
     /// <param name="reason">The reason.</param>
@@ -95,6 +130,11 @@ public static class TrailEndReasons
         TrailEndReason.Exchange => "Börs, uttag funnet",
         TrailEndReason.Service => "Tjänst",
         TrailEndReason.UnknownService => "Okänd tjänst",
+        TrailEndReason.Swapped => "Följer med genom en swap",
+        TrailEndReason.SwapStopped => "Slutar i swappen (ditt val)",
+        TrailEndReason.KeptBySwapPool => "Stannar i poolen",
+        TrailEndReason.TransactionGone => "Tx:en finns inte längre",
+        TrailEndReason.GoneUncertain => "Tx:en kanske inte finns; uppgifterna går inte ihop",
         _ => reason.ToString(),
     };
 }

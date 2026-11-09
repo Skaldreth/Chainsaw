@@ -15,7 +15,31 @@ namespace Chainsaw.App.ViewModels;
 /// <param name="Count">How many, for example <c>5 aktörer</c>.</param>
 /// <param name="Rows">The tree's rows.</param>
 public sealed record TrashThrowGroup(
-    TrashThrow Throw, string When, string By, string Count, IReadOnlyList<TrashRowViewModel> Rows);
+    TrashThrow Throw, string When, string By, string Count, IReadOnlyList<TrashRowViewModel> Rows)
+{
+    /// <summary>How many shapes the card's deck shows at most (sketch SO2a).</summary>
+    public const int DeckSize = 3;
+
+    /// <summary>Gets the card's title: what was thrown, and how many came along, for example <c>K7 och 2 till</c>.</summary>
+    public string Title => Rows.Count switch
+    {
+        0 => string.Empty,
+        1 => Rows[0].Name,
+        _ => string.Create(CultureInfo.InvariantCulture, $"{Rows[0].Name} och {Rows.Count - 1} till"),
+    };
+
+    /// <summary>Gets the line under the title: when, who and how many.</summary>
+    public string Meta => string.Join(" · ", When, By, Count);
+
+    /// <summary>Gets the first rows, drawn as shapes laid like a deck of cards in the card's head.</summary>
+    public IReadOnlyList<TrashRowViewModel> Deck => [.. Rows.Take(DeckSize)];
+
+    /// <summary>Gets whether more than what was thrown lies in it, so that it has a tree to fold out.</summary>
+    public bool HasTree => Rows.Count > 1;
+
+    /// <summary>Gets whether anything in it is watched; the watch goes on while it lies in the trash.</summary>
+    public bool IsWatched => Rows.Any(row => row.IsWatched);
+}
 
 /// <summary>A case thrown on the start page, as the trash's view lists it.</summary>
 /// <param name="CaseNumber">The case.</param>
@@ -40,6 +64,12 @@ public sealed record TrashPileRow(string PileId, string Name, string When, IRead
     public string CountText => Cases.Count == 1
         ? "1 ärende"
         : string.Create(CultureInfo.InvariantCulture, $"{Cases.Count} ärenden");
+
+    /// <summary>Gets the line under the pile's name on its tile: how many and when.</summary>
+    public string Meta => CountText + " · " + When;
+
+    /// <summary>Gets the tile's tooltip: the cases in it.</summary>
+    public string CasesToolTip => string.Join(", ", Cases.Select(each => each.CaseNumber));
 }
 
 /// <summary>
@@ -53,15 +83,18 @@ public sealed partial class TrashViewModel : ObservableObject
     public const string EmptyTitle = "Soptunnan är tom";
 
     /// <summary>The line under it.</summary>
-    public const string EmptyText = "Dra något i grafen mot soptunnan nere till vänster för att dölja det.";
+    public const string EmptyText = "Dra något mot hörnet nere till vänster för att slänga det";
 
-    /// <summary>What the head says beside the count: nothing is taken out of the case.</summary>
-    public const string NothingRemovedText = "Inget tas bort ur ärendet: det slängda göms bara i grafen";
+    /// <summary>The view's title (sketch SO2a): the view is opened from the bin, not the pill, so it says where it is.</summary>
+    public const string Title = "Soptunnan";
 
-    /// <summary>The cases' heading.</summary>
-    public const string CasesTitle = "Ärenden från startsidan";
+    /// <summary>The case's section heading.</summary>
+    public const string ThrowsTitle = "I ÄRENDET";
 
-    /// <summary>What the cases' heading says: they lie on this computer, and the file is untouched.</summary>
+    /// <summary>The cases' section heading.</summary>
+    public const string CasesTitle = "PÅ STARTSIDAN";
+
+    /// <summary>The tooltip on the cases' heading: they lie on this computer, and the file is untouched.</summary>
     public const string CasesText = "Döljs bara på startsidan på den här datorn. Filen ligger kvar.";
 
     /// <summary>The month names, short, so that the text does not hang on the computer's culture.</summary>
@@ -101,22 +134,22 @@ public sealed partial class TrashViewModel : ObservableObject
 
     /// <summary>Gets the throws, the newest first.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasThrows), nameof(IsEmpty), nameof(HeadText))]
+    [NotifyPropertyChangedFor(nameof(HasThrows), nameof(IsEmpty), nameof(HeadText), nameof(SubText), nameof(ThrowsCount))]
     public partial IReadOnlyList<TrashThrowGroup> Groups { get; private set; } = [];
 
     /// <summary>Gets the cases thrown on their own on the start page, the latest first.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasCases), nameof(IsEmpty))]
+    [NotifyPropertyChangedFor(nameof(HasCases), nameof(IsEmpty), nameof(SubText), nameof(CasesCount))]
     public partial IReadOnlyList<TrashCaseRow> Cases { get; private set; } = [];
 
     /// <summary>Gets the piles thrown whole on the start page, the latest first.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasCases), nameof(IsEmpty))]
+    [NotifyPropertyChangedFor(nameof(HasCases), nameof(IsEmpty), nameof(SubText), nameof(CasesCount))]
     public partial IReadOnlyList<TrashPileRow> Piles { get; private set; } = [];
 
     /// <summary>Gets how many nodes the trash hides in the graph now.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HeadText))]
+    [NotifyPropertyChangedFor(nameof(HeadText), nameof(SubText))]
     public partial int HiddenInGraph { get; private set; }
 
     /// <summary>Gets whether any throw lies in the trash.</summary>
@@ -136,6 +169,36 @@ public sealed partial class TrashViewModel : ObservableObject
         _ => string.Create(
             CultureInfo.InvariantCulture, $"{Groups.Count} slängningar · {HiddenInGraph} dolda i grafen"),
     };
+
+    /// <summary>
+    /// Gets the line under the title: <c>2 slängningar · 6 dolda i grafen · 3 från startsidan</c>, with only the parts
+    /// that hold anything.
+    /// </summary>
+    public string SubText
+    {
+        get
+        {
+            var parts = new List<string>();
+            if (HasThrows)
+            {
+                parts.Add(HeadText);
+            }
+
+            var fromStart = Cases.Count + Piles.Count;
+            if (fromStart > 0)
+            {
+                parts.Add(string.Create(CultureInfo.InvariantCulture, $"{fromStart} från startsidan"));
+            }
+
+            return string.Join(" · ", parts);
+        }
+    }
+
+    /// <summary>Gets the case section's count: <c>1 slängning</c> or <c>3 slängningar</c>.</summary>
+    public string ThrowsCount => Counted(Groups.Count, "slängning", "slängningar");
+
+    /// <summary>Gets the start page section's count, the cases in piles too: <c>1 ärende</c> or <c>4 ärenden</c>.</summary>
+    public string CasesCount => Counted(Cases.Count + Piles.Sum(pile => pile.Cases.Count), "ärende", "ärenden");
 
     /// <summary>Opens the view.</summary>
     public void Open() => IsOpen = true;
@@ -217,6 +280,21 @@ public sealed partial class TrashViewModel : ObservableObject
     /// <summary>Puts every case and pile back on the start page.</summary>
     [RelayCommand]
     public void RestoreAllCases() => _cases.RestoreAll();
+
+    /// <summary>Puts everything back: every throw in the graph, and every case and pile on the start page.</summary>
+    [RelayCommand]
+    public void RestoreEverything()
+    {
+        foreach (var group in Groups.ToList())
+        {
+            RestoreAll(group);
+        }
+
+        if (HasCases)
+        {
+            RestoreAllCases();
+        }
+    }
 
     /// <summary>Writes how many: <c>1 aktör</c> or <c>5 aktörer</c>.</summary>
     /// <param name="count">How many.</param>

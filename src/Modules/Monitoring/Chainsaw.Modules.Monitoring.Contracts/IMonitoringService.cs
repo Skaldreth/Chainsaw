@@ -58,7 +58,15 @@ public sealed record WatchHit(
     WatchMatch Match,
     IReadOnlyList<long> Origins,
     long JournalSequence,
-    DateTimeOffset RecordedUtc);
+    DateTimeOffset RecordedUtc)
+{
+    /// <summary>
+    /// Gets the block the hit was sealed in before, when a later check found its transaction in another block (a
+    /// reorganisation of the chain), or <see langword="null"/>. The hit then rests on its latest block, and both
+    /// records stay sealed in the case.
+    /// </summary>
+    public WatchBlock? MovedFrom { get; init; }
+}
 
 /// <summary>Where a hit the background process saw stands, until Chainsaw has checked it against the chain.</summary>
 public enum WatchTipState
@@ -351,6 +359,9 @@ public static class MonitoringJournalKinds
 
     /// <summary>A check found hits and sealed them.</summary>
     public const string Hit = "monitoring.hit";
+
+    /// <summary>A hit's transaction was found in another block than the one it was sealed in (a reorganisation).</summary>
+    public const string HitMoved = "monitoring.hit.moved";
 
     /// <summary>What the background process saw was brought into the case.</summary>
     public const string Imported = "monitoring.imported";

@@ -353,6 +353,7 @@ public partial class MainWindow : Window
             .. Graph.TimelineReading.Hits(tracedGraph, watches.Snapshot.Watches, watches.Snapshot.Hits),
             .. Graph.TimelineReading.Decisions(tracedGraph, graph.Checks.Stored),
         ];
+        timeline.IsElsewhere = graph.WasAddedElsewhere;
         timeline.Update(graph.Scene);
         graph.PropertyChanged += (_, e) =>
         {

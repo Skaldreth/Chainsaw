@@ -133,6 +133,9 @@ internal sealed class TestVault(VaultState state, string key = "correct horse ba
 
     public Exception? Failure { get; set; }
 
+    /// <summary>Runs inside <see cref="ChangeMasterKey"/>, before the key is changed: a lock meanwhile, for example.</summary>
+    public Action? DuringChange { get; set; }
+
     public void Create(ReadOnlySpan<char> masterKey)
     {
         if (Failure is not null)
@@ -171,6 +174,7 @@ internal sealed class TestVault(VaultState state, string key = "correct horse ba
 
     public void ChangeMasterKey(ReadOnlySpan<char> currentMasterKey, ReadOnlySpan<char> newMasterKey)
     {
+        DuringChange?.Invoke();
         if (Failure is not null)
         {
             throw Failure;
@@ -766,6 +770,32 @@ internal sealed class TestTracing : ITracingService
 
     public IReadOnlyList<CrossChainLinkHistoryEntry> GetCrossChainHistory(ICase @case) => [];
 
+    public List<(TokenSwap Swap, string? Reason)> Stopped { get; } = [];
+
+    public List<SwapStop> Followed { get; } = [];
+
+    public List<SwapStopHistoryEntry> SwapHistory { get; } = [];
+
+    public SwapStop StopAtSwap(ICase @case, TokenSwap swap, string? reason)
+    {
+        Stopped.Add((swap, reason));
+        return new SwapStop(Stopped.Count, swap.Transaction, swap.Account, reason, Stopped.Count, DateTimeOffset.UnixEpoch);
+    }
+
+    public bool FollowSwap(ICase @case, SwapStop stop, string? reason)
+    {
+        Followed.Add(stop);
+        return true;
+    }
+
+    public IReadOnlyList<SwapStopHistoryEntry> GetSwapStopHistory(ICase @case) => SwapHistory;
+
+    public Task<ReplacementFollow> FollowReplacementAsync(
+        ICase @case, Txid gone, Txid replacer, string? reason, CancellationToken cancellationToken = default) =>
+        Task.FromResult(new ReplacementFollow(1, gone, replacer, reason, 1, DateTimeOffset.UnixEpoch));
+
+    public bool TakeBackReplacement(ICase @case, ReplacementFollow follow, string? reason) => true;
+
     public void SavePosition(ICase @case, string nodeKey, GraphLayout layout, NodePosition position) =>
         throw new NotSupportedException();
 
@@ -892,7 +922,8 @@ internal sealed class GateRig
         Way = new ExitWay(Route, Exit, Ui, network: Network, reconnect: Reconnect);
         ExitPanel = new ExitPanelViewModel(Exit, Way, Exits, Picker, Ui);
         Settings = new SettingsViewModel(
-            new AppSettings(), SettingsStore, Way, ExitPanel, AutoLock, Prices, Profiles, Vault, Cases, Build);
+            new AppSettings(), SettingsStore, Way, ExitPanel, AutoLock, Prices, Profiles, Vault, Cases, Build,
+            lockSignal: LockSignal);
         Toaster = new Toaster(Ui);
         CasePicker = withCasePicker
             ? new CasePickerViewModel(Session, Workflow, Verifier, Ui, Clock, TimeZoneInfo.Utc)

@@ -35,7 +35,7 @@ internal sealed class BackgroundWatches(
         "Bakgrunden säger att bevakningen av {0} slog till: {1}; väntar på kontroll mot kedjan";
 
     /// <summary>The chains the background can watch.</summary>
-    private static readonly IReadOnlySet<Chain> Watchable = new HashSet<Chain> { Chain.Bitcoin, Chain.Ethereum };
+    private static readonly IReadOnlySet<Chain> Watchable = WatchSources.Watchable;
 
     /// <inheritdoc/>
     public BackgroundCase Describe(ICase @case, DateTimeOffset utc)

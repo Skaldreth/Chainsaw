@@ -26,7 +26,17 @@ public sealed record BitcoinBlock(
     /// <summary>
     /// Gets whether Chainsaw has checked this description against the block's own 80-byte header, sealed in the case:
     /// the header hashes to the block's hash, meets the target its own bits name, and has this version, previous
-    /// block, merkle root and time.
+    /// block, merkle root and time. On Litecoin the header hashes to the block, but its work (scrypt, not the double
+    /// SHA-256 that names the block) is not checked.
     /// </summary>
     public bool HeaderVerified { get; init; }
+
+    /// <summary>
+    /// Gets the target in compact form as the source described it (<c>bits</c>), or <see langword="null"/> when it
+    /// did not; checked against the header when given.
+    /// </summary>
+    public uint? Bits { get; init; }
+
+    /// <summary>Gets the nonce as the source described it, or <see langword="null"/>; checked against the header.</summary>
+    public uint? Nonce { get; init; }
 }

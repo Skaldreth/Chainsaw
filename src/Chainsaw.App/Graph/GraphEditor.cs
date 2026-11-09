@@ -107,6 +107,42 @@ public interface IGraphEditor
     Task<UndoOutcome> UnlinkAsync(ICase @case, CrossChainLink link, string? reason);
 
     /// <summary>
+    /// Chooses that the trace follows the transaction that replaced a gone one (sketch GR9a, <em>Följ
+    /// ersättaren</em>): the replacer is fetched through the exit and the choice sealed with a line in the journal.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="gone">The gone transaction.</param>
+    /// <param name="replacer">The replacer.</param>
+    /// <returns>The choice.</returns>
+    Task<ReplacementFollow> FollowReplacementAsync(ICase @case, Txid gone, Txid replacer);
+
+    /// <summary>Takes back a choice to follow a replacer, sealed with a line in the journal.</summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="follow">The choice.</param>
+    /// <returns>Whether it was taken back.</returns>
+    Task<UndoOutcome> TakeBackReplacementAsync(ICase @case, ReplacementFollow follow);
+
+    /// <summary>
+    /// Chooses that the traced value does not follow through a swap (sketch SW1a, <em>Följer inte</em>), sealed with
+    /// a line in the journal; choosing it again for the same swap stores nothing new.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="swap">The swap.</param>
+    /// <param name="reason">Why, or <see langword="null"/>; the reason is optional.</param>
+    /// <returns>A task that completes when it is sealed.</returns>
+    Task StopAtSwapAsync(ICase @case, TokenSwap swap, string? reason);
+
+    /// <summary>
+    /// Takes back a choice not to follow a swap, so that the value follows again (<em>Följer</em>, or <em>Ta
+    /// tillbaka</em> in the history), sealed with a line in the journal.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="stop">The choice.</param>
+    /// <param name="reason">Why, or <see langword="null"/>.</param>
+    /// <returns>Whether it was taken back.</returns>
+    Task<UndoOutcome> FollowSwapAsync(ICase @case, SwapStop stop, string? reason);
+
+    /// <summary>
     /// Undoes merges of the user's own (<c>user v1</c>): a merge an approved wallet made is undone by taking the
     /// approval back, so that the suggestion waits again (Checks); sealed, with a line in the journal.
     /// </summary>
@@ -300,6 +336,10 @@ public sealed class GraphEditor(
                 var merges = node.Accounts.Count > 0
                     ? []
                     : Touching(clustering.GetMergeHistory(@case), addresses.ToHashSet());
+                IReadOnlyList<SwapStopHistoryEntry> swapStops =
+                [
+                    .. tracing.GetSwapStopHistory(@case).Where(entry => node.Accounts.Contains(entry.Stop.Account)),
+                ];
                 var withdrawals = cluster is null
                     ? []
                     : ConcernedWithdrawals(clustering.GetWithdrawals(@case), cluster);
@@ -310,6 +350,7 @@ public sealed class GraphEditor(
                 var operators = new Dictionary<long, string>();
                 var needs = NodeHistoryData.JournalNeeds(labels, splits, links)
                     .Union(NodeHistoryData.JournalNeeds(merges))
+                    .Union(NodeHistoryData.JournalNeeds(swapStops))
                     .Union(withdrawals.SelectMany(withdrawal =>
                         new[] { withdrawal.JournalSequence, withdrawal.Undo?.JournalSequence ?? 0 }))
                     .Union(decisions.Select(decision => decision.JournalSequence));
@@ -324,9 +365,11 @@ public sealed class GraphEditor(
                 return new NodeHistoryData(labels, splits, links, cluster, operators)
                 {
                     Merges = merges,
+                    SwapStops = swapStops,
                     Withdrawals = withdrawals,
                     HeldBack = clustering.GetHeldBack(@case),
                     HeldBackDecisions = decisions,
+                    IsElsewhere = sequence => @case.WasAddedElsewhere(CaseChains.Journal, sequence),
                 };
             },
             cancellationToken);
@@ -391,7 +434,42 @@ public sealed class GraphEditor(
     {
         ArgumentNullException.ThrowIfNull(@case);
         ArgumentNullException.ThrowIfNull(link);
-        return Task.Run(() => new UndoOutcome(tracing.UnlinkCrossChain(@case, link, reason)));
+
+        // A link an approved suggestion made is taken back with its approval, so that the suggestion waits again.
+        return Task.Run(() => new UndoOutcome(link.Origin is null
+            ? tracing.UnlinkCrossChain(@case, link, reason)
+            : checks.TakeBackLink(@case, link, reason)));
+    }
+
+    /// <inheritdoc/>
+    public Task<ReplacementFollow> FollowReplacementAsync(ICase @case, Txid gone, Txid replacer)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        return Task.Run(() => tracing.FollowReplacementAsync(@case, gone, replacer, null));
+    }
+
+    /// <inheritdoc/>
+    public Task<UndoOutcome> TakeBackReplacementAsync(ICase @case, ReplacementFollow follow)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(follow);
+        return Task.Run(() => new UndoOutcome(tracing.TakeBackReplacement(@case, follow, null)));
+    }
+
+    /// <inheritdoc/>
+    public Task StopAtSwapAsync(ICase @case, TokenSwap swap, string? reason)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(swap);
+        return Task.Run(() => tracing.StopAtSwap(@case, swap, reason));
+    }
+
+    /// <inheritdoc/>
+    public Task<UndoOutcome> FollowSwapAsync(ICase @case, SwapStop stop, string? reason)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(stop);
+        return Task.Run(() => new UndoOutcome(tracing.FollowSwap(@case, stop, reason)));
     }
 
     /// <inheritdoc/>

@@ -106,4 +106,39 @@ public sealed class OwnAreaTests
         Assert.Null(CheckRules.AddressOf(CheckRules.MemberOf(Txid("t"))));
         Assert.True(harness.Verify().IsIntact);
     }
+
+    [Fact]
+    public void An_area_holds_a_tron_account_with_its_chain()
+    {
+        using var harness = new Harness();
+        var tron = Chainsaw.Modules.Chains.Contracts.EthereumAddress.Parse(
+            Chainsaw.SharedKernel.Chain.Tron, "41" + new string('a', 40)).ToChainAddress();
+
+        var area = harness.Service.AddArea(harness.Case, Draft() with { Members = [CheckRules.MemberOf(tron)] });
+
+        Assert.Equal(tron, CheckRules.AddressOf(Assert.Single(area.Members)));
+    }
+
+    [Fact]
+    public void An_area_keeps_bsc_apart_from_ethereum_for_the_same_hex_and_reads_litecoin_back()
+    {
+        using var harness = new Harness();
+        var hex = "0x" + new string('b', 40);
+        var ethereum = new Chainsaw.SharedKernel.ChainAddress(Chainsaw.SharedKernel.Chain.Ethereum, hex);
+        var bsc = new Chainsaw.SharedKernel.ChainAddress(Chainsaw.SharedKernel.Chain.Bsc, hex);
+        var litecoin = Chainsaw.Modules.Chains.Contracts.BitcoinAddress.FromWitness(
+            0, Enumerable.Repeat((byte)0x33, 20).ToArray(),
+            Chainsaw.Modules.Chains.Contracts.BitcoinNetwork.Litecoin).ToChainAddress();
+
+        var area = harness.Service.AddArea(harness.Case, Draft() with
+        {
+            Members = [CheckRules.MemberOf(ethereum), CheckRules.MemberOf(bsc), CheckRules.MemberOf(litecoin)],
+        });
+
+        Assert.Equal([ethereum, bsc, litecoin], area.Members.Select(member => CheckRules.AddressOf(member)));
+        Assert.Equal("address:bsc:" + hex, CheckRules.MemberOf(bsc));
+
+        // A member stored before BSC could be told apart is Ethereum's, as it always was.
+        Assert.Equal(ethereum, CheckRules.AddressOf("address:" + hex));
+    }
 }

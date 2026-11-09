@@ -70,7 +70,7 @@ internal sealed class GraphBuilder
             .GroupBy(pair => pair.To, StringComparer.Ordinal)
             .ToDictionary(group => group.Key, group => group.Min(pair => pair.Time!.Value), StringComparer.Ordinal);
         _expansions = _data.State.Expansions
-            .GroupBy(expansion => expansion.Subject, StringComparer.Ordinal)
+            .GroupBy(ExpansionKey, StringComparer.Ordinal)
             .ToDictionary(group => group.Key, group => group.Last(), StringComparer.Ordinal);
         var transactionEnds = transactions
             .Select(tx => (tx.Txid, Ends: _knowledge.TransactionEnds(tx)))
@@ -88,6 +88,7 @@ internal sealed class GraphBuilder
             .ThenBy(edge => edge.Key, StringComparer.Ordinal)
             .ToList();
         var account = _data.Account;
+        var (swaps, refused) = account.ReadSwaps(SwapEndpoint);
         var graph = new TraceGraph(
             _data.State.StartPoints,
             nodes,
@@ -98,11 +99,16 @@ internal sealed class GraphBuilder
             problems)
         {
             Account = new AccountGraph(
-                account.Transfers, account.Fees, account.Transactions, account.ReadAccounts, account.Swaps())
+                account.Transfers, account.Fees, account.Transactions, account.ReadAccounts,
+                swaps)
             {
                 MayBeOutdated = account.MayBeOutdated,
                 PartlyRead = account.PartlyRead,
+                RefusedSwaps = refused,
             },
+            SwapStops = _data.State.SwapStops,
+            Gone = _data.Gone,
+            FollowedReplacements = _data.State.Replacements,
         };
         var (piles, clues) = PileRules.Arrange(graph, _data.State);
         return graph with { Piles = piles, HeldBack = clues };
@@ -132,7 +138,7 @@ internal sealed class GraphBuilder
                 GraphEdgeKind.Transfer,
                 AccountNode(transfer.From).Key,
                 AccountNode(transfer.To).Key,
-                AssetTransfer.OfEthereum(transfer, account.BlockOf(transfer.Block)));
+                AssetTransfer.OfEthereum(transfer, account.BlockOf(transfer.Transaction.Chain, transfer.Block)));
         }
     }
 
@@ -144,7 +150,7 @@ internal sealed class GraphBuilder
         var chainAddress = address.ToChainAddress();
         return AddNode(new NodeDraft(NodeKeys.Account(chainAddress), GraphNodeKind.Address)
         {
-            Chain = Chain.Ethereum,
+            Chain = address.Chain,
             Accounts = [chainAddress],
         });
     }
@@ -202,7 +208,8 @@ internal sealed class GraphBuilder
         }
 
         var senders = transaction.Inputs.Select(Sender).Distinct(StringComparer.Ordinal).ToList();
-        if (senders.Count == 1)
+        // A transaction that touches a shielded pool keeps its own node, where the pool's end stands.
+        if (senders.Count == 1 && transaction.Shielded is null)
         {
             foreach (var output in transaction.Outputs)
             {
@@ -234,6 +241,27 @@ internal sealed class GraphBuilder
             AddTransfer(GraphEdgeKind.Transfer, node.Key, Receiver(transaction, output), Paid(transaction, output));
         }
     }
+
+    /// <summary>
+    /// Says why an Ethereum address is one the trail must reach by its label (an exchange, a mixer, or a bridge or
+    /// swap service to another chain), so that a transaction with it is never read as a swap.
+    /// </summary>
+    /// <param name="address">The address.</param>
+    /// <returns>The label's end and source, for example <c>Börs, uttag funnet (etikett: …)</c>, or null.</returns>
+    private string? SwapEndpoint(EthereumAddress address) => SwapEndpoint(_knowledge.AccountEnds, address);
+
+    /// <summary>
+    /// Says why an Ethereum address is one the trail must reach by its label, from the ends the labels give; written
+    /// once, so that choosing for a swap and building the graph read swaps alike.
+    /// </summary>
+    /// <param name="ends">Gives why the trail ends at an account.</param>
+    /// <param name="address">The address.</param>
+    /// <returns>The label's end and source, or <see langword="null"/>.</returns>
+    public static string? SwapEndpoint(Func<ChainAddress, IReadOnlyList<TrailEndHint>> ends, EthereumAddress address) =>
+        ends(address.ToChainAddress())
+            .Where(hint => hint.Reason is TrailEndReason.Exchange or TrailEndReason.Mixer or TrailEndReason.OtherChain)
+            .Select(hint => $"{hint.Reason.Describe()} ({hint.Source})")
+            .FirstOrDefault();
 
     /// <summary>Adds an edge to another chain for every link from a coin or an Ethereum movement in the graph.</summary>
     private void AddCrossChainLinks()
@@ -286,7 +314,7 @@ internal sealed class GraphBuilder
             GraphEdgeKind.ContinuesOnOtherChain,
             AccountNode(transfer.To).Key,
             target.Key,
-            AssetTransfer.OfEthereum(transfer, _data.Account.BlockOf(transfer.Block)));
+            AssetTransfer.OfEthereum(transfer, _data.Account.BlockOf(transfer.Transaction.Chain, transfer.Block)));
     }
 
     /// <summary>
@@ -494,6 +522,8 @@ internal sealed class GraphBuilder
                     ({ } pending, { SpentBy: { } named }) when named.Txid != pending.Txid =>
                         new CoinSpend(SpendState.Spent, named, true),
                     ({ } pending, _) => new CoinSpend(SpendState.Spent, pending, true),
+                    // A source that could not say who spent it leaves the coin unknown, never unspent.
+                    (null, { IsUnknown: true }) => new CoinSpend(SpendState.Unknown, null, true),
                     (null, { } spend) => Asked(spend, answer!.MayBeOutdated),
                     _ => Known(output),
                 };
@@ -537,7 +567,8 @@ internal sealed class GraphBuilder
                 [.. draft.Accounts.SelectMany(_knowledge.AccountEnds).Distinct()],
             GraphNodeKind.Address or GraphNodeKind.Cluster =>
                 [.. draft.Addresses.SelectMany(_knowledge.AddressEnds).Distinct()],
-            GraphNodeKind.Transaction => transactionEnds.GetValueOrDefault(draft.Transaction!) ?? [],
+            GraphNodeKind.Transaction => [.. (transactionEnds.GetValueOrDefault(draft.Transaction!) ?? [])
+                .Concat(PoolEnds(draft.Transaction!))],
             _ => [],
         };
         var node = new GraphNode(
@@ -554,8 +585,49 @@ internal sealed class GraphBuilder
             Expansion(draft),
             ends,
             Positions(draft));
-        return draft.Accounts.Count == 0 ? node : node with { Chain = draft.Chain, Accounts = draft.Accounts };
+        return draft.Accounts.Count == 0
+            ? node with { Chain = UtxoChainOf(draft) }
+            : node with { Chain = draft.Chain, Accounts = draft.Accounts };
     }
+
+    /// <summary>
+    /// Gives the ends of a transaction's node where it touches a shielded pool; they mark the node only and never stop
+    /// the trace through its transparent outputs, which the trace ends by the pool's own amount.
+    /// </summary>
+    /// <param name="txid">The transaction.</param>
+    /// <returns>The hints; empty when it touches no pool or is not in the graph.</returns>
+    private IReadOnlyList<TrailEndHint> PoolEnds(Txid txid) => _data.Transactions.TryGetValue(txid, out var entry)
+        ? ShieldedPoolEnds.Hints(entry.Transaction)
+        : [];
+
+    /// <summary>
+    /// Gives the UTXO chain a node of coins is on, from what it holds: its addresses, its transaction or its coin,
+    /// which all carry their chain. A node to another chain keeps Bitcoin, as it always had; its own chain is in
+    /// <see cref="GraphNode.OtherChain"/>.
+    /// </summary>
+    /// <param name="draft">The node.</param>
+    /// <returns>The chain.</returns>
+    private static Chain UtxoChainOf(NodeDraft draft) =>
+        draft.Addresses.FirstOrDefault()?.Chain ?? draft.Transaction?.Chain ?? draft.Coin?.Txid.Chain ?? Chain.Bitcoin;
+
+    /// <summary>
+    /// Gives the key an expansion is found by: its subject, with the chain before it on an account chain, since the
+    /// same hex on Ethereum and on BSC names two accounts.
+    /// </summary>
+    /// <param name="expansion">The expansion.</param>
+    /// <returns>The key.</returns>
+    private static string ExpansionKey(Expansion expansion) => expansion switch
+    {
+        { EthereumAddress: { } account } => AccountKey(account.Chain, account.Value),
+        { EthereumTransaction: { } hash } => AccountKey(hash.Chain, hash.Value),
+        _ => expansion.Subject,
+    };
+
+    /// <summary>Gives the key of an address or a transaction on an account chain among the expansions.</summary>
+    /// <param name="chain">The chain.</param>
+    /// <param name="value">The address or the transaction, as the chain compares it.</param>
+    /// <returns>The key.</returns>
+    private static string AccountKey(Chain chain, string value) => chain + ":" + value;
 
     /// <summary>Says how far a node has been expanded.</summary>
     /// <param name="draft">The node.</param>
@@ -564,7 +636,7 @@ internal sealed class GraphBuilder
     {
         if (draft.Accounts.Count > 0)
         {
-            return _expansions.GetValueOrDefault(draft.Accounts[0].Value) switch
+            return _expansions.GetValueOrDefault(AccountKey(draft.Accounts[0].Chain, draft.Accounts[0].Value)) switch
             {
                 null => NodeExpansion.NotExpanded,
                 { IsComplete: true } => NodeExpansion.Expanded,

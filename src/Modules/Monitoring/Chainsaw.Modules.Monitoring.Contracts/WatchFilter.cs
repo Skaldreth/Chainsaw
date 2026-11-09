@@ -102,8 +102,10 @@ public sealed record WatchFilter(
     /// <summary>Gets whether the watch has no counterparty to point at (every receiver and sender).</summary>
     public bool HasNoCounterparties => Receivers.Count == 0 && Senders.Count == 0;
 
-    /// <summary>Gets the asset the minimum is counted in: the watched one, or BTC on Bitcoin.</summary>
-    public Asset? CountedAsset => Asset ?? (Chain == Chain.Bitcoin ? SharedKernel.Asset.Bitcoin : null);
+    /// <summary>
+    /// Gets the asset the minimum is counted in: the watched one, or the chain's coin on a UTXO chain (BTC, LTC, ZEC).
+    /// </summary>
+    public Asset? CountedAsset => Asset ?? (Chain.Model() == LedgerModel.Utxo ? Chain.NativeAsset() : null);
 
     /// <summary>Checks the filter and gives it in its one form, or says what is wrong.</summary>
     /// <returns>The filter with its lists in order and without doubles.</returns>
@@ -131,7 +133,7 @@ public sealed record WatchFilter(
             throw new ArgumentException("The watch has too many counterparties.");
         }
 
-        if (Asset is { } asset && (asset.Chain != Chain || Chain == Chain.Bitcoin))
+        if (Asset is { } asset && (asset.Chain != Chain || Chain.Model() == LedgerModel.Utxo))
         {
             throw new ArgumentException("The watched asset is not one of the chain's own to choose.");
         }

@@ -71,6 +71,8 @@ public enum GuideTopic
     /// </summary>
     ChainCheck,
 
+    /// <summary><em>Spåret genom en swap</em>: the traced value follows, and the choice per swap (sketch SW1a).</summary>
+    Swaps,
     /// <summary><em>Vyn Tidslinje</em>: a lane per actor and the transfers in time (sketch TL3a).</summary>
     TimelineView,
 
@@ -95,8 +97,34 @@ public enum GuideTopic
     /// <summary><em>Tidsmönster</em>: the hours an owner is active, and the time zone they hint at.</summary>
     TimePattern,
 
+    /// <summary><em>Mönster</em>: known patterns of crime and like cases in the same case, without a model.</summary>
+    Patterns,
+
     /// <summary><em>Ankaret och flera datorer</em>: why an anchor was replaced (sketch AK1a).</summary>
     Anchors,
+
+    /// <summary>
+    /// <em>En tx som inte finns längre</em>: a transaction the source no longer knows, where the trail ends, and what
+    /// replaced it (sketch GR9a).
+    /// </summary>
+    GoneTransaction,
+
+    /// <summary>
+    /// <em>Ut ur en skyddad pool</em>: money into Zcash's pools or Litecoin's MWEB, and the likely ways out that
+    /// <c>shielded-pool</c> suggests.
+    /// </summary>
+    ShieldedPool,
+
+    /// <summary>
+    /// <em>Fortsättningen på en annan kedja</em>: where money into a bridge or a swap continues, linked by hand or
+    /// suggested by <c>cross-chain v1</c>.
+    /// </summary>
+    CrossChain,
+
+    /// <summary>
+    /// <em>Nästlade tjänster</em>: a service with an account at a larger exchange, suggested by <c>nested-service v1</c>.
+    /// </summary>
+    NestedServices,
 }
 
 /// <summary>Reads <see cref="GuideTopic"/>.</summary>
@@ -136,6 +164,7 @@ public static class GuideTopics
         GuideTopic.HowToTrace => "sa-sparar-man",
         GuideTopic.Exposure => "exponering",
         GuideTopic.ChainCheck => "kontroll-mot-kedjan",
+        GuideTopic.Swaps => "swappar",
         GuideTopic.TimelineView => "vyn-tidslinje",
         GuideTopic.Flow => "flodet",
         GuideTopic.ServiceBehaviour => "tjanster-ur-beteende",
@@ -144,7 +173,12 @@ public static class GuideTopics
         GuideTopic.Dust => "damm-och-forgiftning",
         GuideTopic.PayJoin => "payjoin",
         GuideTopic.TimePattern => "tidsmonster",
+        GuideTopic.Patterns => "monster",
         GuideTopic.Anchors => "ankaret",
+        GuideTopic.GoneTransaction => "ersatt-tx",
+        GuideTopic.ShieldedPool => "skyddade-pooler",
+        GuideTopic.CrossChain => "annan-kedja",
+        GuideTopic.NestedServices => "nastlade-tjanster",
         _ => "utxo-modellen",
     };
 
@@ -173,6 +207,7 @@ public static class GuideTopics
         GuideTopic.HowToTrace => "Så spårar man i Chainsaw",
         GuideTopic.Exposure => "Exponering",
         GuideTopic.ChainCheck => "Hur Chainsaw kontrollerar svaren mot kedjan",
+        GuideTopic.Swaps => "Spåret genom en swap",
         GuideTopic.TimelineView => "Vyn Tidslinje",
         GuideTopic.Flow => "Flödet",
         GuideTopic.ServiceBehaviour => "Tjänster ur beteende",
@@ -181,7 +216,12 @@ public static class GuideTopics
         GuideTopic.Dust => "Damm och adressförgiftning",
         GuideTopic.PayJoin => "PayJoin",
         GuideTopic.TimePattern => "Tidsmönster",
+        GuideTopic.Patterns => "Mönster",
         GuideTopic.Anchors => "Ankaret och flera datorer",
+        GuideTopic.GoneTransaction => "En tx som inte finns längre",
+        GuideTopic.ShieldedPool => "Ut ur en skyddad pool",
+        GuideTopic.CrossChain => "Fortsättningen på en annan kedja",
+        GuideTopic.NestedServices => "Nästlade tjänster",
         _ => "UTXO-modellen",
     };
 
@@ -228,7 +268,7 @@ public static class GuideTopics
     /// <param name="reason">The end's reason.</param>
     /// <returns>The heading as written in the text.</returns>
     public static string EndHeading(TrailEndReason reason) =>
-        reason is TrailEndReason.NotExpanded or TrailEndReason.Unspent or TrailEndReason.Conflicting
-            ? OpenEndsHeading
-            : RealEndsHeading;
+        reason.EndsTrail()
+            ? RealEndsHeading
+            : OpenEndsHeading;
 }

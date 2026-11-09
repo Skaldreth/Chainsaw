@@ -72,11 +72,27 @@ public sealed record TraceGraph(
     public AccountGraph Account { get; init; } = AccountGraph.Empty;
 
     /// <summary>
+    /// Gets the user's choices in force that the traced value does not follow through a swap (sketch SW1a); every
+    /// other swap is followed by <see cref="SwapValue"/>.
+    /// </summary>
+    public IReadOnlyList<SwapStop> SwapStops { get; init; } = [];
+
+    /// <summary>
     /// Gets the piles (sketch EX2b): the many new counterparties of an expansion, kept in one node per side of the
     /// expanded actor. Their members stay in <see cref="Nodes"/> and <see cref="Edges"/>, since they are facts; the
     /// graph draws them in the pile until the user picks them out.
     /// </summary>
     public IReadOnlyList<GraphPile> Piles { get; init; } = [];
+
+    /// <summary>
+    /// Gets the graph's transactions that the source no longer knows (sketch GR9a, <em>Finns inte längre</em>), with
+    /// what spends their coins now as far as the case knows; the trail ends at each (<see
+    /// cref="TrailEndReason.TransactionGone"/>) unless the user chose to follow its replacer.
+    /// </summary>
+    public IReadOnlyDictionary<Txid, GoneTransaction> Gone { get; init; } = new Dictionary<Txid, GoneTransaction>();
+
+    /// <summary>Gets the user's choices in force to follow the replacer of a gone transaction, oldest first.</summary>
+    public IReadOnlyList<ReplacementFollow> FollowedReplacements { get; init; } = [];
 
     /// <summary>Gets what the expansions held back, one clue per actor (sketch EX1).</summary>
     public IReadOnlyList<HeldBackClue> HeldBack { get; init; } = [];
@@ -218,7 +234,10 @@ public sealed record GraphNode(
     IReadOnlyList<TrailEndHint> Ends,
     IReadOnlyDictionary<GraphLayout, NodePosition> Positions)
 {
-    /// <summary>Gets the chain the actor is on; Bitcoin unless it is an account on another chain.</summary>
+    /// <summary>
+    /// Gets the chain the actor is on: Bitcoin, unless it is on another UTXO chain (Litecoin, Zcash) or an account
+    /// on an account chain.
+    /// </summary>
     public Chain Chain { get; init; } = Chain.Bitcoin;
 
     /// <summary>
@@ -354,7 +373,7 @@ public sealed record AssetTransfer(
     {
         ArgumentNullException.ThrowIfNull(transfer);
         return new AssetTransfer(
-            new ChainTransactionRef(Chain.Ethereum, transfer.Transaction.Value), transfer.Amount, block, null)
+            new ChainTransactionRef(transfer.Transaction.Chain, transfer.Transaction.Value), transfer.Amount, block, null)
         {
             Movement = transfer.Kind,
             Position = transfer.Position,
@@ -362,14 +381,14 @@ public sealed record AssetTransfer(
         };
     }
 
-    /// <summary>Gives the transfer of a Bitcoin coin.</summary>
+    /// <summary>Gives the transfer of a coin on a UTXO chain, counted in the chain's coin (BTC, LTC, ZEC).</summary>
     /// <param name="txid">The transaction the coin moved in.</param>
     /// <param name="coin">The coin.</param>
     /// <param name="amount">The coin's amount.</param>
     /// <param name="block">The transaction's block, or <see langword="null"/>.</param>
     /// <returns>The transfer.</returns>
     public static AssetTransfer OfCoin(Txid txid, Outpoint coin, Satoshi amount, BlockReference? block) =>
-        new(ChainTransactionRef.Of(txid), amount.ToAmount(), block, coin);
+        new(ChainTransactionRef.Of(txid), new AssetAmount(txid.Chain.NativeAsset(), amount.Value), block, coin);
 }
 
 /// <summary>

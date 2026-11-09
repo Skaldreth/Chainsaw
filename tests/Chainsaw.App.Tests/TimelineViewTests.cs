@@ -212,6 +212,22 @@ public sealed class TimelineViewTests
     }
 
     [Fact]
+    public async Task A_case_event_added_on_another_computer_carries_the_quiet_mark()
+    {
+        var model = await Shown(Labelled());
+        var label = TimelineReading.Read(Labelled(), TimelineReading.Labels(Labelled())).Events
+            .First(each => each.Kind == TimelineKind.Label && each.On == EKey);
+        model.IsElsewhere = journal => journal == label.Journal;
+
+        model.Pick(label.Id);
+
+        Assert.True(model.Detail!.Facts.Single(fact => fact.Label == "Förseglad").AddedElsewhere);
+        Assert.True(model.Sequence.Single(row => row.Id == label.Id).AddedElsewhere);
+        Assert.All(
+            model.Detail.Facts.Where(fact => fact.Label != "Förseglad"), fact => Assert.False(fact.AddedElsewhere));
+    }
+
+    [Fact]
     public async Task Why_opens_the_guide_on_the_view()
     {
         var model = await Shown(Labelled());

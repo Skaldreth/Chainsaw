@@ -58,6 +58,15 @@ internal static class LabelRules
     public static bool MaySpread(LabelEntry label) => !label.DoNotSpread && label.Kind != LabelKind.Victim;
 
     /// <summary>
+    /// Says whether a kind comes only from a list (a sanction, a possible or a former one): never from the user, an
+    /// analysis or an open source, so that a judgement is never shown as a sanction (principle 2).
+    /// </summary>
+    /// <param name="kind">The kind.</param>
+    /// <returns><see langword="true"/> for the kinds only lists give.</returns>
+    public static bool IsFromListsOnly(LabelKind kind) =>
+        kind is LabelKind.Sanctioned or LabelKind.PossiblySanctioned or LabelKind.FormerlySanctioned;
+
+    /// <summary>
     /// Merges labels that say the same about the same subject into one <see cref="Label"/> each, the best supported
     /// first: more independent origins, then labels set in this case, then the oldest.
     /// </summary>

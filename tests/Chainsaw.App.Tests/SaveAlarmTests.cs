@@ -158,8 +158,8 @@ public sealed class SaveAlarmTests
                 "2026-0001", DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, "2026-0001-B"),
         };
         var workflow = new CaseWorkflow(store, new TestTracing(), new TestVault(VaultState.Unlocked), _session);
-        WorkingCopyConflict? offered = null;
-        workflow.ConflictFound += (_, conflict) => offered = conflict;
+        ConflictOffer? offered = null;
+        workflow.ConflictFound += (_, offer) => offered = offer;
         var alarm = new SaveAlarm(_session, _toaster, new InlineUi(), workflow);
         _session.Open(_case);
         _case.SayHowSavesGo(SaveAlarm.FailuresBeforeWarning);
@@ -169,7 +169,8 @@ public sealed class SaveAlarmTests
 
         Assert.Null(_session.Current);
         Assert.True(_case.Disposed > 0);
-        Assert.Equal("2026-0001-B", offered?.SuggestedBranchNumber);
+        Assert.Equal("2026-0001-B", offered?.Conflict.SuggestedBranchNumber);
+        Assert.True(offered?.FileReplaced);
         Assert.False(alarm.IsWarning);
         Assert.Empty(Standing);
     }

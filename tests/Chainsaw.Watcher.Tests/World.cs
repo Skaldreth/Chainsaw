@@ -87,7 +87,12 @@ internal sealed class World : IDisposable
         services.AddSingleton<IExitHttp>(Http);
         services.AddSingleton<IClock>(Clock);
         services.AddSingleton<IAlerts>(Alerts);
+        services.AddSingleton<IExitWebSocket>(new NoSockets());
+        Configure?.Invoke(services);
     });
+
+    /// <summary>Gets or sets what a test puts in place in the background process, before it is first made.</summary>
+    public Action<IServiceCollection>? Configure { get; set; }
 
     /// <summary>Bitcoin's endpoints in Chainsaw's settings: only the synthetic Esplora.</summary>
     public async Task UseTestEndpointAsync()
@@ -172,4 +177,11 @@ internal sealed class RecordingAlerts : IAlerts
     public List<WatchAlerts> Raised { get; } = [];
 
     public void Raise(WatchAlerts ways) => Raised.Add(ways);
+}
+
+/// <summary>No websockets: the tests never reach the network, and the watching asks as before.</summary>
+internal sealed class NoSockets : IExitWebSocket
+{
+    public Task<IExitSocket> ConnectAsync(Uri address, CancellationToken cancellationToken = default) =>
+        throw new ExitNotConnectedException();
 }

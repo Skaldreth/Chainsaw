@@ -35,8 +35,8 @@ brygga. Det är ett av de vanligaste sätten att försvåra en spårning. Se [Br
 
 ## I Chainsaw
 
-USDT och USDC på **Ethereum** går att spåra: tokenen står som ett litet märke först i beloppet på linjen (₮), med kronor
-litet under, och noden får snöflingan *Kan frysas* när USDT ligger kvar.
+USDT går att spåra på **TRON** och på **Ethereum** (där också USDC): tokenen står som ett litet märke först i beloppet
+på linjen (₮), med kronor litet under, och noden får snöflingan *Kan frysas* när USDT ligger kvar. USDT på TRON och
+USDT på Ethereum är två olika kontrakt; Chainsaw känner igen båda på kontraktet, aldrig på namnet. Hur TRON fungerar
+och var Chainsaw hämtar står i [TRON](tron.md).
 
-**TRON** är inte byggt än. En TRON-adress eller TRON-tx känns igen som startpunkt och skrivs i journalen, men hämtas
-inte, och spåret kan inte följas där ännu. Det är nästa kedja efter Ethereum.

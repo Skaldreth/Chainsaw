@@ -38,7 +38,9 @@ public static class AttributionModule
         services.AddSingleton(options);
         services.AddSingleton<ICaseSchemaContributor, AttributionSchema>();
         services.AddSingleton<ISanctionLists, SanctionLists>();
+        services.AddSingleton<IOpenSourceLists, OpenSourceLists>();
         services.AddSingleton<IAttributionService, AttributionService>();
+        services.AddSingleton<ITransactionLabels, TransactionLabels>();
         services.AddSingleton<ILabelLibrary, LabelLibrary>();
         services.AddSingleton<IKnownContractLabels, KnownContractLabels>();
         services.AddSingleton<ITrailEndClassifier, LabelTrailEnds>();

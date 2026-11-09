@@ -35,6 +35,15 @@ till ärendefilen när du sparar och stänger, genom en tillfällig fil som flyt
 lämnar en halv fil. Kraschar datorn tas arbetskopian tillbaka nästa gång ärendet öppnas, med en rad i journalen. Hör
 den inte till filen som den ser ut nu lämnas båda orörda, så att inget skrivs över.
 
+## Skärmbilder och Windows Recall
+
+Krypteringen skyddar filen, inte det som står på skärmen. Chainsaw **stoppar inte skärmbilder**, så att du kan använda
+dem i ditt arbete. Men en skärmbild är en kopia utanför ärendet: lägg den där ärendets uppgifter får ligga.
+
+**Windows Recall** på Copilot+-datorer sparar bilder av skärmen av sig själv. På en dator som används för ärenden ska
+Recall vara avstängt, eller Chainsaw undantaget: *Inställningar → Sekretess och säkerhet → Recall och ögonblicksbilder →
+Filtrera appar*.
+
 ## Varför det är byggt så
 
 - **Ett ärende ska kunna lämnas vidare** som en enda fil, och ändå vara oläsligt för den som inte ska läsa det.

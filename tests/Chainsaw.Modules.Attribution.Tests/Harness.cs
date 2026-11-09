@@ -22,7 +22,17 @@ internal sealed class Harness : IDisposable
     private readonly ServiceProvider _provider;
 
     public Harness()
+        : this(null)
     {
+    }
+
+    /// <summary>
+    /// Creates a harness whose shared lists (sanction lists, open sources, the library) are in another harness's
+    /// folder, as a second start of Chainsaw on the same computer; its cases are its own.
+    /// </summary>
+    public Harness(string? sharedDirectory)
+    {
+        SharedDirectory = sharedDirectory ?? Directory;
         var services = new ServiceCollection();
         services.AddSingleton<IVault, FakeVault>();
         services.AddSingleton<IPurposeKeys>(Keys);
@@ -38,7 +48,7 @@ internal sealed class Harness : IDisposable
             options.AnchorDirectory = System.IO.Path.Combine(Directory, "anchors");
         });
         services.AddClusteringModule();
-        services.AddAttributionModule(options => options.Directory = Directory);
+        services.AddAttributionModule(options => options.Directory = SharedDirectory);
         _provider = services.BuildServiceProvider();
         Store = _provider.GetRequiredService<ICaseStore>();
         Case = Store.Create(CaseNumber);
@@ -46,6 +56,9 @@ internal sealed class Harness : IDisposable
 
     public string Directory { get; } =
         System.IO.Path.Combine(System.IO.Path.GetTempPath(), "chainsaw-attribution-" + Guid.NewGuid().ToString("N"));
+
+    /// <summary>The folder of the shared lists: this harness's own, or another's.</summary>
+    public string SharedDirectory { get; }
 
     public FakeProfiles Profiles { get; } = new();
 
@@ -66,6 +79,10 @@ internal sealed class Harness : IDisposable
     public IAttributionService Labels => _provider.GetRequiredService<IAttributionService>();
 
     public ISanctionLists Sanctions => _provider.GetRequiredService<ISanctionLists>();
+
+    public IOpenSourceLists OpenSources => _provider.GetRequiredService<IOpenSourceLists>();
+
+    public ITransactionLabels TransactionLabels => _provider.GetRequiredService<ITransactionLabels>();
 
     public IKnownContractLabels KnownContracts => _provider.GetRequiredService<IKnownContractLabels>();
 

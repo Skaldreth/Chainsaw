@@ -31,8 +31,25 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>What the dialog says when the link could not be changed in Windows.</summary>
     public const string LinkFailedText = "Länken gick inte att ändra i Windows.";
 
+    /// <summary>
+    /// What the rows Bevaka när Chainsaw är stängt and Länkar say when others can change the program folder
+    /// (decision 16): Windows would otherwise run what they put there as this user.
+    /// </summary>
+    public const string ProgramFolderOpenText =
+        "Andra på datorn kan ändra i Chainsaws programmapp. Därför startar Chainsaw inte med Windows och öppnar " +
+        "inte chainsaw:-länkar. Installera Chainsaw under %LOCALAPPDATA%\\Programs eller Program Files.";
+
+    /// <summary>What the same rows say when the program folder's rights could not be read.</summary>
+    public const string ProgramFolderUnknownText =
+        "Chainsaw kunde inte se vem som får ändra i programmappen. Därför startar Chainsaw inte med Windows och " +
+        "öppnar inte chainsaw:-länkar. Installera Chainsaw under %LOCALAPPDATA%\\Programs eller Program Files.";
+
     /// <summary>What the dialog says when the settings' file could not be written.</summary>
     public const string SaveFailedText = "Inställningarna gick inte att spara. De gäller tills Chainsaw stängs.";
+
+    /// <summary>The error when the exit's copy for the background could not be kept or removed.</summary>
+    public const string ExitInBackgroundFailedText =
+        "Utgången gick inte att spara för bakgrunden. Försök igen om en stund.";
 
     /// <summary>What the profile says when the name is left empty.</summary>
     public const string NameNeededText = "Namnet behövs: det står med varje uppslag i ärendets journal.";
@@ -78,6 +95,18 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     /// <summary>Shows the message and plays the sound when asked, or <see langword="null"/> where it cannot.</summary>
     private readonly IAlertPreview? _alerts;
+
+    /// <summary>The exits the background may use, or <see langword="null"/>.</summary>
+    private readonly IBackgroundExits? _backgroundExits;
+
+    /// <summary>The exits in the vault, for the selected exit, or <see langword="null"/>.</summary>
+    private readonly IExitStore? _exitStore;
+
+    /// <summary>
+    /// Locks Chainsaw with a notice when a master-key change completes while or after it locks, or
+    /// <see langword="null"/>.
+    /// </summary>
+    private readonly LockSignal? _lockSignal;
 
     /// <summary>The settings as they are now.</summary>
     private AppSettings _settings;
@@ -126,9 +155,21 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// How many rates the open case keeps, on the page Kurser (sketch KU1a), or <see langword="null"/> where there is
     /// no case to count.
     /// </param>
+    /// <param name="backgroundExits">
+    /// The exits the background may use (decided 2026-11-08), or <see langword="null"/> where there are none (the row
+    /// is then not shown).
+    /// </param>
+    /// <param name="exitStore">The exits in the vault, for the selected exit, or <see langword="null"/>.</param>
     /// <param name="proxy">
     /// The proxy under Windows and the login to it (sketch PX1a), whose choice is written to the file, or
     /// <see langword="null"/> where there is none.
+    /// </param>
+    /// <param name="lockSignal">
+    /// Locks Chainsaw and tells the lock screen when a master-key change completes while or after it locks (decided
+    /// 2026-11-09), or <see langword="null"/> where there is no gate.
+    /// </param>
+    /// <param name="programFolder">
+    /// Whether others can change the program folder (decision 16), or <see langword="null"/> where it was not judged.
     /// </param>
     public SettingsViewModel(
         AppSettings settings,
@@ -147,7 +188,11 @@ public sealed partial class SettingsViewModel : ObservableObject
         AboutViewModel? about = null,
         IAlertPreview? alerts = null,
         RatesSummaryViewModel? rates = null,
-        ProxyLoginViewModel? proxy = null)
+        IBackgroundExits? backgroundExits = null,
+        IExitStore? exitStore = null,
+        ProxyLoginViewModel? proxy = null,
+        LockSignal? lockSignal = null,
+        ProgramFolderVerdict? programFolder = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(cases);
@@ -160,7 +205,16 @@ public sealed partial class SettingsViewModel : ObservableObject
         _profiles = profiles;
         _vault = vault;
         _links = links;
+        ProgramFolderWarning = programFolder?.Problem switch
+        {
+            null or ProgramFolderProblem.None => string.Empty,
+            ProgramFolderProblem.Unreadable => ProgramFolderUnknownText,
+            _ => ProgramFolderOpenText,
+        };
         _alerts = alerts;
+        _backgroundExits = backgroundExits;
+        _exitStore = exitStore;
+        _lockSignal = lockSignal;
         Exits = exits;
         Sources = sources;
         Rates = rates;
@@ -277,6 +331,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>Gets whether Windows is the way out (its card is marked).</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsVpn))]
+    [NotifyPropertyChangedFor(nameof(ShowsExitInBackground))]
     public partial bool IsWindows { get; private set; }
 
     /// <summary>Gets whether VPN is the way out (its card is marked, and the exits are shown under it).</summary>
@@ -288,7 +343,13 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     /// <summary>Gets whether the watching goes on when Chainsaw is closed.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(StartsWithWindows))]
     public partial bool WatchesInBackground { get; private set; }
+
+    /// <summary>
+    /// Gets whether the page says that the background starts with Windows: it is on, and the program folder allows it.
+    /// </summary>
+    public bool StartsWithWindows => WatchesInBackground && !HasProgramFolderWarning;
 
     /// <summary>Gets whether a hit is said with a notification in Windows.</summary>
     [ObservableProperty]
@@ -311,6 +372,23 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// </summary>
     public bool HasNoAlertWay => !AlertsInWindows && !AlertsWithSound && !AlertsOnScreen;
 
+    /// <summary>
+    /// Gets whether the selected exit is allowed in the background (decided 2026-11-08): its WireGuard file is then
+    /// kept protected for the Windows user outside the vault, so that the watching goes through VPN also when Chainsaw
+    /// is closed.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool ExitInBackground { get; private set; }
+
+    /// <summary>
+    /// Gets whether the switch can be used: copies can be kept, an exit is selected and the background is on.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool CanExitInBackground { get; private set; }
+
+    /// <summary>Gets whether the row is shown: with VPN chosen, and only where copies can be kept.</summary>
+    public bool ShowsExitInBackground => IsVpn && _backgroundExits?.IsAvailable == true;
+
     /// <summary>Gets whether an exit is checked once each time it connects (sketch UT3b).</summary>
     [ObservableProperty]
     public partial bool ChecksExitOnConnect { get; private set; }
@@ -320,8 +398,19 @@ public sealed partial class SettingsViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(HasError))]
     public partial string ErrorText { get; private set; } = string.Empty;
 
-    /// <summary>Gets whether the link <c>chainsaw:</c> can be registered here (the row is live).</summary>
-    public bool CanRegisterLinks => _links is not null;
+    /// <summary>
+    /// Gets whether the link <c>chainsaw:</c> can be registered here (the row is live): not where others can change the
+    /// program folder.
+    /// </summary>
+    public bool CanRegisterLinks => _links is { IsAllowed: true };
+
+    /// <summary>
+    /// Gets why Chainsaw neither starts with Windows nor opens links from its folder, or an empty text when it does.
+    /// </summary>
+    public string ProgramFolderWarning { get; }
+
+    /// <summary>Gets whether the program folder stops the <c>Run</c> key and the link (the warning is shown).</summary>
+    public bool HasProgramFolderWarning => ProgramFolderWarning.Length > 0;
 
     /// <summary>Gets whether the link <c>chainsaw:</c> opens this Chainsaw (the switch).</summary>
     [ObservableProperty]
@@ -477,7 +566,13 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     /// <summary>Turns the watching when Chainsaw is closed on or off (the switch).</summary>
     [RelayCommand]
-    public void ToggleWatchInBackground() => Save(_settings with { WatchInBackground = !_settings.WatchInBackground });
+    public void ToggleWatchInBackground()
+    {
+        Save(_settings with { WatchInBackground = !_settings.WatchInBackground });
+
+        // Turning it off removes the exits' copies (BackgroundLink); the switch under Nätverk follows.
+        _ = ShowExitInBackgroundAsync();
+    }
 
     /// <summary>Turns the notification in Windows on or off (the switch).</summary>
     [RelayCommand]
@@ -490,7 +585,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     [RelayCommand]
     public void ToggleLinks()
     {
-        if (_links is null)
+        if (_links is not { IsAllowed: true })
         {
             return;
         }
@@ -540,6 +635,51 @@ public sealed partial class SettingsViewModel : ObservableObject
     [RelayCommand]
     public void ToggleCheckExitOnConnect() =>
         Save(_settings with { CheckExitOnConnect = !_settings.CheckExitOnConnect });
+
+    /// <summary>
+    /// Lets the background use the selected exit, or takes the permission back (the switch): the exit's WireGuard file
+    /// is copied under the Windows user's protection, or the copy is removed, off the UI thread; then the background
+    /// is started or stopped by the settings' change.
+    /// </summary>
+    /// <returns>A task that completes when it is done.</returns>
+    [RelayCommand]
+    public async Task ToggleExitInBackgroundAsync()
+    {
+        if (_backgroundExits is not { } exits || _exitStore is not { } store || !CanExitInBackground)
+        {
+            return;
+        }
+
+        // The user's intent decides: what the switch showed is what they turned, so turning it off always forbids.
+        var allow = !ExitInBackground;
+        try
+        {
+            await Task.Run(() =>
+            {
+                if (store.FindSelected() is not { } selected)
+                {
+                    return;
+                }
+
+                if (allow)
+                {
+                    exits.Allow(selected.Id);
+                }
+                else
+                {
+                    exits.Forbid(selected.Id);
+                }
+            });
+            ErrorText = string.Empty;
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            ErrorText = ExitInBackgroundFailedText;
+        }
+
+        SettingsChanged?.Invoke(this, _settings);
+        await ShowExitInBackgroundAsync();
+    }
 
     /// <summary>Turns the lock with Windows on or off (the switch).</summary>
     [RelayCommand]
@@ -627,7 +767,9 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>
     /// Changes the master key: the current key, the new key and the new key again are taken from their fields as
     /// characters, given to the vault off the UI thread, and cleared. Only the vault's key is wrapped again; the
-    /// cases are not touched.
+    /// cases are not touched. A change that completes while or after Chainsaw locks, or when the automatic lock is
+    /// due, cannot be answered here: Chainsaw is locked and the lock screen says who changed the key (decided
+    /// 2026-11-09), so that the old key's <em>Fel huvudnyckel</em> is not the first word of it.
     /// </summary>
     /// <param name="current">The field with the current master key.</param>
     /// <param name="next">The field with the new master key.</param>
@@ -659,9 +801,16 @@ public sealed partial class SettingsViewModel : ObservableObject
             }
 
             var shown = _shown;
+            var name = _savedProfile?.Name;
             IsKeyBusy = true;
             KeyText = string.Empty;
-            var (text, isError) = await Task.Run(() => ChangeKey(currentKey, nextKey));
+            var (text, isError, changer) = await Task.Run(() => ChangeKey(currentKey, nextKey, name));
+            if (!isError && (_vault.State != VaultState.Unlocked || _autoLock.IsDue()))
+            {
+                _lockSignal?.Request(LockViewModel.KeyChangedText(changer));
+                return;
+            }
+
             if (shown != _shown)
             {
                 return;
@@ -704,22 +853,39 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>Changes the master key in the vault and gives the words for the answer.</summary>
     /// <param name="current">The current key.</param>
     /// <param name="next">The new key.</param>
-    /// <returns>The words and whether they are an error.</returns>
-    private (string Text, bool IsError) ChangeKey(char[] current, char[] next)
+    /// <param name="name">The name in the profile as the page read it, or <see langword="null"/> when not yet read.</param>
+    /// <returns>The words, whether they are an error, and the name of the one who changed the key, if known.</returns>
+    private (string Text, bool IsError, string? Changer) ChangeKey(char[] current, char[] next, string? name)
     {
+        // The name is read before the change, while the vault is still open; a lock meanwhile leaves it unknown.
+        name ??= ProfileNameOrNone();
         try
         {
             _vault.ChangeMasterKey(current, next);
-            return (KeyChangedText, false);
+            return (KeyChangedText, false, name);
         }
         catch (VaultException exception) when (exception.Error == VaultError.WrongMasterKey)
         {
-            return (WrongKeyText, true);
+            return (WrongKeyText, true, name);
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
             // The message is never shown: it could name a path.
-            return (KeyFailedText, true);
+            return (KeyFailedText, true, name);
+        }
+    }
+
+    /// <summary>Reads the name in the operator profile, or nothing when it cannot be read (locked, no profile).</summary>
+    /// <returns>The name, or <see langword="null"/>.</returns>
+    private string? ProfileNameOrNone()
+    {
+        try
+        {
+            return _profiles.Get()?.Name;
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            return null;
         }
     }
 
@@ -745,6 +911,11 @@ public sealed partial class SettingsViewModel : ObservableObject
     private void ShowPage(SettingsPage page)
     {
         Page = page;
+        if (page == SettingsPage.Network)
+        {
+            _ = ShowExitInBackgroundAsync();
+        }
+
         if (page == SettingsPage.Pricing)
         {
             _ = Rates?.RefreshAsync();
@@ -759,6 +930,35 @@ public sealed partial class SettingsViewModel : ObservableObject
         {
             item.IsSelected = item.Entry.Page == page;
         }
+    }
+
+    /// <summary>
+    /// Reads, off the UI thread, whether the selected exit is allowed in the background and whether the switch can be
+    /// used; a vault or file that cannot be read leaves the switch off and unusable.
+    /// </summary>
+    /// <returns>A task that completes when it is shown.</returns>
+    private async Task ShowExitInBackgroundAsync()
+    {
+        if (_backgroundExits is not { IsAvailable: true } exits || _exitStore is not { } store)
+        {
+            (ExitInBackground, CanExitInBackground) = (false, false);
+            return;
+        }
+
+        var on = _settings.WatchInBackground;
+        (bool Allowed, bool Usable) state;
+        try
+        {
+            state = await Task.Run(() => store.FindSelected() is { } selected
+                ? (exits.IsAllowed(selected.Id), on)
+                : (false, false));
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            state = (false, false);
+        }
+
+        (ExitInBackground, CanExitInBackground) = state;
     }
 
     /// <summary>Reads where the link <c>chainsaw:</c> points, for the switch and the row's line.</summary>

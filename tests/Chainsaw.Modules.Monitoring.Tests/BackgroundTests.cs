@@ -137,6 +137,29 @@ public sealed class BackgroundFilesTests : IDisposable
     }
 
     [Fact]
+    public void An_entry_written_again_under_its_id_replaces_the_older_and_a_crash_in_between_reads_the_newest()
+    {
+        var queue = new WatchQueue(_folder);
+        var caseId = Guid.NewGuid();
+        var first = Entry(caseId, Time(2), hit: false);
+        queue.Add(first);
+        var folder = Path.Combine(_directory, "queue", caseId.ToString("N"));
+        var older = Directory.GetFiles(folder).Single();
+        var kept = File.ReadAllBytes(older);
+
+        var merged = first with { Utc = Time(5), Height = 900_009 };
+        queue.Add(merged);
+        Assert.Single(Directory.GetFiles(folder));
+
+        // A crash before the older file went: both are there, and the entry is the newest, read and removed once.
+        File.WriteAllBytes(older, kept);
+        Assert.Equal([first.Id], queue.List(caseId));
+        Assert.Equal(900_009, queue.Read(caseId, first.Id)!.Height);
+        queue.Remove(caseId, first.Id);
+        Assert.Empty(Directory.GetFiles(folder));
+    }
+
+    [Fact]
     public void A_queued_entry_that_cannot_be_read_is_set_aside_and_never_read_again()
     {
         var queue = new WatchQueue(_folder);
@@ -238,13 +261,14 @@ internal static class Responses
         Assert.Equal(expected.Counterparties, actual.Counterparties);
     }
 
-    public static SealedResponse Make(long sequence, string body, DateTimeOffset? received = null)
+    public static SealedResponse Make(
+        long sequence, string body, DateTimeOffset? received = null, string chain = "bitcoin-mainnet")
     {
         var bytes = Encoding.UTF8.GetBytes(body);
         var at = (received ?? new DateTimeOffset(2026, 11, 7, 3, 0, 0, TimeSpan.Zero))
             .ToString("O", CultureInfo.InvariantCulture);
         return new SealedResponse(
-            sequence, "bitcoin-mainnet", "esplora", Guid.Parse("0b9e1e4a-5c39-4a8e-9a55-3f1f6a1c0009"),
+            sequence, chain, "esplora", Guid.Parse("0b9e1e4a-5c39-4a8e-9a55-3f1f6a1c0009"),
             "esplora.test", "https://esplora.test/api/address/x/txs", "address-transactions", "x", 200,
             "application/json", at, at, at, "UTC", null, "windows", JsonSerializer.Serialize(BackgroundNames.Fetcher),
             Convert.ToHexStringLower(SHA256.HashData(bytes)), bytes);

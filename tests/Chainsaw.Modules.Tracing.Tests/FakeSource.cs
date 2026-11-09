@@ -9,7 +9,9 @@ namespace Chainsaw.Modules.Tracing.Tests;
 /// A Bitcoin source without a network: a synthetic chain in memory. Online it answers from the chain and remembers
 /// what it gave, as the case would; offline it answers only what it gave before, the way Chains does without an exit.
 /// </summary>
-internal sealed class FakeSource : IBitcoinSource
+/// <param name="network">The network it answers for: Bitcoin's, Litecoin's or Zcash's.</param>
+internal sealed class FakeSource(BitcoinNetwork network = BitcoinNetwork.Mainnet)
+    : IBitcoinSource, ILitecoinSource, IZcashSource
 {
     /// <summary>The page size, small so that paging is tested.</summary>
     public const int PageSize = 3;
@@ -20,7 +22,7 @@ internal sealed class FakeSource : IBitcoinSource
     private readonly Dictionary<Txid, IReadOnlyList<BitcoinOutputSpend>> _givenSpends = [];
     private readonly Dictionary<(BitcoinAddress, Txid?), BitcoinAddressPage> _givenPages = [];
 
-    public BitcoinNetwork Network => BitcoinNetwork.Mainnet;
+    public BitcoinNetwork Network => network;
 
     public bool Online { get; set; } = true;
 
@@ -194,6 +196,22 @@ internal sealed class FakeSource : IBitcoinSource
     public Task<BitcoinLookup<BitcoinTip>> GetTipHeightAsync(
         ICase @case, CancellationToken cancellationToken = default) =>
         throw new NotSupportedException();
+
+    /// <summary>The block changes the case has seen, as Chains reads them from the sealed answers.</summary>
+    public List<BlockChange> Changes { get; } = [];
+
+    /// <summary>What the case knows spends the coins of a gone transaction, by the gone transaction.</summary>
+    public Dictionary<Txid, TransactionReplacement> Replacements { get; } = [];
+
+    public Task<IReadOnlyList<BlockChange>> GetBlockChangesAsync(
+        ICase @case, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<BlockChange>>([.. Changes]);
+
+    public Task<BitcoinLookup<TransactionReplacement>> GetReplacementAsync(
+        ICase @case, Txid txid, LookupMode mode = LookupMode.CaseOnly, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Replacements.TryGetValue(txid, out var replacement)
+            ? Answer(LookupStatus.FromCase, replacement, null)
+            : Answer<TransactionReplacement>(LookupStatus.NotInCase, null, null));
 
     private BitcoinSpend? SpenderOf(Txid txid, int index)
     {

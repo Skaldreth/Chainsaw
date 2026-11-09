@@ -59,12 +59,17 @@ public sealed record SuggestionFlow(string InText, string FeeText, IReadOnlyList
 /// Whether the candidates are parts of one combination (<c>mixer-parts</c>), so that the fee is the deposit against
 /// all the parts that are not dismissed, not against the chosen one alone.
 /// </param>
+/// <param name="OneApproval">
+/// Whether only one candidate can be approved (<c>cross-chain</c>: a payment continues in one place), so that once one
+/// is approved only <em>Avfärda resten</em> is offered.
+/// </param>
 public sealed record SuggestionWords(
     IReadOnlyList<BasisChip> Chips,
     string CandidateNoun,
     string FirstColumn,
     string TimeColumn,
-    bool CandidatesAreParts = false)
+    bool CandidatesAreParts = false,
+    bool OneApproval = false)
 {
     /// <summary>The words of an analysis this table does not know: no chips, plain headings.</summary>
     public static SuggestionWords Plain { get; } = new([], "Kandidaten", "ADRESS", "TID");
@@ -77,6 +82,19 @@ public sealed record SuggestionWords(
             new("Icon.Layers", "Adresstyp", "Samma adresstyp som insättarens väger in"),
         ],
         "Trolig utgång",
+        "ADRESS",
+        "TID");
+
+    /// <summary>The words of the likely ways out of a shielded pool (<c>shielded-pool</c>).</summary>
+    public static SuggestionWords ShieldedPool { get; } = new(
+        [
+            new("Icon.Amounts", "Samma belopp − avgift", "Det som kommer ut jämförs med det som gick in, minus "
+                + "nätverkets avgift"),
+            new("Icon.Clock", "Tid", "Ju kortare tid efter insättningen, desto högre poäng"),
+            new("Icon.Kind.Mask", "Poolen döljer", "Inne i poolen syns varken belopp eller ägare; en kandidat är "
+                + "alltid en bedömning"),
+        ],
+        "Trolig väg ut",
         "ADRESS",
         "TID");
 
@@ -105,6 +123,22 @@ public sealed record SuggestionWords(
         "ADRESS",
         "TID");
 
+    /// <summary>The words of the likely continuations on another chain (<c>cross-chain</c>).</summary>
+    public static SuggestionWords CrossChain { get; } = new(
+        [
+            new("Icon.Link", "Avsändarens memo", "Mottagaren som avsändaren angav i betalningens memo väger mest, "
+                + "och kommer först när en brygga eller swap betalade den; memot är en instruktion, ingen utbetalning"),
+            new("Icon.Amounts", "Värde − avgift", "Värdet ut jämförs med värdet in minus en trolig avgift, med "
+                + "ärendets kurser"),
+            new("Icon.Clock", "Tid", "Ju kortare tid efter betalningen in, desto högre poäng"),
+            new("Icon.Kind.Swap", "Samma nyckel", "Samma nyckel på Ethereum och TRON, eller en utbetalning från en "
+                + "brygga, väger in"),
+        ],
+        "Trolig fortsättning",
+        "ADRESS",
+        "TID",
+        OneApproval: true);
+
     /// <summary>The words of a wallet the clustering proposes (<c>wallet-proposals</c>).</summary>
     public static SuggestionWords Wallets { get; } = new(
         [
@@ -117,15 +151,43 @@ public sealed record SuggestionWords(
         "ADRESS",
         "TID");
 
+    /// <summary>The words of a likely mixer without a label (<c>mixer-behaviour</c>).</summary>
+    public static SuggestionWords MixerBehaviour { get; } = new(
+        [
+            new("Icon.Kind.Mixer", "Många in, många ut", "Insättningar från många avsändare och utbetalningar till "
+                + "många mottagare"),
+            new("Icon.Amounts", "Belopp − avgift", "De flesta insättningarna kommer ut igen minus 0,5–5 procent"),
+            new("Icon.Split", "Andra mynt", "Utbetalningen görs med andra mynt än insättningens egna"),
+        ],
+        "Insättningen",
+        "ADRESS",
+        "TID");
+
+    /// <summary>The words of a likely nested service (<c>nested-service</c>).</summary>
+    public static SuggestionWords NestedService { get; } = new(
+        [
+            new("Icon.Kind.Bank", "Konto hos en börs", "Betalar in till börsen och får uttag tillbaka, flera gånger"),
+            new("Icon.Amounts", "Genom kontot", "Minst hälften av kundernas pengar går vidare till börsen, och minst "
+                + "hälften av utbetalningarna kommer därifrån"),
+            new("Icon.Check", "Din bedömning", "Godkänner du står det som din bedömning, aldrig ett faktum"),
+        ],
+        "Tjänsten",
+        "ADRESS",
+        "TID");
+
     /// <summary>Gives an analysis's words.</summary>
     /// <param name="analysis">The analysis's name.</param>
     /// <returns>Its words, or <see cref="Plain"/>.</returns>
     public static SuggestionWords Of(string analysis) => analysis switch
     {
         "mixer-outputs" => MixerOutputs,
+        "shielded-pool" => ShieldedPool,
         "mixer-parts" => MixerParts,
         "mixer-chain" => MixerChain,
+        "mixer-behaviour" => MixerBehaviour,
+        "nested-service" => NestedService,
         CheckAnalysisNames.Wallets => Wallets,
+        CheckAnalysisNames.CrossChain => CrossChain,
         _ => Plain,
     };
 }
@@ -187,11 +249,36 @@ public sealed partial class CandidateRowViewModel : ObservableObject
     /// <summary>Gets the score's bar width.</summary>
     public double BarWidth => Math.Round(FullBar * Math.Clamp(Candidate.Score, 0, 1));
 
-    /// <summary>Gets the address, shortened in the middle.</summary>
-    public string ShortAddress => SubjectText.Fit(Candidate.Address.Value, AddressRoom);
+    /// <summary>Gets the address, shortened in the middle; on another chain the recipient there.</summary>
+    public string ShortAddress =>
+        SubjectText.Fit(Candidate.Address?.Value ?? Candidate.Arrival?.To.Value ?? string.Empty, AddressRoom);
 
-    /// <summary>Gets the amount, for example <c>0,7920</c>.</summary>
-    public string AmountText => WriteAmount(Candidate.Amount);
+    /// <summary>
+    /// Gets the amount, for example <c>0,7920</c>; on another chain with its asset's symbol, for example
+    /// <c>10 140 USDT</c>, since it is not bitcoin.
+    /// </summary>
+    public string AmountText => Candidate switch
+    {
+        { Amount: { } amount } => WriteAmount(amount),
+        { Arrival: { } arrival } => Graph.AmountText.WithUnit(arrival.Amount),
+        _ => string.Empty,
+    };
+
+    /// <summary>
+    /// Gets the amount with its unit, for example <c>0,7920 BTC</c> or <c>0,0098 ZEC</c>: a coin is counted in its own
+    /// chain's coin.
+    /// </summary>
+    public string AmountWithUnit => Candidate switch
+    {
+        { Amount: { } amount } => WriteAmount(amount) + " " + CoinSymbol(Candidate.Txid?.Chain),
+        { Arrival: { } arrival } => Graph.AmountText.WithUnit(arrival.Amount),
+        _ => string.Empty,
+    };
+
+    /// <summary>Gives the symbol of a UTXO chain's coin, Bitcoin's when the chain is not known.</summary>
+    /// <param name="chain">The chain, or <see langword="null"/>.</param>
+    /// <returns>For example <c>BTC</c>, <c>LTC</c> or <c>ZEC</c>.</returns>
+    public static string CoinSymbol(Chain? chain) => (chain ?? Chain.Bitcoin).NativeAsset().Symbol;
 
     /// <summary>Gets how long after the money came in it was paid, for example <c>4 h</c>; empty if unknown.</summary>
     public string TimeText { get; }
@@ -281,7 +368,7 @@ public sealed partial class CheckRowViewModel : ObservableObject
         Look = AreaLooks.OfAnalysis(check.Analysis.Name, check.Finding.Area);
         Words = SuggestionWords.Of(check.Analysis.Name);
         Summary = anchor is null ? check.Finding.Summary : $"{anchor} · {check.Finding.Summary}";
-        var start = check.Finding.Basis.FirstOrDefault()?.Block?.Time;
+        var start = check.Finding.Departure?.Time ?? check.Finding.Basis.FirstOrDefault()?.Block?.Time;
         Candidates =
         [
             .. check.Finding.Candidates.Select((candidate, index) => new CandidateRowViewModel(
@@ -420,7 +507,7 @@ public sealed partial class CheckRowViewModel : ObservableObject
     /// <returns>The request, or <see langword="null"/>.</returns>
     public DecisionRequest? ApproveRequest()
     {
-        if (!CanDecide || (HasCandidates && ChosenCandidate is null))
+        if (!CanApprove || (HasCandidates && ChosenCandidate is null))
         {
             return null;
         }
@@ -452,6 +539,12 @@ public sealed partial class CheckRowViewModel : ObservableObject
                 Check.Analysis, Check.Finding.Key, c.Candidate.Key, CheckVerdict.Dismissed, ReasonText())),
         ];
     }
+
+    /// <summary>
+    /// Gets whether Enter approves something now: the row waits, and it is not a suggestion where one approved
+    /// candidate is all there can be (<see cref="SuggestionWords.OneApproval"/>), so that only X is offered then.
+    /// </summary>
+    public bool CanApprove => CanDecide && !(Words.OneApproval && HasApprovedCandidate);
 
     /// <summary>Gets whether one of the candidates is approved, so that X dismisses only the rest.</summary>
     public bool HasApprovedCandidate => Candidates.Any(c => c.IsApproved);
@@ -524,18 +617,20 @@ public sealed partial class CheckRowViewModel : ObservableObject
     /// <returns>The fee, or an empty text when what came in is not known or nothing is chosen.</returns>
     private string FeeText()
     {
-        if (_incoming is not { Value: > 0 } amount || ChosenCandidate is not { } chosen)
+        // Across chains the assets differ, so the fee is the candidate's reason (by the case's rates), not a share.
+        if (_incoming is not { Value: > 0 } amount || ChosenCandidate is not { } chosen
+            || Check.Finding.Departure is not null)
         {
             return string.Empty;
         }
 
         if (!Words.CandidatesAreParts)
         {
-            return FeeWords(amount, chosen.Candidate.Amount.Value);
+            return chosen.Candidate.Amount is { } paidOut ? FeeWords(amount, paidOut.Value) : string.Empty;
         }
 
         var parts = Candidates.Where(c => !c.IsDismissed).ToList();
-        var paid = parts.Sum(c => c.Candidate.Amount.Value);
+        var paid = parts.Sum(c => c.Candidate.Amount?.Value ?? 0);
         if (parts.Count == 0)
         {
             return string.Empty;
@@ -567,7 +662,8 @@ public sealed partial class CheckRowViewModel : ObservableObject
     /// <returns>The span, or <see langword="null"/> when a block is not known.</returns>
     private static TimeSpan? After(StoredCheck check, CheckCandidate candidate, DateTimeOffset? start)
     {
-        var paid = check.Finding.Basis.FirstOrDefault(basis => basis.Txid == candidate.Txid)?.Block?.Time;
+        var paid = candidate.Arrival?.Time
+            ?? check.Finding.Basis.FirstOrDefault(basis => basis.Txid == candidate.Txid)?.Block?.Time;
         return start is { } from && paid is { } to ? to - from : null;
     }
 
@@ -587,9 +683,14 @@ public sealed partial class CheckRowViewModel : ObservableObject
             parts.Add(anchor);
         }
 
-        if (incoming is { } amount)
+        if (check.Finding.Departure is { } departure)
         {
-            parts.Add(CandidateRowViewModel.WriteAmount(amount) + " BTC in");
+            parts.Add(Graph.AmountText.WithUnit(departure.Amount) + " in");
+        }
+        else if (incoming is { } amount)
+        {
+            var chain = check.Finding.Basis.Count > 0 ? check.Finding.Basis[0].Txid.Chain : Chain.Bitcoin;
+            parts.Add(CandidateRowViewModel.WriteAmount(amount) + " " + CandidateRowViewModel.CoinSymbol(chain) + " in");
         }
 
         if (start is { } time)

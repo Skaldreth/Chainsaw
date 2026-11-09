@@ -54,6 +54,50 @@ public sealed class BackgroundLinkTests
     }
 
     [Fact]
+    public async Task With_VPN_and_the_selected_exit_allowed_the_background_is_started_and_set()
+    {
+        var exit = Guid.NewGuid();
+        _fakes.Exits.Selected = exit;
+        _fakes.Exits.Allowed.Add(exit);
+        var (_, link) = Link(new AppSettings());
+
+        await link.WriteCaseAsync();
+
+        Assert.Equal(ExitRoute.Vpn, _fakes.Plan.Plan.Route);
+        Assert.Equal(BackgroundFakes.Command, _fakes.Autostart.Command);
+        Assert.Equal(1, _fakes.Process.Starts);
+        Assert.Equal(BackgroundMode.Running, link.Mode);
+    }
+
+    [Fact]
+    public async Task With_VPN_and_only_another_exit_allowed_it_still_waits_for_the_exit()
+    {
+        _fakes.Exits.Selected = Guid.NewGuid();
+        _fakes.Exits.Allowed.Add(Guid.NewGuid());
+        var (_, link) = Link(new AppSettings());
+
+        await link.WriteCaseAsync();
+
+        Assert.Equal(0, _fakes.Process.Starts);
+        Assert.Equal(BackgroundMode.NeedsWindows, link.Mode);
+    }
+
+    [Fact]
+    public async Task Turning_the_background_off_removes_the_exits_kept_for_it()
+    {
+        var exit = Guid.NewGuid();
+        _fakes.Exits.Selected = exit;
+        _fakes.Exits.Allowed.Add(exit);
+        var (_, link) = Link(new AppSettings());
+        await link.WriteCaseAsync();
+
+        await link.ApplyAsync(new AppSettings { WatchInBackground = false });
+
+        Assert.Empty(_fakes.Exits.Allowed);
+        Assert.Equal(1, _fakes.Exits.Clears);
+    }
+
+    [Fact]
     public async Task Turned_off_it_is_stopped_and_taken_away_from_the_start_with_Windows()
     {
         var (_, link) = Link(Windows);
@@ -67,6 +111,73 @@ public sealed class BackgroundLinkTests
         Assert.Equal(1, _fakes.Process.Stops);
         Assert.Equal(BackgroundMode.Off, link.Mode);
     }
+
+    [Fact]
+    public async Task Turned_off_the_plan_holds_no_case_and_the_open_case_comes_back_when_turned_on_again()
+    {
+        var (session, link) = Link(Windows);
+        await link.WriteCaseAsync();
+        _fakes.Plan.Update(plan => plan.With(plan.Cases[0] with { CaseId = Guid.NewGuid() }));
+        Assert.Equal(2, _fakes.Plan.Plan.Cases.Count);
+
+        await link.ApplyAsync(Windows with { WatchInBackground = false });
+        Assert.Empty(_fakes.Plan.Plan.Cases);
+
+        // A change of the open case's watches while off writes nothing of it either.
+        await link.WriteCaseAsync();
+        Assert.Empty(_fakes.Plan.Plan.Cases);
+
+        await link.ApplyAsync(Windows);
+        Assert.Equal([session.Current!.Info.Id], _fakes.Plan.Plan.Cases.Select(@case => @case.CaseId));
+    }
+
+    [Fact]
+    public async Task Turned_off_with_a_plan_that_cannot_be_written_its_cases_are_written_away_at_the_next_look()
+    {
+        var (_, link) = Link(Windows);
+        await link.WriteCaseAsync();
+        _fakes.Plan.Fails = true;
+
+        await link.ApplyAsync(Windows with { WatchInBackground = false });
+        Assert.Single(_fakes.Plan.Plan.Cases);
+
+        _fakes.Plan.Fails = false;
+        await link.RefreshAsync();
+        Assert.Empty(_fakes.Plan.Plan.Cases);
+        Assert.False(_fakes.Plan.Plan.Enabled);
+    }
+
+    [Fact]
+    public async Task Turned_off_the_background_s_progress_is_emptied_too_and_written_again_when_it_failed()
+    {
+        var (_, link) = Link(Windows);
+        await link.WriteCaseAsync();
+        _fakes.Progress.Kept = [new BackgroundProgress(Guid.NewGuid(), "w", null, null, ["w|tx|in|BTC"])];
+        _fakes.Progress.Fails = true;
+
+        await link.ApplyAsync(Windows with { WatchInBackground = false });
+        Assert.Empty(_fakes.Plan.Plan.Cases);
+        Assert.Single(_fakes.Progress.Kept);
+
+        _fakes.Progress.Fails = false;
+        await link.RefreshAsync();
+        Assert.Empty(_fakes.Progress.Kept);
+    }
+
+    [Fact]
+    public async Task Turned_on_the_background_s_progress_is_kept()
+    {
+        var (_, link) = Link(Windows);
+        _fakes.Progress.Kept = [new BackgroundProgress(Guid.NewGuid(), "w", null, null, [])];
+
+        await link.ApplyAsync(Windows);
+
+        Assert.Single(_fakes.Progress.Kept);
+    }
+
+    [Fact]
+    public Task A_case_let_go_while_off_is_not_written_into_the_plan() =>
+        UiThread.RunAsync(ACaseLetGoWhileOffIsNotWrittenAsync);
 
     [Fact]
     public async Task A_plan_that_cannot_be_written_still_stops_the_background_when_VPN_is_chosen()
@@ -156,6 +267,22 @@ public sealed class BackgroundLinkTests
         await session.CloseAsync();
 
         Assert.Empty(_fakes.Plan.Plan.Cases);
+        link.Dispose();
+    }
+
+    private async Task ACaseLetGoWhileOffIsNotWrittenAsync()
+    {
+        var (session, link) = Link(
+            Windows with { WatchInBackground = false }, new PostedUi(SynchronizationContext.Current!));
+        link.Start();
+        await link.WriteCaseAsync();
+
+        await session.CloseAsync();
+        await link.RefreshAsync();
+
+        // Not even for a moment: the background could read the plan in between.
+        Assert.NotEmpty(_fakes.Plan.Written);
+        Assert.All(_fakes.Plan.Written, plan => Assert.Empty(plan.Cases));
         link.Dispose();
     }
 
@@ -403,7 +530,54 @@ internal sealed class BackgroundFakes
 
     public FakeAutostart Autostart { get; } = new();
 
-    public BackgroundParts Parts => new(Watches, Plan, Holds, Queue, Status, Process, Autostart, Clock);
+    public MemoryExits Exits { get; } = new();
+
+    public MemoryProgress Progress { get; } = new();
+
+    public BackgroundParts Parts => new(Watches, Plan, Holds, Queue, Status, Process, Autostart, Clock)
+    {
+        Exits = Exits,
+        Progress = Progress,
+    };
+
+    /// <summary>The background's progress, in memory.</summary>
+    internal sealed class MemoryProgress : IBackgroundProgressFile
+    {
+        public IReadOnlyList<BackgroundProgress> Kept { get; set; } = [];
+
+        public bool Fails { get; set; }
+
+        public IReadOnlyList<BackgroundProgress> Read() => Kept;
+
+        public void Write(IReadOnlyList<BackgroundProgress> progress) =>
+            Kept = Fails ? throw new IOException("Held by a scanner.") : progress;
+    }
+
+    /// <summary>The exits allowed in the background, in memory.</summary>
+    internal sealed class MemoryExits : IBackgroundExits
+    {
+        public Guid? Selected { get; set; }
+
+        public HashSet<Guid> Allowed { get; } = [];
+
+        public int Clears { get; private set; }
+
+        public bool IsAvailable => true;
+
+        public bool IsAllowed(Guid exitId) => Allowed.Contains(exitId);
+
+        public Guid? Usable() => Selected is { } selected && Allowed.Contains(selected) ? selected : null;
+
+        public void Allow(Guid exitId) => Allowed.Add(exitId);
+
+        public void Forbid(Guid exitId) => Allowed.Remove(exitId);
+
+        public void Clear()
+        {
+            Clears++;
+            Allowed.Clear();
+        }
+    }
 
     internal sealed class FakeWatches : IBackgroundWatches
     {
@@ -444,8 +618,19 @@ internal sealed class BackgroundFakes
 
         public bool Fails { get; set; }
 
-        public BackgroundPlan Update(Func<BackgroundPlan, BackgroundPlan> change) =>
-            Fails ? throw new IOException("Held by a scanner.") : Plan = change(Plan);
+        public List<BackgroundPlan> Written { get; } = [];
+
+        public BackgroundPlan Update(Func<BackgroundPlan, BackgroundPlan> change)
+        {
+            if (Fails)
+            {
+                throw new IOException("Held by a scanner.");
+            }
+
+            Plan = change(Plan);
+            Written.Add(Plan);
+            return Plan;
+        }
     }
 
     internal sealed class FakeHolds : ICaseHolds

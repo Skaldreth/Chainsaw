@@ -164,7 +164,7 @@ internal sealed class FakeExitHttp(FakeClock clock) : IExitHttp
             throw new ExitException(ExitError.RequestFailed);
         }
 
-        var url = request.Uri.AbsoluteUri;
+        var url = KeyOf(request);
         var (status, body, contentType) = _answers.TryGetValue(url, out var answer)
             ? answer
             : (404, Encoding.UTF8.GetBytes("Not found"), "text/plain");
@@ -181,6 +181,17 @@ internal sealed class FakeExitHttp(FakeClock clock) : IExitHttp
             RetryAfter = _retryAfter.TryGetValue(url, out var wait) ? wait : null,
         };
     }
+
+    /// <summary>
+    /// Gives the key a request is answered by: its address, and for a POST (a JSON-RPC call) a line break and the body,
+    /// so that calls to one address are told apart (<see cref="PostKey"/>).
+    /// </summary>
+    public static string KeyOf(ExitRequest request) => request.Method == ExitMethod.Post
+        ? PostKey(request.Uri.AbsoluteUri, Encoding.UTF8.GetString(request.Body.Span))
+        : request.Uri.AbsoluteUri;
+
+    /// <summary>Gives the key a POST of a body to an address is answered by.</summary>
+    public static string PostKey(string url, string body) => url + "\n" + body;
 }
 
 /// <summary>
@@ -198,6 +209,24 @@ internal sealed class FakeLocalHttp(FakeClock clock) : ILocalHttp
         _answers[url] = (status, Fixtures.Bytes(fixture));
 
     public void AnswerBytes(string url, byte[] body, int status) => _answers[url] = (status, body);
+
+    /// <summary>
+    /// Answers a Bitcoin Core JSON-RPC call to an address by its id (the method and its parameters, as Chainsaw sends
+    /// it), with a body in the form of Bitcoin Core's documentation.
+    /// </summary>
+    public void AnswerRpc(string url, string id, string body, int status = 200) =>
+        _answers[url + "#" + id] = (status, Encoding.UTF8.GetBytes(body));
+
+    /// <summary>Gives the ids of the JSON-RPC calls sent, in order.</summary>
+    public List<string> RpcIds => [.. Sent.Where(r => !r.Body.IsEmpty).Select(RpcId)];
+
+    /// <summary>Finds a request's answer: by its address, and for a JSON-RPC call by its id too.</summary>
+    private static string Key(ExitRequest request) =>
+        request.Body.IsEmpty ? request.Uri.AbsoluteUri : request.Uri.AbsoluteUri + "#" + RpcId(request);
+
+    /// <summary>Reads a JSON-RPC call's id.</summary>
+    private static string RpcId(ExitRequest request) =>
+        System.Text.Json.JsonDocument.Parse(request.Body).RootElement.GetProperty("id").GetString()!;
 
     /// <summary>Gets or sets the fingerprint of the certificate the node shows; a pin must match it.</summary>
     public string Shows { get; set; } = new('A', CertificatePin.Length);
@@ -228,7 +257,7 @@ internal sealed class FakeLocalHttp(FakeClock clock) : ILocalHttp
         }
 
         Sent.Add(request);
-        var (status, body) = _answers.TryGetValue(request.Uri.AbsoluteUri, out var answer)
+        var (status, body) = _answers.TryGetValue(Key(request), out var answer)
             ? answer
             : (404, Encoding.UTF8.GetBytes("Not found"));
         var sent = clock.UtcNow;

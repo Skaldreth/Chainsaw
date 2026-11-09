@@ -26,12 +26,13 @@ internal sealed class TracingSchema : ICaseSchemaContributor
     /// <c>internal:0x…</c> or <c>token:0x…</c>, and <c>from_output</c> its position in the transaction (0 for the
     /// ether the transaction sent, the trace's index for an internal one, the log's index for a token). A Bitcoin
     /// txid never holds a colon, so the two never mix. <c>to_chain</c> and <c>to_id</c> name the other chain's
-    /// transaction.
+    /// transaction. <c>origin</c> is empty for a link made by hand, and for one an approved suggestion made it names
+    /// the analysis with its version and the decision, for example <c>cross-chain v1#12</c>.
     /// </summary>
     public static readonly IReadOnlyList<string> CrossChainColumns =
     [
         "action", "link_sequence", "from_txid", "from_output", "to_chain", "to_id", "reason", "journal_sequence",
-        "recorded_utc",
+        "recorded_utc", "origin",
     ];
 
     /// <summary>The sealed chain of the graph's comments (sketch KN1a).</summary>
@@ -44,6 +45,42 @@ internal sealed class TracingSchema : ICaseSchemaContributor
     public static readonly IReadOnlyList<string> CommentColumns =
     [
         "action", "comment_id", "body", "anchor", "x", "y", "set_by", "journal_sequence", "recorded_utc",
+    ];
+
+    /// <summary>The sealed chain of the user's choices not to follow a swap (sketch SW1a).</summary>
+    public const string SwapStopsChain = "tracing.swap_stops";
+
+    /// <summary>The table of the user's choices not to follow a swap.</summary>
+    public const string SwapStopsTable = "tracing_swap_stops";
+
+    /// <summary>
+    /// The sealed columns of a choice or its taking back, in order: <c>action</c> is <c>stop</c> or <c>follow</c>,
+    /// <c>stop_sequence</c> names the choice a taking back concerns, <c>chain</c> the swap's chain, and
+    /// <c>transaction_hash</c> and <c>account</c> name the swap (its hash and the account that swapped, as the chain
+    /// writes them).
+    /// </summary>
+    public static readonly IReadOnlyList<string> SwapStopColumns =
+    [
+        "action", "stop_sequence", "chain", "transaction_hash", "account", "reason", "journal_sequence",
+        "recorded_utc",
+    ];
+
+    /// <summary>
+    /// The sealed chain of the user's choices to follow the transaction that replaced a gone one (sketch GR9a).
+    /// </summary>
+    public const string ReplacementFollowsChain = "tracing.replacement_follows";
+
+    /// <summary>The table of the user's choices to follow a replacer.</summary>
+    public const string ReplacementFollowsTable = "tracing_replacement_follows";
+
+    /// <summary>
+    /// The sealed columns of a choice or its taking back, in order: <c>action</c> is <c>follow</c> or
+    /// <c>take-back</c>, <c>follow_sequence</c> names the choice a taking back concerns, <c>gone_txid</c> the
+    /// transaction the source no longer knows and <c>replacer_txid</c> the one the trace follows in its place.
+    /// </summary>
+    public static readonly IReadOnlyList<string> ReplacementFollowColumns =
+    [
+        "action", "follow_sequence", "gone_txid", "replacer_txid", "reason", "journal_sequence", "recorded_utc",
     ];
 
     /// <summary>The first version of the tables.</summary>
@@ -82,6 +119,7 @@ internal sealed class TracingSchema : ICaseSchemaContributor
             reason TEXT NOT NULL,
             journal_sequence INTEGER NOT NULL,
             recorded_utc TEXT NOT NULL,
+            origin TEXT,
             hash BLOB NOT NULL
         ) STRICT;
         """;
@@ -157,6 +195,43 @@ internal sealed class TracingSchema : ICaseSchemaContributor
         ) STRICT;
         """;
 
+    /// <summary>
+    /// The sixth version: the user's choices that the traced value does not follow through a swap, and their taking
+    /// back (sketch SW1a), sealed with who and when like the links to other chains.
+    /// </summary>
+    private const string Version6 = """
+        CREATE TABLE tracing_swap_stops (
+            sequence INTEGER PRIMARY KEY,
+            action TEXT NOT NULL,
+            stop_sequence INTEGER,
+            chain TEXT NOT NULL,
+            transaction_hash TEXT NOT NULL,
+            account TEXT NOT NULL,
+            reason TEXT NOT NULL,
+            journal_sequence INTEGER NOT NULL,
+            recorded_utc TEXT NOT NULL,
+            hash BLOB NOT NULL
+        ) STRICT;
+        """;
+
+    /// <summary>
+    /// The seventh version: the user's choices to follow the transaction that replaced one the source no longer knows,
+    /// and their taking back (sketch GR9a), sealed with who and when like the choices about swaps.
+    /// </summary>
+    private const string Version7 = """
+        CREATE TABLE tracing_replacement_follows (
+            sequence INTEGER PRIMARY KEY,
+            action TEXT NOT NULL,
+            follow_sequence INTEGER,
+            gone_txid TEXT NOT NULL,
+            replacer_txid TEXT NOT NULL,
+            reason TEXT NOT NULL,
+            journal_sequence INTEGER NOT NULL,
+            recorded_utc TEXT NOT NULL,
+            hash BLOB NOT NULL
+        ) STRICT;
+        """;
+
     /// <inheritdoc/>
     public string Module => ModuleName;
 
@@ -168,6 +243,9 @@ internal sealed class TracingSchema : ICaseSchemaContributor
         new(3, "Det som hölls tillbaka vid en expansion och det som plockats ur högarna", Version3),
         new(4, "Utplockade tx ur det som hölls tillbaka, och när en expansion gjordes första gången", Version4),
         new(5, "Kommentarer i grafen, förseglade med vem och när, och var de står", Version5),
+        new(6, "Val att spåret inte följer med genom en swap, förseglade med vem och när", Version6),
+        new(7, "Val att spåret följer tx:en som ersatte en som inte finns längre, förseglade med vem och när",
+            Version7),
     ];
 
     /// <inheritdoc/>
@@ -175,5 +253,7 @@ internal sealed class TracingSchema : ICaseSchemaContributor
     [
         new(CrossChainChain, CrossChainTable, CrossChainColumns),
         new(CommentsChain, CommentsTable, CommentColumns),
+        new(SwapStopsChain, SwapStopsTable, SwapStopColumns),
+        new(ReplacementFollowsChain, ReplacementFollowsTable, ReplacementFollowColumns),
     ];
 }

@@ -5,8 +5,8 @@ using Chainsaw.SharedKernel;
 namespace Chainsaw.Modules.Tracing;
 
 /// <summary>
-/// The Ethereum facts the graph is built from, read from the case: every movement and fee each once, the whole
-/// transactions, the accounts whose history was read, and the blocks' hashes.
+/// The account chains' facts the graph is built from (Ethereum and TRON), read from the case: every movement and fee
+/// each once, the whole transactions, the accounts whose history was read, and the blocks' hashes.
 /// </summary>
 /// <param name="Transfers">
 /// The movements, each once, in chain order (<see cref="AccountGraph.ChainOrder(EthereumTransfer)"/>).
@@ -27,8 +27,9 @@ internal sealed record AccountData(
         [], [], new Dictionary<EthereumTxHash, EthereumTransaction>(), new HashSet<ChainAddress>(),
         new HashSet<ChainAddress>());
 
-    /// <summary>Gets each block's hash by height, where the case has it.</summary>
-    public IReadOnlyDictionary<long, string> BlockHashes { get; init; } = new Dictionary<long, string>();
+    /// <summary>Gets each block's hash by chain and height, where the case has it.</summary>
+    public IReadOnlyDictionary<(Chain Chain, long Height), string> BlockHashes { get; init; } =
+        new Dictionary<(Chain Chain, long Height), string>();
 
     /// <summary>
     /// Gets the accounts whose history was read only in part (held back at the limit or incomplete); they do not carry
@@ -58,7 +59,7 @@ internal sealed record AccountData(
     {
         var transfers = new Dictionary<TransferKey, EthereumTransfer>();
         foreach (var transfer in whole.Values.SelectMany(transaction => transaction.Transfers)
-            .Concat(history.Where(transfer => !whole.ContainsKey(transfer.Transaction))))
+            .Concat(history.Where(transfer => FromHistory(transfer, whole))))
         {
             transfers.TryAdd(TransferKey.Of(transfer), transfer);
         }
@@ -86,6 +87,65 @@ internal sealed record AccountData(
             whole,
             read,
             outdated);
+    }
+
+    /// <summary>
+    /// Says whether a history's movement is taken: always for a transaction not read whole; for one read whole only
+    /// when that answer was incomplete and lacks the movement. A token's movement is lacking when the whole answer has
+    /// none of its kind at the history's place (the log's index in both answers). TRX on TRON, sent by the transaction
+    /// or by a contract, is lacking only when the whole answer has none of its kind between the same addresses and of
+    /// the same amount, never by place alone, since the two answers need not number internal transactions alike; a
+    /// whole transaction whose info could not be had lacks its internal TRX. So a USDC, another token's or a
+    /// contract's TRX never vanishes from the graph and the trace once the transaction is expanded, and nothing is
+    /// counted twice.
+    /// </summary>
+    /// <param name="transfer">The history's movement.</param>
+    /// <param name="whole">The transactions read whole.</param>
+    /// <returns><see langword="true"/> when it is taken.</returns>
+    private static bool FromHistory(
+        EthereumTransfer transfer, IReadOnlyDictionary<EthereumTxHash, EthereumTransaction> whole)
+    {
+        if (!whole.TryGetValue(transfer.Transaction, out var transaction))
+        {
+            return true;
+        }
+
+        if (transaction.IsComplete)
+        {
+            return false;
+        }
+
+        if (transfer.Kind == EthereumTransferKind.Token)
+        {
+            return !transaction.Transfers.Any(own => own.Kind == transfer.Kind && own.Position == transfer.Position);
+        }
+
+        return transfer.Transaction.Chain == Chain.Tron
+            && !transaction.Transfers.Any(own => own.Kind == transfer.Kind && own.From == transfer.From
+                && own.To == transfer.To && own.Amount == transfer.Amount);
+    }
+
+
+    /// <summary>
+    /// Joins the data of two account chains (Ethereum's and TRON's), which share no transaction, account or block:
+    /// each carries its chain in its addresses, hashes and blocks.
+    /// </summary>
+    /// <param name="other">The other chain's data.</param>
+    /// <returns>The data of both.</returns>
+    public AccountData Merge(AccountData other)
+    {
+        ArgumentNullException.ThrowIfNull(other);
+        return new AccountData(
+            [.. Transfers.Concat(other.Transfers).OrderBy(AccountGraph.ChainOrder)],
+            [.. Fees.Concat(other.Fees)],
+            Transactions.Concat(other.Transactions).ToDictionary(),
+            ReadAccounts.Union(other.ReadAccounts).ToHashSet(),
+            MayBeOutdated.Union(other.MayBeOutdated).ToHashSet())
+        {
+            BlockHashes = BlockHashes.Concat(other.BlockHashes).ToDictionary(),
+            PartlyRead = PartlyRead.Union(other.PartlyRead).ToHashSet(),
+            Problems = [.. Problems, .. other.Problems],
+        };
     }
 
     /// <summary>
@@ -129,13 +189,26 @@ internal sealed record AccountData(
             : fee;
 
     /// <summary>
-    /// Finds the swaps the transactions show: in one transaction the account that signed it sends exactly one asset
-    /// away and receives exactly one other back. Only the signer is asked, since the pool on the other side does the
-    /// same in reverse; when the signer is not known (a history that is not its own), or it sends or receives more
-    /// than one asset so that which was swapped for which cannot be read, no swap is shown.
+    /// Finds the swaps the transactions show (<see cref="SwapOf"/>). Only the signer is asked, since the pool on the
+    /// other side does the same in reverse; when the signer is not known (a history that is not its own), no swap is
+    /// shown.
     /// </summary>
+    /// <param name="endpoint">
+    /// Says why an address is one the trail must reach (an exchange, a mixer or a bridge by its label, with its
+    /// source), or <see langword="null"/> when it is not; <see langword="null"/> knows none.
+    /// </param>
     /// <returns>The swaps, in chain order.</returns>
-    public IReadOnlyList<TokenSwap> Swaps()
+    public IReadOnlyList<TokenSwap> Swaps(Func<EthereumAddress, string?>? endpoint = null) =>
+        ReadSwaps(endpoint).Swaps;
+
+    /// <summary>
+    /// Finds the swaps the transactions show, and the transactions that would be swaps but for a counterparty the
+    /// trail must reach, so that <em>Varför?</em> can say why there is none.
+    /// </summary>
+    /// <param name="endpoint">Says why an address is one the trail must reach, or <see langword="null"/>.</param>
+    /// <returns>The swaps and the refused ones, in chain order.</returns>
+    public (IReadOnlyList<TokenSwap> Swaps, IReadOnlyList<SwapRefusal> Refused) ReadSwaps(
+        Func<EthereumAddress, string?>? endpoint = null)
     {
         var signers = Fees.ToDictionary(fee => fee.Transaction, fee => fee.Payer);
         foreach (var transaction in Transactions.Values)
@@ -144,30 +217,170 @@ internal sealed record AccountData(
         }
 
         var swaps = new List<TokenSwap>();
+        var refused = new List<SwapRefusal>();
         foreach (var transaction in Transfers.GroupBy(transfer => transfer.Transaction))
         {
-            var moves = transaction.Where(transfer => transfer.From != transfer.To).ToList();
-            if (signers.GetValueOrDefault(transaction.Key) is { } account)
+            var moves = transaction.Where(transfer => transfer.From != transfer.To && transfer.Amount.Units.Sign > 0)
+                .ToList();
+            if (signers.GetValueOrDefault(transaction.Key) is not { } account
+                || SwapOf(transaction.Key, account, moves) is not { } swap)
             {
-                var sold = moves.Where(transfer => transfer.From == account).GroupBy(transfer => transfer.Amount.Asset)
-                    .ToList();
-                var bought = moves.Where(transfer => transfer.To == account).GroupBy(transfer => transfer.Amount.Asset)
-                    .ToList();
-                if (sold.Count == 1 && bought.Count == 1 && sold[0].Key != bought[0].Key)
-                {
-                    swaps.Add(new TokenSwap(
-                        transaction.Key,
-                        account.ToChainAddress(),
-                        Sum(sold[0].Key, sold[0]),
-                        Sum(bought[0].Key, bought[0]))
-                    {
-                        Venue = VenueOf(transaction.Key, account, moves),
-                    });
-                }
+                continue;
+            }
+
+            if (RefusalOf(swap, account, moves, endpoint ?? (_ => null)) is { } refusal)
+            {
+                refused.Add(refusal);
+            }
+            else
+            {
+                swaps.Add(swap);
             }
         }
 
-        return swaps;
+        return (swaps, refused);
+    }
+
+    /// <summary>
+    /// Reads a swap in one transaction, and when in doubt reads none: a false swap would move the traced money away
+    /// from a real recipient, while a missed one only leaves the trail honestly at the pool. It is a swap when
+    /// <list type="bullet">
+    /// <item>the signer got exactly one asset back that it did not also send (what comes back in an asset it sent, a
+    /// refund, is never a purchase);</item>
+    /// <item>what came back has a value Chainsaw knows (ether, WETH or a token it knows by its contract), always, also
+    /// through a known exchange's router, since anyone can open a pool there for a token of their own; a worthless
+    /// token, as dust or from one's own pool, never makes a payment a swap;</item>
+    /// <item>it sent exactly one asset, and every movement of it went to the trade's side
+    /// (<see cref="TradeSide"/>); one movement to anyone else, a third party or a fee collector, and it is no
+    /// swap.</item>
+    /// </list>
+    /// Whether a counterparty is one the trail must reach is asked after (<see cref="RefusalOf"/>).
+    /// </summary>
+    /// <param name="transaction">The transaction.</param>
+    /// <param name="account">The account that signed it.</param>
+    /// <param name="moves">Its movements of value between two addresses.</param>
+    /// <returns>The swap, or <see langword="null"/>.</returns>
+    private TokenSwap? SwapOf(EthereumTxHash transaction, EthereumAddress account, List<EthereumTransfer> moves)
+    {
+        var outgoing = moves.Where(transfer => transfer.From == account).ToList();
+        var sent = outgoing.Select(transfer => transfer.Amount.Asset).ToHashSet();
+        var bought = moves.Where(transfer => transfer.To == account && !sent.Contains(transfer.Amount.Asset)).ToList();
+        if (sent.Count != 1 || bought.Select(transfer => transfer.Amount.Asset).Distinct().Count() != 1)
+        {
+            return null;
+        }
+
+        var boughtAsset = bought[0].Amount.Asset;
+        var venue = VenueOf(transaction, account, moves);
+        if (!HasKnownValue(boughtAsset))
+        {
+            return null;
+        }
+
+        var side = TradeSide(transaction, account, moves, boughtAsset, venue);
+        if (!outgoing.All(transfer => side.Contains(transfer.To)))
+        {
+            return null;
+        }
+
+        return new TokenSwap(
+            transaction,
+            account.ToChainAddress(),
+            Sum(outgoing[0].Amount.Asset, outgoing),
+            Sum(boughtAsset, bought))
+        {
+            Venue = venue,
+            SoldMovements = [.. outgoing.Select(AccountSeed.Of)],
+            Time = bought[0].Block?.Time,
+        };
+    }
+
+    /// <summary>
+    /// Says whether Chainsaw knows what an asset is worth: a chain's coin, the coin wrapped (WETH, WBNB), or a token it
+    /// knows by its contract
+    /// (<see cref="KnownTokens"/>), never by its symbol.
+    /// </summary>
+    /// <param name="asset">The asset.</param>
+    /// <returns><see langword="true"/> when it does.</returns>
+    private static bool HasKnownValue(Asset asset) =>
+        asset.Kind == AssetKind.Native || KnownTokens.IsWrappedNative(asset) || KnownTokens.IsKnown(asset);
+
+    /// <summary>
+    /// Says why a swap is no swap after all: a counterparty is a known bridge or mixer, or one the trail must reach by
+    /// its label, so the money goes on to it as an ordinary payment.
+    /// </summary>
+    /// <param name="swap">The swap it would be.</param>
+    /// <param name="account">The signer.</param>
+    /// <param name="moves">The transaction's movements of value between two addresses.</param>
+    /// <param name="endpoint">Says why an address is one the trail must reach, or <see langword="null"/>.</param>
+    /// <returns>The refusal, or <see langword="null"/> when it is a swap.</returns>
+    private static SwapRefusal? RefusalOf(
+        TokenSwap swap, EthereumAddress account, List<EthereumTransfer> moves, Func<EthereumAddress, string?> endpoint)
+    {
+        var counterparties = moves.Where(move => move.From == account || move.To == account)
+            .Select(move => move.From == account ? move.To : move.From)
+            .Distinct();
+        foreach (var party in counterparties)
+        {
+            var known = KnownContracts.Find(party);
+            var why = known is { Category: KnownContractCategory.Bridge or KnownContractCategory.Mixer }
+                ? $"{known.Name} ({KnownContracts.Name} {KnownContracts.Version})"
+                : endpoint(party);
+            if (why is not null)
+            {
+                return new SwapRefusal(swap, party.ToChainAddress(), why);
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Gives the trade's side of a transaction: the contract the transaction called (when it is read whole), the
+    /// addresses that sent the bought asset to the signer, the known exchange, and every address that in the same
+    /// transaction demonstrably moved the bought asset (or, for ether, wrapped ether) to one of those, such as the
+    /// pair behind a router. What the source does not give cannot be shown, so a pair that only an internal movement
+    /// would reveal stays outside.
+    /// </summary>
+    /// <param name="transaction">The transaction.</param>
+    /// <param name="account">The signer.</param>
+    /// <param name="moves">Its movements of value between two addresses.</param>
+    /// <param name="boughtAsset">What the signer got back.</param>
+    /// <param name="venue">The known exchange, or <see langword="null"/>.</param>
+    /// <returns>The addresses on the trade's side.</returns>
+    private HashSet<EthereumAddress> TradeSide(
+        EthereumTxHash transaction,
+        EthereumAddress account,
+        List<EthereumTransfer> moves,
+        Asset boughtAsset,
+        KnownContract? venue)
+    {
+        var side = moves.Where(transfer => transfer.To == account && transfer.Amount.Asset == boughtAsset)
+            .Select(transfer => transfer.From)
+            .ToHashSet();
+        if (Transactions.GetValueOrDefault(transaction)?.To is { } called)
+        {
+            side.Add(called);
+        }
+
+        if (venue is not null)
+        {
+            side.Add(venue.Address);
+        }
+
+        var carries = boughtAsset.Kind == AssetKind.Native
+            ? new HashSet<Asset> { boughtAsset, KnownTokens.WrappedNative(boughtAsset.Chain) ?? boughtAsset }
+            : [boughtAsset];
+        for (var grew = true; grew;)
+        {
+            grew = false;
+            foreach (var move in moves.Where(move => carries.Contains(move.Amount.Asset) && side.Contains(move.To)))
+            {
+                grew |= move.From != account && side.Add(move.From);
+            }
+        }
+
+        return side;
     }
 
     /// <summary>
@@ -204,9 +417,10 @@ internal sealed record AccountData(
     }
 
     /// <summary>Gives a movement's block with its hash, when the case has the hash.</summary>
+    /// <param name="chain">The chain the movement is on.</param>
     /// <param name="block">The movement's block.</param>
     /// <returns>The block for the graph, or <see langword="null"/> while unconfirmed or the hash is not known.</returns>
-    public BlockReference? BlockOf(EthereumBlockReference? block)
+    public BlockReference? BlockOf(Chain chain, EthereumBlockReference? block)
     {
         if (block is null)
         {
@@ -214,8 +428,10 @@ internal sealed record AccountData(
         }
 
 
-        var text = block.Hash ?? BlockHashes.GetValueOrDefault(block.Height);
-        return BlockHash.TryParseEthereum(text, out var hash) ? new BlockReference(block.Height, hash, block.Time) : null;
+        var text = block.Hash ?? BlockHashes.GetValueOrDefault((chain, block.Height));
+        return BlockHash.TryParseEthereum(text, out var hash) || BlockHash.TryParse(text, out hash)
+            ? new BlockReference(block.Height, hash, block.Time)
+            : null;
     }
 
     /// <summary>Adds the amounts of some movements of one asset.</summary>

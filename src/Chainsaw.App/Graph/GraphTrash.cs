@@ -80,7 +80,7 @@ public sealed class TrashFilter
     public bool HidesAddress(ChainAddress address)
     {
         ArgumentNullException.ThrowIfNull(address);
-        return Hides(address.Chain == Chain.Bitcoin
+        return Hides(address.Chain.Model() == LedgerModel.Utxo
             ? GraphPile.AddressKeyPrefix + address.Value
             : GraphPile.AccountKey(address));
     }

@@ -19,6 +19,14 @@ public static class StartPointText
         ["eth"] = Chain.Ethereum,
         ["tron"] = Chain.Tron,
         ["trx"] = Chain.Tron,
+        ["litecoin"] = Chain.Litecoin,
+        ["ltc"] = Chain.Litecoin,
+        ["bsc"] = Chain.Bsc,
+        ["bnb"] = Chain.Bsc,
+        ["zcash"] = Chain.Zcash,
+        ["zec"] = Chain.Zcash,
+        ["solana"] = Chain.Solana,
+        ["sol"] = Chain.Solana,
     };
 
     /// <summary>Finds the chain a name means.</summary>

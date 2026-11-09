@@ -80,6 +80,15 @@ internal sealed class UtxoExposureRun
     /// <summary>The fee each transaction read took of the money.</summary>
     private readonly Dictionary<Txid, long> _fees = [];
 
+    /// <summary>Paid out: the money that went into a shielded pool (Zcash) by transaction, where the trail ends.</summary>
+    private readonly Dictionary<Txid, BigInteger> _pooledOut = [];
+
+    /// <summary>
+    /// Got: the money in a transaction's outputs that came out of a shielded pool, by transaction, where the trail
+    /// ends going back.
+    /// </summary>
+    private readonly Dictionary<Txid, BigInteger> _pooledIn = [];
+
     /// <summary>The transactions waiting to be read, in block order (or backwards).</summary>
     private readonly PriorityQueue<Txid, (long Height, string Id)> _queue = new();
 
@@ -189,10 +198,29 @@ internal sealed class UtxoExposureRun
     /// <param name="coin">The coin.</param>
     /// <returns>The transaction's id and the input's index.</returns>
     private BitcoinSpend? Spender(Outpoint coin) =>
-        Graph.Spends.TryGetValue(coin, out var spend) && spend.SpentBy is { } by
-        && Graph.Transactions.ContainsKey(by.Txid)
-            ? by
-            : null;
+        SpendRules.SpentBy(Graph, coin) is { } by && Graph.Transactions.ContainsKey(by.Txid) ? by : null;
+
+    /// <summary>
+    /// Says whether a coin the money starts in was made by a transaction the source no longer knows, and stops it there
+    /// as the graph's trace does (<see cref="SpendRules.MadeByGone"/>): it is left out when a replacer is in the graph,
+    /// whose own coins carry the money, and otherwise stops where the trail ends, or as not adding up when the answers
+    /// do not settle that it is gone.
+    /// </summary>
+    /// <param name="coin">The coin.</param>
+    /// <param name="counts">Whether the coin is counted at all.</param>
+    /// <returns><see langword="true"/> when the coin's transaction is gone.</returns>
+    private bool StopsAtGone(Outpoint coin, out bool counts)
+    {
+        counts = true;
+        if (SpendRules.MadeByGone(Graph, coin) is not { } made)
+        {
+            return false;
+        }
+
+        counts = made.Counts;
+        _ended[coin] = made.Gone.IsSettled ? ExposureRest.TrailEnds : ExposureRest.Conflicting;
+        return true;
+    }
 
     /// <summary>
     /// Paid out: sends a coin the user linked to another chain there, where it stops, whoever its actor is (a service
@@ -236,7 +264,8 @@ internal sealed class UtxoExposureRun
             return;
         }
 
-        if (SpendRules.IsConflicting(Graph.Transactions[by.Txid].Transaction, by.InputIndex, coin, output))
+        if (SpendRules.IsConflicting(Graph.Transactions[by.Txid].Transaction, by.InputIndex, coin, output)
+            || Graph.Gone.TryGetValue(by.Txid, out var gone) && !gone.IsSettled)
         {
             _ended[coin] = ExposureRest.Conflicting;
         }
@@ -314,7 +343,8 @@ internal sealed class UtxoExposureRun
             {
                 var coin = transfer.Coin!;
                 var owner = IsTransactionNode(edge.To) ? Subject : edge.To;
-                if (!_seeds.Add(coin))
+                var gone = StopsAtGone(coin, out var counts);
+                if (!counts || !_seeds.Add(coin))
                 {
                     continue;
                 }
@@ -323,7 +353,10 @@ internal sealed class UtxoExposureRun
                 _taint[coin] = TaintSet.FirstPart((long)transfer.Amount.Units);
                 _through[coin] = [transfer.Transaction];
                 total += transfer.Amount.Units;
-                Arrived(coin, Subject, edge);
+                if (!gone)
+                {
+                    Arrived(coin, Subject, edge);
+                }
             }
         }
 
@@ -340,7 +373,8 @@ internal sealed class UtxoExposureRun
             foreach (var transfer in edge.Transfers.Where(t => t.Amount.Asset == _request.Asset && t.Coin is not null))
             {
                 var coin = transfer.Coin!;
-                if (!_seeds.Add(coin))
+                var gone = StopsAtGone(coin, out var counts);
+                if (!counts || !_seeds.Add(coin))
                 {
                     continue;
                 }
@@ -349,7 +383,10 @@ internal sealed class UtxoExposureRun
                 _units[coin] = transfer.Amount.Units;
                 _through[coin] = [transfer.Transaction];
                 total += transfer.Amount.Units;
-                SettleIn(coin);
+                if (!gone)
+                {
+                    SettleIn(coin);
+                }
             }
         }
 
@@ -413,9 +450,16 @@ internal sealed class UtxoExposureRun
             }
         }
 
+        if (MethodChecks.HasPoolInput(transaction))
+        {
+            // What comes out of a shielded pool is never the subject's money: the pool is the flow's last input.
+            inputs.Add(TaintSet.None);
+        }
+
         var taint = _method.Propagate(MethodChecks.Flow(transaction), inputs);
         _fees[txid] = taint.Fee;
-        for (var index = 0; index < taint.Outputs.Count; index++)
+        _pooledOut[txid] = MethodChecks.HasPoolOutput(transaction) ? taint.Outputs[^1].Units : BigInteger.Zero;
+        for (var index = 0; index < transaction.Outputs.Count; index++)
         {
             var coin = new Outpoint(txid, transaction.Outputs[index].Index);
             if (taint.Outputs[index].IsEmpty || taint.Outputs[index].Equals(_taint.GetValueOrDefault(coin)))
@@ -451,9 +495,11 @@ internal sealed class UtxoExposureRun
         }
 
         var flow = MethodChecks.Flow(transaction);
-        var shares = transaction.Inputs.Select((_, index) => _method.Propagate(flow, [
+        // One share per input of the flow: a shielded pool's is its last, and its part is where the trail ends.
+        var shares = flow.Inputs.Select((_, index) => _method.Propagate(flow, [
             .. flow.Inputs.Select((amount, other) => other == index ? TaintSet.FirstPart(amount) : TaintSet.None),
         ]).Outputs.Select(set => set.Units).ToList()).ToList();
+        var fromPool = BigInteger.Zero;
         var linked = transaction.Inputs.Select(IsLinkedInput).ToList();
         var onOtherChain = BigInteger.Zero;
         var parts = new BigInteger[transaction.Inputs.Count];
@@ -468,7 +514,12 @@ internal sealed class UtxoExposureRun
             }
 
             var split = Split(_units[coin], [.. shares.Select(share => share[output])]);
-            for (var input = 0; input < split.Length; input++)
+            if (split.Length > transaction.Inputs.Count)
+            {
+                fromPool += split[^1];
+            }
+
+            for (var input = 0; input < transaction.Inputs.Count; input++)
             {
                 if (linked[input])
                 {
@@ -486,6 +537,7 @@ internal sealed class UtxoExposureRun
         }
 
         _onOtherChain[txid] = onOtherChain;
+        _pooledIn[txid] = fromPool;
         for (var index = 0; index < transaction.Inputs.Count; index++)
         {
             var input = transaction.Inputs[index];
@@ -525,7 +577,8 @@ internal sealed class UtxoExposureRun
     /// <returns><see langword="true"/> when they disagree.</returns>
     private bool SpendsElsewhere(Outpoint coin, Txid txid, int index)
     {
-        if (!Graph.Spends.TryGetValue(coin, out var spend) || spend.SpentBy is not { } by)
+        // As the graph's trace counts the spend: a followed replacer's input in place of a gone transaction's.
+        if (SpendRules.SpentBy(Graph, coin) is not { } by)
         {
             return false;
         }
@@ -613,6 +666,11 @@ internal sealed class UtxoExposureRun
         }
 
         _owners.TryAdd(coin, owner);
+        if (!_seeds.Contains(coin) && StopsAtGone(coin, out _))
+        {
+            // Made by a transaction that is not in the chain: it is not read back through it.
+            return;
+        }
 
         if (spender is not null)
         {
@@ -697,6 +755,18 @@ internal sealed class UtxoExposureRun
         {
             _tally.Rest(ExposureRest.Fees, fee);
         }
+
+        TallyPooled(_pooledOut);
+    }
+
+    /// <summary>Counts the money that went into or came out of a shielded pool as where the trail ends.</summary>
+    /// <param name="pooled">The money by transaction.</param>
+    private void TallyPooled(Dictionary<Txid, BigInteger> pooled)
+    {
+        foreach (var units in pooled.Values.Where(units => !units.IsZero))
+        {
+            _tally.Rest(ExposureRest.TrailEnds, units);
+        }
     }
 
     /// <summary>
@@ -709,6 +779,8 @@ internal sealed class UtxoExposureRun
         {
             _tally.Rest(ExposureRest.OtherChain, units);
         }
+
+        TallyPooled(_pooledIn);
 
         foreach (var (coin, units) in _units)
         {

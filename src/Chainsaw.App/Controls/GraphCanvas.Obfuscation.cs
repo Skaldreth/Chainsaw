@@ -167,7 +167,7 @@ public sealed partial class GraphCanvas
     /// <param name="surface">The pointer on the surface.</param>
     /// <returns>The text.</returns>
     private string? HopTipAt(GraphPoint surface) => HopPillAt(surface) is { } row
-        ? string.Join(Environment.NewLine, [row.Text + " · pass-through v1", .. row.Lines, "Klicka för att fälla ut"])
+        ? string.Join(Environment.NewLine, [row.Text + " · " + row.Analysis, .. row.Lines, "Klicka för att fälla ut"])
         : null;
 
     /// <summary>Takes a press on a row's pill: the row folds out to its nodes, or back into one line.</summary>

@@ -35,10 +35,27 @@ public sealed class BitstampSourceTests
     [InlineData(Chain.Bitcoin, FiatCurrency.Sek, false)]
     [InlineData(Chain.Ethereum, FiatCurrency.Usd, true)]
     [InlineData(Chain.Ethereum, FiatCurrency.Sek, false)]
-    [InlineData(Chain.Tron, FiatCurrency.Usd, false)]
+    [InlineData(Chain.Tron, FiatCurrency.Usd, true)]
+    [InlineData(Chain.Tron, FiatCurrency.Eur, true)]
+    [InlineData(Chain.Tron, FiatCurrency.Sek, false)]
+    [InlineData(Chain.Litecoin, FiatCurrency.Eur, true)]
+    [InlineData(Chain.Litecoin, FiatCurrency.Sek, false)]
+    [InlineData(Chain.Bsc, FiatCurrency.Eur, true)]
+    [InlineData(Chain.Bsc, FiatCurrency.Sek, false)]
     public void Has_bitcoin_and_ether_in_dollars_and_euro_only(Chain chain, FiatCurrency quote, bool supported)
     {
         Assert.Equal(supported, _source.Supports(chain, quote));
+    }
+
+    [Theory]
+    [InlineData(Chain.Litecoin, "ohlc/ltceur/")]
+    [InlineData(Chain.Bsc, "ohlc/bnbeur/")]
+    [InlineData(Chain.Solana, "ohlc/soleur/")]
+    public void Asks_litecoin_and_bnb_in_their_own_markets(Chain chain, string market)
+    {
+        var uri = _source.RequestUri(chain, FiatCurrency.Eur, PriceResolution.Day, Start);
+
+        Assert.Contains(market, uri.AbsoluteUri, StringComparison.Ordinal);
     }
 
     [Fact]

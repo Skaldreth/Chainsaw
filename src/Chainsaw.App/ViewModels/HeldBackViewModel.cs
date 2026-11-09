@@ -407,7 +407,7 @@ public sealed partial class HeldBackViewModel : ObservableObject
         ArgumentNullException.ThrowIfNull(dot);
         var first = dot.First;
         var head = string.Create(
-            CultureInfo.InvariantCulture, $"{HeadWords(dot)} · {HeldBackLayout.Btc(dot.Btc)} BTC");
+            CultureInfo.InvariantCulture, $"{HeadWords(dot)} · {HeldBackLayout.Btc(dot.Btc)} {Choices.Unit}");
         var when = dot.Time is { } time
             ? time.UtcDateTime.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture) + " UTC"
             : "obekräftad";
@@ -480,10 +480,10 @@ public sealed partial class HeldBackViewModel : ObservableObject
     /// <param name="dot">The dot.</param>
     /// <param name="traced">What was traced in.</param>
     /// <returns>The line.</returns>
-    private static string NearWords(HeldBackDot dot, Satoshi traced)
+    private string NearWords(HeldBackDot dot, Satoshi traced)
     {
         var tracedBtc = traced.Value / (double)Satoshi.PerBitcoin;
-        var line = $"Nära det spårade: {HeldBackLayout.Btc(dot.Btc)} av {HeldBackLayout.Btc(tracedBtc)} BTC, "
+        var line = $"Nära det spårade: {HeldBackLayout.Btc(dot.Btc)} av {HeldBackLayout.Btc(tracedBtc)} {Choices.Unit}, "
             + "skillnad " + HeldBackLayout.Btc(Math.Max(0, tracedBtc - dot.Btc));
         if (dot.Count > 1)
         {
@@ -786,8 +786,10 @@ public sealed partial class HeldBackViewModel : ObservableObject
         Dots = Mode == HeldBackMode.Spiral ? OnSpiral(items) : OnArc(items);
         var window = Window();
         Guides = Mode == HeldBackMode.Spiral
-            ? HeldBackLayout.SpiralGuides(Dots, Order, window.To - window.From < TimeSpan.FromDays(12), _zone)
-            : HeldBackLayout.ArcGuides(window.From, window.To, Choices.Arrival, ArrivalWords(), _zone);
+            ? HeldBackLayout.SpiralGuides(
+                Dots, Order, window.To - window.From < TimeSpan.FromDays(12), _zone, Choices.Unit)
+            : HeldBackLayout.ArcGuides(
+                window.From, window.To, Choices.Arrival, ArrivalWords(), _zone, Choices.Unit);
         var total = Choices.Choices.Count;
         var grouped = GroupByCounterparty
             ? string.Create(CultureInfo.InvariantCulture, $" · {Dots.Count} motparter")
@@ -890,7 +892,7 @@ public sealed partial class HeldBackViewModel : ObservableObject
             var parties = chosen.Select(choice => choice.CounterpartyKey).Distinct(StringComparer.Ordinal).Count();
             var sum = HeldBackLayout.Btc(chosen.Sum(choice => choice.Btc));
             CountText = string.Create(
-                CultureInfo.InvariantCulture, $"{chosen.Count} valda · {sum} BTC · {parties} motparter");
+                CultureInfo.InvariantCulture, $"{chosen.Count} valda · {sum} {Choices.Unit} · {parties} motparter");
             TakeText = string.Create(CultureInfo.InvariantCulture, $"Plocka ut {chosen.Count} · Enter");
         }
 
@@ -910,13 +912,13 @@ public sealed partial class HeldBackViewModel : ObservableObject
 
         var low = Low <= 0.001 ? "allt" : HeldBackLayout.ShortBtc(BtcAt(Low));
         var high = High >= 0.999 ? "allt" : HeldBackLayout.ShortBtc(BtcAt(High));
-        return $"{low} – {high} BTC";
+        return $"{low} – {high} {Choices.Unit}";
     }
 
     /// <summary>Writes the traced arrival's word on the time arc.</summary>
     /// <returns>For example <c>spårad ankomst · 0,92 BTC</c>.</returns>
     private string ArrivalWords() => Choices.Traced is { } traced
-        ? "spårad ankomst · " + HeldBackLayout.ShortBtc(traced.Value / 1e8) + " BTC"
+        ? "spårad ankomst · " + HeldBackLayout.ShortBtc(traced.Value / 1e8) + " " + Choices.Unit
         : "spårad ankomst";
 
     /// <summary>Gives the amount at a share of the slider.</summary>

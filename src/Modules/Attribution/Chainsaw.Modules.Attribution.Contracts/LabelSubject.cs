@@ -37,7 +37,10 @@ public sealed record LabelSubject
         Target = address.ToChainAddress();
     }
 
-    /// <summary>Creates a subject on an Ethereum account alone.</summary>
+    /// <summary>What the stored form of a subject on BSC begins with (<see cref="Stored"/>).</summary>
+    public const string BscPrefix = "bsc:";
+
+    /// <summary>Creates a subject on an account alone, on Ethereum, BSC or TRON.</summary>
     /// <param name="account">The checked account.</param>
     private LabelSubject(EthereumAddress account)
     {
@@ -51,9 +54,16 @@ public sealed record LabelSubject
 
     /// <summary>
     /// Gets the address with its chain, or for a cluster the address the label was set on. Its value is what is
-    /// stored and compared: for Bitcoin the address as the chain writes it, for Ethereum the hex in lower case.
+    /// stored and compared: for Bitcoin the address as the chain writes it, for Ethereum the hex in lower case, for TRON
+    /// the Base58Check form.
     /// </summary>
     public ChainAddress Target { get; }
+
+    /// <summary>
+    /// Gets the subject as a label stores it, whose form says its chain: the address as <see cref="Target"/> gives
+    /// it, and on BSC, whose addresses are written as Ethereum's, the same with <see cref="BscPrefix"/> before it.
+    /// </summary>
+    public string Stored => Target.Chain == Chain.Bsc ? BscPrefix + Target.Value : Target.Value;
 
     /// <summary>
     /// Gets the Bitcoin address, or <see langword="null"/> when the subject is on another chain. A cluster is always
@@ -76,7 +86,7 @@ public sealed record LabelSubject
 
     /// <summary>
     /// Gives a label's subject that is an address alone on a chain that can be labelled: a Bitcoin address or an
-    /// Ethereum account. A label on a cluster is for Bitcoin only, since only Bitcoin is clustered (see
+    /// Ethereum or TRON account. A label on a cluster is for Bitcoin only, since only Bitcoin is clustered (see
     /// <see cref="ForCluster"/>).
     /// </summary>
     /// <param name="address">The address with its chain.</param>
@@ -89,11 +99,14 @@ public sealed record LabelSubject
         ArgumentNullException.ThrowIfNull(address);
         return address.Chain switch
         {
-            Chain.Bitcoin when BitcoinAddress.TryParse(address.Value, out var bitcoin) => ForAddress(bitcoin),
-            Chain.Ethereum when EthereumAddress.TryParse(address.Value, out var account) => new(account),
-            Chain.Bitcoin or Chain.Ethereum => throw new ArgumentException(
-                "The address is not valid on its chain.", nameof(address)),
-            _ => throw new ArgumentException("Labels are on Bitcoin and Ethereum addresses so far.", nameof(address)),
+            Chain.Bitcoin or Chain.Litecoin or Chain.Zcash
+                when BitcoinAddress.TryParse(address.Chain, address.Value, out var utxo) =>
+                ForAddress(utxo),
+            Chain.Ethereum or Chain.Tron or Chain.Bsc or Chain.Solana
+                when EthereumAddress.TryParse(address.Chain, address.Value, out var account) => new(account),
+
+            _ => throw new ArgumentException("The address is not valid on its chain.", nameof(address)),
+
         };
     }
 

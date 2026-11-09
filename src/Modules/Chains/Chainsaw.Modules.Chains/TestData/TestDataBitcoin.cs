@@ -95,6 +95,11 @@ public static class TestDataBitcoin
             inner.VerifyTransactionAsync(@case, txid, cancellationToken);
 
         /// <inheritdoc/>
+        public Task<BitcoinLookup<BitcoinTransaction>> VerifyInBlockAsync(
+            ICase @case, Txid txid, CancellationToken cancellationToken = default) =>
+            inner.VerifyInBlockAsync(@case, txid, cancellationToken);
+
+        /// <inheritdoc/>
         public Task<BitcoinLookup<BitcoinAddressSummary>> GetAddressSummaryAsync(
             ICase @case, BitcoinAddress address, CancellationToken cancellationToken = default) =>
             inner.GetAddressSummaryAsync(@case, address, cancellationToken);
@@ -116,6 +121,18 @@ public static class TestDataBitcoin
             inner.GetTipHeightAsync(@case, cancellationToken);
 
         /// <inheritdoc/>
+        public async Task<BitcoinLookup<BitcoinTip>> GetTipHeightAsync(
+            ICase @case, LookupMode mode, CancellationToken cancellationToken = default)
+        {
+            if (mode == LookupMode.InStep)
+            {
+                await ProbeOnceAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            return await inner.GetTipHeightAsync(@case, mode, cancellationToken).ConfigureAwait(false);
+        }
+
+        /// <inheritdoc/>
         public Task<BitcoinLookup<ChainTip>> GetTipAsync(ICase @case, CancellationToken cancellationToken = default) =>
             inner.GetTipAsync(@case, cancellationToken);
 
@@ -128,6 +145,12 @@ public static class TestDataBitcoin
         public Task<IReadOnlyList<BlockChange>> GetBlockChangesAsync(
             ICase @case, CancellationToken cancellationToken = default) =>
             inner.GetBlockChangesAsync(@case, cancellationToken);
+
+        /// <inheritdoc/>
+        public Task<BitcoinLookup<TransactionReplacement>> GetReplacementAsync(
+            ICase @case, Txid txid, LookupMode mode = LookupMode.CaseOnly,
+            CancellationToken cancellationToken = default) =>
+            inner.GetReplacementAsync(@case, txid, mode, cancellationToken);
 
         /// <summary>Tries the endpoint the first time it is needed in step, and never again.</summary>
         /// <param name="cancellationToken">Stops the wait.</param>

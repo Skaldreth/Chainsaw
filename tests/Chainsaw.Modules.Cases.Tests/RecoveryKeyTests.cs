@@ -323,7 +323,7 @@ public sealed class RecoveryKeyTests : IDisposable
     }
 
     [Fact]
-    public void A_full_header_gets_no_envelope_that_would_make_it_unreadable()
+    public void A_header_full_of_copies_of_the_vaults_own_envelope_gives_one_up_for_the_recovery_envelope()
     {
         _owner.RecoveryKey = null;
         using (_owner.CreateStore().Create("A1"))
@@ -332,12 +332,15 @@ public sealed class RecoveryKeyTests : IDisposable
 
         RewriteHeader(_owner.CaseFile("A1"), header => header.WithEnvelopes(header.Envelopes.Concat(
             Enumerable.Range(0, CaseContainer.MaximumEnvelopes - 1)
-                .Select(_ => new System.Text.Json.Nodes.JsonObject { ["kind"] = "okänd" }))));
+                .Select(_ => (System.Text.Json.Nodes.JsonObject)header.Envelopes[0].DeepClone()))));
         _owner.RecoveryKey = RecoveryPublicKey.FromPrivateKey(_privateKey);
 
         using (var opened = _owner.CreateStore().Open("A1"))
         {
-            Assert.Empty(opened.RecoveryFingerprints);
+            // A copy is never read, so it cannot keep the recovery envelope out of a full header.
+            Assert.Equal([_owner.RecoveryKey.Fingerprint], opened.RecoveryFingerprints);
+            var entry = opened.ReadJournal().Last(item => item.Kind == CaseJournalKinds.RecoveryAccessChanged);
+            Assert.Contains("1 kuvert som Chainsaw inte kan använda", entry.Summary, StringComparison.Ordinal);
         }
 
         using var again = _owner.CreateStore().Open("A1");

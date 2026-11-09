@@ -1,7 +1,10 @@
 #if DEBUG
 using Chainsaw.App.Graph;
+using Chainsaw.Modules.Attribution.Contracts;
+using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Checks.Contracts;
 using Chainsaw.Modules.Tracing.Contracts;
+using Chainsaw.SharedKernel;
 
 namespace Chainsaw.App.TestData;
 
@@ -23,6 +26,55 @@ public sealed record SanctionCheckStep : ITestStep
         {
             run.Note("Sanktionskontrollen gav ingen träff på den påhittade listan.");
         }
+    }
+}
+
+/// <summary>
+/// Checks the graph's addresses against the open sources while the test case is built, when the made-up source
+/// (<see cref="TestDataOpenSources"/>) names the scammer's second address: a <em>Rapporterad</em> label from an open
+/// source in Ransomwhere's form, without a real file being imported.
+/// </summary>
+public sealed record OpenSourceCheckStep : ITestStep
+{
+    /// <inheritdoc/>
+    public async Task RunAsync(TestRun run, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(run);
+        var graph = await run.Services.Tracing.LoadAsync(run.Case, cancellationToken).ConfigureAwait(false);
+        var addresses = graph.Nodes.SelectMany(node => node.GraphAddresses)
+            .Select(address => address.ToChainAddress())
+            .Distinct()
+            .ToList();
+        using var scope = TestDataScope.Building();
+        if (run.Services.Attribution.CheckOpenSources(run.Case, addresses).Added.Count == 0)
+        {
+            run.Note("Kontrollen mot de öppna källorna gav ingen träff på den påhittade källan.");
+        }
+    }
+}
+
+/// <summary>
+/// Labels a transaction, as the user does where no address says what it is (round 5): a label that says where the
+/// money goes ends the trail at the transaction.
+/// </summary>
+/// <param name="Transaction">The story's label for the transaction.</param>
+/// <param name="Kind">What it is.</param>
+/// <param name="Name">The service's name.</param>
+public sealed record TransactionLabelStep(string Transaction, LabelKind Kind, string Name) : ITestStep
+{
+    /// <inheritdoc/>
+    public Task RunAsync(TestRun run, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(run);
+        if (run.Services.TransactionLabels is not { } labels)
+        {
+            run.Note("Etiketten på tx:en kunde inte sättas: etiketterna på tx finns inte.");
+            return Task.CompletedTask;
+        }
+
+        labels.Add(run.Case, new TransactionLabelDraft(
+            Chain.Bitcoin, run.TxidOf(Transaction).Value, Kind, Name, TestStory.LabelReason, null));
+        return Task.CompletedTask;
     }
 }
 
@@ -57,6 +109,111 @@ public sealed record ReorganisationStep(string Transaction, TestAddress Receiver
         if (!changes.Any(change => change.TransactionId == run.TxidOf(Transaction).Value))
         {
             run.Note($"Blocket för {Transaction} syns inte som bytt.");
+        }
+    }
+}
+
+/// <summary>
+/// Makes the made-up source lag a block behind the newest (<see cref="TestChain.Behind"/>) until
+/// <see cref="ReplacedStep"/> has seen its transaction gone, so that the case learns of the newest block between the
+/// two answers that say so. It comes before anything is looked up.
+/// </summary>
+public sealed record LagStep : ITestStep
+{
+    /// <inheritdoc/>
+    public Task RunAsync(TestRun run, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(run);
+        run.Chain.Behind = 1;
+        return Task.CompletedTask;
+    }
+}
+
+/// <summary>
+/// Makes a transaction gone and replaced (sketch GR9a, <em>Ersatt av</em>), as a replacement by fee (RBF) after a
+/// reorganisation does: while the source lags a block behind (<see cref="LagStep"/>), the transaction is expanded from
+/// an orphaned block; then the source no longer knows it, once before and once after the newest block, and the
+/// transaction its coin came from is asked who spends it now. Every answer is sealed in the case (principle 1).
+/// </summary>
+/// <param name="Transaction">The story's label for the replaced transaction.</param>
+public sealed record ReplacedStep(string Transaction) : ITestStep
+{
+    /// <inheritdoc/>
+    public async Task RunAsync(TestRun run, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(run);
+        try
+        {
+            await GoneAsync(run, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            run.Chain.Behind = 0;
+        }
+    }
+
+    /// <summary>Lets the source see the transaction in an orphaned block, and then no more.</summary>
+    /// <param name="run">The build.</param>
+    /// <param name="cancellationToken">Stops the work.</param>
+    /// <returns>A task that completes when the source has answered.</returns>
+    private async Task GoneAsync(TestRun run, CancellationToken cancellationToken)
+    {
+        if (run.Services.Bitcoin is not { } bitcoin)
+        {
+            run.Note("Den ersatta tx:en kunde inte göras: Bitcoin-källan finns inte.");
+            return;
+        }
+
+        var txid = run.TxidOf(Transaction);
+        await bitcoin.GetTipHeightAsync(run.Case, cancellationToken).ConfigureAwait(false);
+        using (run.Chain.Orphaning(Transaction))
+        {
+            await new ExpandStep(Transaction).RunAsync(run, cancellationToken).ConfigureAwait(false);
+        }
+
+        await bitcoin.GetTransactionAsync(run.Case, txid, cancellationToken: cancellationToken).ConfigureAwait(false);
+        run.Chain.Behind = 0;
+        await bitcoin.GetTipHeightAsync(run.Case, cancellationToken).ConfigureAwait(false);
+        await bitcoin.GetTransactionAsync(run.Case, txid, cancellationToken: cancellationToken).ConfigureAwait(false);
+        var replacement = await bitcoin.GetReplacementAsync(run.Case, txid, LookupMode.AsNeeded, cancellationToken)
+            .ConfigureAwait(false);
+        var changes = await bitcoin.GetBlockChangesAsync(run.Case, cancellationToken).ConfigureAwait(false);
+        if (!changes.Any(change => change.TransactionId == txid.Value && change.Kind == BlockChangeKind.Gone)
+            || replacement.Value?.Kind != ReplacementKind.Replaced)
+        {
+            run.Note($"{Transaction} syns inte som borta och ersatt.");
+        }
+    }
+}
+
+/// <summary>
+/// Runs the clustering on what the chain still has, so that a conclusion that rests on a gone transaction is held back
+/// (sketch HB1a): the graph's Bitcoin transactions without those the source no longer knows. The app's own runs still
+/// pass every transaction in the graph, gone ones too, so it never makes this run by itself (TODO); the step makes it as
+/// the last, since every later expansion runs the clustering on the whole graph again and lets the conclusion count.
+/// </summary>
+/// <param name="Transaction">The story's label for the transaction whose conclusion is to be held back.</param>
+public sealed record HeldBackStep(string Transaction) : ITestStep
+{
+    /// <inheritdoc/>
+    public async Task RunAsync(TestRun run, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(run);
+        if (run.Services.Clustering is not { } clustering)
+        {
+            run.Note("Slutsatsen som hålls tillbaka kunde inte göras: klustringen finns inte.");
+            return;
+        }
+
+        var graph = await run.Services.Tracing.LoadAsync(run.Case, cancellationToken).ConfigureAwait(false);
+        var onChain = graph.Transactions
+            .Where(entry => !graph.Gone.ContainsKey(entry.Key))
+            .Select(entry => entry.Value.Transaction)
+            .ToList();
+        var analysed = clustering.Analyse(run.Case, onChain);
+        if (!analysed.HeldBack.Contains(run.TxidOf(Transaction)))
+        {
+            run.Note($"Slutsatsen om {Transaction} hölls inte tillbaka.");
         }
     }
 }
@@ -167,8 +324,12 @@ public sealed record SplitStep(TestAddress Leaving, string Reason) : ITestStep
 /// that what follows from the approvals is sealed.
 /// </summary>
 /// <param name="Wallet">An address in the proposed wallet to approve.</param>
+/// <param name="Deposit">
+/// The story's label for the transaction whose deposit into the mixer has its likeliest way out approved, since the
+/// mixer has more deposits than one.
+/// </param>
 /// <param name="Reason">The reason given with the decisions.</param>
-public sealed record DecideStep(TestAddress Wallet, string Reason) : ITestStep
+public sealed record DecideStep(TestAddress Wallet, string Deposit, string Reason) : ITestStep
 {
     /// <summary>The name of the analysis that suggests the mixer's likely ways out.</summary>
     public const string MixerOutputs = "mixer-outputs";
@@ -189,7 +350,9 @@ public sealed record DecideStep(TestAddress Wallet, string Reason) : ITestStep
             requests.Add(new DecisionRequest(wallet.Analysis, wallet.Finding.Key, null, CheckVerdict.Approved, Reason));
         }
 
-        if (suggestions.FirstOrDefault(check => check.Analysis.Name == MixerOutputs) is { } outputs
+        var deposit = run.TxidOf(Deposit).Value + ":";
+        if (suggestions.FirstOrDefault(check => check.Analysis.Name == MixerOutputs
+                && check.Finding.Key.StartsWith(deposit, StringComparison.Ordinal)) is { } outputs
             && outputs.Finding.Candidates.MaxBy(candidate => candidate.Score) is { } likeliest)
         {
             requests.Add(new DecisionRequest(

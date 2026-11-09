@@ -55,7 +55,11 @@ internal sealed class ChangeAddressHeuristic : IUtxoHeuristic
     public HeuristicId Id { get; }
 
     /// <inheritdoc/>
-    public ChainScope Scope { get; } = ChainScope.Only(Chain.Bitcoin);
+    /// <remarks>
+    /// Bitcoin, Litecoin and Zcash's transparent part: all three spend whole coins with Bitcoin's scripts, so the
+    /// reasoning holds alike.
+    /// </remarks>
+    public ChainScope Scope { get; } = ChainScope.Only(Chain.Bitcoin, Chain.Litecoin, Chain.Zcash);
 
     /// <inheritdoc/>
     public HeuristicResult Analyse(BitcoinTransaction transaction, IHeuristicContext context)

@@ -107,6 +107,40 @@ public sealed class MonitoringServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task A_hit_found_in_another_block_after_a_reorganisation_is_sealed_again_and_said()
+    {
+        _harness.WatchBitcoin(Node);
+        await _harness.Service.CheckAsync(_harness.Case, Chain.Bitcoin, 900_000);
+        var first = Synthetic.Tx("hit", 900_001).In(Node, 20_000).Out(Exchange, 19_000).Build();
+        _harness.Bitcoin.Holds(Node, first);
+        await _harness.Service.CheckAsync(_harness.Case, Chain.Bitcoin, 900_001);
+
+        // The block was replaced: the same transaction is mined again one block higher, under another hash.
+        var again = Synthetic.Tx("hit", 900_002).In(Node, 20_000).Out(Exchange, 19_000).Build();
+        _harness.Bitcoin.Holds(Node, again);
+        _harness.Clock.UtcNow += MonitoringService.MoveDamping;
+        var run = await _harness.Service.CheckAsync(_harness.Case, Chain.Bitcoin, 900_002);
+
+        // An endpoint that still says the old block cannot move it straight back: the move is damped.
+        _harness.Bitcoin.Holds(Node, first);
+        await _harness.Service.CheckAsync(_harness.Case, Chain.Bitcoin, 900_003);
+        _harness.Bitcoin.Holds(Node, again);
+        var quiet = await _harness.Service.CheckAsync(_harness.Case, Chain.Bitcoin, 900_003);
+        _harness.Reopen();
+
+        Assert.Empty(run.Hits);
+        Assert.Empty(quiet.Hits);
+        var hit = Assert.Single(_harness.Service.GetHits(_harness.Case));
+        Assert.Equal(again.Block!.Hash.Value, hit.Match.Block.Hash);
+        Assert.Equal(first.Block!.Hash.Value, hit.MovedFrom!.Hash);
+        Assert.Equal(900_001, hit.MovedFrom.Height);
+        var line = Assert.Single(_harness.Journal(MonitoringJournalKinds.HitMoved));
+        Assert.Contains("förut i block 900 001 (omorganisation)", line.Summary, StringComparison.Ordinal);
+        Assert.Single(_harness.Journal(MonitoringJournalKinds.Hit));
+        Assert.True(_harness.Verify().IsIntact);
+    }
+
+    [Fact]
     public async Task A_hit_is_sealed_once_however_often_it_is_seen()
     {
         _harness.WatchBitcoin(Node);
@@ -217,6 +251,62 @@ public sealed class MonitoringServiceTests : IDisposable
         _harness.Reopen();
         Assert.Equal(Synthetic.Tether(2_500), _harness.Service.GetHits(_harness.Case).Single().Match.Amount);
     }
+
+    [Fact]
+    public async Task On_Tron_the_watched_usdt_is_read_through_trons_source_with_its_block()
+    {
+        var node = EthereumAddress.Parse(Chain.Tron, "41" + new string('a', 40));
+        var sender = EthereumAddress.Parse(Chain.Tron, "41" + new string('b', 40));
+        _harness.Service.Add(
+            _harness.Case,
+            new WatchSubject(WatchSubjectKind.Address, node.ToChainAddress(), "T…node"),
+            new WatchFilter(Chain.Tron, WatchDirection.In, [], [sender.ToChainAddress()], KnownTokens.TronUsdt, null));
+        await _harness.Service.CheckAsync(_harness.Case, Chain.Tron, 80_000_000);
+        var block = new EthereumBlockReference(80_000_040, null, new DateTimeOffset(2026, 11, 7, 0, 0, 0, TimeSpan.Zero));
+        var usdt = new AssetAmount(KnownTokens.TronUsdt, 2_500_000_000);
+        _harness.Tron.Holds(node, EthereumHistory.Tokens, new EthereumTransfer(
+            EthereumTxHash.Parse(Chain.Tron, new string('c', 64)), EthereumTransferKind.Token, sender, node, usdt, 0,
+            block));
+        _harness.Tron.BlockHashes[80_000_040] = "0000000004c4b428" + new string('9', 48);
+
+        var run = await _harness.Service.CheckAsync(_harness.Case, Chain.Tron, 80_000_050);
+
+        var hit = Assert.Single(run.Hits);
+        Assert.Equal(usdt, hit.Match.Amount);
+        Assert.Equal(new string('c', 64), hit.Match.Transaction);
+        Assert.Equal(80_000_040, hit.Match.Block.Height);
+        Assert.Equal([EthereumHistory.Tokens], _harness.Tron.Asked.Select(asked => asked.History).Distinct());
+        Assert.Empty(_harness.Ethereum.Asked);
+    }
+
+    [Fact]
+    public async Task On_Solana_a_transaction_the_source_could_not_read_whole_is_said_not_missed()
+    {
+        var node = Solana(0x11);
+        var unread = EthereumTxHash.Parse(Chain.Solana, Base58.Encode(Enumerable.Repeat((byte)0xA4, 64).ToArray()));
+        _harness.Service.Add(
+            _harness.Case,
+            new WatchSubject(WatchSubjectKind.Address, node.ToChainAddress(), "node"),
+            new WatchFilter(Chain.Solana, WatchDirection.Both, [], [], null, null));
+        await _harness.Service.CheckAsync(_harness.Case, Chain.Solana, 400_000_000);
+        var block = new EthereumBlockReference(400_000_040, null, DateTimeOffset.UnixEpoch.AddDays(20_000));
+        _harness.Solana.Holds(node, EthereumHistory.Transactions, new EthereumTransfer(
+            unread, EthereumTransferKind.Native, node, Solana(0x22), new AssetAmount(Asset.Sol, 1_000_000_000), 0,
+            block));
+        _harness.Solana.BlockHashes[400_000_040] = Base58.Encode(Enumerable.Repeat((byte)0x99, 32).ToArray());
+        _harness.Solana.Unexplained = [unread];
+
+        var run = await _harness.Service.CheckAsync(_harness.Case, Chain.Solana, 400_000_050);
+
+        Assert.Single(run.Hits);
+        Assert.Contains(run.Outcomes.Single().Problems,
+            problem => problem.Contains("flyttade mer än källan kunde läsa", StringComparison.Ordinal));
+        Assert.Empty(_harness.Ethereum.Asked);
+    }
+
+    /// <summary>Makes a synthetic Solana address of one repeated byte.</summary>
+    private static EthereumAddress Solana(byte value) =>
+        EthereumAddress.Parse(Chain.Solana, Base58.Encode(Enumerable.Repeat(value, 32).ToArray()));
 
     [Fact]
     public async Task A_hit_without_a_block_hash_waits_for_a_check_that_has_it()
@@ -339,7 +429,12 @@ public sealed class MonitoringServiceTests : IDisposable
         Assert.Equal(900_000, await _harness.Service.GetHeightAsync(_harness.Case, Chain.Bitcoin));
         _harness.Bitcoin.Tip = null;
         Assert.Null(await _harness.Service.GetHeightAsync(_harness.Case, Chain.Bitcoin));
-        Assert.Null(await _harness.Service.GetHeightAsync(_harness.Case, Chain.Tron));
+        Assert.Equal(80_000_100, await _harness.Service.GetHeightAsync(_harness.Case, Chain.Tron));
+
+        // Only an endpoint in step gives the height a watch starts or counts from (etapp 26, M5).
+        Assert.All(_harness.Bitcoin.TipModes, mode => Assert.Equal(LookupMode.InStep, mode));
+        Assert.Equal(2, _harness.Bitcoin.TipModes.Count);
+
     }
 
     [Fact]

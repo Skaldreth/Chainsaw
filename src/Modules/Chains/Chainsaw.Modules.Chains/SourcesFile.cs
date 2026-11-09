@@ -34,9 +34,10 @@ internal sealed class SourcesFile(string? directory)
     public string? FilePath => directory is null ? null : Path.Combine(directory, ChainSourcesOptions.FileName);
 
     /// <summary>Reads the chains the file has, keeping only what can be used.</summary>
-    /// <param name="apis">The sorts of API Chainsaw speaks, by code.</param>
+    /// <param name="apis">The sorts of API Chainsaw speaks, by chain and code.</param>
     /// <returns>The chains' modes and endpoints; empty when there is no file or it cannot be read.</returns>
-    public IReadOnlyDictionary<Chain, SavedChain> Load(IReadOnlyDictionary<string, ISourceApi> apis)
+    public IReadOnlyDictionary<Chain, SavedChain> Load(
+        IReadOnlyDictionary<(Chain Chain, string Code), ISourceApi> apis)
     {
         var result = new Dictionary<Chain, SavedChain>();
         if (FilePath is not { } path || !File.Exists(path))
@@ -131,17 +132,19 @@ internal sealed class SourcesFile(string? directory)
     /// Makes an endpoint of a saved one, or nothing when it cannot be used. An address on the computer or a private
     /// network is kept only for an endpoint marked local, and a local one only without an IP address outside the user's
     /// own network; a pace that is missing is the default of its kind, and one outside the limits is brought within
-    /// them, never faster than <see cref="SourcePace.Public"/> for an endpoint on the internet.
+    /// them, never faster than <see cref="SourcePace.Public"/> for an endpoint on the internet. A sort spoken only by
+    /// the own node (<see cref="SourceApiInfo.LocalOnly"/>) is kept only for an endpoint marked local.
     /// </summary>
     /// <param name="saved">The saved endpoint.</param>
     /// <param name="chain">The chain it is saved under.</param>
     /// <param name="apis">The sorts of API Chainsaw speaks.</param>
     /// <returns>The endpoint, or <see langword="null"/>.</returns>
     private static SourceEndpoint? Known(
-        EndpointDto? saved, Chain chain, IReadOnlyDictionary<string, ISourceApi> apis)
+        EndpointDto? saved, Chain chain, IReadOnlyDictionary<(Chain Chain, string Code), ISourceApi> apis)
     {
         if (saved is null || saved.Id == Guid.Empty
-            || saved.Api is null || !apis.TryGetValue(saved.Api, out var api) || api.Info.Chain != chain
+            || saved.Api is null || !apis.TryGetValue((chain, saved.Api), out var api)
+            || (api.Info.LocalOnly && !saved.Local)
             || !SourceAddress.TryRead(saved.Address, saved.Local, out var address, out _))
         {
             return null;
@@ -156,7 +159,7 @@ internal sealed class SourcesFile(string? directory)
                 milliseconds, slowest.TotalMilliseconds, SourcePace.Maximum.TotalMilliseconds))
             : DefaultPace(saved.Local);
         return new SourceEndpoint(
-            saved.Id, chain, name[..Math.Min(name.Length, SourceAddress.MaximumNameLength)], address!, api.Info.Code,
+            saved.Id, chain, name[..Math.Min(name.Length, SourceAddress.MaximumNameLength)], address!, saved.Api,
             key, saved.Enabled)
         {
             Local = saved.Local,

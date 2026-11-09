@@ -69,13 +69,20 @@ public sealed partial class SourcesViewModel : ObservableObject
     /// <summary>What a round says when nothing could be sent.</summary>
     public const string NotSentText = "Inget provades: utgången tillåter inga uppslag nu";
 
+    /// <summary>What a round says when only the own nodes could be tried, straight in the own network.</summary>
+    public const string OwnNodesOnlyText = "Bara egna noder provades: utgången tillåter inga uppslag nu";
+
     /// <summary>What a round or a try says when it failed unexpectedly.</summary>
     public const string ProbeFailedText = "Provet misslyckades";
 
-    /// <summary>The chains as the page lists them, built or not; Solana is not a chain Chainsaw knows yet.</summary>
+    /// <summary>
+    /// The chains as the page lists them, built or not; a chain without a value (<see langword="null"/>) would be one
+    /// Chainsaw does not know yet, shown toned.
+    /// </summary>
     private static readonly (string Name, Chain? Chain)[] ChainNames =
     [
-        ("Bitcoin", Chain.Bitcoin), ("Ethereum", Chain.Ethereum), ("TRON", Chain.Tron), ("Solana", null),
+        ("Bitcoin", Chain.Bitcoin), ("Ethereum", Chain.Ethereum), ("TRON", Chain.Tron), ("Litecoin", Chain.Litecoin),
+        ("BSC", Chain.Bsc), ("Zcash", Chain.Zcash), ("Solana", Chain.Solana),
     ];
 
     /// <summary>The modes, their words and what they do.</summary>
@@ -116,6 +123,9 @@ public sealed partial class SourcesViewModel : ObservableObject
 
     /// <summary>Whether the round at the start has been made (or the chains were off).</summary>
     private bool _startDone;
+
+    /// <summary>Whether the own nodes have been tried before the exit allowed lookups, once.</summary>
+    private bool _ownStartDone;
 
     /// <summary>Whether the round at the start is running.</summary>
     private bool _startRunning;
@@ -336,20 +346,47 @@ public sealed partial class SourcesViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(AddressProblem), nameof(HasAddressProblem), nameof(CanAdd), nameof(CanTry))]
     public partial bool NewLocal { get; set; }
 
-    /// <summary>Gets why the address cannot be used (<em>Bara https.</em>), or empty when empty or good.</summary>
-    public string AddressProblem =>
-        NewAddress.Trim().Length == 0 || SourceAddress.TryRead(NewAddress, NewLocal, out _, out var problem)
-            ? string.Empty
-            : problem!;
+    /// <summary>What the form says when the sort chosen is spoken only by the user's own node and Lokal is off.</summary>
+    public const string OwnNodeOnlyText = "Bitcoin Core frågas bara som din egen nod: slå på Lokal.";
+
+    /// <summary>
+    /// Gets why the address cannot be used (<em>Bara https.</em>, or that the sort needs <em>Lokal</em>), or empty
+    /// when empty or good.
+    /// </summary>
+    public string AddressProblem
+    {
+        get
+        {
+            if (NewAddress.Trim().Length == 0)
+            {
+                return string.Empty;
+            }
+
+            if (!SourceAddress.TryRead(NewAddress, NewLocal, out _, out var problem))
+            {
+                return problem!;
+            }
+
+            return NeedsLocal ? OwnNodeOnlyText : string.Empty;
+        }
+    }
+
+    /// <summary>
+    /// Gets whether the sort chosen in the form is spoken only by the user's own node (Bitcoin Core) while
+    /// <em>Lokal</em> is off, so that it can be neither tried nor added.
+    /// </summary>
+    private bool NeedsLocal =>
+        !NewLocal && Chip.Chain is { } chain
+        && _sources.Apis(chain).Any(api => api.LocalOnly && api.Code == ChosenApi);
 
     /// <summary>Gets whether the address has a problem to show.</summary>
     public bool HasAddressProblem => AddressProblem.Length > 0;
 
     /// <summary>Gets whether the address can be tried.</summary>
-    public bool CanTry => SourceAddress.TryRead(NewAddress, NewLocal, out _, out _) && !IsTrying;
+    public bool CanTry => SourceAddress.TryRead(NewAddress, NewLocal, out _, out _) && !NeedsLocal && !IsTrying;
 
     /// <summary>Gets whether the endpoint can be added.</summary>
-    public bool CanAdd => SourceAddress.TryRead(NewAddress, NewLocal, out _, out _);
+    public bool CanAdd => SourceAddress.TryRead(NewAddress, NewLocal, out _, out _) && !NeedsLocal;
 
     /// <summary>Gets whether <em>Prova</em> is running.</summary>
     [ObservableProperty]
@@ -599,10 +636,12 @@ public sealed partial class SourcesViewModel : ObservableObject
         {
             var run = await _sources.ProbeAsync(chain).ConfigureAwait(true);
             ShowChain(chain);
-            if (run == ProbeRun.NotSent)
+            ProbeText = run switch
             {
-                ProbeText = NotSentText;
-            }
+                ProbeRun.NotSent => NotSentText,
+                ProbeRun.OwnNodesOnly => OwnNodesOnlyText,
+                _ => ProbeText,
+            };
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
@@ -663,7 +702,14 @@ public sealed partial class SourcesViewModel : ObservableObject
     /// <summary>Chooses the sort of API in the form.</summary>
     /// <param name="choice">The sort.</param>
     [RelayCommand]
-    public void ChooseApi(SettingsChoice choice) => SettingsChoice.Mark(ApiChoices, choice.Value);
+    public void ChooseApi(SettingsChoice choice)
+    {
+        SettingsChoice.Mark(ApiChoices, choice.Value);
+        OnPropertyChanged(nameof(AddressProblem));
+        OnPropertyChanged(nameof(HasAddressProblem));
+        OnPropertyChanged(nameof(CanAdd));
+        OnPropertyChanged(nameof(CanTry));
+    }
 
     /// <summary>Chooses the key in the form.</summary>
     /// <param name="choice">The key's service, or none.</param>
@@ -679,7 +725,7 @@ public sealed partial class SourcesViewModel : ObservableObject
     public async Task TryAsync()
     {
         if (Chip.Chain is not { } chain || !SourceAddress.TryRead(NewAddress, NewLocal, out var address, out _)
-            || IsTrying)
+            || IsTrying || NeedsLocal)
         {
             return;
         }
@@ -714,7 +760,8 @@ public sealed partial class SourcesViewModel : ObservableObject
     [RelayCommand]
     public async Task AddAsync()
     {
-        if (Chip.Chain is not { } chain || !SourceAddress.TryRead(NewAddress, NewLocal, out var address, out _))
+        if (Chip.Chain is not { } chain || !SourceAddress.TryRead(NewAddress, NewLocal, out var address, out _)
+            || NeedsLocal)
         {
             return;
         }
@@ -747,12 +794,14 @@ public sealed partial class SourcesViewModel : ObservableObject
     /// Tries every built chain that is not off, once, when the vault is unlocked and the exit allows lookups
     /// (CLAUDE.md:
     /// <em>Snabbast</em> tries them at the start, through the exit). A round in which nothing could be sent is made
-    /// again the next time both hold.
+    /// again the next time both hold. Before the exit allows lookups, the chains with an own node on are tried once
+    /// (the own node is reached in the own network, never through the exit), and the whole round follows later.
     /// </summary>
     /// <returns>A task that completes when the round has ended.</returns>
     public async Task ProbeAtStartAsync()
     {
-        if (_startDone || _startRunning || _vault.State != VaultState.Unlocked || !_way.IsLive)
+        var live = _way.IsLive;
+        if (_startDone || _startRunning || _vault.State != VaultState.Unlocked || (!live && _ownStartDone))
         {
             return;
         }
@@ -761,12 +810,13 @@ public sealed partial class SourcesViewModel : ObservableObject
         try
         {
             var runs = new List<ProbeRun>();
-            foreach (var chain in _sources.Chains)
+            foreach (var chain in _sources.Chains.Where(chain => live || HasOwnNode(chain)))
             {
                 runs.Add(await _sources.ProbeAsync(chain).ConfigureAwait(true));
             }
 
-            _startDone = !runs.Contains(ProbeRun.NotSent);
+            _ownStartDone = true;
+            _startDone = live && !runs.Contains(ProbeRun.NotSent) && !runs.Contains(ProbeRun.OwnNodesOnly);
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
@@ -777,6 +827,12 @@ public sealed partial class SourcesViewModel : ObservableObject
             _startRunning = false;
         }
     }
+
+    /// <summary>Gets whether a chain has one of the user's own nodes switched on.</summary>
+    /// <param name="chain">The chain.</param>
+    /// <returns><see langword="true"/> when it has.</returns>
+    private bool HasOwnNode(Chain chain) =>
+        _sources.Get(chain).Endpoints.Any(each => each.Endpoint is { Enabled: true, Local: true });
 
     /// <summary>Makes a change to the shown chain and says when it could not be written.</summary>
     /// <param name="change">The change.</param>
