@@ -27,6 +27,9 @@ public sealed partial class GraphCanvas
     /// <summary>Whether the loop holds the screen's frames.</summary>
     private bool _framesHooked;
 
+    /// <summary>Where the pointer last moved over the surface, not yet looked at; null when nothing waits.</summary>
+    private GraphPoint? _pendingHover;
+
     /// <summary>Makes the surface's motions known to the loop, each with its step.</summary>
     private void SetUpFrames()
     {
@@ -36,7 +39,7 @@ public sealed partial class GraphCanvas
         _frames.Add(GraphMotion.BoxScroll, BoxStep);
         _frames.Add(GraphMotion.Blast, BlastStep);
         _frames.Add(GraphMotion.Rings, RingStep, RingFrame);
-        _frames.Add(GraphMotion.Cards, _ => GraphChange.Scene);
+        _frames.Add(GraphMotion.Cards, CardsStep);
     }
 
     /// <summary>
@@ -76,6 +79,31 @@ public sealed partial class GraphCanvas
         }
     }
 
+    /// <summary>
+    /// Notes where the pointer moved, to be looked at in the next frame: what is under it, its tooltip and the light on
+    /// a card or a mark, once however often the pointer moved in between.
+    /// </summary>
+    /// <param name="surface">The pointer on the surface.</param>
+    private void QueueHover(GraphPoint surface)
+    {
+        _pendingHover = surface;
+        HoldFrames();
+    }
+
+    /// <summary>Looks at what is under the pointer where it last moved, if it moved since the last frame.</summary>
+    private void TakeHover()
+    {
+        if (_pendingHover is not { } surface || _model is null)
+        {
+            return;
+        }
+
+        _pendingHover = null;
+        HoverCard(surface);
+        HoverBlockMark(surface);
+        ShowHover(surface);
+    }
+
     /// <summary>Holds the screen's frames, unless the loop already does.</summary>
     private void HoldFrames()
     {
@@ -97,6 +125,8 @@ public sealed partial class GraphCanvas
         // A minimised window draws nothing; the motions wait, and what is asked for is drawn when it comes back.
         if (!IsMinimised(this))
         {
+            // The pointer first, so that what its hover changes is drawn in this same frame.
+            TakeHover();
             Apply(_frames.Tick(((RenderingEventArgs)e).RenderingTime));
         }
 
@@ -111,7 +141,8 @@ public sealed partial class GraphCanvas
     /// <param name="change">What changed in the frame.</param>
     private void Apply(GraphChange change)
     {
-        if (change.HasFlag(GraphChange.Drag) && !change.HasFlag(GraphChange.Scene) && !DrawDrag())
+        var layers = change & GraphChange.Drag;
+        if (layers != GraphChange.None && !change.HasFlag(GraphChange.Scene) && !DrawAroundStillNodes(layers))
         {
             change |= GraphChange.Scene;
         }

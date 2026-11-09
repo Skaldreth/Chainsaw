@@ -241,6 +241,7 @@ public sealed partial class GraphCanvas : FrameworkElement
         base.OnMouseLeftButtonDown(e);
         StopGlide();
         StopZoom();
+        _pendingHover = null;
         CloseHoverTip();
         Focus();
         _model?.CloseMenu();
@@ -288,9 +289,8 @@ public sealed partial class GraphCanvas : FrameworkElement
 
         if (!_gesture.IsPressed)
         {
-            HoverCard(surface);
-            HoverBlockMark(surface);
-            ShowHover(surface);
+            // The pointer can move many times between two frames: what is under it is looked at once per frame.
+            QueueHover(surface);
             return;
         }
 
@@ -361,6 +361,7 @@ public sealed partial class GraphCanvas : FrameworkElement
     protected override void OnMouseLeave(MouseEventArgs e)
     {
         base.OnMouseLeave(e);
+        _pendingHover = null;
         _model?.HoverAt(null, Tolerance);
         CloseHoverTip();
     }
@@ -623,8 +624,7 @@ public sealed partial class GraphCanvas : FrameworkElement
     private void ShowHover(GraphPoint surface)
     {
         var model = _model!;
-        model.HoverAt(surface, Tolerance);
-        var hit = model.HitTest(surface, Tolerance);
+        var hit = model.HoverAt(surface, Tolerance);
         var guideTip = GuideTipAt(surface);
         Cursor = hit.Node is not null || hit.Edge is not null || guideTip is not null ? Cursors.Hand : null;
         var chainTip = BlockMarkTipAt(surface) ?? CardTipAt(surface);

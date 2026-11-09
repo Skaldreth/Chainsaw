@@ -752,16 +752,18 @@ public sealed partial class GraphViewModel : ObservableObject
     /// <summary>Says what is under the pointer, so that its frame lights and a line's amount shows.</summary>
     /// <param name="point">The point on the surface, or <see langword="null"/> when the pointer left the graph.</param>
     /// <param name="tolerance">How close to a line counts, in the surface's units.</param>
-    public void HoverAt(GraphPoint? point, double tolerance)
+    /// <returns>What is under the point, so that the view need not look again.</returns>
+    public (string? Node, string? Edge) HoverAt(GraphPoint? point, double tolerance)
     {
         var (node, edge) = point is { } at ? HitTest(at, tolerance) : (null, null);
         if (node == HoveredNode && edge == HoveredEdge)
         {
-            return;
+            return (node, edge);
         }
 
         (HoveredNode, HoveredEdge) = (node, edge);
         Redraw?.Invoke(this, EventArgs.Empty);
+        return (node, edge);
     }
 
     /// <summary>Gives the node or line under a point on the surface.</summary>

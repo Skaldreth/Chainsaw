@@ -4391,3 +4391,15 @@ Användarens krav: optimeringarna får inte minska kvaliteten alls.
   enda stråke), `Near` räknas en gång per ritning i stället för en gång per lager, och kurvor som inte ändrats
   behåller sin instans, så att deras geometri används igen.
 
+### Musen, animationerna och lagren som kan ritas var för sig (2026-11-09)
+
+- **Musen:** varje rörelse gjorde hela träfftestet två gånger, och dessutom letades tips upp i guiden, korten,
+  blockmärkena och beloppen, upp till 1000 gånger i sekunden med en snabb mus. Nu noteras bara var pekaren är, och
+  slingan tittar en gång per bildruta, med ett enda träfftest (`HoverAt` ger träffen).
+- **Lagren ritas var för sig:** en ändring säger vilka lager den rör (`GraphChange.Lines`, `Loose`, `OverNodes`;
+  ett drag är alla tre). Ringarnas steg ritar linjerna och lagret över noderna, ett korts skimmer bara lagret över
+  noderna, och timglasets andning bara de noder som andas, som görs lösa för den. Förut ritades hela scenen om i
+  varje sådant steg. Ett kort som vänds ritar fortfarande hela scenen, eftersom noden döljs och syns igen.
+- **Ikonerna förblir vektorer:** en bitmapp blir suddig vid zoom, och att göra stråkarna till färdiga ytor ger små
+  avrundningsskillnader. Geometrin, pennorna och penslarna görs redan en gång.
+

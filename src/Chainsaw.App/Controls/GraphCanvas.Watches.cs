@@ -312,11 +312,14 @@ public sealed partial class GraphCanvas
 
     /// <summary>Moves the rings one step, by the time since they started.</summary>
     /// <param name="seconds">The time since the last step; the beat follows the clock.</param>
-    /// <returns>What changed: the scene.</returns>
+    /// <returns>
+    /// What changed: the lines, where the watches' rings are, and what stands over the nodes, where the search's ring
+    /// and the guide's sonar are; the nodes keep their drawing.
+    /// </returns>
     private GraphChange RingStep(double seconds)
     {
         _ringPhase = (DateTime.UtcNow - _ringStart).TotalMilliseconds / RingBeat.TotalMilliseconds % 1;
-        return GraphChange.Scene;
+        return GraphChange.Lines | GraphChange.OverNodes;
     }
 
     /// <summary>

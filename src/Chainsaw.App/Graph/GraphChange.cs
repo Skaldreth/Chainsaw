@@ -20,10 +20,22 @@ public enum GraphChange
     Scene = 4,
 
     /// <summary>
-    /// Nodes are being dragged (<see cref="GraphMoved"/>): the dragged nodes, the lines and what stands over the nodes
-    /// are drawn again, while the nodes that stand still keep their drawing.
+    /// The lines' layer changed (the lines, their amounts, the watches' rings): it is drawn again, while the nodes that
+    /// stand still keep their drawing.
     /// </summary>
-    Drag = 8,
+    Lines = 8,
+
+    /// <summary>The loose nodes changed (dragged nodes, or an hourglass that breathes): only they are drawn again.</summary>
+    Loose = 16,
+
+    /// <summary>
+    /// What stands over the nodes changed (a card's shimmer, the search's ring, the guide's sonar): only that is drawn
+    /// again.
+    /// </summary>
+    OverNodes = 32,
+
+    /// <summary>What a drag changes: the lines, the dragged nodes and what stands over the nodes.</summary>
+    Drag = Lines | Loose | OverNodes,
 }
 
 /// <summary>

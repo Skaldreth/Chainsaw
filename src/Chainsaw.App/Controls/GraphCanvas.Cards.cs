@@ -486,12 +486,11 @@ public sealed partial class GraphCanvas
         DrawGlyph(dc, "Icon.Hourglass", Ink("Brush.Pending"),
             new Point(centre.X - (MarkIconSize / 2), centre.Y - (MarkIconSize / 2)), MarkIconSize);
         dc.Pop();
-        _waitBreathes |= OnScreenNow(
-            new GraphRect(centre.X - MarkSize, centre.Y - MarkSize, 2 * MarkSize, 2 * MarkSize));
+        if (OnScreenNow(new GraphRect(centre.X - MarkSize, centre.Y - MarkSize, 2 * MarkSize, 2 * MarkSize)))
+        {
+            _breathing.Add(node.Key);
+        }
     }
-
-    /// <summary>Whether an hourglass was drawn, so that the frames keep it breathing.</summary>
-    private bool _waitBreathes;
 
     /// <summary>
     /// Keeps the cards' frames running while a card turns, something on a card is fetched or an hourglass breathes on

@@ -70,8 +70,11 @@ public sealed partial class GraphCanvas
     /// <summary>Whether the loose nodes changed since the nodes' layer was drawn, so that it leaves them out anew.</summary>
     private bool _looseGrew;
 
-    /// <summary>Whether an hourglass was drawn in the nodes' layer, so that its frames run while it is kept.</summary>
-    private bool _stillBreathes;
+    /// <summary>
+    /// The nodes whose hourglass breathes on screen, gathered since the scene was last drawn whole; while nothing else
+    /// moves they are loose, so that a breath draws only them.
+    /// </summary>
+    private readonly HashSet<string> _breathing = new(StringComparer.Ordinal);
 
     /// <summary>
     /// Says whether nothing on the surface moves by itself in a way the scene's drawing cannot follow: no blast of
@@ -179,13 +182,15 @@ public sealed partial class GraphCanvas
             _sceneChanged = false;
             _loose.Clear();
             _looseGrew = false;
+            _breathing.Clear();
             var near = _model!.Near;
             DrawLayer(_linesLayer, dc => DrawLines(dc, scene, region, near.Edges));
             DrawLayer(_nodesLayer, dc => DrawNodes(dc, scene, region, near.Nodes, still: true));
             DrawLayer(_looseLayer, null);
             DrawLayer(_overNodesLayer, dc => DrawOverNodes(dc, region, near.Nodes));
             _sceneMade = true;
-            KeepMoving(stillBreathes: _waitBreathes, looseBreathes: false);
+            KeepMarkCentres();
+            KeepSceneMotions();
         }
 
         var matrix = new Matrix(_viewport.Zoom, 0, 0, _viewport.Zoom, _viewport.OffsetX, _viewport.OffsetY);
@@ -217,36 +222,79 @@ public sealed partial class GraphCanvas
     }
 
     /// <summary>
-    /// Draws a frame of a drag: the lines' layer, the loose nodes and the layer over the nodes again, and the nodes'
+    /// Draws again only the layers that changed (a drag, a step of the rings, a breath, a shimmer), and the nodes'
     /// layer only when it must leave out a node that was not loose before; the nodes that stand still keep their
     /// drawing.
     /// </summary>
+    /// <param name="layers">The layers that changed: <see cref="GraphChange.Lines"/>, <see cref="GraphChange.Loose"/>
+    /// and <see cref="GraphChange.OverNodes"/>.</param>
     /// <returns>
     /// <see langword="true"/> when the frame was drawn so; <see langword="false"/> when the whole scene must be
     /// drawn instead (it does not cover the screen, or a loose node overlaps a still node drawn after it).
     /// </returns>
-    private bool DrawDrag()
+    private bool DrawAroundStillNodes(GraphChange layers)
     {
-        if (!CanKeepScene(out var scene) || _sceneWindow.Region is not { } region || LooseUnderStill(scene))
+        if (!CanKeepScene(out var scene) || _sceneWindow.Region is not { } region
+            || (_loose.Count > 0 && LooseUnderStill(scene)))
         {
             return false;
         }
 
-        // What is near what is chosen is worked out once for the frame; a drag never changes it.
+        // What is near what is chosen is worked out once for the frame; a drag or a breath never changes it.
         var near = _model!.Near;
         if (_looseGrew)
         {
             DrawLayer(_nodesLayer, dc => DrawNodes(dc, scene, region, near.Nodes, still: true));
-            _stillBreathes = _waitBreathes;
             _looseGrew = false;
+            layers |= GraphChange.Loose;
         }
 
-        DrawLayer(_linesLayer, dc => DrawLines(dc, scene, region, near.Edges));
-        DrawLayer(_looseLayer, dc => DrawNodes(dc, scene, region, near.Nodes, still: false));
-        var looseBreathes = _waitBreathes;
-        DrawLayer(_overNodesLayer, dc => DrawOverNodes(dc, region, near.Nodes));
-        KeepMoving(_stillBreathes, looseBreathes);
+        if (layers.HasFlag(GraphChange.Lines))
+        {
+            DrawLayer(_linesLayer, dc => DrawLines(dc, scene, region, near.Edges));
+            KeepMarkCentres();
+        }
+
+        if (layers.HasFlag(GraphChange.Loose))
+        {
+            DrawLayer(_looseLayer, dc => DrawNodes(dc, scene, region, near.Nodes, still: false));
+        }
+
+        if (layers.HasFlag(GraphChange.OverNodes))
+        {
+            DrawLayer(_overNodesLayer, dc => DrawOverNodes(dc, region, near.Nodes));
+        }
+
+        KeepSceneMotions();
         return true;
+    }
+
+    /// <summary>
+    /// Moves the cards and the hourglasses one step: a card that turns changes the nodes too, so it draws the whole
+    /// scene; a card's shimmer draws only what stands over the nodes, and a breath only the breathing nodes, made
+    /// loose for it.
+    /// </summary>
+    /// <param name="seconds">The time since the last step; the motions follow the clock.</param>
+    /// <returns>What changed.</returns>
+    private GraphChange CardsStep(double seconds)
+    {
+        if (_turns.Count > 0)
+        {
+            return GraphChange.Scene;
+        }
+
+        var change = _cardsMove ? GraphChange.OverNodes : GraphChange.None;
+        if (_breathing.Count > 0)
+        {
+            foreach (var key in _breathing)
+            {
+                _looseGrew |= _loose.Add(key);
+            }
+
+            change |= GraphChange.Loose;
+        }
+
+        return change;
     }
 
     /// <summary>
@@ -290,17 +338,13 @@ public sealed partial class GraphCanvas
     }
 
     /// <summary>
-    /// Keeps the frames of what the scene drew that moves by itself running, and the block marks' places; drawing never
-    /// starts the frames itself.
+    /// Keeps the frames of what the scene drew that moves by itself running: the rings, the cards and the
+    /// hourglasses; drawing never starts the frames itself.
     /// </summary>
-    /// <param name="stillBreathes">Whether an hourglass stands in the nodes' layer.</param>
-    /// <param name="looseBreathes">Whether an hourglass stands in the loose layer.</param>
-    private void KeepMoving(bool stillBreathes, bool looseBreathes)
+    private void KeepSceneMotions()
     {
-        _stillBreathes = stillBreathes;
-        KeepMarkCentres();
         KeepRings(_ringsOnScreen && _blast == BlastPhase.None);
-        KeepTurning(_cardsMove || stillBreathes || looseBreathes);
+        KeepTurning(_cardsMove || _breathing.Count > 0);
     }
 
     /// <summary>
@@ -364,7 +408,6 @@ public sealed partial class GraphCanvas
         DrawingContext dc, GraphScene scene, GraphRect visible, IReadOnlySet<string> nearNodes, bool still)
     {
         var model = _model!;
-        _waitBreathes = false;
         var nodes = _blast == BlastPhase.None
             ? GraphHitTest.VisibleNodes(scene, model.Places, visible)
             : scene.Nodes.Where(node => model.Places.ContainsKey(node.Key));
