@@ -204,8 +204,6 @@ byggt ur BACKLOG; det som skriver i ärendet granskas oberoende.
      `pattern` står kvar. Att kunna avfärda en kontroll (som ett förslag, med skäl) skissas i KF2b.
    - [skiss] **Mönstret i rapporten och i Begäran:** om *samma insamling* och *samma väg* ska kunna tas med i
      rapporten (RP1b) som en egen del.
-   - **Testärendet** (`/testdata`) visar inget mönster än [direkt]: två offers pengar som går samma väg genom en mixer
-     till Sydbörsen och en rad likadana belopp läggs in i berättelsen (`TestStoryChain`).
    - [skiss] **Fortsättningen på annan kedja i grafen:** en betalning in till en brygga ritar inte sitt förslags
      kandidater på den andra kedjan (de finns bara i KF2b-panelen), och ett förslag vars betalning in är på Ethereum
      eller TRON har inget område i grafen, eftersom områdena bara ritas kring Bitcoin-adresser. Hur kandidaterna på
@@ -214,8 +212,11 @@ byggt ur BACKLOG; det som skriver i ärendet granskas oberoende.
      (värdet jämförs med kurserna, och skälet säger avgiften); en bild med båda tillgångarna och kronorna skissas.
 
 **Ur omgång 4, ytorna KV1a, HB1a, BU1a, DM1a, HP1a och TJ1b** (byggda 2026-11-08, rester):
-- **Testärendet** (`/testdata`): en slutsats som hålls tillbaka (HB1a) kräver en obekräftad tx som ersätts; testkedjan
-  har en ersatt tx (RBF) men bara bekräftade, så HB1a syns inte där än [direkt].
+- **En slutsats hålls aldrig tillbaka av sig själv** (HB1a, fynd 2026-11-09 när testärendet fylldes på): klustringen
+  håller tillbaka en slutsats bara när en körning saknar en tx den bygger på, men Tracing skickar alltid hela grafen,
+  också en tx som källan inte längre känner (den borta tx:en läses ur ärendet som förut). Att en körning lämnar borta
+  tx utanför (och vad grafen då visar för dem) ändrar slutsatserna i ärendet och byggs som en etapp. Testärendet visar
+  HB1a med en körning utan de borta tx:erna sist i berättelsen (`HeldBackStep`), som nästa expansion tar tillbaka.
 - **Förhandsvisningen av ett tillbakadragande** (KV1a) räknar på det som är sparat: det v1 slår ihop i tx som v1
   aldrig kört syns först efter nästa körning. Raden längst ner säger när, men inte vem (det står i journalen).
 - **Dammets linjer** (DM1a) är inte hårfina och prickade och har kvar beloppet; noderna tonas ned och förgiftningens

@@ -2107,8 +2107,8 @@ analysen med version och att det är en bedömning; *?* öppnar Guidens avsnitt.
 
 ### Mönster (`pattern v1`, 2026-11-09)
 
-Testärendet visar inga mönster än (TODO); prova i ett ärende där formen finns. Varje träff står under *GJORT AV SIG
-SJÄLVT* i *Förslag · N*, med analysen *pattern v1* och att det är en bedömning; *?* öppnar Guidens avsnitt *Mönster*.
+Testärendet visar *Samma väg* och *Likadana belopp* (se *Testärendet*); prova de andra i ett ärende där formen finns.
+Varje träff står under *GJORT AV SIG SJÄLVT* i *Förslag · N*, med analysen *pattern v1* och att det är en bedömning; *?* öppnar Guidens avsnitt *Mönster*.
 - **Samma insamling:** två adresser som var och en tar emot från minst fem avsändare och sedan sveper deras mynt i en
   tx till samma adress som inget är känt om ger *Samma insamling, 2 aktörer*; *Varför?* nämner båda med belopp, antal
   avsändare och svepets tx, och att det också kan vara en handlare. Sveper de till en börs med etikett, eller är
@@ -2135,7 +2135,7 @@ SJÄLVT* i *Förslag · N*, med analysen *pattern v1* och att det är en bedömn
 
 ### Ytorna för omgång 4 (KV1a, HB1a, BU1a, DM1a, HP1a och TJ1b, 2026-11-08)
 
-Testärendet visar dem inte än (TODO); prova i ett ärende där mönstren finns.
+HB1a finns i testärendet (se *Testärendet*); prova de andra i ett ärende där mönstren finns.
 - **KV1a:** välj ett kluster. Under *VARFÖR ÄR DE EN PLÅNBOK?* står en rad per heuristik med version, antal adresser
   och tx. *⋯* på raden fäller ut *… i Guiden F1*, *Bryt upp … U* och, för en version över 1, *Dra tillbaka … …*.
   Bekräftelsen fälls ut under raderna med en stapel per kluster (före → efter, gult streckat för det som lämnar,
@@ -2543,7 +2543,7 @@ analysen med version och att det är en bedömning; *?* öppnar Guidens avsnitt.
 
 ### Ytorna för omgång 4 (KV1a, HB1a, BU1a, DM1a, HP1a och TJ1b, 2026-11-08)
 
-Testärendet visar dem inte än (TODO); prova i ett ärende där mönstren finns.
+HB1a finns i testärendet (se *Testärendet*); prova de andra i ett ärende där mönstren finns.
 - [ ] **KV1a:** välj ett kluster. Under *VARFÖR ÄR DE EN PLÅNBOK?* står en rad per heuristik med version, antal adresser
       och tx. *⋯* på raden fäller ut *… i Guiden F1*, *Bryt upp … U* och, för en version över 1, *Dra tillbaka … …*.
       Bekräftelsen fälls ut under raderna med en stapel per kluster (före → efter, gult streckat för det som lämnar,
@@ -3045,7 +3045,7 @@ ligger bredvid `Chainsaw.exe`.
 
 Allt i testärendet är påhittat: kedjorna (Bitcoin, TRON och Ethereum), kurserna, sanktionslistorna och den öppna
 källan besvaras på datorn, och inget går ut på nätet. Gör om testärendet efter en ny version (berättelsen är version
-4), eftersom ett äldre saknar det som lagts till.
+5), eftersom ett äldre saknar det som lagts till.
 
 **Att skapa det**
 - [ ] Bygg och kör i Debug (`dotnet run --project src/Chainsaw.App`), lås upp och skriv `/testdata` i kommandoraden
@@ -3094,9 +3094,29 @@ källan besvaras på datorn, och inget går ut på nätet. Gör om testärendet 
 - [ ] Sydbörsens svep: tio kunder betalar egna insättningsadresser under nästan två dygn, och två svep tömmer dem, med
       mixerns två insättningar, till en het plånbok utan etikett. Inspektören på den heta plånboken har *Som etikett …*
       (TJ1b), och kontrollen *Tjänst ur beteende* säger *trolig*.
-- [ ] Ersatt tx (GR9a, RBF): bedragarens utgift av en Whirlpool-utgång till Snabbväxlaren med för låg avgift syns som
-      borta (sågs i ett block som föll ur kedjan), och *Ersatt av* pekar på utgiften med högre avgift i blocket före
-      det nyaste.
+- [ ] Ersatt tx (GR9a, RBF): bedragarens utgift av en Whirlpool-utgång till en ny insättningsadress hos Snabbväxlaren
+      med för låg avgift syns som borta (sågs i ett block som föll ur kedjan), och *Ersatt av* pekar på utgiften med
+      högre avgift till Snabbväxlarens gamla adress i blocket före det nyaste.
+- [ ] Slutsats som hålls tillbaka (HB1a): i det nyaste blocket betalar en annan Whirlpool-utgång den nya
+      insättningsadressen ändå, med växel till en ny adress. Växelslutsatsen bygger på den borta utgiften (där adressen
+      sågs först), och den sista körningen i testärendet saknar den: klustret med växeladressen har den streckade gula
+      ringen med paus, hovringen säger vad som saknas och *Ersatt av …*, och Historik har *Låt stå* och *Släpp
+      slutsatsen*. Obs: appens egna körningar tar fortfarande med borta tx (TODO), så en ny expansion i testärendet
+      låter slutsatsen räknas igen och ringen försvinner.
+
+**Mönster och annan kedja (`pattern v1` och `cross-chain v1`)**
+- [ ] Två offer till (*Fjärde offret* och *Femte offret*) betalar var sin bedragare som sätter in i Blandaren. Blandaren
+      betalar ut ur egna mynt, och båda offrens pengar (2 % mindre) går genom två mulor var till samma insättningsadress
+      hos Sydbörsen. *Förslag · N* har under *Gjort av sig självt* *Samma väg, 2 delar* med *3 steg till börs …*, och
+      *Varför?* nämner båda vägarna med belopp och tx. *Troliga utgångar ur mixern* finns nu för de två insättningarna
+      också, med utgången 2 % mindre först.
+- [ ] Samma utbetalning ger en tredje utgång som betalar Sydbörsens insättning fyra nästan lika belopp i följd
+      (0,0948 BTC ungefär): *Likadana belopp, 4 i följd* med *0,0948 BTC × 4 till börs …*.
+- [ ] En fjärde utgång betalar Bytaren omkring två timmar innan swappen på Ethereum betalar ut 2,95 ETH till
+      bedragaren. *Förslag · N* har *Fortsättningen på annan kedja* för den betalningen, med swappens utbetalning på
+      Ethereum som kandidat (värdet jämförs med de påhittade kurserna). Godkänn den: linjen till Ethereum blir lila
+      och streckad med *Varför?* som nämner *cross-chain v1*. Navets betalning till Bytaren är knuten för hand och får
+      inget förslag.
 
 **Ethereum (SW1a, DX1b och TK1a)**
 - [ ] Bedragarens Ethereum-adress är en startpunkt och expanderad: ett annat offer betalar 12 000 USDT, bedragaren byter

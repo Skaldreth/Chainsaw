@@ -724,6 +724,9 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
   (GR8a) sparas på datorn och läses bara när startvyn visas, så `/testdata` lägger inga ärenden i en hög.
 - **Bara Bitcoin** i det bytta blocket: en tx på Ethereum som bytt block väntar på att Ethereums svar jämförs (TODO,
   *Bytt block på Ethereum*).
+- **Samma insamling och Rundgång** (`pattern v1`) finns inte i testärendet: berättelsen har *Samma väg* och
+  *Likadana belopp* (2026-11-09). En insamling (minst fem avsändare till en adress, två gånger, svepta till samma
+  okända plånbok) och en rundgång genom två mellanhänder tillbaka vore nästa.
 - **Adressförgiftningens par** är framsökt: fröna till Sydbörsens insättning och förgiftarens adress
   (`sydborsen-insattning-1849900` och `forgiftaren-754626`) hittades genom att pröva miljontals frön tills de fyra
   första och sista tecknen var lika. Byts adresstyp eller prefix i `TestAddress` måste paret sökas om.

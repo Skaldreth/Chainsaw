@@ -186,6 +186,38 @@ public sealed record ReplacedStep(string Transaction) : ITestStep
     }
 }
 
+/// <summary>
+/// Runs the clustering on what the chain still has, so that a conclusion that rests on a gone transaction is held back
+/// (sketch HB1a): the graph's Bitcoin transactions without those the source no longer knows. The app's own runs still
+/// pass every transaction in the graph, gone ones too, so it never makes this run by itself (TODO); the step makes it as
+/// the last, since every later expansion runs the clustering on the whole graph again and lets the conclusion count.
+/// </summary>
+/// <param name="Transaction">The story's label for the transaction whose conclusion is to be held back.</param>
+public sealed record HeldBackStep(string Transaction) : ITestStep
+{
+    /// <inheritdoc/>
+    public async Task RunAsync(TestRun run, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(run);
+        if (run.Services.Clustering is not { } clustering)
+        {
+            run.Note("Slutsatsen som hålls tillbaka kunde inte göras: klustringen finns inte.");
+            return;
+        }
+
+        var graph = await run.Services.Tracing.LoadAsync(run.Case, cancellationToken).ConfigureAwait(false);
+        var onChain = graph.Transactions
+            .Where(entry => !graph.Gone.ContainsKey(entry.Key))
+            .Select(entry => entry.Value.Transaction)
+            .ToList();
+        var analysed = clustering.Analyse(run.Case, onChain);
+        if (!analysed.HeldBack.Contains(run.TxidOf(Transaction)))
+        {
+            run.Note($"Slutsatsen om {Transaction} hölls inte tillbaka.");
+        }
+    }
+}
+
 /// <summary>Changes a comment's text, as the user does in the note, so that its history has something.</summary>
 /// <param name="About">The actor the comment is tied to.</param>
 /// <param name="Text">The new Markdown.</param>
@@ -292,8 +324,12 @@ public sealed record SplitStep(TestAddress Leaving, string Reason) : ITestStep
 /// that what follows from the approvals is sealed.
 /// </summary>
 /// <param name="Wallet">An address in the proposed wallet to approve.</param>
+/// <param name="Deposit">
+/// The story's label for the transaction whose deposit into the mixer has its likeliest way out approved, since the
+/// mixer has more deposits than one.
+/// </param>
 /// <param name="Reason">The reason given with the decisions.</param>
-public sealed record DecideStep(TestAddress Wallet, string Reason) : ITestStep
+public sealed record DecideStep(TestAddress Wallet, string Deposit, string Reason) : ITestStep
 {
     /// <summary>The name of the analysis that suggests the mixer's likely ways out.</summary>
     public const string MixerOutputs = "mixer-outputs";
@@ -314,7 +350,9 @@ public sealed record DecideStep(TestAddress Wallet, string Reason) : ITestStep
             requests.Add(new DecisionRequest(wallet.Analysis, wallet.Finding.Key, null, CheckVerdict.Approved, Reason));
         }
 
-        if (suggestions.FirstOrDefault(check => check.Analysis.Name == MixerOutputs) is { } outputs
+        var deposit = run.TxidOf(Deposit).Value + ":";
+        if (suggestions.FirstOrDefault(check => check.Analysis.Name == MixerOutputs
+                && check.Finding.Key.StartsWith(deposit, StringComparison.Ordinal)) is { } outputs
             && outputs.Finding.Candidates.MaxBy(candidate => candidate.Score) is { } likeliest)
         {
             requests.Add(new DecisionRequest(
