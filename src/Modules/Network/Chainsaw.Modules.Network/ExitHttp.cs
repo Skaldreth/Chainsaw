@@ -194,6 +194,12 @@ internal sealed class ExitHttp(
             throw new ArgumentException("The key's header is not allowed or its value cannot be sent.", nameof(request));
         }
 
+        if (toOwnNode && request.Credential is { InQuery: true })
+        {
+            // A key in the address is a provider's on the internet; the own node never gets one there.
+            throw new ArgumentException("A key in the address is never sent to the own node.", nameof(request));
+        }
+
         if (request.Credential is { InQuery: true } inQuery && HasParameter(uri, inQuery.Header))
         {
             // The address already names the parameter: a second one could be read in its place, or leak the key.

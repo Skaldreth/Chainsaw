@@ -6146,3 +6146,9 @@ insättning i en borta tx i Begäran, Flöde).
   350 ms (gratisnyckelns tre anrop i sekunden). Ett befintligt `sources.json` får den inte av sig själv; den läggs till
   med *Lägg till endpoint …* och sorten Etherscan.
 - **Kvar:** raden för nycklar i valvet (NY1a eller NY1b väntar på val), och det under *Etherscan, efter E1* i BACKLOG.
+- **Granskningen (en omgång):** I1 Etherscans interna lista per tx namnger inte tx:en, och tolken tar den nu;
+  I2 (takten i proxyn) var redan hanterad av `Read`, nu med test; I3 en tillagd Etherscan-endpoint får sortens takt
+  (`ISourceApi.Pace`); I4 (befintliga `sources.json`) lades i BACKLOG. Rättade M: ett block proxyn inte har än är
+  *finns inte*, `Answers` speglar översättningen, ingen nyckel i adressen till den egna noden, `tag=latest` efter
+  parametern och inte ordningen, förvalets adress kontrolleras. Resten i BACKLOG.
+

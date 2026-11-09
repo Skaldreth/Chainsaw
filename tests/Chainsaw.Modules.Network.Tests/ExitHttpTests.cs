@@ -211,6 +211,18 @@ public sealed class ExitHttpTests
     }
 
     [Fact]
+    public void A_key_for_the_address_is_never_sent_to_the_own_node()
+    {
+        var request = ExitRequest.Get(new Uri("https://node.lan/v2/api")) with
+        {
+            Credential = ExitCredential.Query("apikey", "abc"),
+        };
+
+        Assert.Throws<ArgumentException>(
+            () => ExitHttp.Validate(request, new NetworkOptions { AllowLocalTargets = true }, toOwnNode: true));
+    }
+
+    [Fact]
     public async Task A_key_for_the_address_is_refused_when_the_address_already_names_its_parameter()
     {
         await _harness.ConnectedExitAsync();

@@ -216,6 +216,12 @@ internal static class BlockscoutParser
             return RpcBlockFrom(rpc, height);
         }
 
+        if (block.TryGetProperty("jsonrpc", out _) && rpc.ValueKind == JsonValueKind.Null)
+        {
+            // JSON-RPC's answer for a block the node does not have yet: not there, rather than a wrong answer.
+            throw new SourceNotFoundException();
+        }
+
         var hash = String(block, "hash");
         var number = block.TryGetProperty("height", out var h) && h.TryGetInt64(out var n)
             ? n
@@ -318,7 +324,9 @@ internal static class BlockscoutParser
         for (var i = 0; i < items.Count; i++)
         {
             var item = items[i];
-            if (TransactionOf(item) != hash.Value)
+            // Etherscan lists a transaction's internal transactions without naming the transaction; Blockscout names it.
+            var named = OptionalString(item, "hash") ?? OptionalString(item, "transactionHash");
+            if (named is not null && named.ToLowerInvariant() != hash.Value)
             {
                 throw new FormatException("The list has another transaction's internal transactions.");
             }

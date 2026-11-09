@@ -46,10 +46,18 @@ internal sealed class EtherscanApi : ISourceApi
     {
         ArgumentNullException.ThrowIfNull(options);
         Info = new SourceApiInfo(Code, "Etherscan", Chain.Ethereum);
+        if (!SourceAddress.TryRead(options.Etherscan.OriginalString, out var address, out _))
+        {
+            throw new ArgumentException(
+                "Etherscan's address must be https without user, query or fragment.", nameof(options));
+        }
+
         Defaults =
         [
-            new SourceEndpoint(DefaultId, Chain.Ethereum, "Etherscan", options.Etherscan, Code, KeyService,
-                Enabled: false) { Interval = FreeKeyPace },
+            new SourceEndpoint(DefaultId, Chain.Ethereum, "Etherscan", address!, Code, KeyService, Enabled: false)
+            {
+                Interval = FreeKeyPace,
+            },
         ];
     }
 
@@ -87,11 +95,30 @@ internal sealed class EtherscanApi : ISourceApi
     }
 
     /// <inheritdoc/>
+    public TimeSpan Pace => FreeKeyPace;
+
+    /// <inheritdoc/>
     public ExitCredential Credential(string secret) => ExitCredential.Query("apikey", secret);
 
     /// <inheritdoc/>
-    public bool Answers(string path) =>
-        !NotAnswered.Any(part => path.Contains(part, StringComparison.Ordinal));
+    public bool Answers(string path)
+    {
+        if (NotAnswered.Any(part => path.Contains(part, StringComparison.Ordinal)))
+        {
+            return false;
+        }
+
+        try
+        {
+            _ = Translate(path);
+            return true;
+        }
+        catch (ArgumentException)
+        {
+            // A path Etherscan has no query for is left to the chain's other endpoints, never sent.
+            return false;
+        }
+    }
 
     /// <summary>
     /// Turns one of the Ethereum source's paths, written for Blockscout, into the query Etherscan answers alike: the
@@ -128,6 +155,6 @@ internal sealed class EtherscanApi : ISourceApi
         }
 
         var query = path[1..];
-        return query.Contains("action=balance&", StringComparison.Ordinal) ? query + "&tag=latest" : query;
+        return query.Split('&').Contains("action=balance", StringComparer.Ordinal) ? query + "&tag=latest" : query;
     }
 }

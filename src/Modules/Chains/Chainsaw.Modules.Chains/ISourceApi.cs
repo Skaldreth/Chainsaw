@@ -63,6 +63,12 @@ internal interface ISourceApi
     ExitRequest Post(Uri address, string path, string body) =>
         throw new NotSupportedException("The sort of API is only asked with GET.");
 
+    /// <summary>
+    /// Gets the pace an endpoint of the sort on the internet gets when the user adds it: Chainsaw's careful default,
+    /// or the source's own limit when it has one (a free Etherscan key's three requests a second).
+    /// </summary>
+    TimeSpan Pace => SourcePace.Public;
+
     /// <summary>Gives the header a key from the vault is sent in.</summary>
     /// <param name="secret">The key.</param>
     /// <returns>The header.</returns>

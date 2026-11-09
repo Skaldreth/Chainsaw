@@ -512,7 +512,7 @@ internal sealed class ChainSources : IChainSources
             sort.Info.Code, key, Enabled: true)
         {
             Local = local,
-            Interval = local ? SourcePace.Local : SourcePace.Public,
+            Interval = local ? SourcePace.Local : sort.Pace,
         };
         return (endpoint, Change(chain, state => state.Endpoints.Add(endpoint)));
     }
@@ -656,7 +656,7 @@ internal sealed class ChainSources : IChainSources
                 sort.Info.Code, key, true)
             {
                 Local = local,
-                Interval = known?.Interval ?? (local ? SourcePace.Local : SourcePace.Public),
+                Interval = known?.Interval ?? (local ? SourcePace.Local : sort.Pace),
             };
             var probe = await ProbeOneAsync(candidate, sort, ProbeHash.Required, cancellationToken)
                 .ConfigureAwait(false);

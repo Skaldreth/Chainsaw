@@ -54,6 +54,10 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
     genom proxyn kunde ge en hel tx. BSC genom Etherscan (`chainid=56`) kräver en betald nyckel (fråga 20). Inte prövat
     mot Etherscan på riktigt. Blockscouts nyckel skickas som `Authorization: Bearer`, vilket inte är kontrollerat mot
     en Blockscout med nyckel.
+  - **Granskningen av E1 (M):** Etherscan ger `traceId` i stället för `index` för interna överföringar (och kanske ingen
+    `logIndex` i `tokentx`), så samma överföring kan få en annan position än hos Blockscout när källorna blandas; nyckeln
+    i adressen kan synas i en företagsproxys URL-loggar med Windows som utgång (säg det i PX1a-texten); takten gäller
+    per endpoint men Etherscans gräns per nyckel; ett befintligt `sources.json` får inte Etherscan-raden av sig själv.
   - **Blockets hash för en tx** hämtas ur `v2/blocks/:höjd` (Blockscouts eget API), eftersom `gettxinfo` saknar den.
     Byts blocket på höjden mellan uppslagen (en omorganisation) kan hashen höra till ett annat block; ovanligt när
     blocket är slutgiltigt efter 64 block. En egen nod (JSON-RPC `eth_getTransactionReceipt`) ger hashen direkt.

@@ -9,7 +9,7 @@ namespace Chainsaw.Modules.Chains.Tests;
 /// <summary>Etherscan as a sort of API for Ethereum: its queries, its key in the address and its blocks.</summary>
 public sealed class EtherscanTests : IDisposable
 {
-    private const string Address = "https://etherscan.test/v2/api";
+    private const string Address = "https://etherscan.test/v2/api/";
 
     private const string Hash = "0x8c1e00000000000000000000000000000000000000000000000000000000a04d";
 
@@ -124,6 +124,57 @@ public sealed class EtherscanTests : IDisposable
             Assert.DoesNotContain("S3cretKey", request.Uri.AbsoluteUri, StringComparison.Ordinal);
         });
         Assert.Equal(ProbeOutcome.Answered, sources.Get(Chain.Ethereum).Endpoints[0].Probe!.Outcome);
+    }
+
+    [Fact]
+    public void A_transaction_s_internal_list_without_the_transaction_named_is_read()
+    {
+        var hash = EthereumTxHash.Parse("0x" + string.Concat(Enumerable.Repeat("b1", 32)));
+        var body = Encoding.UTF8.GetBytes(
+            "{\"status\":\"1\",\"message\":\"OK\",\"result\":[{\"blockNumber\":\"900\",\"timeStamp\":\"1700000000\","
+            + "\"from\":\"0x" + string.Concat(Enumerable.Repeat("11", 20)) + "\",\"to\":\"0x"
+            + string.Concat(Enumerable.Repeat("22", 20)) + "\",\"value\":\"1000\",\"contractAddress\":\"\","
+            + "\"input\":\"\",\"type\":\"call\",\"gas\":\"2300\",\"gasUsed\":\"0\",\"isError\":\"0\",\"errCode\":\"\"}]}");
+
+        var calls = BlockscoutParser.ParseInternal(body, hash);
+
+        Assert.Single(calls.Calls);
+    }
+
+    [Fact]
+    public void A_rate_limit_from_the_proxy_is_a_wait_not_a_failure()
+    {
+        var body = Encoding.UTF8.GetBytes(
+            "{\"status\":\"0\",\"message\":\"NOTOK\",\"result\":\"Max calls per sec rate limit reached (3/sec)\"}");
+
+        Assert.Throws<SourceBusyException>(() => BlockscoutParser.ParseHeight(body));
+        Assert.Throws<SourceBusyException>(() => BlockscoutParser.ParseBlock(body, 900));
+    }
+
+    [Fact]
+    public void A_block_the_proxy_does_not_have_yet_is_not_found()
+    {
+        var body = Encoding.UTF8.GetBytes("{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":null}");
+
+        Assert.Throws<SourceNotFoundException>(() => BlockscoutParser.ParseBlock(body, 900));
+    }
+
+    [Theory]
+    [InlineData("v2/addresses/0xab")]
+    [InlineData("v2/blocks/x")]
+    public void A_path_Etherscan_has_no_query_for_is_not_claimed(string path) =>
+        Assert.False(new EtherscanApi(new EthereumSourceOptions()).Answers(path));
+
+    [Fact]
+    public void An_Etherscan_endpoint_the_user_adds_keeps_the_free_key_s_pace()
+    {
+        var sources = new ChainSources(
+            [new EtherscanApi(new EthereumSourceOptions())], _http, _keys, new FakeVault(), _clock,
+            new ChainSourcesOptions { Directory = _directory }, new FakeLocalHttp(_clock), _clock.Delay);
+
+        var (endpoint, _) = sources.Add(Chain.Ethereum, new Uri("https://other.test/v2/api"), "etherscan", "Etherscan");
+
+        Assert.Equal(EtherscanApi.FreeKeyPace, endpoint.Interval);
     }
 
     /// <summary>Gives a block as Etherscan's proxy answers <c>eth_getBlockByNumber</c>.</summary>
