@@ -534,7 +534,8 @@ internal sealed class TracingService : ITracingService
         }
 
         return Task.Run(
-            () => AccountTraceCalculator.Trace(graph, method, request.Seeds, cancellationToken), cancellationToken);
+            () => AccountTraceCalculator.Trace(graph, method, request.Seeds, cancellationToken, request.Pricing),
+            cancellationToken);
     }
 
     /// <inheritdoc/>

@@ -636,12 +636,14 @@ public sealed class GraphSource(
                 : NothingToTraceText;
         }
 
+        var swapPricing = await SwapPricingAsync(@case, graph, cancellationToken).ConfigureAwait(false);
         if (accountSeeds.Count > 0)
         {
             try
             {
                 accountTrace = await tracing.TraceAccountsAsync(
-                    graph, new AccountTraceRequest(method, accountSeeds), cancellationToken).ConfigureAwait(false);
+                    graph, new AccountTraceRequest(method, accountSeeds) { Pricing = swapPricing }, cancellationToken)
+                    .ConfigureAwait(false);
             }
             catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
             {
@@ -677,6 +679,7 @@ public sealed class GraphSource(
             ValueGaps = gaps,
             Rates = latest,
             KeptOutOfPiles = reading.KeptOutOfPiles,
+            SwapPricing = swapPricing,
         }, reading.ShowUnspendable);
     }
 
@@ -806,6 +809,68 @@ public sealed class GraphSource(
         }
 
         return (values, gaps);
+    }
+
+    /// <summary>
+    /// Reads the rates the case already has for the graph's swaps, at each swap's time, for the swaps' price check
+    /// (<see cref="SwapValue.CheckPrice"/>); nothing is asked of a source, so the check is honest offline and says when
+    /// a rate is missing. Wrapped ether is valued as ether, since one is always worth the other.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="graph">The graph.</param>
+    /// <param name="cancellationToken">Stops the work.</param>
+    /// <returns>The rates, or <see langword="null"/> when no rates are wired or the graph has no swaps.</returns>
+    private async Task<SwapPricing?> SwapPricingAsync(ICase @case, TraceGraph graph, CancellationToken cancellationToken)
+    {
+        if (prices is null || graph.Account.Swaps.Count == 0)
+        {
+            return null;
+        }
+
+        var rates = new Dictionary<(Asset, DateTimeOffset), Price>();
+        foreach (var swap in graph.Account.Swaps.Where(swap => swap.Time is not null))
+        {
+            foreach (var asset in new[] { PricedAs(swap.Sold.Asset), PricedAs(swap.Bought.Asset) })
+            {
+                var key = (asset, swap.Time!.Value);
+                if (!rates.ContainsKey(key)
+                    && (await LookUp(@case, asset, key.Value, PriceLookupMode.CaseOnly, cancellationToken)
+                        .ConfigureAwait(false)).Value is { } price)
+                {
+                    rates[key] = price;
+                }
+            }
+        }
+
+        return new SwapPricing((amount, at) => ValueAt(rates, amount, at), Currency);
+    }
+
+    /// <summary>Gives the asset an amount is priced as: wrapped ether as ether, everything else as itself.</summary>
+    /// <param name="asset">The asset.</param>
+    /// <returns>The priced asset.</returns>
+    private static Asset PricedAs(Asset asset) => asset == KnownTokens.EthereumWeth ? Asset.Ether : asset;
+
+    /// <summary>Values an amount at a time from the rates read, or gives none.</summary>
+    /// <param name="rates">The rates by priced asset and time.</param>
+    /// <param name="amount">The amount.</param>
+    /// <param name="at">The time.</param>
+    /// <returns>The value, or <see langword="null"/> without a rate or when the amount is too large to value.</returns>
+    private static decimal? ValueAt(Dictionary<(Asset, DateTimeOffset), Price> rates, AssetAmount amount, DateTimeOffset at)
+    {
+        var asset = PricedAs(amount.Asset);
+        if (!rates.TryGetValue((asset, at), out var price))
+        {
+            return null;
+        }
+
+        try
+        {
+            return price.ValueOf(new AssetAmount(asset, amount.Units)).Value;
+        }
+        catch (OverflowException)
+        {
+            return null;
+        }
     }
 
     /// <summary>Asks Pricing for an asset's rate at a time; a failure is no rate, never an error in the graph.</summary>

@@ -3999,3 +3999,21 @@ Inga C; två I med samma rot i hur en swap känns igen, och fyra M.
   i inspektören och på linjen (`SwapMarks.MarkOf`, `SwapMarks.UnknownTokenMark`).
 - **M:** `StopAtSwap` frågar etiketterna som när grafen byggs (`GraphBuilder.SwapEndpoint`, en regel för båda), så att
   en swap som en etikett vägrar inte heller kan väljas.
+
+## Femte granskningen av SW1a rättad: priset prövas (2026-11-09)
+
+- **I, en riktig token till ett absurt pris i en egen pool:** kontrollen `swap-price v1` (`SwapValue.CheckPrice`)
+  prövar värdet av det som gick in mot det som kom ut vid swappens tid, med kurserna ärendet redan har (Pricing,
+  bara ur ärendet, inget uppslag). Skiljer de mer än `SwapValue.MostPriceGap` (20 %, för avgifter, slippage och att en
+  kurs gäller en timme) är det ingen swap i spåret eller exponeringen: pengarna går till poolen som en vanlig
+  betalning. Pillret är streckat i riskens färg med ett stopp, inget val går att göra, och *Varför?* och rutan visar
+  båda beloppen och värdena. Tracing hämtar inga kurser själv: anroparen ger dem som `SwapPricing` (i
+  `AccountTraceRequest` och `ExposureRequest`), och GraphSource läser dem ur ärendet; WETH värderas som ether.
+- **Utan kurs, eget beslut:** värdet följer med som förval, och pillret är streckat i en lugn ton med *priset inte
+  prövat* i rutan och *Varför?*. Skälet: användarens beslut är att värdet följer med, kurserna för ether, USDT och
+  USDC finns oftast i ärendet så snart linjerna har värderats, och ett offline-ärende ska inte tyst tappa spår som
+  annars följts; osäkerheten syns i stället, som allt annat osäkert, streckad.
+- **Tester:** granskarens två prober (1 000 USDT mot 1 wei WETH; 0,000001 USDT mot 1 000 ETH, också i exponeringen)
+  och en swap till rimligt pris som följer, och samma utan kurser (inte prövat, följer).
+- **Kvar (BACKLOG):** `StopAtSwap` läser fortfarande hela Ethereum-delen (inte bara tx:ens svar), och prisprövningen
+  görs om först när grafen läses om efter att kurserna hämtats i bakgrunden.

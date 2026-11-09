@@ -1499,6 +1499,9 @@ Uniswap och ether tillbaka i samma tx. Testärendet har ingen Ethereum-källa ä
       *Tillbakataget: värdet följer med igen*. Samma sak med **Följer** i pillret.
 - [ ] Stäng och öppna ärendet: valet står kvar. `/verify` är grön.
 - [ ] Byt FIFO/haircut med en delvis spårad insats: andelen i rutan ändras, och beloppen efter swappen med den.
+- [ ] Priset: med kurser i ärendet säger rutan *priset prövat*; utan (ett nytt ärende offline) är pillret streckat i en
+      lugn ton och rutan säger *priset inte prövat*. En swap till ett orimligt pris (egen pool) har pillret streckat i
+      rött med ett stopp, går inte att fälla ut, och *Varför?* visar båda beloppen och värdena (`swap-price v1`).
 - [ ] Exponering från adressen som bytte (Ut): en börs som nås efter swappen räknas med värdet i den första tillgången;
       med *Följer inte* hamnar det i *Spåret tar slut*.
 - [ ] Rapport med aktörer före och efter swappen markerade: slutsatserna har en rad *Värdet följer med genom swappen

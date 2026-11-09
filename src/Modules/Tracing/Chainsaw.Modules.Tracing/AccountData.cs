@@ -229,6 +229,7 @@ internal sealed record AccountData(
         {
             Venue = venue,
             SoldMovements = [.. outgoing.Select(AccountSeed.Of)],
+            Time = bought[0].Block?.Time,
         };
     }
 

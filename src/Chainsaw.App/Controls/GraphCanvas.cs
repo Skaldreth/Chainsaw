@@ -1006,14 +1006,8 @@ public sealed partial class GraphCanvas : FrameworkElement
         }
 
         dc.DrawRoundedRectangle(
-            GraphPalette.Find(this, "Brush.Surface"),
-            new Pen(GraphPalette.Find(this, open ? "Brush.BorderHover" : "Brush.BorderStrong"), 1),
-            pill,
-            pill.Height / 2,
-            pill.Height / 2);
-        var (glyph, arrow) = stopped
-            ? ("Icon.Swap.Stop", GraphPalette.Find(this, "Brush.TextDim"))
-            : ("Icon.ArrowRight", GraphPalette.Find(this, "Brush.AccentHover"));
+            GraphPalette.Find(this, "Brush.Surface"), SwapFrame(edge, open), pill, pill.Height / 2, pill.Height / 2);
+        var (glyph, arrow) = SwapArrow(edge);
         var left = box.X + AmountLayout.SwapPadding;
         var middle = box.Y + (box.Height / 2);
         foreach (var pair in edge.SwapPairs)

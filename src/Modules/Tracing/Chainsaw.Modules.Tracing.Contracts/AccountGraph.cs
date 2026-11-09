@@ -88,6 +88,9 @@ public sealed record TokenSwap(EthereumTxHash Transaction, ChainAddress Account,
     /// </summary>
     public KnownContract? Venue { get; init; }
 
+    /// <summary>Gets the swap's block time, which its price is tested at, or <see langword="null"/> while unconfirmed.</summary>
+    public DateTimeOffset? Time { get; init; }
+
     /// <summary>
     /// Gets the movements the account sent into the swap: only those to the other side of the swap (an address that
     /// sent the bought asset back, the contract the transaction called, or the known exchange), or the one movement
@@ -190,7 +193,14 @@ public sealed record AccountSeed(EthereumTxHash Transaction, EthereumTransferKin
 /// <summary>What to trace on the account chain and how.</summary>
 /// <param name="Method">The tracing method; the newest version registered for Ethereum is used.</param>
 /// <param name="Seeds">The movements the traced money starts in, whole; of any assets.</param>
-public sealed record AccountTraceRequest(TracingMethodKind Method, IReadOnlyList<AccountSeed> Seeds);
+public sealed record AccountTraceRequest(TracingMethodKind Method, IReadOnlyList<AccountSeed> Seeds)
+{
+    /// <summary>
+    /// Gets the case's rates for the swaps' price check (<see cref="SwapValue.CheckPrice"/>), or
+    /// <see langword="null"/>: then no price is tested, and the value follows as the default, said in each check.
+    /// </summary>
+    public SwapPricing? Pricing { get; init; }
+}
 
 /// <summary>
 /// The result of a trace on the account chain: where the traced money went by one method, per asset. Through a swap
@@ -214,6 +224,17 @@ public sealed record AccountTraceResult(
     /// order; empty when it reached none.
     /// </summary>
     public IReadOnlyList<SwapConversion> Swaps { get; init; } = [];
+
+    /// <summary>
+    /// Gets the price check of every swap in the graph (<see cref="SwapValue.CheckPrice"/>); a swap with an absurd
+    /// price was traced as an ordinary payment.
+    /// </summary>
+    public IReadOnlyList<SwapPriceCheck> PriceChecks { get; init; } = [];
+
+    /// <summary>Gives a swap's price check, or <see langword="null"/> when it has none.</summary>
+    /// <param name="swap">The swap.</param>
+    /// <returns>The check.</returns>
+    public SwapPriceCheck? PriceOf(TokenSwap swap) => PriceChecks.FirstOrDefault(check => check.Swap.Equals(swap));
 
     /// <summary>Gives what the rule did at a swap, when the traced money reached it.</summary>
     /// <param name="swap">The swap.</param>

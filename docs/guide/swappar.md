@@ -72,6 +72,12 @@ missad bara låter spåret sluta ärligt vid poolen som *inte expanderad*. Chain
 - adressen skickade **en** tillgång, och **allt** av den gick till bytets sida: kontraktet tx:en anropade, den som
   skickade tillbaka den köpta tillgången, en känd DEX, eller en adress som i samma tx syns skicka den köpta tillgången
   (eller WETH) vidare dit;
+- **priset är rimligt** (kontrollen `swap-price v1`): det som gick in och det som kom ut var värda ungefär lika mycket
+  vid tx:ens tid, enligt kurserna ärendet redan har (Bitstamp för ether, USDT och USDC via Riksbanken). Skiljer de mer
+  än en femtedel följer värdet inte med, eftersom vem som helst kan öppna en egen pool och byta till vilket pris som
+  helst, till exempel 1 000 USDT mot en enda wei WETH. Pillret är då streckat i rött med ett stopp, och *Varför?*
+  visar båda beloppen och värdena; pengarna går vidare till poolen som en vanlig betalning. Saknar ärendet en kurs
+  följer värdet med som förval, och pillret är streckat i en lugn ton: *priset inte prövat*;
 - ingen motpart är en känd brygga eller mixer, eller har en etikett som börs, mixer eller brygga: dit ska spåret nå.
   *Varför?* på linjen och noden säger då *Ingen swap* med etiketten och dess källa, och ett val *Följer inte* som
   redan finns står kvar i Historik med *ingen swap längre*.

@@ -685,6 +685,21 @@ public sealed record InspectorContent(
     /// <returns>The answer.</returns>
     private static string SwapChoiceWhy(EdgeView edge, TokenSwap swap)
     {
+        var price = edge.SwapPrice is { } check && check.Swap.Equals(swap) ? " " + check.Explain() : string.Empty;
+        if (edge.SwapPrice is { IsUnreasonable: true } absurd && absurd.Swap.Equals(swap))
+        {
+            return absurd.Explain();
+        }
+
+        return ChoiceWhy(edge, swap) + price;
+    }
+
+    /// <summary>Says what the user chose at a swap, or what the rule did there.</summary>
+    /// <param name="edge">The line.</param>
+    /// <param name="swap">One of its swaps.</param>
+    /// <returns>The answer.</returns>
+    private static string ChoiceWhy(EdgeView edge, TokenSwap swap)
+    {
         if (edge.SwapStops.FirstOrDefault(stop => stop.Is(swap)) is { } stop)
         {
             var reason = stop.Reason is null ? string.Empty : $" ({stop.Reason})";

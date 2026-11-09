@@ -98,6 +98,12 @@ public sealed record ExposureRequest(
     TracingMethodKind Method,
     IReadOnlySet<string> Services)
 {
+    /// <summary>
+    /// Gets the case's rates for the swaps' price check, as in the trace (<see cref="SwapValue.CheckPrice"/>): a swap
+    /// with an absurd price is no swap, and the money goes on to the pool. <see langword="null"/> tests no price.
+    /// </summary>
+    public SwapPricing? Pricing { get; init; }
+
     /// <summary>The deepest the analysis follows: the rings of the view (sketch EP1b).</summary>
     public const int MaxDepth = 3;
 

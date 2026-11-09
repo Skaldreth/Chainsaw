@@ -55,6 +55,12 @@ public sealed record GraphSnapshot(
     /// </summary>
     public IReadOnlySet<ChainAddress> KeptOutOfPiles { get; init; } = GraphReading.NoAddresses;
 
+    /// <summary>
+    /// Gets the case's rates for the swaps' price check, which the exposure uses as the trace did, or
+    /// <see langword="null"/> when there are none.
+    /// </summary>
+    public SwapPricing? SwapPricing { get; init; }
+
     /// <summary>Gets whether any trace was counted, on any chain.</summary>
     public bool HasTrace => Trace is not null || AccountTrace is not null;
 }
@@ -285,6 +291,21 @@ public sealed record EdgeView(
     /// that the pill shows a stop and the person mark.
     /// </summary>
     public bool IsSwapStopped => Swaps.Count > 0 && Swaps.All(swap => SwapStops.Any(stop => stop.Is(swap)));
+
+    /// <summary>
+    /// Gets the price check of the line's first swap (<see cref="SwapValue.CheckPrice"/>), or <see langword="null"/>
+    /// when the trace made none.
+    /// </summary>
+    public SwapPriceCheck? SwapPrice { get; init; }
+
+    /// <summary>
+    /// Gets whether the line's swap has an absurd price, so that the value does not follow and there is nothing to
+    /// choose: the pill is dashed in the risk's colour.
+    /// </summary>
+    public bool IsSwapPriceAbsurd => SwapPrice?.IsUnreasonable == true;
+
+    /// <summary>Gets whether the line's swap price could not be tested: the pill is dashed in a quiet tone.</summary>
+    public bool IsSwapPriceUntested => Swaps.Count > 0 && SwapPrice?.Verdict is null or SwapPriceVerdict.NotTested;
 }
 
 /// <summary>The marks of what was sold and what was bought in a swap, as its pill on the line shows them.</summary>
@@ -676,6 +697,7 @@ public sealed record GraphScene(
         Swap = SwapText(edge.Swaps),
         SwapStops = [.. graph.SwapStops.Where(stop => edge.Swaps.Any(stop.Is))],
         SwapConversions = [.. edge.Swaps.Select(swap => trace?.SwapOf(swap)).OfType<SwapConversion>()],
+        SwapPrice = trace?.PriceOf(edge.Swaps[0]),
     };
 
     /// <summary>Writes a swap's pill: the sold asset's mark, an arrow and the bought one's (<c>₮ → Ξ</c>).</summary>

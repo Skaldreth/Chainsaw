@@ -26,6 +26,37 @@ public static class SwapValue
     public static string Analysis { get; } =
         AnalysisName + " v" + AnalysisVersion.ToString(CultureInfo.InvariantCulture);
 
+    /// <summary>
+    /// The most the values of what went in and what came out may differ, as a share of the larger, for the value to
+    /// follow. An investigator would never follow an absurd price: anyone can open a pool (Uniswap v4, Curve, Balancer
+    /// or an AMM of one's own) and swap a real token at any price there, to move the traced value into a dust amount or
+    /// to blow a dust amount up. A fifth leaves room for fees, slippage and the hour a rate is for.
+    /// </summary>
+    public const decimal MostPriceGap = 0.20m;
+
+    /// <summary>
+    /// Tests a swap's price (the check <c>swap-price v1</c>): the value of what went in against the value of what came
+    /// out, at the swap's time, by the rates the case has. Without a rate for both, or without the swap's time, the
+    /// price is not tested, and the check says so.
+    /// </summary>
+    /// <param name="swap">The swap.</param>
+    /// <param name="pricing">The case's rates, or <see langword="null"/> when there are none.</param>
+    /// <returns>The check.</returns>
+    public static SwapPriceCheck CheckPrice(TokenSwap swap, SwapPricing? pricing)
+    {
+        ArgumentNullException.ThrowIfNull(swap);
+        if (pricing is null || swap.Time is not { } time
+            || pricing.ValueAt(swap.Sold, time) is not { } sold || pricing.ValueAt(swap.Bought, time) is not { } bought)
+        {
+            return new SwapPriceCheck(swap, SwapPriceVerdict.NotTested, null, null, pricing?.Currency);
+        }
+
+        var larger = Math.Max(sold, bought);
+        var gap = larger <= 0 ? 0 : Math.Abs(sold - bought) / larger;
+        var verdict = gap > MostPriceGap ? SwapPriceVerdict.Unreasonable : SwapPriceVerdict.Reasonable;
+        return new SwapPriceCheck(swap, verdict, sold, bought, pricing.Currency);
+    }
+
     /// <summary>Gives the user's choice in force that the value does not follow through a swap.</summary>
     /// <param name="swap">The swap.</param>
     /// <param name="stops">The choices in force.</param>
@@ -177,5 +208,70 @@ public sealed record SwapConversion(
             : " Spåret slutar i swappen, enligt användarens val.");
         text.Append(" Det är en bedömning, inte ett faktum på kedjan.");
         return text.ToString();
+    }
+}
+
+/// <summary>What a swap's price check found (<see cref="SwapValue.CheckPrice"/>).</summary>
+public enum SwapPriceVerdict
+{
+    /// <summary>The case lacks a rate for what went in or came out, or the swap's time: the price is not tested.</summary>
+    NotTested,
+
+    /// <summary>The values in and out agree within <see cref="SwapValue.MostPriceGap"/>: the value follows.</summary>
+    Reasonable,
+
+    /// <summary>
+    /// The values differ by more than <see cref="SwapValue.MostPriceGap"/>: an absurd price, so the value does not
+    /// follow and the money goes on to the pool as an ordinary payment.
+    /// </summary>
+    Unreasonable,
+}
+
+/// <summary>
+/// The case's rates for the swap's price check, given by the caller so that Tracing needs no rate source of its own:
+/// what an amount was worth at a time, in one currency.
+/// </summary>
+/// <param name="ValueAt">Gives an amount's value at a time, or <see langword="null"/> when the case has no rate.</param>
+/// <param name="Currency">The currency the values are in, for example <c>SEK</c>.</param>
+public sealed record SwapPricing(Func<AssetAmount, DateTimeOffset, decimal?> ValueAt, string Currency);
+
+/// <summary>
+/// The check <c>swap-price v1</c> on one swap: what went in and what came out were worth at the swap's time, and
+/// whether the price is reasonable. It is a judgement on rates, never a fact on the chain (principle 2).
+/// </summary>
+/// <param name="Swap">The swap.</param>
+/// <param name="Verdict">What the check found.</param>
+/// <param name="SoldValue">What went in was worth, or <see langword="null"/> when not tested.</param>
+/// <param name="BoughtValue">What came out was worth, or <see langword="null"/> when not tested.</param>
+/// <param name="Currency">The currency, or <see langword="null"/> without rates.</param>
+public sealed record SwapPriceCheck(
+    TokenSwap Swap, SwapPriceVerdict Verdict, decimal? SoldValue, decimal? BoughtValue, string? Currency)
+{
+    /// <summary>The check's name and version, as <em>Varför?</em> writes it.</summary>
+    public const string Check = "swap-price v1";
+
+    /// <summary>Gets whether the price is absurd, so that the value does not follow.</summary>
+    public bool IsUnreasonable => Verdict == SwapPriceVerdict.Unreasonable;
+
+    /// <summary>Explains the check in plain Swedish (principle 3): both amounts, both values and what follows.</summary>
+    /// <returns>The explanation.</returns>
+    public string Explain()
+    {
+        var swedish = CultureInfo.GetCultureInfo("sv-SE");
+        var limit = (SwapValue.MostPriceGap * 100).ToString("0", swedish);
+        var sold = $"{SoldValue?.ToString("N2", swedish)} {Currency}";
+        var bought = $"{BoughtValue?.ToString("N2", swedish)} {Currency}";
+        return Verdict switch
+        {
+            SwapPriceVerdict.Unreasonable =>
+                $"Orimligt pris i swappen ({Check}): in {Swap.Sold}, värt {sold}, ut {Swap.Bought}, värt {bought}, "
+                + $"vid tx:ens tid. Värdena skiljer mer än {limit} %, så värdet följer inte med, och pengarna går "
+                + "vidare till poolen som en vanlig betalning. Det är en bedömning på kurserna, inte ett faktum på "
+                + "kedjan.",
+            SwapPriceVerdict.Reasonable =>
+                $"Priset prövat ({Check}): in värt {sold}, ut värt {bought}, inom {limit} %.",
+            _ => $"Priset i swappen är inte prövat ({Check}): ärendet saknar kursen för det som gick in eller kom ut "
+                + "vid tx:ens tid. Värdet följer ändå med, som förval.",
+        };
     }
 }

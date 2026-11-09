@@ -24,7 +24,9 @@ public sealed partial class GraphViewModel
     /// <param name="edgeKey">The line, or <see langword="null"/> to fold the open pill.</param>
     public void ToggleSwap(string? edgeKey)
     {
-        OpenSwap = edgeKey is not null && OpenSwap != edgeKey && Scene?.Edge(edgeKey) is { Swaps.Count: > 0 }
+        // A swap with an absurd price has nothing to choose: its value never follows.
+        OpenSwap = edgeKey is not null && OpenSwap != edgeKey
+            && Scene?.Edge(edgeKey) is { Swaps.Count: > 0, IsSwapPriceAbsurd: false }
             ? edgeKey
             : null;
         Redraw?.Invoke(this, EventArgs.Empty);

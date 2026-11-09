@@ -184,7 +184,8 @@ internal sealed class AccountExposureRun
     private void FindSwaps()
     {
         var graph = _request.Graph;
-        foreach (var swap in graph.Account.Swaps)
+        var priced = graph.Account.Swaps.Where(swap => !SwapValue.CheckPrice(swap, _request.Pricing).IsUnreasonable);
+        foreach (var swap in priced)
         {
             if (graph.NodeOf(swap.Account)?.Key is not { } account)
             {

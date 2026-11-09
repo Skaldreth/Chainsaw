@@ -74,7 +74,7 @@ public sealed class SwapPillTests
         var box = SwapPill.Box(SwapScene().Edge(Sold)!)!;
 
         Assert.Equal("Värdet följer med genom swappen", box.Title);
-        Assert.Equal("Förval · en bedömning", box.Sub);
+        Assert.Equal("Förval · en bedömning · priset inte prövat", box.Sub);
         Assert.Equal(["In", "Andel", "Ut", SwapPill.FollowsText], box.Steps.Select(step => step.Key));
         Assert.Equal("100,0 %", box.Steps[1].Value);
         Assert.Equal("FIFO v1", box.Steps[1].Sub);
@@ -284,6 +284,36 @@ public sealed class SwapPillTests
         Assert.Equal("WETH", SwapMarks.MarkOf(Modules.Chains.Contracts.KnownTokens.EthereumWeth));
         var swap = Swap with { Sold = new AssetAmount(fake, 5) };
         Assert.Equal("USDC? → Ξ", SwapMarks.Of(swap).Text);
+    }
+
+    [Fact]
+    public void A_swap_at_an_absurd_price_is_dashed_says_why_and_has_nothing_to_choose()
+    {
+        var check = new SwapPriceCheck(Swap, SwapPriceVerdict.Unreasonable, 4_000m, 0.01m, "SEK");
+        var trace = new AccountTraceResult(Fifo, [AccountSeed.Of(Transfers[0])], [UsdtTrace()])
+        {
+            PriceChecks = [check],
+        };
+        var scene = GraphScene.Build(new GraphSnapshot(
+            EthSamples.Graph(), new Dictionary<string, IReadOnlyList<Label>>(), TracingMethodKind.Fifo, [], null, null)
+        {
+            AccountSeeds = [AccountSeed.Of(Transfers[0])],
+            AccountTrace = trace,
+        });
+        var pill = scene.Edge(Sold)!;
+        var rig = new Rig();
+        rig.Source.Scene = () => scene;
+        rig.Session.Open(new TestCase("2026-0002"));
+
+        rig.Graph.ToggleSwap(Sold);
+
+        Assert.True(pill.IsSwapPriceAbsurd);
+        Assert.False(pill.IsSwapPriceUntested);
+        Assert.StartsWith("Orimligt pris", SwapPill.Box(pill)!.Title, StringComparison.Ordinal);
+        Assert.Equal(("Spårat", "inget"), (SwapPill.Box(pill)!.Steps[3].Key, SwapPill.Box(pill)!.Steps[3].Value));
+        Assert.Contains(InspectorContent.ForEdge(scene, pill).Why,
+            line => line.Text.Contains(SwapPriceCheck.Check, StringComparison.Ordinal));
+        Assert.Null(rig.Graph.OpenSwap);
     }
 
     /// <summary>The graph over fakes, showing the swap scene.</summary>

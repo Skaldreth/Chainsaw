@@ -28,6 +28,9 @@ internal static class AccountTraceCalculator
     /// <param name="method">The method for accounts.</param>
     /// <param name="seeds">The movements the money starts in.</param>
     /// <param name="cancellationToken">Stops the trace between rounds.</param>
+    /// <param name="pricing">
+    /// The case's rates for the swaps' price check; a swap with an absurd price is traced as an ordinary payment.
+    /// </param>
     /// <returns>The result per asset, and what the rule did at each swap.</returns>
     /// <exception cref="ArgumentException">
     /// There are no seeds, or a seed is not in the graph or is given twice.
@@ -39,7 +42,8 @@ internal static class AccountTraceCalculator
         TraceGraph graph,
         IAccountTracingMethod method,
         IReadOnlyList<AccountSeed> seeds,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        SwapPricing? pricing = null)
     {
         ArgumentNullException.ThrowIfNull(graph);
         ArgumentNullException.ThrowIfNull(method);
@@ -61,7 +65,9 @@ internal static class AccountTraceCalculator
                 nameof(seeds));
         }
 
-        var swaps = SwapSteps.Of(graph);
+        var checks = graph.Account.Swaps.Select(swap => SwapValue.CheckPrice(swap, pricing)).ToList();
+        var swaps = SwapSteps.Of(
+            graph, checks.Where(check => check.IsUnreasonable).Select(check => check.Swap).ToHashSet());
         var seedAssets = seeded.Select(transfer => transfer.Amount.Asset).Distinct().ToList();
         var assets = swaps.Reachable(seedAssets);
         var tracers = assets.ToDictionary(
@@ -77,6 +83,7 @@ internal static class AccountTraceCalculator
         return new AccountTraceResult(method.Id, seeds, traces)
         {
             Swaps = [.. swaps.All.Select(step => conversions.GetValueOrDefault(step.Swap)).OfType<SwapConversion>()],
+            PriceChecks = checks,
         };
     }
 
@@ -240,10 +247,14 @@ internal static class AccountTraceCalculator
         /// linked to another chain is never part of a swap, and what came out.
         /// </summary>
         /// <param name="graph">The graph.</param>
+        /// <param name="absurd">
+        /// The swaps whose price is absurd (<see cref="SwapValue.CheckPrice"/>): they are no swaps in the trace, and the
+        /// money goes on to the pool as an ordinary payment.
+        /// </param>
         /// <returns>The swaps.</returns>
-        public static SwapSteps Of(TraceGraph graph) => new(
+        public static SwapSteps Of(TraceGraph graph, IReadOnlySet<TokenSwap> absurd) => new(
         [
-            .. graph.Account.Swaps.Select(swap => new SwapStep(
+            .. graph.Account.Swaps.Where(swap => !absurd.Contains(swap)).Select(swap => new SwapStep(
                 swap,
                 [
                     .. graph.Account.Transfers.Where(transfer => SwapValue.GoesIn(

@@ -38,6 +38,48 @@ public sealed partial class GraphCanvas
     private string? _hoveredSwap;
 
     /// <summary>
+    /// Gives the pill's frame: dashed in the risk's colour when the swap's price is absurd and the value does not
+    /// follow, dashed and quiet when the price could not be tested, otherwise solid ("streckat betyder osäkert").
+    /// </summary>
+    /// <param name="edge">The line.</param>
+    /// <param name="open">Whether the pill is unfolded.</param>
+    /// <returns>The pen.</returns>
+    private Pen SwapFrame(EdgeView edge, bool open)
+    {
+        var ink = open ? "Brush.BorderHover" : "Brush.BorderStrong";
+        if (edge.IsSwapPriceAbsurd)
+        {
+            ink = "Brush.Kind.Risk";
+        }
+
+        var pen = new Pen(GraphPalette.Find(this, ink), 1);
+        if (edge.IsSwapPriceAbsurd || edge.IsSwapPriceUntested)
+        {
+            pen.DashStyle = new DashStyle([3, 2.5], 0);
+        }
+
+        return pen;
+    }
+
+    /// <summary>
+    /// Gives the pill's arrow: a stop when the value does not follow (the user's choice, or an absurd price), the
+    /// accent's arrow when it does.
+    /// </summary>
+    /// <param name="edge">The line.</param>
+    /// <returns>The icon's key and its colour.</returns>
+    private (string Glyph, Brush Ink) SwapArrow(EdgeView edge)
+    {
+        if (edge.IsSwapPriceAbsurd)
+        {
+            return ("Icon.Swap.Stop", GraphPalette.Find(this, "Brush.Kind.Risk"));
+        }
+
+        return edge.IsSwapStopped
+            ? ("Icon.Swap.Stop", GraphPalette.Find(this, "Brush.TextDim"))
+            : ("Icon.ArrowRight", GraphPalette.Find(this, "Brush.AccentHover"));
+    }
+
+    /// <summary>
     /// Draws the person mark in the pill's corner: the user's choice, not the default (sketch SW1a, as the own areas
     /// carry one).
     /// </summary>

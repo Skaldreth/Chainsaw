@@ -11,6 +11,9 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
   byggda). Kvar:
   - **Swappen i testärendet** (SW1a, 2026-11-08): `/testdata` har ingen Ethereum-källa, så spåret genom en swap syns
     inte där.
+  - **Swappens pris och val** (SW1a, femte granskningen): prisprövningen (`swap-price v1`) görs om först när grafen
+    läses om efter att kurserna hämtats i bakgrunden, så en swap kan stå som *priset inte prövat* tills dess; och
+    `StopAtSwap` läser hela ärendets Ethereum-del för att se att swappen finns, inte bara tx:ens svar.
   - **Swappar som inte känns igen** (SW1a, andra granskningen; hellre ingen swap än en felaktig): Uniswap V2 genom
     routern när bara historiken är hämtad (parets WETH till routern syns först när hela tx:en läses; att läsa swappens
     tx av sig själv vore ett uppslag per swap), och en aggregator som tar en avgift till en egen adress i samma tx (en

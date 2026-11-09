@@ -1,3 +1,4 @@
+using System.Globalization;
 using Chainsaw.Modules.Tracing.Contracts;
 
 namespace Chainsaw.App.Graph;
@@ -52,9 +53,7 @@ public static class SwapPill
         var stop = edge.SwapStops.FirstOrDefault(choice => choice.Is(swap));
         var conversion = edge.SwapConversions.FirstOrDefault(found => found.Swap == swap);
         var marks = SwapMarks.Of(swap);
-        var (title, sub) = stop is null
-            ? ("Värdet följer med genom swappen", "Förval · en bedömning")
-            : ("Värdet följer inte med", "Ditt val · " + NodeHistory.Short(stop.RecordedUtc));
+        var (title, sub) = Heading(edge, stop);
         var steps = new List<SwapStep>
         {
             new("In", $"{marks.Sold} {AmountText.Number(swap.Sold)}", conversion is null
@@ -62,10 +61,36 @@ public static class SwapPill
                 : $"varav spårat {marks.Sold} {AmountText.Number(conversion.TracedSold)}"),
             new("Andel", conversion?.ShareText ?? "–", conversion?.Method.ToString() ?? string.Empty),
             new("Ut", $"{marks.Bought} {AmountText.Number(swap.Bought)}", swap.Venue?.Name ?? "okänd DEX"),
-            Outcome(stop is null, conversion, marks),
+            Outcome(stop is null && !edge.IsSwapPriceAbsurd, conversion, marks),
         };
         var foot = $"tx {GraphScene.Shorten(swap.Transaction.Value)} · {SwapValue.Analysis}";
         return new SwapPillBox(title, sub, steps, foot);
+    }
+
+    /// <summary>
+    /// Writes the box's title and the quiet line under it: an absurd price first (the value never follows), then the
+    /// user's choice, then the default, which says when the price could not be tested.
+    /// </summary>
+    /// <param name="edge">The line.</param>
+    /// <param name="stop">The user's choice on the swap, or <see langword="null"/>.</param>
+    /// <returns>The title and the line under.</returns>
+    private static (string Title, string Sub) Heading(EdgeView edge, SwapStop? stop)
+    {
+        if (edge.SwapPrice is { IsUnreasonable: true } price)
+        {
+            var swedish = CultureInfo.GetCultureInfo("sv-SE");
+            return ("Orimligt pris: värdet följer inte med", string.Create(
+                swedish, $"{SwapPriceCheck.Check} · in {price.SoldValue:N0}, ut {price.BoughtValue:N0} {price.Currency}"));
+        }
+
+        if (stop is not null)
+        {
+            return ("Värdet följer inte med", "Ditt val · " + NodeHistory.Short(stop.RecordedUtc));
+        }
+
+        return edge.IsSwapPriceUntested
+            ? ("Värdet följer med genom swappen", "Förval · en bedömning · priset inte prövat")
+            : ("Värdet följer med genom swappen", "Förval · en bedömning · priset prövat");
     }
 
     /// <summary>Writes the last step: what follows the traced value, or that nothing does.</summary>

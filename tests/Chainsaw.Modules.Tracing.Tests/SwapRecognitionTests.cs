@@ -218,6 +218,88 @@ public sealed class SwapRecognitionTests : IDisposable
         Assert.Equal(Usdt(1000), Assert.Single(result.Ends, end => end.NodeKey == Key(graph, BridgePool)).Amount.Amount);
     }
 
+    /// <summary>
+    /// The case's made-up rates for the price check: ether (and WETH) 30 000 SEK, USDT and USDC 10 SEK, any time.
+    /// </summary>
+    private static readonly SwapPricing Rates = new(
+        (amount, _) => RateOf(amount.Asset) * ((decimal)amount.Units / (decimal)BigInteger.Pow(10, amount.Asset.Decimals)),
+        "SEK");
+
+    private static decimal? RateOf(Asset asset)
+    {
+        if (asset == Asset.Ether || asset == KnownTokens.EthereumWeth)
+        {
+            return 30_000m;
+        }
+
+        return KnownTokens.IssuerOf(asset) is not null ? 10m : null;
+    }
+
+    private Task<AccountTraceResult> FromVictim(TraceGraph graph, SwapPricing? pricing) =>
+        _harness.Service.TraceAccountsAsync(graph, new AccountTraceRequest(TracingMethodKind.Fifo,
+            [.. graph.Account.Transfers.Where(t => t.From == Victim).Select(AccountSeed.Of)]) { Pricing = pricing });
+
+    [Fact]
+    public async Task An_own_pool_at_an_absurd_price_for_real_weth_is_no_swap_and_the_pool_gets_the_money()
+    {
+        var graph = await Build(["a-swap"],
+            Tx("a-victim", 101, Victim, 0m, Token(Victim, Scammer, Usdt(1000))),
+            Tx("a-swap", 110, Scammer, 0m, Token(Scammer, BridgePool, Usdt(1000)),
+                Token(BridgePool, Scammer, new AssetAmount(KnownTokens.EthereumWeth, 1))),
+            Tx("a-out", 130, Scammer, 0m, Token(Scammer, Exchange, new AssetAmount(KnownTokens.EthereumWeth, 1))));
+
+        var result = await FromVictim(graph, Rates);
+
+        var check = Assert.Single(result.PriceChecks);
+        Assert.Equal(SwapPriceVerdict.Unreasonable, check.Verdict);
+        Assert.Contains(SwapPriceCheck.Check, check.Explain(), StringComparison.Ordinal);
+        Assert.Empty(result.Swaps);
+        Assert.Equal(Usdt(1000), Assert.Single(result.Ends, end => end.NodeKey == Key(graph, BridgePool)).Amount.Amount);
+        Assert.DoesNotContain(result.Ends, end => end.NodeKey == Key(graph, Exchange));
+    }
+
+    [Fact]
+    public async Task An_own_pool_that_blows_one_unit_up_to_a_thousand_ether_carries_nothing_on()
+    {
+        var graph = await Build(["i-swap"],
+            Tx("i-victim", 101, Victim, 0m, Token(Victim, Scammer, new AssetAmount(KnownTokens.EthereumUsdt, 1))),
+            Tx("i-swap", 110, Scammer, 0m, Token(Scammer, BridgePool, new AssetAmount(KnownTokens.EthereumUsdt, 1)),
+                Internal(BridgePool, Scammer, 1000m)),
+            Tx("i-out", 130, Scammer, 0m, Eth(Scammer, Exchange, 1000m)));
+
+        var result = await FromVictim(graph, Rates);
+        var exposure = new ExposureAnalysis([new AccountFifoMethod(), new AccountHaircutMethod()]).Analyse(
+            new ExposureRequest(graph, Key(graph, Scammer), KnownTokens.EthereumUsdt, ExposureDirection.Out, 3,
+                TracingMethodKind.Fifo, new HashSet<string>(StringComparer.Ordinal) { Key(graph, Exchange) })
+            {
+                Pricing = Rates,
+            });
+
+        Assert.True(Assert.Single(result.PriceChecks).IsUnreasonable);
+        Assert.Single(result.Assets);
+        Assert.DoesNotContain(result.Ends, end => end.NodeKey == Key(graph, Exchange));
+        Assert.Empty(exposure.Reached);
+    }
+
+    [Fact]
+    public async Task A_swap_at_a_fair_price_follows_and_one_that_cannot_be_priced_follows_as_the_default()
+    {
+        var graph = await Build(["n-swap"],
+            Tx("n-victim", 101, Victim, 0m, Token(Victim, Scammer, Usdt(1000))),
+            Tx("n-swap", 110, Scammer, 0m, Token(Scammer, BridgePool, Usdt(1000)),
+                Internal(BridgePool, Scammer, 0.333m)),
+            Tx("n-out", 130, Scammer, 0m, Eth(Scammer, Exchange, 0.333m)));
+
+        var priced = await FromVictim(graph, Rates);
+        var unpriced = await FromVictim(graph, null);
+
+        Assert.Equal(SwapPriceVerdict.Reasonable, Assert.Single(priced.PriceChecks).Verdict);
+        Assert.Equal(Ether(0.333m), Assert.Single(priced.Ends, end => end.NodeKey == Key(graph, Exchange)).Amount.Amount);
+        Assert.Equal(SwapPriceVerdict.NotTested, Assert.Single(unpriced.PriceChecks).Verdict);
+        Assert.Contains("inte prövat", unpriced.PriceChecks[0].Explain(), StringComparison.Ordinal);
+        Assert.Single(unpriced.Swaps);
+    }
+
     [Fact]
     public async Task A_label_set_later_refuses_the_swap_and_says_why()
     {
