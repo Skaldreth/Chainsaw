@@ -239,6 +239,71 @@ public sealed class TronSourceTests
     }
 
     [Fact]
+    public async Task AnInfoTheSourceCannotGiveNowMakesThePageIncompleteNotUnread()
+    {
+        using var harness = new TronHarness();
+        harness.Answer(harness.HistoryUrl("transactions/trc20", TronHarness.A), "history-trc20.json");
+        harness.Http.AnswerBusy(TronHarness.InfoUrl(TronHarness.C1), TimeSpan.FromMinutes(10));
+
+        var page = (await harness.Source.GetAddressHistoryAsync(
+            harness.Case, TronHarness.A, EthereumHistory.Tokens)).Value!;
+
+        // The transfer is read again later; only the entry without decimals counts as unread.
+        Assert.Empty(page.Transfers);
+        Assert.True(page.IsIncomplete);
+        Assert.Equal(1, page.Unread);
+    }
+
+    [Fact]
+    public async Task ACheckReadsOnlyTheTokenEntriesItNeedsAndLooksNothingOlderUp()
+    {
+        using var harness = new TronHarness();
+        harness.Answer(harness.HistoryUrl("transactions/trc20", TronHarness.A), "history-trc20.json");
+        var later = DateTimeOffset.FromUnixTimeMilliseconds(TronHarness.Time + 1);
+
+        var page = (await harness.Source.GetRecentHistoryAsync(
+            harness.Case, TronHarness.A, EthereumHistory.Tokens, null, LookupMode.AsNeeded, later)).Value!;
+
+        Assert.Empty(page.Transfers);
+        Assert.False(page.IsIncomplete);
+        Assert.DoesNotContain(harness.Http.Sent, request => request.Uri.AbsolutePath.Contains(
+            "gettransactioninfobyid", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task AFullPageInOneBlockIsReadAgainWithTheMostAPageHolds()
+    {
+        using var harness = new TronHarness(pageSize: 2);
+        harness.Answer(harness.HistoryUrl("transactions/trc20", TronHarness.A), "history-trc20.json");
+        var wide = harness.HistoryUrl("transactions/trc20", TronHarness.A).Replace(
+            "limit=2", "limit=200", StringComparison.Ordinal);
+        harness.Answer(wide, "history-trc20.json");
+        harness.Answer(TronHarness.InfoUrl(TronHarness.C1), "tx-c1-info.json");
+
+        var page = (await harness.Source.GetAddressHistoryAsync(
+            harness.Case, TronHarness.A, EthereumHistory.Tokens)).Value!;
+
+        Assert.False(page.IsCutShort);
+        Assert.Single(page.Transfers);
+        Assert.Contains(harness.Http.Sent, request => request.Uri.AbsoluteUri == wide);
+    }
+
+    [Fact]
+    public async Task AResultFromAShallowBlockIsAskedForAgain()
+    {
+        using var harness = new TronHarness();
+        harness.AnswerTransaction();
+        harness.Answer(TronHarness.TipUrl, "tip-shallow.json");
+        await harness.Source.GetTipHeightAsync(harness.Case);
+        await harness.Source.GetTransactionAsync(harness.Case, TronHarness.C1);
+
+        await harness.Source.GetTransactionAsync(harness.Case, TronHarness.C1);
+
+        Assert.Equal(2, harness.Http.Sent.Count(request =>
+            request.Uri.AbsoluteUri == TronHarness.TxUrl(TronHarness.C1)));
+    }
+
+    [Fact]
     public async Task ATokenPageWithAStrangersTransferIsNotUsed()
     {
         using var harness = new TronHarness();

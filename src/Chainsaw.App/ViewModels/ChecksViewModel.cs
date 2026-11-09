@@ -920,8 +920,8 @@ public sealed partial class ChecksViewModel : ObservableObject
     /// chain, the mixer's candidates and the wallets from Clustering) and are not run on an account chain.
     /// </summary>
     public const string AccountChainsText =
-        "Kontrollerna gäller UTXO-modellen (Bitcoin) och körs inte på Ethereum än; "
-        + "Ethereum-delen är inte kontrollerad.";
+        "Kontrollerna gäller UTXO-modellen (Bitcoin) och körs inte på Ethereum och TRON än; "
+        + "den delen är inte kontrollerad.";
 
     /// <summary>Says, after the status, that the checks did not run on the graph's Ethereum part.</summary>
     /// <param name="scene">The graph.</param>

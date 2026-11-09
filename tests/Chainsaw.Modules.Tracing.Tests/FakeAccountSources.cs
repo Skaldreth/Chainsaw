@@ -14,6 +14,11 @@ internal sealed class FakeEthereumSource : FakeAccountSource, IEthereumSource
 /// </summary>
 internal sealed class FakeTronSource : FakeAccountSource, ITronSource
 {
+    /// <summary>Gives where a page starts: this fake pages by block.</summary>
+    /// <param name="block">The block.</param>
+    /// <returns>Its number.</returns>
+    public long PageStartOf(EthereumBlockReference block) => block.Height;
+
     /// <inheritdoc/>
     protected override string BlockHashOf(long height) => HashOf(height)[2..];
 }

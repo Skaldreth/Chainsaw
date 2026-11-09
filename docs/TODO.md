@@ -139,6 +139,10 @@ byggt ur BACKLOG; det som skriver i ärendet granskas oberoende.
    - [skiss] **Fryst:** Tethers kontrakt på TRON har en svartlista (`isBlackListed`); en adress som står där kunde få
      en markering *Fryst* bredvid snöflingan *Kan frysas*, med när den lästes och ur vilket svar. Hur den skiljer sig
      från snöflingan (som bara säger att utgivaren *kan* frysa) och hur ofta den frågas skissas först.
+   - [skiss] **TRON:s brickor i den tomma startpunktsnoden (GR6c):** brickorna Bitcoin-adress, Ethereum-adress,
+     Bitcoin-tx och Ethereum-tx lyser när texten passar, men TRON har ingen bricka än; en TRON-adress läggs ändå till.
+   - [skiss] **TRX:s egen färg på kortets baksida:** TRX har stålets färg som ether (en nod har aldrig båda), och
+     *Väntar på källan* visar `T` för TRON; en egen ton och ett eget märke skissas om det behövs.
    - [skiss] **TRX:s avgift i inspektören:** TRON bränner TRX för energi och bandbredd (ofta noll med låst TRX);
      inspektören visar avgiften som på Ethereum, men skillnaden mellan energi och bandbredd syns inte.
 

@@ -155,9 +155,11 @@ internal sealed class EthereumCaseFeed(IAccountSource source, ICase @case) : IWa
         var status = WatchFeedStatus.Read;
         long? completeAbove = null;
         var unknown = false;
+        var notBefore = await NotBeforeAsync(downTo, origins, cancellationToken).ConfigureAwait(false);
         foreach (var history in HistoriesFor(asset))
         {
-            var (read, above) = await ReadHistoryAsync(ethereum, history, downTo, transfers, origins, problems,
+            var (read, above) = await ReadHistoryAsync(
+                ethereum, history, new HistoryFloor(downTo, notBefore), transfers, origins, problems,
                 cancellationToken).ConfigureAwait(false);
             status = (WatchFeedStatus)Math.Max((int)status, (int)read);
             if (above is { } height)
@@ -222,30 +224,34 @@ internal sealed class EthereumCaseFeed(IAccountSource source, ICase @case) : IWa
     /// </summary>
     /// <param name="address">The address.</param>
     /// <param name="history">The history.</param>
-    /// <param name="downTo">The block below which nothing is needed.</param>
+    /// <param name="floor">The block below which nothing is needed, and its time when the source pages by time.</param>
     /// <param name="transfers">The movements so far, each once.</param>
     /// <param name="origins">The sealed responses so far.</param>
     /// <param name="problems">What went wrong so far.</param>
     /// <param name="cancellationToken">Stops the reading.</param>
     /// <returns>
     /// How it went, and for a partial read the block above which it is complete (<see langword="null"/> when it
-    /// reached back to <paramref name="downTo"/>).
+    /// reached back to the floor's block).
     /// </returns>
     private async Task<(WatchFeedStatus Status, long? CompleteAbove)> ReadHistoryAsync(
         EthereumAddress address,
         EthereumHistory history,
-        long downTo,
+        HistoryFloor floor,
         Dictionary<(string, EthereumTransferKind, long), EthereumTransfer> transfers,
         List<long> origins,
         List<string> problems,
         CancellationToken cancellationToken)
     {
+        var downTo = floor.Block;
         long? atOrBelow = null;
         var lowest = long.MaxValue;
         for (var page = 0; page < WatchRules.MaximumPages; page++)
         {
-            var lookup = await source.GetAddressHistoryAsync(
-                @case, address, history, atOrBelow, LookupMode.InStep, cancellationToken).ConfigureAwait(false);
+            var lookup = await (floor.Time is { } time
+                ? source.GetRecentHistoryAsync(
+                    @case, address, history, atOrBelow, LookupMode.InStep, time, cancellationToken)
+                : source.GetAddressHistoryAsync(
+                    @case, address, history, atOrBelow, LookupMode.InStep, cancellationToken)).ConfigureAwait(false);
             var status = FeedTexts.StatusOf(lookup);
 
             // Only an answer the check rests on is cited; a failed or stood-in response is not (principle 1).
@@ -266,7 +272,11 @@ internal sealed class EthereumCaseFeed(IAccountSource source, ICase @case) : IWa
 
             foreach (var transfer in read.Transfers)
             {
-                transfers.TryAdd((transfer.Transaction.Value, transfer.Kind, transfer.Position), transfer);
+                if (IsWatched(transfer))
+                {
+                    transfers.TryAdd((transfer.Transaction.Value, transfer.Kind, transfer.Position), transfer);
+                }
+
                 lowest = Math.Min(lowest, transfer.Block?.Height ?? lowest);
             }
 
@@ -274,7 +284,12 @@ internal sealed class EthereumCaseFeed(IAccountSource source, ICase @case) : IWa
             {
                 // The source has not finished reading the history: nothing below its newest page is trusted yet.
                 problems.Add(FeedTexts.Format(FeedTexts.Incomplete, address.Value, downTo + 1));
-                return (WatchFeedStatus.Partial, lowest == long.MaxValue ? null : lowest);
+
+                // On TRON a movement the source could not place has no block yet, so it may lie anywhere on the page:
+                // the check stays where it was until the page can be read whole.
+                return source.Chain == Chain.Tron || lowest == long.MaxValue
+                    ? (WatchFeedStatus.Partial, null)
+                    : (WatchFeedStatus.Partial, lowest);
             }
 
             if (read.IsCutShort)
@@ -284,7 +299,7 @@ internal sealed class EthereumCaseFeed(IAccountSource source, ICase @case) : IWa
                 return (WatchFeedStatus.Partial, read.Transfers.Select(t => t.Block?.Height).Max() ?? lowest);
             }
 
-            if (read.NextAtOrBelow is not { } next || ReachedBelow(read, next, downTo))
+            if (read.NextAtOrBelow is not { } next || ReachedBelow(read, next, floor))
             {
                 return (WatchFeedStatus.Read, null);
             }
@@ -299,25 +314,76 @@ internal sealed class EthereumCaseFeed(IAccountSource source, ICase @case) : IWa
 
     /// <summary>
     /// Says whether a page has gone back to the block the check reads to. Ethereum's next page starts at a block, so
-    /// its start says it; TRON's starts at a time, so the oldest block among the page's movements and fees says it (a
-    /// page without one pages on, as far as <see cref="WatchRules.MaximumPages"/> reach).
+    /// its start says it; TRON's starts at a time, so the floor block's time says it, or else the oldest block among the
+    /// page's movements and fees (a page without one pages on, as far as <see cref="WatchRules.MaximumPages"/> reach).
     /// </summary>
     /// <param name="read">The page.</param>
     /// <param name="next">Where the next page starts, in the source's unit.</param>
-    /// <param name="downTo">The block the check reads to.</param>
+    /// <param name="floor">The block the check reads to, and its time when known.</param>
     /// <returns><see langword="true"/> when nothing older is needed.</returns>
-    private bool ReachedBelow(EthereumAddressPage read, long next, long downTo)
+    private bool ReachedBelow(EthereumAddressPage read, long next, HistoryFloor floor)
     {
         if (source.Chain == Chain.Ethereum)
         {
-            return next <= downTo;
+            return next <= floor.Block;
+        }
+
+        if (floor.Time is { } time && next < time.ToUnixTimeMilliseconds())
+        {
+            return true;
         }
 
         var oldest = read.Transfers.Select(transfer => transfer.Block?.Height)
             .Concat(read.Fees.Select(fee => fee.Block?.Height))
             .Min();
-        return oldest is { } height && height <= downTo;
+        return oldest is { } height && height <= floor.Block;
     }
+
+    /// <summary>
+    /// Says whether a movement can be a hit. On TRON a token Chainsaw does not know (<see cref="KnownTokens"/>) is
+    /// left out: anyone can make a contract send one to any address (spam, address poisoning, both common there), and
+    /// a whole transaction does not give its decimals, so a hit on it could never be checked. A watch for every asset
+    /// there means TRX and the tokens Chainsaw knows, as the node's holdings do.
+    /// </summary>
+    /// <param name="transfer">The movement.</param>
+    /// <returns><see langword="true"/> when it is watched.</returns>
+    private bool IsWatched(EthereumTransfer transfer) =>
+        source.Chain != Chain.Tron || transfer.Amount.Asset.Kind == AssetKind.Native
+        || KnownTokens.IssuerOf(transfer.Amount.Asset) is not null;
+
+    /// <summary>
+    /// Gives the time of the block a check reads back to, on a chain whose sources page by time (TRON), so that the
+    /// source does not look up each older entry of a page; <see langword="null"/> on Ethereum, or when the block
+    /// could not be had (then the whole page is read).
+    /// </summary>
+    /// <param name="downTo">The block.</param>
+    /// <param name="origins">The sealed responses so far; the block's is added.</param>
+    /// <param name="cancellationToken">Stops the lookup.</param>
+    /// <returns>The block's time, or <see langword="null"/>.</returns>
+    private async Task<DateTimeOffset?> NotBeforeAsync(
+        long downTo, List<long> origins, CancellationToken cancellationToken)
+    {
+        if (source.Chain == Chain.Ethereum)
+        {
+            return null;
+        }
+
+        var block = await source.GetBlockAsync(@case, downTo, LookupMode.InStep, cancellationToken)
+            .ConfigureAwait(false);
+        if (block.Value is not { } found)
+        {
+            return null;
+        }
+
+        origins.AddRange(block.Origins.Select(origin => origin.Sequence));
+        return found.Time;
+    }
+
+    /// <summary>Where a check reads back to: a block, and its time on a chain whose sources page by time.</summary>
+    /// <param name="Block">The block below which nothing is needed.</param>
+    /// <param name="Time">Its time, or <see langword="null"/> when not needed or not known.</param>
+    private readonly record struct HistoryFloor(long Block, DateTimeOffset? Time);
+
 
     /// <summary>Looks up the hash of every block a movement lacks it for, in step with the chain.</summary>
     /// <param name="transfers">The movements.</param>

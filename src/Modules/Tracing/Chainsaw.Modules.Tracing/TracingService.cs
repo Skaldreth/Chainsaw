@@ -435,7 +435,7 @@ internal sealed class TracingService : ITracingService
         if (!_accountMethods.TryGetValue(request.Method, out var method))
         {
             throw new ArgumentException(
-                _accountProblem ?? "The tracing method is not registered for Ethereum.", nameof(request));
+                _accountProblem ?? "The tracing method is not registered for the account chains.", nameof(request));
         }
 
         return Task.Run(

@@ -71,9 +71,40 @@ internal sealed class TronGridTronSource : ITronSource
     }
 
     /// <inheritdoc/>
-    public async Task<BitcoinLookup<EthereumAddressPage>> GetAddressHistoryAsync(
+    public Task<BitcoinLookup<EthereumAddressPage>> GetAddressHistoryAsync(
         ICase @case, EthereumAddress address, EthereumHistory history, long? atOrBelow = null,
-        LookupMode mode = LookupMode.AsNeeded, CancellationToken cancellationToken = default)
+        LookupMode mode = LookupMode.AsNeeded, CancellationToken cancellationToken = default) =>
+        HistoryAsync(@case, address, history, atOrBelow, mode, null, cancellationToken);
+
+    /// <summary>
+    /// Gets a page of an address's history for a check that needs nothing older than a time: the token history's
+    /// entries older than it are neither looked up nor counted, so that a check reads only what is new.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="address">The address.</param>
+    /// <param name="history">Which history.</param>
+    /// <param name="atOrBelow">Where the page starts, or <see langword="null"/> for the newest.</param>
+    /// <param name="mode">Whether the source may be asked.</param>
+    /// <param name="notBefore">The oldest block time the check needs.</param>
+    /// <param name="cancellationToken">Stops the lookup.</param>
+    /// <returns>The page.</returns>
+    public Task<BitcoinLookup<EthereumAddressPage>> GetRecentHistoryAsync(
+        ICase @case, EthereumAddress address, EthereumHistory history, long? atOrBelow, LookupMode mode,
+        DateTimeOffset notBefore, CancellationToken cancellationToken = default) =>
+        HistoryAsync(@case, address, history, atOrBelow, mode, notBefore, cancellationToken);
+
+    /// <summary>Gets a page of an address's history, leaving the token history's older entries out when asked.</summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="address">The address.</param>
+    /// <param name="history">Which history.</param>
+    /// <param name="atOrBelow">Where the page starts, or <see langword="null"/> for the newest.</param>
+    /// <param name="mode">Whether the source may be asked.</param>
+    /// <param name="notBefore">The oldest block time needed, or <see langword="null"/> for all.</param>
+    /// <param name="cancellationToken">Stops the lookup.</param>
+    /// <returns>The page.</returns>
+    private async Task<BitcoinLookup<EthereumAddressPage>> HistoryAsync(
+        ICase @case, EthereumAddress address, EthereumHistory history, long? atOrBelow, LookupMode mode,
+        DateTimeOffset? notBefore, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(@case);
         CheckOnTron(address);
@@ -85,8 +116,9 @@ internal sealed class TronGridTronSource : ITronSource
         switch (history)
         {
             case EthereumHistory.Transactions:
-                var page = await _lookups.LookupAsync(@case, HistoryQuery(address, atOrBelow), mode, cancellationToken)
-                    .ConfigureAwait(false);
+                var page = await WholeBlockAsync(
+                    @case, size => HistoryQuery(address, atOrBelow, size), raw => raw.Page.IsCutShort, mode,
+                    cancellationToken).ConfigureAwait(false);
                 return new BitcoinLookup<EthereumAddressPage>(page.Status, page.Value?.Page, page.Origins, page.Problem)
                 {
                     Notes = page.Notes,
@@ -100,7 +132,7 @@ internal sealed class TronGridTronSource : ITronSource
                     [],
                     null);
             case EthereumHistory.Tokens:
-                return await TokenHistoryAsync(@case, address, atOrBelow, mode, cancellationToken)
+                return await TokenHistoryAsync(@case, address, atOrBelow, mode, notBefore, cancellationToken)
                     .ConfigureAwait(false);
             default:
                 throw new ArgumentOutOfRangeException(nameof(history), history, "Unknown history.");
@@ -119,7 +151,12 @@ internal sealed class TronGridTronSource : ITronSource
             throw new ArgumentException("The transaction is not on TRON.", nameof(hash));
         }
 
-        var raw = await _lookups.LookupAsync(@case, TransactionQuery(hash), mode, cancellationToken)
+        // The info first: its block decides when the transaction's own answer (and its result) is final, so that a
+        // result from a block that was still shallow is asked for again.
+        var infoLookup = await _lookups.LookupAsync(@case, InfoQuery(hash), mode, cancellationToken)
+            .ConfigureAwait(false);
+        var raw = await _lookups.LookupAsync(
+                @case, TransactionQuery(hash, infoLookup.Value?.Height), mode, cancellationToken)
             .ConfigureAwait(false);
         if (raw.Value is not { } transaction)
         {
@@ -127,8 +164,6 @@ internal sealed class TronGridTronSource : ITronSource
         }
 
         var parts = new LookupParts(raw.Status, raw.Origins, raw.Notes, raw.Problem);
-        var infoLookup = await _lookups.LookupAsync(@case, InfoQuery(hash), mode, cancellationToken)
-            .ConfigureAwait(false);
         TronTransactionInfo? info;
         if (infoLookup.Status == LookupStatus.NotFound)
         {
@@ -262,19 +297,24 @@ internal sealed class TronGridTronSource : ITronSource
     /// <summary>
     /// Reads a page of an address's TRC-20 transfers, and each of its transactions' info for the block and the event's
     /// place, so that the page holds the same movements a whole transaction gives. A transfer whose info could not be
-    /// had, or whose event the info does not hold, is not counted now and keeps the page from being final.
+    /// had now (the source asked Chainsaw to wait, did not answer, or has not indexed it yet), or whose event the info
+    /// does not hold, is not counted and makes the page incomplete, so that it is read again and a check never moves
+    /// past it. Only an entry without decimals, which the source will not give for that page, counts as unread.
     /// </summary>
     /// <param name="case">The open case.</param>
     /// <param name="address">The address.</param>
     /// <param name="atOrBelow">Where the page starts, or <see langword="null"/> for the newest.</param>
     /// <param name="mode">Whether the source may be asked.</param>
+    /// <param name="notBefore">The oldest block time needed, or <see langword="null"/> for all.</param>
     /// <param name="cancellationToken">Stops the lookup.</param>
     /// <returns>The page.</returns>
     private async Task<BitcoinLookup<EthereumAddressPage>> TokenHistoryAsync(
-        ICase @case, EthereumAddress address, long? atOrBelow, LookupMode mode, CancellationToken cancellationToken)
+        ICase @case, EthereumAddress address, long? atOrBelow, LookupMode mode, DateTimeOffset? notBefore,
+        CancellationToken cancellationToken)
     {
-        var lookup = await _lookups.LookupAsync(@case, TokenHistoryQuery(address, atOrBelow), mode, cancellationToken)
-            .ConfigureAwait(false);
+        var lookup = await WholeBlockAsync(
+            @case, size => TokenHistoryQuery(address, atOrBelow, size), raw => raw.IsCutShort, mode,
+            cancellationToken).ConfigureAwait(false);
         if (lookup.Value is not { } raw)
         {
             return Without<EthereumAddressPage, TronTokenPage>(lookup);
@@ -282,31 +322,62 @@ internal sealed class TronGridTronSource : ITronSource
 
         var parts = new LookupParts(lookup.Status, lookup.Origins, lookup.Notes, lookup.Problem);
         var transfers = new List<EthereumTransfer>();
-        var unread = raw.Unread;
-        foreach (var group in raw.Entries.GroupBy(entry => entry.Transaction))
+        var waiting = false;
+        var needed = raw.Entries.Where(entry => notBefore is not { } oldest || entry.Time >= oldest);
+        foreach (var group in needed.GroupBy(entry => entry.Transaction))
         {
             var info = await _lookups.LookupAsync(@case, InfoQuery(group.Key), mode, cancellationToken)
                 .ConfigureAwait(false);
             parts.Take(info);
-            if (info.Value is null)
-            {
-                unread += group.Count();
-                continue;
-            }
-
-            var placed = Place(group, info.Value);
+            var placed = info.Value is null ? [] : Place(group, info.Value);
             transfers.AddRange(placed);
-            unread += group.Count() - placed.Count;
+            waiting |= placed.Count < group.Count();
+        }
+
+        if (waiting)
+        {
+            parts.Note("En tx:s block och plats kunde inte hämtas nu; dess överföringar räknas när de kan hämtas.");
         }
 
         var page = new EthereumAddressPage(
-            address, EthereumHistory.Tokens, atOrBelow, transfers, [], raw.NextAtOrBelow, raw.IsCutShort, false)
+            address, EthereumHistory.Tokens, atOrBelow, transfers, [], raw.NextAtOrBelow, raw.IsCutShort, waiting)
         {
             Skipped = raw.Skipped,
-            Unread = unread,
+            Unread = raw.Unread,
         };
         return parts.Page(page);
     }
+
+    /// <summary>
+    /// Reads a page, and when a full page lay in one block reads it again with the most entries TronGrid gives a page
+    /// (200), so that a block with more transfers than the page size is read whole as far as that reaches.
+    /// </summary>
+    /// <typeparam name="T">The page.</typeparam>
+    /// <param name="case">The open case.</param>
+    /// <param name="query">The page's lookup with a page size.</param>
+    /// <param name="isCutShort">Says whether the page was cut short.</param>
+    /// <param name="mode">Whether the source may be asked.</param>
+    /// <param name="cancellationToken">Stops the lookup.</param>
+    /// <returns>The page, the wider one when it had to be read.</returns>
+    private async Task<BitcoinLookup<T>> WholeBlockAsync<T>(
+        ICase @case, Func<int, LookupQuery<T>> query, Func<T, bool> isCutShort, LookupMode mode,
+        CancellationToken cancellationToken)
+        where T : class
+    {
+        var page = await _lookups.LookupAsync(@case, query(_options.PageSize), mode, cancellationToken)
+            .ConfigureAwait(false);
+        if (page.Value is not { } first || !isCutShort(first) || _options.PageSize >= TronGridApi.MostPerPage)
+        {
+            return page;
+        }
+
+        var wider = await _lookups.LookupAsync(@case, query(TronGridApi.MostPerPage), mode, cancellationToken)
+            .ConfigureAwait(false);
+        return wider.Value is null
+            ? page
+            : wider with { Origins = [.. page.Origins.Concat(wider.Origins).DistinctBy(origin => origin.Sequence)] };
+    }
+
 
     /// <summary>
     /// Gives the token history's transfers of one transaction their block and place: each is matched, in order, with an
@@ -433,34 +504,36 @@ internal sealed class TronGridTronSource : ITronSource
     /// <param name="address">The address.</param>
     /// <param name="list">The list under the address: <c>transactions</c> or <c>transactions/trc20</c>.</param>
     /// <param name="atOrBelow">Where the page starts, or <see langword="null"/>.</param>
+    /// <param name="size">How many entries the page asks for.</param>
     /// <returns>The path.</returns>
-    private string HistoryPath(EthereumAddress address, string list, long? atOrBelow) =>
+    private static string HistoryPath(EthereumAddress address, string list, long? atOrBelow, int size) =>
         string.Create(CultureInfo.InvariantCulture,
-            $"v1/accounts/{address.Value}/{list}?order_by=block_timestamp,desc&limit={_options.PageSize}")
+            $"v1/accounts/{address.Value}/{list}?order_by=block_timestamp,desc&limit={size}")
         + (atOrBelow is { } start ? "&max_timestamp=" + start.ToString(CultureInfo.InvariantCulture) : string.Empty);
 
     /// <summary>The subject of a page: the address, where it starts and the page size.</summary>
     /// <param name="address">The address.</param>
     /// <param name="atOrBelow">Where the page starts, or <see langword="null"/>.</param>
+    /// <param name="size">How many entries the page asks for.</param>
     /// <returns>The subject.</returns>
-    private string PageSubject(EthereumAddress address, long? atOrBelow) =>
+    private static string PageSubject(EthereumAddress address, long? atOrBelow, int size) =>
         // The page size is part of the subject, so that a page read with another size is never taken for a full one.
         string.Create(CultureInfo.InvariantCulture,
-            $"{address.Value}/{atOrBelow?.ToString(CultureInfo.InvariantCulture) ?? "newest"}/{_options.PageSize}");
+            $"{address.Value}/{atOrBelow?.ToString(CultureInfo.InvariantCulture) ?? "newest"}/{size}");
 
     /// <summary>The lookup of a page of an address's transactions.</summary>
     /// <param name="address">The address.</param>
     /// <param name="atOrBelow">Where the page starts, or <see langword="null"/>.</param>
+    /// <param name="size">How many entries the page asks for.</param>
     /// <returns>The query.</returns>
-    private LookupQuery<TronHistoryPage> HistoryQuery(EthereumAddress address, long? atOrBelow)
+    private LookupQuery<TronHistoryPage> HistoryQuery(EthereumAddress address, long? atOrBelow, int size)
     {
-        var subject = PageSubject(address, atOrBelow);
-        TronHistoryPage Parse(byte[] body) =>
-            TronGridParser.ParseHistory(body, address, atOrBelow, _options.PageSize);
+        var subject = PageSubject(address, atOrBelow, size);
+        TronHistoryPage Parse(byte[] body) => TronGridParser.ParseHistory(body, address, atOrBelow, size);
         return new LookupQuery<TronHistoryPage>(
             TronResponseKinds.AddressTransactions,
             subject,
-            HistoryPath(address, "transactions", atOrBelow),
+            HistoryPath(address, "transactions", atOrBelow, size),
             Parse,
             page => Index(page.Page.Transfers.Select(transfer => transfer.Block?.Height)
                 .Concat(page.Page.Fees.Select(fee => fee.Block?.Height))),
@@ -472,16 +545,16 @@ internal sealed class TronGridTronSource : ITronSource
     /// <summary>The lookup of a page of an address's TRC-20 transfers.</summary>
     /// <param name="address">The address.</param>
     /// <param name="atOrBelow">Where the page starts, or <see langword="null"/>.</param>
+    /// <param name="size">How many entries the page asks for.</param>
     /// <returns>The query.</returns>
-    private LookupQuery<TronTokenPage> TokenHistoryQuery(EthereumAddress address, long? atOrBelow)
+    private LookupQuery<TronTokenPage> TokenHistoryQuery(EthereumAddress address, long? atOrBelow, int size)
     {
-        var subject = PageSubject(address, atOrBelow);
-        TronTokenPage Parse(byte[] body) =>
-            TronGridParser.ParseTokenHistory(body, address, atOrBelow, _options.PageSize);
+        var subject = PageSubject(address, atOrBelow, size);
+        TronTokenPage Parse(byte[] body) => TronGridParser.ParseTokenHistory(body, address, atOrBelow, size);
         return new LookupQuery<TronTokenPage>(
             TronResponseKinds.AddressTokens,
             subject,
-            HistoryPath(address, "transactions/trc20", atOrBelow),
+            HistoryPath(address, "transactions/trc20", atOrBelow, size),
             Parse,
             _ => ResponseIndex.None,
             reader => SourceLookups.StoredAs(
@@ -490,12 +563,14 @@ internal sealed class TronGridTronSource : ITronSource
     }
 
     /// <summary>
-    /// The lookup of a transaction as it was signed, which cannot change once the chain has said how it ended; its
-    /// block is in its info, which is asked again until the block is final.
+    /// The lookup of a transaction as it was signed and how it ended, which is final only when the block its info
+    /// puts it in is final: a result read while that block was shallow is asked for again, and so is one whose block
+    /// is not known (a pending transaction, or info that could not be had).
     /// </summary>
     /// <param name="hash">The transaction.</param>
+    /// <param name="height">The block its info puts it in, or <see langword="null"/> when not known.</param>
     /// <returns>The query.</returns>
-    private LookupQuery<TronTransactionRaw> TransactionQuery(EthereumTxHash hash)
+    private LookupQuery<TronTransactionRaw> TransactionQuery(EthereumTxHash hash, long? height)
     {
         TronTransactionRaw Parse(byte[] body) => TronGridParser.ParseTransaction(body, hash);
         return new LookupQuery<TronTransactionRaw>(
@@ -506,7 +581,8 @@ internal sealed class TronGridTronSource : ITronSource
             _ => ResponseIndex.None,
             reader => SourceLookups.StoredAs(
                 _lookups.Store.Latest(reader, TronResponseKinds.Transaction, hash.Value), Parse),
-            raw => raw.Result is null ? null : 0L);
+            raw => raw.Result is null ? null : height);
+
     }
 
     /// <summary>The lookup of what a transaction did in its block, which cannot change once the block is final.</summary>

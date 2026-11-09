@@ -4193,3 +4193,23 @@ topp.
   bevakningens bakåtblick i tid, TronScan och egen nod, typernas namn och kontrollerna på TRON. Chainabuse frågas inte
   för TRON än. Formerna är provade mot TronGrids riktiga svar (bara formen; inga riktiga adresser eller svar ligger i
   koden eller testerna, där allt är syntetiskt ur `tests/Chainsaw.Modules.Chains.Tests/Tron/generate.py`).
+- **Rättat efter den oberoende granskningen** (1 C, 3 I, 10 M, alla rättade):
+  - **C1:** en tx:s info som inte kunde hämtas nu (429, ingen svar, `{}`) gör tokensidan ofullständig
+    (`IsIncomplete`), aldrig *oläst*; bara en post utan decimaler är oläst. Bevakningens flöde står kvar där det var
+    på TRON när en sida är ofullständig, eftersom en rörelse utan block kan ligga var som helst på sidan. Test med 429.
+  - **I1:** när en hel tx är ofullständig behålls historikens tokenrörelser på de platser i loggen som tx:en saknar
+    (`AccountData.FromHistory`), så att till exempel USDC inte försvinner ur grafen och spårningen. Test.
+  - **I2:** en token som Chainsaw inte känner blir aldrig en träff på TRON; *alla* betyder TRX och kända tokens. Ett
+    tips i TRX eller en känd token avgörs mot hela tx:en också när den saknar en okänd token (avvisas i stället för att
+    vänta). Test.
+  - **I3:** bevakningen hämtar info bara för tokenrader nyare än blockets tid den läser till
+    (`IAccountSource.GetRecentHistoryAsync`), och stannar vid den tiden. Att behålla svaren mellan bakgrundens varv står
+    i BACKLOG.
+  - **M1:** en sida är full efter antalet poster, också de utan blocktid. **M2:** en full sida i ett block läses om med
+    `limit=200`. **M3:** tx:ens eget svar (och resultatet) är slutligt först när infons block är det. **M4:** att tx:en
+    ligger i blocket kontrolleras inte, och Guiden och BACKLOG säger det. **M5:** *oläst* betyder nu bara saknade
+    decimaler, så läsarens text stämmer. **M6:** `PageStartOf` saknar standard i `IAccountSource`; Ethereums ligger i
+    `IEthereumSource`. **M7:** bevakningsformuläret släpper en vald tillgång från en annan kedja. **M8:** texterna om
+    spårningen och kontrollerna nämner Ethereum och TRON. **M9:** Bitstamp har `trxeur` och `trxusd` (kontrollerat i
+    deras öppna `trading-pairs-info`). **M10:** TRX ritas i myntets stål, inte stablecoinens grönt, och *Väntar på
+    källan* visar `T` för TRON, inte ₮; en egen ton och ett eget märke står i TODO som [skiss].

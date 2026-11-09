@@ -100,8 +100,16 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
     överhoppade.
   - **Tokenhistorikens plats:** TronGrids TRC-20-lista ger varken block eller loggindex, så varje tx:s info hämtas för
     sig (`gettransactioninfobyid`). Det är ett uppslag per tx och ett per block för hashen, med TronGrids takt utan
-    nyckel (1 i sekunden) en minut eller mer för 50 tx. TronGrids händelse-API per kontrakt
+    nyckel (1 i sekunden) en minut eller mer för 50 tx vid en expansion. Bevakningen hämtar bara info för rader nyare
+    än blocket den läser till, men bakgrunden har ett nytt ärende i minnet varje varv, så en ny rad som inte kunde
+    placeras frågas om nästa varv; att behålla svaren mellan varven saknas. TronGrids händelse-API per kontrakt
     (`v1/contracts/:usdt/events`, med blocknummer och index) eller en egen nod med en indexerare kan ersätta det.
+  - **Tx:en i blocket:** Chainsaw hämtar bara blockets huvud (id, höjd, tid) och kontrollerar att id:t börjar med
+    höjden, inte att tx:en finns i blocket (huvudet har bara transaktionsträdets rot). Samma som på Ethereum; en egen
+    nod, eller blocket med `detail=true` och roten räknad, kan kontrollera det.
+  - **Bevakningens tips i okända tokens:** sedan granskningen blir en token som Chainsaw inte känner aldrig en träff på
+    TRON (skräp och adressförgiftning). Ett tips i en sådan token från en äldre bakgrund väntar; det kunde stängas med en
+    egen journalrad.
   - **Sidor efter tid:** en sida som går tillbaka från en tid räknas som slutlig när källans klocka (`meta.at`) är
     tio minuter förbi; en källa som ljuger om sin klocka kunde få en ny sida att räknas som slutlig. Jämför med kedjans
     höjd när det går (tiden för blocket 20 under toppen).

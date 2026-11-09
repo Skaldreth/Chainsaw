@@ -34,7 +34,8 @@ Källan är **TronGrid**, TRON:s öppna API (se [Källor](kallor.md)). En tx och
 en egen nod kan ta över dem senare; en adress historik är TronGrids eget index. Utan nyckel är TronGrid långsam, så
 Chainsaw frågar högst en gång i sekunden och väntar när TronGrid ber om det. Allt som hämtas förseglas i ärendet med
 blockhöjd och blockets id, och ett block anses slutgiltigt när 20 block har byggts på det (ungefär en minut). Det som
-vilar på ett slutgiltigt block hämtas aldrig igen.
+vilar på ett slutgiltigt block hämtas aldrig igen. Blockets id kontrolleras mot höjden, men att tx:en verkligen ligger
+i blocket kontrolleras inte (då behövs hela blocket); det gäller också Ethereum.
 
 Historiken bläddras **efter tid**, inte efter block. Listan över en adress USDT säger inte i vilket block en överföring
 ligger, så Chainsaw hämtar också varje tx:s egen redovisning (i vilket block, och var i loggen händelsen står) och
@@ -45,6 +46,10 @@ förseglar den. Därför kan den första expansionen av en adress med många USD
 En TRON-adress eller TRON-tx är en startpunkt som Bitcoin och Ethereum: den hämtas i förväg i *Nytt ärende*, kan
 expanderas i grafen, spåras med samma metoder som Ethereum och bevakas. USDT står som ₮ först i beloppet, TRX med sin
 symbol, och en adress där USDT ligger kvar får snöflingan *Kan frysas* (se [Kan frysas](kan-frysas.md)).
+
+En **token som Chainsaw inte känner** (bara USDT känns igen på TRON) visas i grafen ur adressens historik, men
+bevakningen säger aldrig till för den: vem som helst kan skicka skräptokens till vilken adress som helst, och det är
+vanligt på TRON. En bevakning av *alla* tillgångar på TRON gäller TRX och USDT.
 
 **Bevakningen** frågar källan när ett nytt block har kommit, men kedjans höjd läses en gång i minuten, så *vid varje
 nytt block* blir på TRON ungefär en gång i minuten: ofta nog för att hinna före ett uttag, utan att fråga 20 gånger i

@@ -128,6 +128,30 @@ public sealed class TronGraphTests : IDisposable
     }
 
     [Fact]
+    public async Task A_token_the_whole_transaction_cannot_count_stays_in_the_graph_from_the_history()
+    {
+        var usdc = new AssetAmount(Asset.Token(SharedKernel.Chain.Tron, Address("usdc").Value, "USDC", 6), 700_000_000);
+        var full = Tx("mixed", 140, Scammer, Token(Scammer, Mule, Usdt(100)), Token(Scammer, Mule, usdc));
+        _harness.Tron.Add(full);
+
+        // Read whole, the transaction counts only USDT and says it is incomplete, as TRON's source does.
+        _harness.Tron.Whole[full.Hash] = full with
+        {
+            Transfers = [.. full.Transfers.Where(transfer => transfer.Amount.Asset == KnownTokens.TronUsdt)],
+            IsComplete = false,
+        };
+        _harness.Service.AddStartPoint(_harness.Case, TraceStartPoint.ForEthereumAddress(Scammer));
+        await _harness.Service.ExpandAsync(_harness.Case, ExpansionRequest.ForEthereumAddress(Scammer));
+
+        var graph = (await _harness.Service.ExpandAsync(
+            _harness.Case, ExpansionRequest.ForEthereumTransaction(full.Hash))).Graph;
+
+        var movements = graph.Account.Transfers.Where(transfer => transfer.Transaction == full.Hash).ToList();
+        Assert.Equal(2, movements.Count);
+        Assert.Contains(movements, transfer => transfer.Amount == usdc);
+    }
+
+    [Fact]
     public async Task A_link_from_a_tron_movement_leads_to_another_chain_only()
     {
         Chain();

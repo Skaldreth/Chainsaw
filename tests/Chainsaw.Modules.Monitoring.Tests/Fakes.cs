@@ -225,6 +225,9 @@ internal sealed class FakeTronSource : ITronSource
 
     public long Tip { get; set; } = 80_000_100;
 
+    /// <summary>Gets or sets whether every page says the source could not read it whole (a lookup that failed).</summary>
+    public bool Incomplete { get; set; }
+
     public void Holds(EthereumAddress address, EthereumHistory history, params EthereumTransfer[] transfers) =>
         Histories[(address.Value, history)] = [.. transfers];
 
@@ -236,9 +239,10 @@ internal sealed class FakeTronSource : ITronSource
     {
         Asked.Add((address.Value, history, mode));
         var transfers = Histories.GetValueOrDefault((address.Value, history)) ?? [];
-        var page = new EthereumAddressPage(address, history, atOrBelow, transfers, [], null, false, false);
+        var page = new EthereumAddressPage(address, history, atOrBelow, transfers, [], null, false, Incomplete);
         return Task.FromResult(new BitcoinLookup<EthereumAddressPage>(
             LookupStatus.Fetched, page, [FakeBitcoinSource.Origin(21)], null));
+
     }
 
     public Task<BitcoinLookup<EthereumBlockReference>> GetBlockAsync(

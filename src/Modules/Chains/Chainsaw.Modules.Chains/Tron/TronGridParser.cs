@@ -222,7 +222,7 @@ internal static class TronGridParser
                 skipped += ReadHistoryEntry(item, address, transfers, fees);
             }
 
-            var (next, cut) = NextPage(times, atOrBelow, pageSize);
+            var (next, cut) = NextPage(times, items.Count, atOrBelow, pageSize);
             var page = new EthereumAddressPage(
                 address, EthereumHistory.Transactions, atOrBelow, transfers, fees, next, cut, false)
             {
@@ -283,8 +283,9 @@ internal static class TronGridParser
             }
         }
 
-        var (next, cut) = NextPage(times, atOrBelow, pageSize);
+        var (next, cut) = NextPage(times, items.Count, atOrBelow, pageSize);
         return new TronTokenPage(entries, next, cut, skipped, unread, ServerTime(root));
+
     });
 
     /// <summary>
@@ -506,20 +507,28 @@ internal static class TronGridParser
     /// that goes back from a time starts <em>at</em> it, so its entries come again), or nowhere when the page was not
     /// full; a full page whose entries all lie at one time cannot be paged past.
     /// </summary>
-    /// <param name="times">The entries' block times, in milliseconds.</param>
+    /// <param name="times">The block times of the entries that have one, in milliseconds.</param>
+    /// <param name="count">How many entries the page holds, also those without a block time.</param>
     /// <param name="atOrBelow">Where the page started.</param>
     /// <param name="pageSize">How many entries were asked for.</param>
     /// <returns>The next start, and whether the page was cut short.</returns>
-    private static (long? Next, bool Cut) NextPage(List<long> times, long? atOrBelow, int pageSize)
+    private static (long? Next, bool Cut) NextPage(List<long> times, int count, long? atOrBelow, int pageSize)
     {
         if (times.Any(time => time > atOrBelow))
         {
             throw new FormatException("An entry on the page is newer than where the page starts.");
         }
 
-        if (times.Count < pageSize)
+        // A full page is one with as many entries as were asked for, whether or not each is in a block yet; a full page
+        // without any block time cannot say where the next starts, and is cut short.
+        if (count < pageSize)
         {
             return (null, false);
+        }
+
+        if (times.Count == 0)
+        {
+            return (null, true);
         }
 
         var oldest = times.Min();

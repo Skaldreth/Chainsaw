@@ -191,10 +191,10 @@ public sealed class GraphSource(
     public const string LimitReachedText =
         "Gränsen för en expansion nåddes; expandera igen för resten.";
 
-    /// <summary>What the trace says when the movements on Ethereum cannot be traced.</summary>
+    /// <summary>What the trace says when the movements on an account chain (Ethereum, TRON) cannot be traced.</summary>
     public const string AccountTraceFailedText =
-        "Spårningen på Ethereum kunde inte räknas: startpunkternas rörelser ligger i varandras flöde, så samma pengar "
-        + "skulle räknas två gånger. Ethereums linjer visas utan spårade belopp.";
+        "Spårningen på Ethereum och TRON kunde inte räknas: startpunkternas rörelser ligger i varandras flöde, så samma "
+        + "pengar skulle räknas två gånger. Deras linjer visas utan spårade belopp.";
 
     /// <summary>What the trace says when the graph does not yet show a movement on Ethereum to start in.</summary>
     public const string NothingToTraceOnEthereumText =

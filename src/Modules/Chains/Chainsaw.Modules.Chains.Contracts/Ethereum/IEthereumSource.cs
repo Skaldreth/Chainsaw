@@ -12,6 +12,15 @@ public interface IEthereumSource : IAccountSource
 {
     /// <summary>Gets the chain: <see cref="SharedKernel.Chain.Ethereum"/>.</summary>
     Chain IAccountSource.Chain => Chain.Ethereum;
+
+    /// <summary>Gives where a page that goes back from a block starts: Ethereum's sources page by block.</summary>
+    /// <param name="block">The block.</param>
+    /// <returns>The block's number.</returns>
+    long IAccountSource.PageStartOf(EthereumBlockReference block)
+    {
+        ArgumentNullException.ThrowIfNull(block);
+        return block.Height;
+    }
 }
 
 /// <summary>
@@ -58,11 +67,26 @@ public interface IAccountSource
     /// </summary>
     /// <param name="block">The block.</param>
     /// <returns>The page's start.</returns>
-    long PageStartOf(EthereumBlockReference block)
-    {
-        ArgumentNullException.ThrowIfNull(block);
-        return block.Height;
-    }
+    long PageStartOf(EthereumBlockReference block);
+
+    /// <summary>
+    /// Gets one page of an address's history for a check that needs nothing older than a block's time. A source that
+    /// must look each entry up on its own (TRON's token history, which lacks the block) leaves the older entries out,
+    /// neither looked up nor counted; a source that does not need to gives the whole page.
+    /// </summary>
+    /// <param name="case">The open case the responses are sealed in.</param>
+    /// <param name="address">The address.</param>
+    /// <param name="history">Which history.</param>
+    /// <param name="atOrBelow">Where the page starts, or <see langword="null"/> for the newest.</param>
+    /// <param name="mode">Whether the source may be asked.</param>
+    /// <param name="notBefore">The oldest block time the check needs.</param>
+    /// <param name="cancellationToken">Stops the lookup.</param>
+    /// <returns>The page.</returns>
+    Task<BitcoinLookup<EthereumAddressPage>> GetRecentHistoryAsync(
+        ICase @case, EthereumAddress address, EthereumHistory history, long? atOrBelow, LookupMode mode,
+        DateTimeOffset notBefore, CancellationToken cancellationToken = default) =>
+        GetAddressHistoryAsync(@case, address, history, atOrBelow, mode, cancellationToken);
+
 
     /// <summary>Gets one page of an address's history of one kind, newest first.</summary>
     /// <param name="case">The open case the responses are sealed in.</param>

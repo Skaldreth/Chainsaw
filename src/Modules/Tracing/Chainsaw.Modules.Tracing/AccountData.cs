@@ -57,7 +57,7 @@ internal sealed record AccountData(
     {
         var transfers = new Dictionary<TransferKey, EthereumTransfer>();
         foreach (var transfer in whole.Values.SelectMany(transaction => transaction.Transfers)
-            .Concat(history.Where(transfer => !whole.ContainsKey(transfer.Transaction))))
+            .Concat(history.Where(transfer => FromHistory(transfer, whole))))
         {
             transfers.TryAdd(TransferKey.Of(transfer), transfer);
         }
@@ -85,6 +85,28 @@ internal sealed record AccountData(
             whole,
             read,
             outdated);
+    }
+
+    /// <summary>
+    /// Says whether a history's movement is taken: always for a transaction not read whole; for one read whole only
+    /// when that answer was incomplete and lacks a token movement at the history's place in the log (TRON's whole
+    /// transaction counts only the tokens Chainsaw knows, so a USDC or another token's movement would otherwise vanish
+    /// from the graph and the trace once the transaction is expanded).
+    /// </summary>
+    /// <param name="transfer">The history's movement.</param>
+    /// <param name="whole">The transactions read whole.</param>
+    /// <returns><see langword="true"/> when it is taken.</returns>
+    private static bool FromHistory(
+        EthereumTransfer transfer, IReadOnlyDictionary<EthereumTxHash, EthereumTransaction> whole)
+    {
+        if (!whole.TryGetValue(transfer.Transaction, out var transaction))
+        {
+            return true;
+        }
+
+        return !transaction.IsComplete && transfer.Kind == EthereumTransferKind.Token
+            && !transaction.Transfers.Any(own => own.Kind == EthereumTransferKind.Token
+                && own.Position == transfer.Position);
     }
 
     /// <summary>

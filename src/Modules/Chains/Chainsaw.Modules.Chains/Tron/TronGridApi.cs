@@ -23,6 +23,9 @@ internal sealed class TronGridApi : ISourceApi
     /// <summary>The path of the newest block's header.</summary>
     public const string NewestBlockPath = "wallet/getblock?detail=false";
 
+    /// <summary>The most entries TronGrid gives on a page of an address's history (<c>limit</c>).</summary>
+    public const int MostPerPage = 200;
+
     /// <summary>The default endpoint's fixed id, so that the same default is the same endpoint in every file.</summary>
     private static readonly Guid DefaultId = Guid.Parse("6d0a2f0e-7e1b-4c55-9d0b-8b1f2c4a0201");
 

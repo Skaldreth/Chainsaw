@@ -23,6 +23,12 @@ internal abstract class FakeAccountSource
 
     public bool Online { get; set; } = true;
 
+    /// <summary>
+    /// Gets the answers for a transaction read whole that differ from the chain's (one the source could not read whole);
+    /// the histories still answer from the chain.
+    /// </summary>
+    public Dictionary<EthereumTxHash, EthereumTransaction> Whole { get; } = [];
+
     /// <summary>Gets how many times the source itself was asked.</summary>
     public int Lookups { get; private set; }
 
@@ -104,10 +110,11 @@ internal abstract class FakeAccountSource
         }
 
         Lookups++;
-        if (!_chain.TryGetValue(hash, out var transaction))
+        if (!Whole.TryGetValue(hash, out var transaction) && !_chain.TryGetValue(hash, out transaction))
         {
             return Task.FromResult(Answer<EthereumTransaction>(LookupStatus.NotFound, null));
         }
+
 
         _givenTransactions[hash] = transaction;
         return Task.FromResult(Answer(LookupStatus.Fetched, transaction));

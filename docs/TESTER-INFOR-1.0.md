@@ -3139,3 +3139,5 @@ Inga riktiga TRON-adresser står här; ta en adress ur en beställning eller ur 
       mulan är expanderade, Sydbörsen (TRON) tar emot, och mulan har snöflingan. Inget skickas ut (raderna i ärendet
       säger *testdata*).
 - [ ] Guiden: avsnittet *TRON* (under TRON) och *USDT på TRON* stämmer med det som syns.
+- [ ] Bevaka en TRON-adress för alla tillgångar och skicka en skräptoken dit: ingen avisering. Kortets baksida visar TRX
+      i stål och USDT i grönt; *Väntar på källan* visar `T` för TRON.

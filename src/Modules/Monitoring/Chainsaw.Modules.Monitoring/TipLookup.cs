@@ -65,7 +65,7 @@ internal static class TipLookup
             _ => null,
         };
         var (status, transaction, origins, problem, complete) = account is not null
-            ? await EthereumAsync(account, @case, tip.Match.Transaction, cancellationToken).ConfigureAwait(false)
+            ? await EthereumAsync(account, @case, tip.Match, cancellationToken).ConfigureAwait(false)
             : await BitcoinAsync(bitcoin, @case, tip.Match.Transaction, cancellationToken).ConfigureAwait(false);
         if (status == LookupStatus.NotFound)
         {
@@ -117,16 +117,21 @@ internal static class TipLookup
         return (lookup.Status, transaction, Sequences(lookup.Origins), lookup.Problem, true);
     }
 
-    /// <summary>Looks a transaction on an account chain up, with every movement of value in it.</summary>
+    /// <summary>
+    /// Looks a transaction on an account chain up, with every movement of value in it. On TRON a whole transaction
+    /// counts TRX and every token Chainsaw knows, and leaves out only the others, which the watch never takes as hits;
+    /// so an answer that lacks only them is complete for a hit in TRX or a known token, and a hit it does not give is
+    /// rejected instead of waiting for ever.
+    /// </summary>
     /// <param name="source">The chain's source.</param>
     /// <param name="case">The open case.</param>
-    /// <param name="id">The transaction's hash as the tip gave it.</param>
+    /// <param name="match">The hit the tip was about.</param>
     /// <param name="cancellationToken">Stops the lookup.</param>
     /// <returns>The answer in the check's form; a block without its hash counts as not in a block.</returns>
     private static async Task<(LookupStatus, WatchTransaction?, IReadOnlyList<long>, string?, bool)> EthereumAsync(
-        IAccountSource source, ICase @case, string id, CancellationToken cancellationToken)
+        IAccountSource source, ICase @case, WatchMatch match, CancellationToken cancellationToken)
     {
-        if (!EthereumTxHash.TryParse(source.Chain, id, out var hash))
+        if (!EthereumTxHash.TryParse(source.Chain, match.Transaction, out var hash))
         {
             return (LookupStatus.NotFound, null, [], null, true);
         }
@@ -144,7 +149,12 @@ internal static class TipLookup
             [new WatchLeg(transfer.To.ToChainAddress(), transfer.Amount)]));
         var transaction = new WatchTransaction(source.Chain, value.Hash.Value, block, [.. flows]);
 
-        return (lookup.Status, transaction, Sequences(lookup.Origins), lookup.Problem, value.IsComplete);
+        var asset = match.Amount.Asset;
+        var countedWhole = source.Chain == Chain.Tron && value.Outcome != EthereumOutcome.Pending
+            && (asset.Kind == AssetKind.Native || KnownTokens.IssuerOf(asset) is not null);
+        return (lookup.Status, transaction, Sequences(lookup.Origins), lookup.Problem,
+            value.IsComplete || countedWhole);
+
     }
 
     /// <summary>Gives the sealed responses' numbers.</summary>

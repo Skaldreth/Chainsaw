@@ -360,6 +360,20 @@ public sealed partial class WatchFormViewModel : ObservableObject
             : direction == WatchDirection.Out ? WatchPartyList.Receivers : Picking;
     }
 
+    /// <summary>
+    /// Drops a chosen asset of another chain when the typed address moves the watch to another chain, so that the
+    /// asset shown chosen is always one of the chain's (an ETH chosen for an Ethereum address never stays chosen for a
+    /// TRON address).
+    /// </summary>
+    /// <param name="value">The typed address.</param>
+    partial void OnAddressTextChanged(string value)
+    {
+        if (Asset is { } chosen && chosen.Chain != Chain)
+        {
+            ChooseAsset(null);
+        }
+    }
+
     /// <summary>Chooses the asset on an account chain; <see langword="null"/> for all.</summary>
     /// <param name="asset">The asset.</param>
     [RelayCommand]

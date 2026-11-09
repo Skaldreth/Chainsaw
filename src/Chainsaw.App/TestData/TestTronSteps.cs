@@ -24,6 +24,12 @@ public sealed class TestDataTronRouter(ITronSource real, Lazy<ITronSource> testD
         For(@case).GetAddressHistoryAsync(@case, address, history, atOrBelow, mode, cancellationToken);
 
     /// <inheritdoc/>
+    public Task<BitcoinLookup<EthereumAddressPage>> GetRecentHistoryAsync(
+        ICase @case, EthereumAddress address, EthereumHistory history, long? atOrBelow, LookupMode mode,
+        DateTimeOffset notBefore, CancellationToken cancellationToken = default) =>
+        For(@case).GetRecentHistoryAsync(@case, address, history, atOrBelow, mode, notBefore, cancellationToken);
+
+    /// <inheritdoc/>
     public Task<BitcoinLookup<EthereumTransaction>> GetTransactionAsync(
         ICase @case, EthereumTxHash hash, LookupMode mode = LookupMode.AsNeeded,
         CancellationToken cancellationToken = default) =>
