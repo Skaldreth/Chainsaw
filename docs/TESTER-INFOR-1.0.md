@@ -1290,6 +1290,18 @@ som redan har det), så att grafen har ett kluster och några okända adresser.
 - [ ] `/verify` är grönt, och journalen har en rad per uppbrytning.
 
 **Annan kedja (K)**
+- Välj en adress som tagit emot pengar (helst en swap) och tryck K: Ethereum är valt, och alla kedjor i listan går att
+  välja (Solana sedan omgång 8c). Klistra in en Ethereum-tx (`0x` och 64 hex): en grön bock visas i fältet. Klistra in 64 hex utan
+  `0x`: ingen bock (det kan vara båda kedjorna); välj TRON så kommer bocken och rubriken blir *TRON-tx*. Med TRON valt
+  och en tx med `0x` byts kedjan till Ethereum av sig själv.
+- Kom flera mynt in till adressen listas de (största först) och ett måste väljas.
+- Tryck Enter (skälet är frivilligt): en lila streckad linje går till en lila nod med kedjans namn under hörnet. Myntet erbjuds
+  inte igen i formuläret.
+- Fokus: efter Enter eller Esc går tangentbordet tillbaka till grafen, så att E, F, L, U och K fungerar direkt.
+- Enter efter att ha klickat på en rad, en sort eller en källa sparar formuläret (klickar inte på raden igen).
+- Sorten *Sanktionerad* finns inte i rutnätet (den kommer bara ur en importerad lista). Med sorten *Offer* är *Sprid
+  inte* tonad: ett offer sprids aldrig.
+
 - [ ] Välj en adress som tagit emot pengar (helst en swap) och tryck K: Ethereum är valt, Litecoin och Solana är tonade
       med *Inte byggt än*. Klistra in en Ethereum-tx (`0x` och 64 hex): en grön bock visas i fältet. Klistra in 64 hex
       utan `0x`: ingen bock (det kan vara båda kedjorna); välj TRON så kommer bocken och rubriken blir *TRON-tx*. Med
@@ -2107,8 +2119,8 @@ analysen med version och att det är en bedömning; *?* öppnar Guidens avsnitt.
 
 ### Mönster (`pattern v1`, 2026-11-09)
 
-Testärendet visar inga mönster än (TODO); prova i ett ärende där formen finns. Varje träff står under *GJORT AV SIG
-SJÄLVT* i *Förslag · N*, med analysen *pattern v1* och att det är en bedömning; *?* öppnar Guidens avsnitt *Mönster*.
+Testärendet visar *Samma väg* och *Likadana belopp* (se *Testärendet*); prova de andra i ett ärende där formen finns.
+Varje träff står under *GJORT AV SIG SJÄLVT* i *Förslag · N*, med analysen *pattern v1* och att det är en bedömning; *?* öppnar Guidens avsnitt *Mönster*.
 - **Samma insamling:** två adresser som var och en tar emot från minst fem avsändare och sedan sveper deras mynt i en
   tx till samma adress som inget är känt om ger *Samma insamling, 2 aktörer*; *Varför?* nämner båda med belopp, antal
   avsändare och svepets tx, och att det också kan vara en handlare. Sveper de till en börs med etikett, eller är
@@ -2135,7 +2147,7 @@ SJÄLVT* i *Förslag · N*, med analysen *pattern v1* och att det är en bedömn
 
 ### Ytorna för omgång 4 (KV1a, HB1a, BU1a, DM1a, HP1a och TJ1b, 2026-11-08)
 
-Testärendet visar dem inte än (TODO); prova i ett ärende där mönstren finns.
+HB1a finns i testärendet (se *Testärendet*); prova de andra i ett ärende där mönstren finns.
 - **KV1a:** välj ett kluster. Under *VARFÖR ÄR DE EN PLÅNBOK?* står en rad per heuristik med version, antal adresser
   och tx. *⋯* på raden fäller ut *… i Guiden F1*, *Bryt upp … U* och, för en version över 1, *Dra tillbaka … …*.
   Bekräftelsen fälls ut under raderna med en stapel per kluster (före → efter, gult streckat för det som lämnar,
@@ -2543,7 +2555,7 @@ analysen med version och att det är en bedömning; *?* öppnar Guidens avsnitt.
 
 ### Ytorna för omgång 4 (KV1a, HB1a, BU1a, DM1a, HP1a och TJ1b, 2026-11-08)
 
-Testärendet visar dem inte än (TODO); prova i ett ärende där mönstren finns.
+HB1a finns i testärendet (se *Testärendet*); prova de andra i ett ärende där mönstren finns.
 - [ ] **KV1a:** välj ett kluster. Under *VARFÖR ÄR DE EN PLÅNBOK?* står en rad per heuristik med version, antal adresser
       och tx. *⋯* på raden fäller ut *… i Guiden F1*, *Bryt upp … U* och, för en version över 1, *Dra tillbaka … …*.
       Bekräftelsen fälls ut under raderna med en stapel per kluster (före → efter, gult streckat för det som lämnar,
@@ -3045,7 +3057,7 @@ ligger bredvid `Chainsaw.exe`.
 
 Allt i testärendet är påhittat: kedjorna (Bitcoin, TRON och Ethereum), kurserna, sanktionslistorna och den öppna
 källan besvaras på datorn, och inget går ut på nätet. Gör om testärendet efter en ny version (berättelsen är version
-4), eftersom ett äldre saknar det som lagts till.
+5), eftersom ett äldre saknar det som lagts till.
 
 **Att skapa det**
 - [ ] Bygg och kör i Debug (`dotnet run --project src/Chainsaw.App`), lås upp och skriv `/testdata` i kommandoraden
@@ -3094,9 +3106,29 @@ källan besvaras på datorn, och inget går ut på nätet. Gör om testärendet 
 - [ ] Sydbörsens svep: tio kunder betalar egna insättningsadresser under nästan två dygn, och två svep tömmer dem, med
       mixerns två insättningar, till en het plånbok utan etikett. Inspektören på den heta plånboken har *Som etikett …*
       (TJ1b), och kontrollen *Tjänst ur beteende* säger *trolig*.
-- [ ] Ersatt tx (GR9a, RBF): bedragarens utgift av en Whirlpool-utgång till Snabbväxlaren med för låg avgift syns som
-      borta (sågs i ett block som föll ur kedjan), och *Ersatt av* pekar på utgiften med högre avgift i blocket före
-      det nyaste.
+- [ ] Ersatt tx (GR9a, RBF): bedragarens utgift av en Whirlpool-utgång till en ny insättningsadress hos Snabbväxlaren
+      med för låg avgift syns som borta (sågs i ett block som föll ur kedjan), och *Ersatt av* pekar på utgiften med
+      högre avgift till Snabbväxlarens gamla adress i blocket före det nyaste.
+- [ ] Slutsats som hålls tillbaka (HB1a): i det nyaste blocket betalar en annan Whirlpool-utgång den nya
+      insättningsadressen ändå, med växel till en ny adress. Växelslutsatsen bygger på den borta utgiften (där adressen
+      sågs först), och den sista körningen i testärendet saknar den: klustret med växeladressen har den streckade gula
+      ringen med paus, hovringen säger vad som saknas och *Ersatt av …*, och Historik har *Låt stå* och *Släpp
+      slutsatsen*. Obs: appens egna körningar tar fortfarande med borta tx (TODO), så en ny expansion i testärendet
+      låter slutsatsen räknas igen och ringen försvinner.
+
+**Mönster och annan kedja (`pattern v1` och `cross-chain v1`)**
+- [ ] Två offer till (*Fjärde offret* och *Femte offret*) betalar var sin bedragare som sätter in i Blandaren. Blandaren
+      betalar ut ur egna mynt, och båda offrens pengar (2 % mindre) går genom två mulor var till samma insättningsadress
+      hos Sydbörsen. *Förslag · N* har under *Gjort av sig självt* *Samma väg, 2 delar* med *3 steg till börs …*, och
+      *Varför?* nämner båda vägarna med belopp och tx. *Troliga utgångar ur mixern* finns nu för de två insättningarna
+      också, med utgången 2 % mindre först.
+- [ ] Samma utbetalning ger en tredje utgång som betalar Sydbörsens insättning fyra nästan lika belopp i följd
+      (0,0948 BTC ungefär): *Likadana belopp, 4 i följd* med *0,0948 BTC × 4 till börs …*.
+- [ ] En fjärde utgång betalar Bytaren omkring två timmar innan swappen på Ethereum betalar ut 2,95 ETH till
+      bedragaren. *Förslag · N* har *Fortsättningen på annan kedja* för den betalningen, med swappens utbetalning på
+      Ethereum som kandidat (värdet jämförs med de påhittade kurserna). Godkänn den: linjen till Ethereum blir lila
+      och streckad med *Varför?* som nämner *cross-chain v1*. Navets betalning till Bytaren är knuten för hand och får
+      inget förslag.
 
 **Ethereum (SW1a, DX1b och TK1a)**
 - [ ] Bedragarens Ethereum-adress är en startpunkt och expanderad: ett annat offer betalar 12 000 USDT, bedragaren byter
@@ -3194,3 +3226,29 @@ Inga riktiga adresser står här; ta dem ur en beställning, litecoinspace.org e
 - [ ] Annan kedja (K): Zcash går att välja, och en länk från en Litecoin-output till Bitcoin läses tillbaka.
 - [ ] Guiden: *Zcash* under *Fler kedjor*, *Ut ur en skyddad pool* under *Förvirring*, och *Litecoin* och *Privacy
       coins* säger det som är byggt nu.
+
+## Solana (omgång 8c, 2026-11-09)
+
+Inga riktiga adresser står här; ta dem ur en beställning eller en blockutforskare (Solscan, Solana Explorer).
+
+- [ ] Ctrl+, → *Källor*: Solana är inte längre tonat; *Solana (publik)* (`https://api.mainnet-beta.solana.com/`) har
+      lägena, och *Prova alla nu* visar den i fas med en slot (höjd) och första blockets hash.
+- [ ] Nytt ärende: klistra in en Solana-adress (32–44 tecken Base58): raden får märket `S` och hämtar saldo i SOL och
+      tokens (USDT och USDC först), antal tx, aktivitet och slot. `sol:` och `solana:` före värdet gör samma sak; en
+      signatur (upp till 88 tecken) blir en tx-rad.
+- [ ] Skapa ärendet och expandera: linjerna har SOL, ₮ (USDT på Solana) och $ (USDC). En adress där USDT eller USDC
+      ligger kvar får snöflingan *Kan frysas* med Tether respektive Circle. Expansionen tar tid: varje tx hämtas för
+      sig, ungefär en i sekunden mot den publika noden; *Väntar på källan* visar `S`.
+- [ ] En tx med flera avsändare och mottagare av samma tillgång: inspektören säger att den inte kunde paras, och inga
+      linjer gissas fram.
+- [ ] En swap (till exempel USDC mot SOL hos en pool): pillret $ → SOL visar swappen, och priset prövas mot Bitstamp.
+- [ ] Alt + klick på en Solana-nod: baksidan visar SOL och tokens i kronor; ett fryst tokenkonto sägs.
+- [ ] Bevaka en Solana-nod (högerklick): tillgångarna är *Alla*, SOL, ₮ USDT och USDC. En ny överföring ger en träff
+      inom en minut, också med Chainsaw stängt.
+- [ ] Importera OFAC:s lista: en `SOL`-adress blir *Sanktionerad* på Solana.
+- [ ] Kurser: SOL visas i kronor (Bitstamp *SOL/EUR* och Riksbanken); före hösten 2022 saknas kurs och det sägs.
+- [ ] Annan kedja (K): Solana går att välja, och en signatur i fältet ger bocken; en länk från en Solana-linje läses
+      tillbaka efter att ärendet öppnats igen.
+- [ ] `chainsaw:solana/<adress>` öppnar Chainsaw med adressen på Solana.
+- [ ] Guiden: *Solana* under *Fler kedjor* stämmer med det som syns.
+- [ ] `/verify` är grönt efter allt ovan, och journalens rader nämner Solana.

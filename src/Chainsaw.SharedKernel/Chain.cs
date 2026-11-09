@@ -32,4 +32,10 @@ public enum Chain
     /// (Sprout, Sapling, Orchard) are where the trail ends.
     /// </summary>
     Zcash,
+
+    /// <summary>
+    /// Solana: accounts, amounts in lamports of SOL (9 decimals), tokens such as SPL (USDT and USDC) held in token
+    /// accounts that belong to an owner.
+    /// </summary>
+    Solana,
 }

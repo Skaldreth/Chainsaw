@@ -88,6 +88,7 @@ public static class TestDataServices
             Bitcoin = provider.GetRequiredService<IBitcoinSource>(),
             TransactionLabels = provider.GetService<ITransactionLabels>(),
             KnownContracts = provider.GetService<IKnownContractLabels>(),
+            CrossChain = provider.GetService<ICrossChainLookup>(),
         });
         services.AddSingleton<TestCaseBuilder>();
         services.AddSingleton<IShellCommand, TestDataCommand>();

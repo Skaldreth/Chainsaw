@@ -65,7 +65,7 @@ public static class Base58Check
     /// <summary>Writes bytes in Base58 without a checksum; each leading zero byte becomes a <c>1</c>.</summary>
     /// <param name="data">The bytes.</param>
     /// <returns>The text.</returns>
-    private static string EncodePlain(ReadOnlySpan<byte> data)
+    internal static string EncodePlain(ReadOnlySpan<byte> data)
     {
         var leadingZeros = 0;
         while (leadingZeros < data.Length && data[leadingZeros] == 0)
@@ -88,7 +88,7 @@ public static class Base58Check
     /// <param name="text">The text.</param>
     /// <param name="data">The bytes, when every character is in the alphabet.</param>
     /// <returns><see langword="true"/> when every character is in the alphabet.</returns>
-    private static bool TryDecodePlain(string text, out byte[] data)
+    internal static bool TryDecodePlain(string text, out byte[] data)
     {
         data = [];
         var value = BigInteger.Zero;

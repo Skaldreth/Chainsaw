@@ -75,11 +75,14 @@ public sealed partial class SourcesViewModel : ObservableObject
     /// <summary>What a round or a try says when it failed unexpectedly.</summary>
     public const string ProbeFailedText = "Provet misslyckades";
 
-    /// <summary>The chains as the page lists them, built or not; Solana is not a chain Chainsaw knows yet.</summary>
+    /// <summary>
+    /// The chains as the page lists them, built or not; a chain without a value (<see langword="null"/>) would be one
+    /// Chainsaw does not know yet, shown toned.
+    /// </summary>
     private static readonly (string Name, Chain? Chain)[] ChainNames =
     [
         ("Bitcoin", Chain.Bitcoin), ("Ethereum", Chain.Ethereum), ("TRON", Chain.Tron), ("Litecoin", Chain.Litecoin),
-        ("BSC", Chain.Bsc), ("Zcash", Chain.Zcash), ("Solana", null),
+        ("BSC", Chain.Bsc), ("Zcash", Chain.Zcash), ("Solana", Chain.Solana),
     ];
 
     /// <summary>The modes, their words and what they do.</summary>

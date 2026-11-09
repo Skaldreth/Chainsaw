@@ -50,6 +50,7 @@ public sealed class BitstampSourceTests
     [Theory]
     [InlineData(Chain.Litecoin, "ohlc/ltceur/")]
     [InlineData(Chain.Bsc, "ohlc/bnbeur/")]
+    [InlineData(Chain.Solana, "ohlc/soleur/")]
     public void Asks_litecoin_and_bnb_in_their_own_markets(Chain chain, string market)
     {
         var uri = _source.RequestUri(chain, FiatCurrency.Eur, PriceResolution.Day, Start);

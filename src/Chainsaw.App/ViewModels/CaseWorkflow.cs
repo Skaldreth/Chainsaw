@@ -423,14 +423,14 @@ public sealed partial class CaseWorkflow
 
     /// <summary>
     /// Gives the Tracing start point for a start point on a chain Chainsaw traces: Bitcoin, Litecoin, Zcash's
-    /// transparent part, Ethereum, TRON or BSC.
+    /// transparent part, Ethereum, TRON, BSC or Solana.
     /// </summary>
     /// <param name="startPoint">The recognised start point.</param>
     /// <returns>The start point, or <see langword="null"/> when its chain is not built.</returns>
     public static TraceStartPoint? ToTrace(ChainStartPoint startPoint)
     {
         ArgumentNullException.ThrowIfNull(startPoint);
-        if (startPoint.Chain is Chain.Ethereum or Chain.Tron or Chain.Bsc)
+        if (startPoint.Chain is { } chain && chain.Model() == LedgerModel.Account)
         {
             if (startPoint.EthereumAccount is { } address)
             {

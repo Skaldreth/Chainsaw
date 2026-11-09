@@ -71,6 +71,8 @@ public sealed record Asset
 
     /// <summary>Gets zcash, counted in zatoshi (8 decimals).</summary>
     public static Asset Zcash { get; } = new(Chain.Zcash, AssetKind.Native, "ZEC", 8, null);
+    /// <summary>Gets SOL, Solana's own coin, counted in lamports (9 decimals).</summary>
+    public static Asset Sol { get; } = new(Chain.Solana, AssetKind.Native, "SOL", 9, null);
 
     /// <summary>Gets the chain it lives on.</summary>
     public Chain Chain { get; }

@@ -7,9 +7,11 @@ namespace Chainsaw.Modules.Monitoring;
 
 /// <summary>
 /// The chains' sources a watch reads through, written once for the check, the feeds and the tips: Bitcoin's and
-/// Ethereum's always, and TRON's, Litecoin's, BSC's and Zcash's where they are registered. A chain is watched
-/// through the contract of its model: Bitcoin, Litecoin and Zcash's transparent part as UTXO chains, Ethereum, TRON
-/// and BSC as account chains.
+/// Ethereum's always, and TRON's, Litecoin's, BSC's, Zcash's and Solana's where they are registered. A chain is watched
+/// through the contract of its model: Bitcoin, Litecoin and Zcash's transparent part as UTXO chains, Ethereum, TRON,
+/// BSC and Solana as account chains. Solana's slots come every 400 milliseconds, so <em>vid varje nytt block</em> is,
+/// as on the other chains, each time the chain's height is read (once a minute); the source asks only for what is
+/// finalized.
 /// </summary>
 /// <param name="Bitcoin">Bitcoin's source.</param>
 /// <param name="Ethereum">Ethereum's source.</param>
@@ -17,17 +19,21 @@ namespace Chainsaw.Modules.Monitoring;
 /// <param name="Litecoin">Litecoin's source, or <see langword="null"/> where it is not registered.</param>
 /// <param name="Bsc">BSC's source, or <see langword="null"/> where it is not registered.</param>
 /// <param name="Zcash">Zcash's source, or <see langword="null"/> where it is not registered.</param>
+/// <param name="Solana">Solana's source, or <see langword="null"/> where it is not registered.</param>
 internal sealed record WatchSources(
     IBitcoinSource Bitcoin,
     IEthereumSource Ethereum,
     ITronSource? Tron = null,
     ILitecoinSource? Litecoin = null,
     IBscSource? Bsc = null,
-    IZcashSource? Zcash = null)
+    IZcashSource? Zcash = null,
+    ISolanaSource? Solana = null)
 {
     /// <summary>The chains that can be watched, whatever is registered.</summary>
-    public static readonly IReadOnlySet<Chain> Watchable =
-        new HashSet<Chain> { Chain.Bitcoin, Chain.Ethereum, Chain.Tron, Chain.Litecoin, Chain.Bsc, Chain.Zcash };
+    public static readonly IReadOnlySet<Chain> Watchable = new HashSet<Chain>
+    {
+        Chain.Bitcoin, Chain.Ethereum, Chain.Tron, Chain.Litecoin, Chain.Bsc, Chain.Zcash, Chain.Solana,
+    };
 
     /// <summary>Gives a UTXO chain's source.</summary>
     /// <param name="chain">The chain.</param>
@@ -50,6 +56,7 @@ internal sealed record WatchSources(
         Chain.Ethereum => Ethereum,
         Chain.Tron => Tron,
         Chain.Bsc => Bsc,
+        Chain.Solana => Solana,
         _ => null,
     };
 

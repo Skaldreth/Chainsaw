@@ -111,7 +111,8 @@ internal static class OfacSdnParser
     /// lower case, as the chain compares it; the letters' case is not checked, since an address the list wrote with a
     /// broken EIP-55 checksum still names those 20 bytes, and a sanction missed is worse than one shown that the user
     /// can look at. A TRON address (Base58Check with its checksum, under <see cref="SanctionCurrency.OnTron"/>) is
-    /// kept as written: its checksum is part of it.
+    /// kept as written: its checksum is part of it. A Solana address (32 bytes in Base58, under
+    /// <see cref="SanctionCurrency.OnSolana"/>) is kept as written too, since Base58 is case sensitive.
     /// </summary>
     /// <param name="address">The address as the list writes it.</param>
     /// <returns>The parsed address, or <see langword="null"/>.</returns>
@@ -128,6 +129,12 @@ internal static class OfacSdnParser
             && EthereumAddress.TryParse(Chain.Bsc, address.Address.ToLowerInvariant(), out var bsc))
         {
             return bsc;
+        }
+
+        if (SanctionCurrency.OnSolana.Contains(address.Currency)
+            && EthereumAddress.TryParseSolana(address.Address, out var solana, out _))
+        {
+            return solana;
         }
 
         return SanctionCurrency.OnTron.Contains(address.Currency)
@@ -212,8 +219,8 @@ internal static class OfacSdnParser
 
     /// <summary>
     /// Says whether an address of the list is not valid on the chain its code names, so that it can never match: a
-    /// Bitcoin or Litecoin address that does not parse, or an ether or BSC address that is not <c>0x</c> and 40 hex
-    /// digits. A token's address that is not an Ethereum address may be one on another chain (USDT on TRON), and is
+    /// Bitcoin or Litecoin address that does not parse, an ether or BSC address that is not <c>0x</c> and 40 hex
+    /// digits, or a SOL address that is not 32 bytes in Base58. A token's address that is not an Ethereum address may be one on another chain (USDT on TRON), and is
     /// kept.
     /// </summary>
     /// <param name="address">The address as the list writes it.</param>
@@ -221,7 +228,7 @@ internal static class OfacSdnParser
     private static bool NeverMatches(SanctionedAddress address) => address.Currency switch
     {
         BitcoinCurrency or SanctionCurrency.Litecoin => BitcoinKey(address) is null,
-        SanctionCurrency.Ether or SanctionCurrency.Bsc => EthereumKey(address) is null,
+        SanctionCurrency.Ether or SanctionCurrency.Bsc or SanctionCurrency.Sol => EthereumKey(address) is null,
         _ => false,
     };
 }

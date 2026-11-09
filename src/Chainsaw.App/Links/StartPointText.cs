@@ -25,6 +25,8 @@ public static class StartPointText
         ["bnb"] = Chain.Bsc,
         ["zcash"] = Chain.Zcash,
         ["zec"] = Chain.Zcash,
+        ["solana"] = Chain.Solana,
+        ["sol"] = Chain.Solana,
     };
 
     /// <summary>Finds the chain a name means.</summary>

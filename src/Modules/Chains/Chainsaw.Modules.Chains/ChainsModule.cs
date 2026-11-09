@@ -11,7 +11,7 @@ namespace Chainsaw.Modules.Chains;
 /// <summary>
 /// Registers the module Chains: one contract per kind of chain, and the sources behind it (Esplora, and the user's own
 /// Bitcoin Core, for Bitcoin, Esplora for Litecoin, Blockbook for Zcash's transparent part, Blockscout for Ethereum and
-/// BSC, TronGrid for TRON).
+/// BSC, TronGrid for TRON, Solana's JSON-RPC for Solana).
 /// </summary>
 /// <remarks>
 /// The module needs the Network module's <c>IExitHttp</c> (its only way out to the sources), and its
@@ -45,13 +45,18 @@ public static class ChainsModule
     /// <param name="zcash">
     /// The Zcash source's settings; by default Zelcore's open Blockbook as Zcash's endpoint until the user changes it.
     /// </param>
+    /// <param name="solana">
+    /// The Solana source's settings; by default Solana's public JSON-RPC as Solana's endpoint until the user changes
+    /// it.
+    /// </param>
     /// <returns>The same container, so that the registrations can be chained.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="services"/> is null.</exception>
     public static IServiceCollection AddChainsModule(
         this IServiceCollection services, BitcoinSourceOptions? options = null,
         Action<ChainSourcesOptions>? sources = null, EthereumSourceOptions? ethereum = null,
         TronSourceOptions? tron = null, BitcoinSourceOptions? litecoin = null, BscSourceOptions? bsc = null,
-        ZcashSourceOptions? zcash = null)
+        ZcashSourceOptions? zcash = null,
+        SolanaSourceOptions? solana = null)
     {
         ArgumentNullException.ThrowIfNull(services);
         var settings = options ?? new BitcoinSourceOptions();
@@ -60,6 +65,7 @@ public static class ChainsModule
         var litecoinSettings = litecoin ?? BitcoinSourceOptions.ForLitecoin();
         var bscSettings = bsc ?? new BscSourceOptions();
         var zcashSettings = zcash ?? new ZcashSourceOptions();
+        var solanaSettings = solana ?? new SolanaSourceOptions();
         var sourcesOptions = new ChainSourcesOptions();
         sources?.Invoke(sourcesOptions);
         services.TryAddSingleton<IClock, SystemClock>();
@@ -75,6 +81,7 @@ public static class ChainsModule
         services.AddSingleton<ISourceApi>(new EsploraApi(litecoinSettings));
         services.AddSingleton<ISourceApi>(new BlockscoutApi(bscSettings));
         services.AddSingleton<ISourceApi>(new BlockbookApi(zcashSettings));
+        services.AddSingleton<ISourceApi>(new SolanaRpcApi(solanaSettings));
         services.AddSingleton(provider => new ChainSources(
             provider.GetServices<ISourceApi>(),
             provider.GetRequiredService<IExitHttp>(),
@@ -127,6 +134,11 @@ public static class ChainsModule
             provider.GetRequiredService<IOperatorProfileStore>(),
             provider.GetRequiredService<IClock>(),
             bscSettings,
+            TimeZoneInfo.Local,
+            provider.GetRequiredService<ChainSources>()));
+        services.AddSingleton<ISolanaSource>(provider => new SolanaRpcSource(
+            provider.GetRequiredService<IOperatorProfileStore>(),
+            solanaSettings,
             TimeZoneInfo.Local,
             provider.GetRequiredService<ChainSources>()));
         return services;

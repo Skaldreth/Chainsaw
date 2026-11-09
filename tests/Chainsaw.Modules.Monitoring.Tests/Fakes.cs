@@ -185,6 +185,9 @@ internal class FakeEthereumSource : IEthereumSource
 
     public List<(long Height, LookupMode Mode)> BlocksAsked { get; } = [];
 
+    /// <summary>Gets or sets the transactions every page says the source could not read whole.</summary>
+    public IReadOnlyList<EthereumTxHash> Unexplained { get; set; } = [];
+
     public void Holds(EthereumAddress address, EthereumHistory history, params EthereumTransfer[] transfers) =>
         Histories[(address.Value, history)] = [.. transfers];
 
@@ -194,7 +197,10 @@ internal class FakeEthereumSource : IEthereumSource
     {
         Asked.Add((address.Value, history, mode));
         var transfers = Histories.GetValueOrDefault((address.Value, history)) ?? [];
-        var page = new EthereumAddressPage(address, history, atOrBelow, transfers, [], null, false, false);
+        var page = new EthereumAddressPage(address, history, atOrBelow, transfers, [], null, false, false)
+        {
+            Unexplained = Unexplained,
+        };
         return Task.FromResult(new BitcoinLookup<EthereumAddressPage>(
             LookupStatus.Fetched, page, [FakeBitcoinSource.Origin(11)], null));
     }
@@ -436,6 +442,14 @@ internal sealed class FakeZcashSource : FakeBitcoinSource, IZcashSource
 internal sealed class FakeBscSource : FakeEthereumSource, IBscSource
 {
     public Chain Chain => Chain.Bsc;
+
+    public long PageStartOf(EthereumBlockReference block) => block.Height;
+}
+
+/// <summary>Solana's source, as Ethereum's fake on Solana: its pages go back by slot.</summary>
+internal sealed class FakeSolanaSource : FakeEthereumSource, ISolanaSource
+{
+    public Chain Chain => Chain.Solana;
 
     public long PageStartOf(EthereumBlockReference block) => block.Height;
 }

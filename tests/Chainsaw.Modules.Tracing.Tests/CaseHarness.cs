@@ -36,6 +36,7 @@ internal sealed class CaseHarness : IDisposable
         services.AddSingleton<IBscSource>(Bsc);
         services.AddSingleton<ILitecoinSource>(Litecoin);
         services.AddSingleton<IZcashSource>(Zcash);
+        services.AddSingleton<ISolanaSource>(Solana);
         services.AddCasesModule(options =>
         {
             options.Directory = _directory;
@@ -80,6 +81,8 @@ internal sealed class CaseHarness : IDisposable
     public FakeTronSource Tron { get; } = new();
 
     public FakeBscSource Bsc { get; } = new();
+
+    public FakeSolanaSource Solana { get; } = new();
 
     public FakeLabels Labels { get; } = new();
 

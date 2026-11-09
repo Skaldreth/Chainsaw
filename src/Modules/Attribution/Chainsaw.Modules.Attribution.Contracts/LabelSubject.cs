@@ -102,7 +102,7 @@ public sealed record LabelSubject
             Chain.Bitcoin or Chain.Litecoin or Chain.Zcash
                 when BitcoinAddress.TryParse(address.Chain, address.Value, out var utxo) =>
                 ForAddress(utxo),
-            Chain.Ethereum or Chain.Tron or Chain.Bsc
+            Chain.Ethereum or Chain.Tron or Chain.Bsc or Chain.Solana
                 when EthereumAddress.TryParse(address.Chain, address.Value, out var account) => new(account),
 
             _ => throw new ArgumentException("The address is not valid on its chain.", nameof(address)),

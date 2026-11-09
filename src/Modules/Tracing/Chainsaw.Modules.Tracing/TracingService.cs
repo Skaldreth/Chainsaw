@@ -54,6 +54,11 @@ internal sealed class TracingService : ITracingService
     /// <summary>BSC's facts, read for the graph, or <see langword="null"/> when no BSC source is registered.</summary>
     private readonly EthereumReader? _bsc;
 
+    /// <summary>
+    /// Solana's facts, read for the graph, or <see langword="null"/> when no Solana source is registered.
+    /// </summary>
+    private readonly EthereumReader? _solana;
+
     /// <summary>The clock.</summary>
     private readonly IClock _clock;
 
@@ -78,6 +83,10 @@ internal sealed class TracingService : ITracingService
     /// <param name="zcash">
     /// Zcash's facts, or <see langword="null"/> where Zcash is not registered (an expansion there is refused).
     /// </param>
+    /// <param name="solana">
+    /// Solana's facts, or <see langword="null"/> where Solana is not registered (an expansion on Solana is then
+    /// refused).
+    /// </param>
     /// <exception cref="ArgumentException">
     /// The methods are not registered properly (see <see cref="TracingMethods"/>).
     /// </exception>
@@ -91,7 +100,8 @@ internal sealed class TracingService : ITracingService
         ITronSource? tron = null,
         IBscSource? bsc = null,
         ILitecoinSource? litecoin = null,
-        IZcashSource? zcash = null)
+        IZcashSource? zcash = null,
+        ISolanaSource? solana = null)
     {
         var sources = new Dictionary<Chain, IBitcoinSource> { [Chain.Bitcoin] = source };
         if (litecoin is not null)
@@ -113,6 +123,7 @@ internal sealed class TracingService : ITracingService
         _ethereum = new EthereumReader(ethereum);
         _tron = tron is null ? null : new EthereumReader(tron);
         _bsc = bsc is null ? null : new EthereumReader(bsc);
+        _solana = solana is null ? null : new EthereumReader(solana);
         _clock = clock;
     }
 
@@ -312,11 +323,11 @@ internal sealed class TracingService : ITracingService
         ArgumentNullException.ThrowIfNull(@case);
         ArgumentNullException.ThrowIfNull(swap);
         reason = OptionalReason(reason);
-        // Only a swap the case's own facts on the swap's chain (Ethereum or BSC) show, for that account in that
-        // transaction, is chosen for, so that no choice is sealed about something the case does not hold. Only that
-        // chain's part is read, not the graph. The labels are asked as when the graph is built, so that a swap a label
-        // refuses is not chosen for either.
-        if (!swap.Account.Chain.IsEvm())
+        // Only a swap the case's own facts on the swap's account chain (Ethereum, BSC, TRON or Solana) show, for that
+        // account in that transaction, is chosen for, so that no choice is sealed about something the case does not
+        // hold. Only that chain's part is read, not the graph. The labels are asked as when the graph is built, so
+        // that a swap a label refuses is not chosen for either.
+        if (swap.Account.Chain.Model() != LedgerModel.Account)
         {
             throw new ArgumentException("The swap is not in the case's graph.", nameof(swap));
         }
@@ -872,6 +883,7 @@ internal sealed class TracingService : ITracingService
         Chain.Ethereum => _ethereum,
         Chain.Tron when _tron is not null => _tron,
         Chain.Bsc when _bsc is not null => _bsc,
+        Chain.Solana when _solana is not null => _solana,
         _ => throw new ArgumentException($"No source for {chain} is registered.", nameof(chain)),
     };
 
@@ -1244,7 +1256,7 @@ internal sealed class TracingService : ITracingService
 
     /// <summary>
     /// Reads every account chain's facts the graph's state holds, from the case only, and joins them: Ethereum's, and
-    /// TRON's and BSC's when their sources are registered.
+    /// TRON's, BSC's and Solana's when their sources are registered.
     /// </summary>
     /// <param name="case">The open case.</param>
     /// <param name="state">The graph's state.</param>
@@ -1254,7 +1266,7 @@ internal sealed class TracingService : ITracingService
         ICase @case, GraphState state, CancellationToken cancellationToken)
     {
         var data = await _ethereum.ReadAsync(@case, state, cancellationToken).ConfigureAwait(false);
-        foreach (var other in new[] { _tron, _bsc }.OfType<EthereumReader>())
+        foreach (var other in new[] { _tron, _bsc, _solana }.OfType<EthereumReader>())
         {
             data = data.Merge(await other.ReadAsync(@case, state, cancellationToken).ConfigureAwait(false));
         }

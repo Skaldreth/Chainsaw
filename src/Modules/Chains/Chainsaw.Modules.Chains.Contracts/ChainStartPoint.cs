@@ -17,7 +17,7 @@ public enum StartPointKind
 
 /// <summary>
 /// Recognises a start point on every chain Chainsaw knows of, for the start points of a new case, the command line
-/// and <c>chainsaw:</c> links. Bitcoin, Ethereum, TRON and BSC can be traced in the graph; a Litecoin value is
+/// and <c>chainsaw:</c> links. Bitcoin, Ethereum, TRON, BSC and Solana can be traced in the graph; a Litecoin value is
 /// recognised and fetched in advance, so that the user is told honestly that it cannot be traced in the graph yet,
 /// rather than that the text is wrong.
 /// </summary>
@@ -76,12 +76,13 @@ public sealed record ChainStartPoint(Chain? Chain, StartPointKind Kind, string V
 
     /// <summary>
     /// Gets whether Chainsaw can trace from this start point in the graph now: Bitcoin, Litecoin, Zcash's transparent
-    /// part, Ethereum, TRON and BSC are built. An address in a shielded part (MWEB, Zcash's pools) is not: the trail
-    /// ends there.
+    /// part, Ethereum, TRON, BSC and Solana are built. An address in a shielded part (MWEB, Zcash's pools) is not: the
+    /// trail ends there.
     /// </summary>
     public bool IsSupported =>
         !IsShielded && Chain is SharedKernel.Chain.Bitcoin or SharedKernel.Chain.Ethereum or SharedKernel.Chain.Tron
-            or SharedKernel.Chain.Bsc or SharedKernel.Chain.Litecoin or SharedKernel.Chain.Zcash;
+            or SharedKernel.Chain.Bsc or SharedKernel.Chain.Litecoin or SharedKernel.Chain.Zcash
+            or SharedKernel.Chain.Solana;
 
     /// <summary>
     /// Gets whether Chainsaw has a source that can answer for this start point: every chain it can trace (not an
@@ -119,7 +120,7 @@ public sealed record ChainStartPoint(Chain? Chain, StartPointKind Kind, string V
     public bool IsRecognised => Kind != StartPointKind.Unknown;
 
     /// <summary>
-    /// Gets the address on an account chain (Ethereum, BSC or TRON), when the start point is one; otherwise
+    /// Gets the address on an account chain (Ethereum, BSC, TRON or Solana), when the start point is one; otherwise
     /// <see langword="null"/>.
     /// </summary>
     public EthereumAddress? EthereumAccount =>
@@ -128,7 +129,7 @@ public sealed record ChainStartPoint(Chain? Chain, StartPointKind Kind, string V
             : null;
 
     /// <summary>
-    /// Gets the transaction on an account chain (Ethereum, BSC or TRON), when the start point is one; otherwise
+    /// Gets the transaction on an account chain (Ethereum, BSC, TRON or Solana), when the start point is one; otherwise
     /// <see langword="null"/>.
     /// </summary>
     public EthereumTxHash? AccountTransaction =>
@@ -140,9 +141,10 @@ public sealed record ChainStartPoint(Chain? Chain, StartPointKind Kind, string V
     /// <summary>
     /// Recognises a text without being told its chain. A Bitcoin address or a bare 64-digit hash (a Bitcoin txid) is
     /// Bitcoin; a Litecoin address (<c>L…</c>, <c>M…</c>, <c>ltc1…</c>) is Litecoin; <c>0x</c> and 40 or 64 hex
-    /// digits is Ethereum; a Base58Check address with TRON's version byte is TRON. A TRON or Litecoin txid looks like a
-    /// Bitcoin txid, and a BSC address or hash like Ethereum's, so they are only recognised with their chain (see the
-    /// other overload, as in a <c>chainsaw:bsc/…</c> link).
+    /// digits is Ethereum; a Base58Check address with TRON's version byte is TRON; plain Base58 of 32 bytes is a Solana
+    /// address and of 64 bytes a Solana signature (no other chain's value decodes to those lengths). A TRON or
+    /// Litecoin txid looks like a Bitcoin txid, and a BSC address or hash like Ethereum's, so they are only recognised
+    /// with their chain (see the other overload, as in a <c>chainsaw:bsc/…</c> link).
     /// </summary>
     /// <param name="text">The text; white space around it is ignored.</param>
     /// <returns>What it is.</returns>
@@ -156,7 +158,8 @@ public sealed record ChainStartPoint(Chain? Chain, StartPointKind Kind, string V
 
         return RecogniseBitcoin(trimmed) ?? RecogniseLitecoinAddress(trimmed) ?? RecogniseMweb(trimmed)
             ?? RecogniseZcashAddress(trimmed) ?? RecogniseZcashShielded(trimmed)
-            ?? RecogniseEthereum(trimmed) ?? RecogniseTronAddress(trimmed) ?? Unknown(trimmed);
+            ?? RecogniseEthereum(trimmed) ?? RecogniseTronAddress(trimmed) ?? RecogniseSolana(trimmed)
+            ?? Unknown(trimmed);
     }
 
     /// <summary>Recognises a text on a chain that was named, as in a <c>chainsaw:tron/…</c> link.</summary>
@@ -182,6 +185,7 @@ public sealed record ChainStartPoint(Chain? Chain, StartPointKind Kind, string V
             SharedKernel.Chain.Bsc => RecogniseBsc(trimmed) ?? Unknown(trimmed),
             SharedKernel.Chain.Zcash => RecogniseZcashAddress(trimmed) ?? RecogniseZcashShielded(trimmed)
                 ?? RecogniseBareTransaction(SharedKernel.Chain.Zcash, trimmed) ?? Unknown(trimmed),
+            SharedKernel.Chain.Solana => RecogniseSolana(trimmed) ?? Unknown(trimmed),
             _ => Unknown(trimmed),
         };
     }
@@ -340,6 +344,24 @@ public sealed record ChainStartPoint(Chain? Chain, StartPointKind Kind, string V
             : null;
     }
 
+
+    /// <summary>
+    /// Recognises a Solana address (a public key of 32 bytes in Base58) or transaction (its first signature, 64 bytes
+    /// in Base58). Neither has a checksum, so a mistyped value of the right length is taken as another one.
+    /// </summary>
+    /// <param name="text">The trimmed text.</param>
+    /// <returns>The result, or <see langword="null"/>.</returns>
+    private static ChainStartPoint? RecogniseSolana(string text)
+    {
+        if (EthereumAddress.TryParseSolana(text, out var address, out _))
+        {
+            return new(SharedKernel.Chain.Solana, StartPointKind.Address, address.Value, null);
+        }
+
+        return EthereumTxHash.TryParse(SharedKernel.Chain.Solana, text, out var hash)
+            ? new(SharedKernel.Chain.Solana, StartPointKind.Transaction, hash.Value, null)
+            : null;
+    }
 
     /// <summary>Tells whether every character is a hex digit.</summary>
     /// <param name="text">The characters.</param>

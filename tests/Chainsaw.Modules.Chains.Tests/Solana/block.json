@@ -1,0 +1,11 @@
+{
+  "jsonrpc": "2.0",
+  "result": {
+    "blockHeight": 380000000,
+    "blockTime": 1793872800,
+    "blockhash": "BLbDu5FZUdSfLrGejhuaWw5iMJBo3j3TVRyPv9rfJyMA",
+    "parentSlot": 399999999,
+    "previousBlockhash": "BGfvkmnYtL9SCm29JQafE4Jx78ybNfMdw2Jjrmp4Ze2T"
+  },
+  "id": 1
+}

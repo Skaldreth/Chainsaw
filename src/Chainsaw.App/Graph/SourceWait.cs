@@ -56,6 +56,7 @@ public sealed record SourceWait(Chain Chain, IReadOnlyList<SourceWaitRow> Rows, 
         Chain.Litecoin => "Ł",
         Chain.Bsc => "B",
         Chain.Zcash => "Z",
+        Chain.Solana => "S",
         _ => string.Empty,
     };
 

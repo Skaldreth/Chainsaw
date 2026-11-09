@@ -104,6 +104,7 @@ public interface ISanctionLists
                 Chain.Litecoin or Chain.Zcash
                     when BitcoinAddress.TryParse(address.Chain, address.Value, out var utxo) => FindAll(utxo),
                 Chain.Bsc when EthereumAddress.TryParse(Chain.Bsc, address.Value, out var bsc) => FindAll(bsc),
+                Chain.Solana when EthereumAddress.TryParse(Chain.Solana, address.Value, out var sol) => FindAll(sol),
                 _ => [],
             };
             if (found.Count > 0)
@@ -177,11 +178,24 @@ public static class SanctionCurrency
     /// </summary>
     public const string Zcash = "ZEC";
 
-    /// <summary>Says whether a code is one of an account chain's (Ethereum's, TRON's or BSC's).</summary>
+    /// <summary>The code OFAC's SDN list gives SOL addresses (32 bytes in Base58).</summary>
+    public const string Sol = "SOL";
+
+    /// <summary>
+    /// The codes whose addresses can be Solana addresses: SOL, and USDT and USDC, which the list writes with the
+    /// address that holds them, on Solana a public key of 32 bytes in Base58. Only an address that is one counts; the
+    /// same code with an Ethereum or TRON address is that chain's.
+    /// </summary>
+    public static IReadOnlySet<string> OnSolana { get; } = new HashSet<string>(StringComparer.Ordinal)
+    {
+        Sol, "USDT", "USDC",
+    };
+
+    /// <summary>Says whether a code is one of an account chain's (Ethereum's, TRON's, BSC's or Solana's).</summary>
     /// <param name="currency">The code.</param>
     /// <returns><see langword="true"/> when an account can be listed under it.</returns>
     public static bool OnAccountChain(string currency) =>
-        OnEthereum.Contains(currency) || OnTron.Contains(currency) || currency == Bsc;
+        OnEthereum.Contains(currency) || OnTron.Contains(currency) || currency == Bsc || OnSolana.Contains(currency);
 
     /// <summary>Says whether a code is one of a chain's own: an address on the chain can be listed under it.</summary>
     /// <param name="chain">The chain.</param>
@@ -195,6 +209,7 @@ public static class SanctionCurrency
         Chain.Tron => OnTron.Contains(currency),
         Chain.Bsc => currency == Bsc,
         Chain.Zcash => currency == Zcash,
+        Chain.Solana => OnSolana.Contains(currency),
         _ => false,
     };
 }

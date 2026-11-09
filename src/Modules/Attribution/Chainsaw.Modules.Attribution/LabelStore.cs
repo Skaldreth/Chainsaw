@@ -196,7 +196,8 @@ internal static class LabelStore
     /// Reads a stored subject. The text is the address as <see cref="LabelSubject.Target"/> gives it: a text that is
     /// an Ethereum address (<c>0x</c> and 40 hex digits, which no Bitcoin address can be) is an Ethereum account, one
     /// that is a TRON address (Base58Check with TRON's version byte 0x41, which no Bitcoin address has) a TRON account,
-    /// any other a Bitcoin address, so that a Bitcoin label is stored exactly as before other chains could be labelled.
+    /// one that is 32 bytes in plain Base58 (which no Bitcoin or TRON address decodes to) a Solana account, any other a
+    /// Bitcoin address, so that a Bitcoin label is stored exactly as before other chains could be labelled.
     /// </summary>
     /// <param name="kind">Address or cluster.</param>
     /// <param name="text">The stored address.</param>
@@ -215,7 +216,8 @@ internal static class LabelStore
                 : throw new InvalidDataException("A label on a cluster is on Bitcoin only.");
         }
 
-        if (!EthereumAddress.TryParse(text, out var account) && !IsTronAddress(text, out account))
+        if (!EthereumAddress.TryParse(text, out var account) && !IsTronAddress(text, out account)
+            && !EthereumAddress.TryParseSolana(text, out account, out _))
         {
             return new LabelSubject(kind, UtxoAddress(text));
         }

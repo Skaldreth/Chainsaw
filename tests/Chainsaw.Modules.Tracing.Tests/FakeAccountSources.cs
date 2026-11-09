@@ -27,3 +27,13 @@ internal sealed class FakeTronSource : FakeAccountSource, ITronSource
 internal sealed class FakeBscSource : FakeAccountSource, IBscSource
 {
 }
+
+/// <summary>
+/// Solana's fake source: the same synthetic chain, with slots' hashes in Base58 as Solana writes them; it pages by
+/// slot, as the real source does (the real source's paging by signature is tested in Chains).
+/// </summary>
+internal sealed class FakeSolanaSource : FakeAccountSource, ISolanaSource
+{
+    /// <inheritdoc/>
+    protected override string BlockHashOf(long height) => Base58.Encode(Convert.FromHexString(HashOf(height)[2..]));
+}

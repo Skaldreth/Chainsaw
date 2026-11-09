@@ -45,6 +45,14 @@ internal static class FeedTexts
         "{1} TRC-20-överföringar av okända tokens till eller från {0} har ingen läsbar Transfer-händelse i sin tx och "
         + "räknas inte.";
 
+    /// <summary>
+    /// When a check read transactions whose movements could not all be read (on Solana, value a program moved without
+    /// an instruction the node parses): what could be read is counted, and the rest is said, not missed in silence.
+    /// </summary>
+    public const string Unexplained =
+        "{1} tx till eller från {0} flyttade mer än källan kunde läsa ({2}); det som kunde läsas räknas, resten syns "
+        + "inte i bevakningen.";
+
     /// <summary>When an address on a watch is not one the chain knows.</summary>
     public const string NotAnAddress = "{0} är ingen adress på kedjan.";
 
@@ -351,6 +359,13 @@ internal sealed class EthereumCaseFeed(IAccountSource source, ICase @case) : IWa
                 lowest = Math.Min(lowest, transfer.Block?.Height ?? lowest);
             }
 
+            if (read.Unexplained.Count > 0)
+            {
+                problems.Add(FeedTexts.Format(
+                    FeedTexts.Unexplained, address.Value, read.Unexplained.Count,
+                    EthereumTxHash.BriefList(read.Unexplained)));
+            }
+
             if (read.Unplaced > 0)
             {
                 problems.Add(FeedTexts.Format(FeedTexts.Unplaced, address.Value, read.Unplaced));
@@ -362,9 +377,10 @@ internal sealed class EthereumCaseFeed(IAccountSource source, ICase @case) : IWa
                 // TRON it is waiting to place a transaction, which is said as waiting, not as something missed.
                 problems.AddRange(WaitingTexts(read, address, downTo));
 
-                // On TRON a movement the source could not place has no block yet, so it may lie anywhere on the page:
-                // the check stays where it was until the page can be read whole.
-                return source.Chain == Chain.Tron || lowest == long.MaxValue
+                // On TRON a movement the source could not place has no block yet, and on Solana a transaction that
+                // could not be had is not read at all, so it may lie anywhere on the page: the check stays where it
+                // was until the page can be read whole.
+                return source.Chain is Chain.Tron or Chain.Solana || lowest == long.MaxValue
                     ? (WatchFeedStatus.Partial, null)
                     : (WatchFeedStatus.Partial, lowest);
             }
@@ -433,7 +449,7 @@ internal sealed class EthereumCaseFeed(IAccountSource source, ICase @case) : IWa
     /// <returns><see langword="true"/> when nothing older is needed.</returns>
     private bool ReachedBelow(EthereumAddressPage read, long next, HistoryFloor floor)
     {
-        if (source.Chain.IsEvm())
+        if (!PagesByTime)
         {
             return next <= floor.Block;
         }
@@ -448,6 +464,11 @@ internal sealed class EthereumCaseFeed(IAccountSource source, ICase @case) : IWa
             .Min();
         return oldest is { } height && height <= floor.Block;
     }
+
+    /// <summary>
+    /// Gets whether the chain's sources page by time (TRON); Ethereum's, BSC's and Solana's page by block or slot.
+    /// </summary>
+    private bool PagesByTime => source.Chain == Chain.Tron;
 
     /// <summary>
     /// Says whether a movement can be a hit: the chain's own coin, the coin wrapped (WETH, WBNB), or a token Chainsaw
@@ -475,7 +496,7 @@ internal sealed class EthereumCaseFeed(IAccountSource source, ICase @case) : IWa
     private async Task<DateTimeOffset?> NotBeforeAsync(
         long downTo, List<long> origins, CancellationToken cancellationToken)
     {
-        if (source.Chain.IsEvm())
+        if (!PagesByTime)
         {
             return null;
         }

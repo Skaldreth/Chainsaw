@@ -164,7 +164,7 @@ internal sealed class FakeExitHttp(FakeClock clock) : IExitHttp
             throw new ExitException(ExitError.RequestFailed);
         }
 
-        var url = request.Uri.AbsoluteUri;
+        var url = KeyOf(request);
         var (status, body, contentType) = _answers.TryGetValue(url, out var answer)
             ? answer
             : (404, Encoding.UTF8.GetBytes("Not found"), "text/plain");
@@ -181,6 +181,17 @@ internal sealed class FakeExitHttp(FakeClock clock) : IExitHttp
             RetryAfter = _retryAfter.TryGetValue(url, out var wait) ? wait : null,
         };
     }
+
+    /// <summary>
+    /// Gives the key a request is answered by: its address, and for a POST (a JSON-RPC call) a line break and the body,
+    /// so that calls to one address are told apart (<see cref="PostKey"/>).
+    /// </summary>
+    public static string KeyOf(ExitRequest request) => request.Method == ExitMethod.Post
+        ? PostKey(request.Uri.AbsoluteUri, Encoding.UTF8.GetString(request.Body.Span))
+        : request.Uri.AbsoluteUri;
+
+    /// <summary>Gives the key a POST of a body to an address is answered by.</summary>
+    public static string PostKey(string url, string body) => url + "\n" + body;
 }
 
 /// <summary>

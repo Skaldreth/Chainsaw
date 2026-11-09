@@ -12,16 +12,20 @@ public sealed partial record ChainTransactionRef
 {
     /// <summary>Creates a reference after checking the id against the chain's format.</summary>
     /// <param name="chain">The chain.</param>
-    /// <param name="id">The id; letters are kept in lower case.</param>
+    /// <param name="id">
+    /// The id; letters are kept in lower case, except on Solana, whose signature is Base58 and kept as written.
+    /// </param>
     /// <exception cref="ArgumentException">The id does not have the chain's format.</exception>
     public ChainTransactionRef(Chain chain, string id)
     {
         ArgumentNullException.ThrowIfNull(id);
-        var normalised = id.Trim().ToLowerInvariant();
+        var normalised = chain == Chain.Solana ? id.Trim() : id.Trim().ToLowerInvariant();
         var valid = chain switch
         {
             Chain.Bitcoin or Chain.Tron or Chain.Litecoin or Chain.Zcash => PlainHash().IsMatch(normalised),
             Chain.Ethereum or Chain.Bsc => PrefixedHash().IsMatch(normalised),
+            Chain.Solana => EthereumTxHash.TryParse(Chain.Solana, normalised, out _),
+
             _ => false,
         };
         if (!valid)
@@ -44,7 +48,7 @@ public sealed partial record ChainTransactionRef
     /// <summary>Gets the chain.</summary>
     public Chain Chain { get; }
 
-    /// <summary>Gets the id, in lower case.</summary>
+    /// <summary>Gets the id, in lower case (on Solana as written).</summary>
     public string Id { get; }
 
     /// <summary>Writes the chain and the id, for example <c>Ethereum:0x…</c>.</summary>

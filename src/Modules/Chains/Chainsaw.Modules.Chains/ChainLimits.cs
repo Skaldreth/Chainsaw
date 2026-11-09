@@ -19,6 +19,10 @@ internal static class ChainLimits
     /// keeps its slots so closely, with only a few missed, that its bound is set just under the slot (2.8 seconds): a
     /// tip three times too high is refused, while a true one never comes near. Zcash aims at 75 seconds since 2019
     /// (150 before), so it is bounded at 30; its first block was read from a Blockbook for Zcash (2026-11-09).
+    /// Solana's slots come every 400 milliseconds at best and a little slower on average (slot 467 160 424 on
+    /// 2026-11-09, about 0.45 seconds since the first), so its bound is 0.35 seconds; its "first block" is the
+    /// cluster's genesis hash (<c>getGenesisHash</c>), and its first slot's time was read from the public JSON-RPC
+    /// (2026-11-09).
     /// </summary>
     private static readonly Dictionary<string, (string Genesis, DateTimeOffset Made, TimeSpan Fastest)> Known =
         new(StringComparer.Ordinal)
@@ -43,6 +47,10 @@ internal static class ChainLimits
                 "00040fe8ec8471911baa1db1266ea15dd06b4a8a5c453883c000b031973dce08",
                 new DateTimeOffset(2016, 10, 28, 7, 56, 0, TimeSpan.Zero),
                 TimeSpan.FromSeconds(30)),
+            [SolanaRpcSource.ChainName] = (
+                "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d",
+                DateTimeOffset.FromUnixTimeSeconds(1584368940),
+                TimeSpan.FromSeconds(0.35)),
             [TronGridTronSource.ChainName] = (
                 "00000000000000001ebf88508a03865c71d452e25f4d51194196a1d22b6653dc",
                 new DateTimeOffset(2018, 6, 25, 0, 0, 0, TimeSpan.Zero),
