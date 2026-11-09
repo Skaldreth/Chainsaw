@@ -2422,6 +2422,13 @@ Grafen för Ethereum är inte byggd än; det som går att prova är källan, sta
 - Välj ett konto i ett utfällt kluster och *Bryt upp* (U): formuläret säger att kontot bryts ut, och efter *Bryt ut*
   står det utanför klustret.
 
+## Kontroller på Ethereum (E3)
+
+- En överföring av noll från en adress som liknar en verklig motpart ger *Adressförgiftning troligt* i KF2b, med ett
+  område kring de två adresserna.
+- En insättning i en Tornado Cash-pool med en utbetalning av samma belopp i grafen ger *Tornado Cash, troliga uttag*,
+  med insättarens egen adress först om den finns.
+
 ## Ethereum med Etherscan (E1, 2026-11-09)
 
 - Inställningar › Källor › *Nycklar* (NY1a): *Lägg till nyckel …* med tjänsten *Etherscan* och nyckeln; raden visar

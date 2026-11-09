@@ -359,16 +359,18 @@ public sealed class CheckServiceTests
     }
 
     [Fact]
-    public void The_module_registers_the_twenty_analyses_in_order()
+    public void The_module_registers_the_twenty_two_analyses_in_order()
     {
         using var harness = new Harness();
 
         Assert.Equal(
             [
                 MixerOutputsCheck.Name, MixerPartsCheck.Name, MixerChainCheck.Name, MixerBehaviourCheck.Name,
+                TornadoOutputsCheck.Name,
                 CoinJoinCheck.Name, PeelChainCheck.Name, WalletCheck.Name, AccountWalletCheck.Name, CoinJoinMergeCheck.Name,
                 ServiceBehaviourCheck.Name, NestedServiceCheck.Name,
-                SplitMergeCheck.Name, PassThroughCheck.Name, DustCheck.Name, PayJoinCheck.Name, ActiveHoursCheck.Name,
+                SplitMergeCheck.Name, PassThroughCheck.Name, DustCheck.Name, AccountPoisoningCheck.Name, PayJoinCheck.Name,
+                ActiveHoursCheck.Name,
                 RoundFiatCheck.Name, PatternCheck.Name,
                 CrossChainCheck.Name,
                 ShieldedPoolCheck.Name,

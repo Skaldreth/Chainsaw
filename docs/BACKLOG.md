@@ -94,12 +94,11 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
     eget uppslag säger att den saknar decimaler.
   - **`BitcoinLookup<T>`** används av båda kedjorna och borde heta `ChainLookup<T>`; byts när ingen annan etapp rör
     Chains.
-- **Tornado Cash, de troliga utgångarna** (användarens fråga 2026-11-07): poolerna känns igen som mixer och blir *Spåret
-  tar slut här* (omgång 2, `KnownContracts`). Poolerna har fasta belopp (0,1, 1, 10 och 100 ETH), så beloppet säger
-  inget, och de troliga utgångarna kräver egna heuristiker ur forskningen: samma adress in och ut, ovanligt gaspris,
-  adresser som betalar varandras gas, flera insättningar som tas ut tillsammans och tid. De blir streckade kandidater
-  som mixerns. Uttagen går till en adress genom poolens kontrakt (eller en relayer), så en pools historik behöver läsas
-  också för de uttag som inte rör grafens adresser.
+- **Tornado Cash efter E3** (`tornado-outputs v1` är byggd: samma pool och belopp, den egna adressen först): kvar är
+  heuristikerna med ovanligt gaspris, adresser som betalar varandras gas och flera insättningar som tas ut tillsammans,
+  och att läsa poolens historik kring insättningen (uttagen till adresser utanför grafen).
+- **Kontrollerna på kontokedjorna efter E3** (`account-poisoning v1` är byggd): tidsmönstret, jämna belopp i kronor,
+  uppdelning och peel chain finns bara för UTXO-kedjorna.
 - **TRON efter omgång 8** (källan, grafen, startpunkterna, sanktionerna, kurserna, bevakningen och testärendet är
   byggda). Kvar:
   - **Slutligt mot TRON:s fastställda block** (granskningen, M18): i dag är ett block slutligt 20 block under den

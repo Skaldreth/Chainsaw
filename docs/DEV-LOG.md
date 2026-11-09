@@ -6239,3 +6239,18 @@ insättning i en borta tx i Begäran, Flöde).
   en uppbrytning blir *förslaget har ändrats*; M8 ett skadat konto i ett fynd känns igen; M9 formulärets text följer
   klustret. **Kvar (BACKLOG):** I2 att ångra en uppbrytning av konton i Historik; formulärets text lovar det inte längre.
 
+## E3 (2026-11-09): kontroller på kontokedjorna och Tornado Cash
+
+- **`account-poisoning v1`** (kontroll, Förvirring): en överföring av ingenting eller damm (högst 0,00001 av kedjans
+  mynt, eller en tusendel av en token) mellan ett konto och en adress som liknar en verklig motpart i de fyra första
+  och fyra sista tecknen. Ett fynd per liknande adress, med kontona i `CheckFinding.Accounts`.
+- **`tornado-outputs v1`** (förslag, Förvirring): efter en insättning i en känd Tornado Cash-pool föreslås poolens
+  utbetalningar av poolens belopp minus högst 1 % (relayer), efter insättningen, med insättarens egen adress först och
+  sedan i tidsordning; högst tio kandidater, var och en med sin utbetalning som rörelse (`Arrival`). Bara det grafen
+  har läst; poolens historik läses inte av sig själv.
+- Båda läser grafens kontoöverföringar och körs med kontrollerna för UTXO-kedjorna, som `cross-chain`. Guiden har fått
+  ett stycke om vardera.
+- **Kvar (BACKLOG):** kontrollerna för konton som motsvarar Bitcoins (tidsmönster, jämna belopp i kronor, uppdelning,
+  peel chain på konton), Tornado-heuristikerna med gaspris och flera insättningar som tas ut tillsammans, och att läsa
+  en pools historik kring insättningen.
+

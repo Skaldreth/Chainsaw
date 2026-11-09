@@ -36,3 +36,10 @@ Kontrollen jämför adresserna i grafen: en adress som har ett litet belopp (hö
 
 Det är bedömningar: två adresser kan likna varandra av en slump, och ett litet belopp kan vara en riktig betalning. Att
 tona ned dammet och den liknande adressen i grafen är **inte byggt än**; det skissas först.
+
+## På Ethereum, BSC och TRON
+
+På kontokedjorna är förgiftningen oftast en överföring av **ingenting**: en token med beloppet noll, eller ett
+dammbelopp, mellan offret och en adress som liknar en riktig motpart i de fyra första och fyra sista tecknen. Den
+syns då överst i offrets historik, och den som kopierar adressen därifrån betalar bedragaren. Kontrollen
+`account-poisoning v1` letar efter just det bland de överföringar grafen har läst.

@@ -44,3 +44,10 @@ bedömning, streckad, med vem och när.
 - `mixer-outputs v1` jämför bara en utbetalning med en insättning. Uppdelning i flera utbetalningar prövas av
   [Delarna tillsammans](mixer-efter-mixer.md), och en utgång som går in i en mixer igen visas av
   [Mixer efter mixer](mixer-efter-mixer.md).
+
+## Tornado Cash
+
+En pool i Tornado Cash tar emot och betalar ut **samma fasta belopp** (till exempel 1 ETH), så beloppet säger inget.
+Kontrollen `tornado-outputs v1` föreslår ändå poolens utbetalningar efter en insättning, av poolens belopp minus högst
+1 % till en relayer, med **insättarens egen adress först**, eftersom det är det vanligaste misstaget. Bara utbetalningar
+som grafen har läst föreslås; poolens hela historik läses inte, eftersom den är mycket lång.

@@ -28,6 +28,7 @@ public static class ChecksModule
         services.AddSingleton<ICheckAnalysis, MixerPartsCheck>();
         services.AddSingleton<ICheckAnalysis, MixerChainCheck>();
         services.AddSingleton<ICheckAnalysis, MixerBehaviourCheck>();
+        services.AddSingleton<ICheckAnalysis, TornadoOutputsCheck>();
         services.AddSingleton<ICheckAnalysis, CoinJoinCheck>();
         services.AddSingleton<ICheckAnalysis, PeelChainCheck>();
         services.AddSingleton<ICheckAnalysis, WalletCheck>();
@@ -38,6 +39,7 @@ public static class ChecksModule
         services.AddSingleton<ICheckAnalysis, SplitMergeCheck>();
         services.AddSingleton<ICheckAnalysis, PassThroughCheck>();
         services.AddSingleton<ICheckAnalysis, DustCheck>();
+        services.AddSingleton<ICheckAnalysis, AccountPoisoningCheck>();
         services.AddSingleton<ICheckAnalysis, PayJoinCheck>();
         services.AddSingleton<ICheckAnalysis, ActiveHoursCheck>();
         services.AddSingleton<ICheckAnalysis, RoundFiatCheck>();
