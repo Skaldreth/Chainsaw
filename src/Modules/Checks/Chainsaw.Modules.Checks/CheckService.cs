@@ -86,6 +86,7 @@ internal sealed class CheckService : ICheckService
             try
             {
                 var mine = analysis.Run(input)
+                    .Select(finding => WithWeights(analysis, finding))
                     .DistinctBy(finding => finding.Key, StringComparer.Ordinal)
                     .Select(finding => (analysis, new ResultKey(analysis.Id.Name, analysis.Id.Version, finding.Key),
                         finding))
@@ -623,6 +624,32 @@ internal sealed class CheckService : ICheckService
             AreaStore.Seal(transaction, AreaStore.RemoveAction, area, checkedReason, journal);
             return true;
         });
+    }
+
+    /// <summary>
+    /// Seals a model's identity with what it found: the SHA-256 of its weights (<see cref="IGraphShapeAnalysis"/>)
+    /// is written at the end of <see cref="CheckFinding.Why"/> when the analysis has weights and the text does not
+    /// say the hash already, so that every sealed finding names the weights it came from (principle 3).
+    /// </summary>
+    /// <param name="analysis">The analysis.</param>
+    /// <param name="finding">What it found.</param>
+    /// <returns>The finding, with the weights' hash when the analysis has weights.</returns>
+    /// <exception cref="InvalidOperationException">The hash is not 64 lower-case hex digits.</exception>
+    private static CheckFinding WithWeights(ICheckAnalysis analysis, CheckFinding finding)
+    {
+        if (analysis is not IGraphShapeAnalysis { WeightsSha256: { } hash })
+        {
+            return finding;
+        }
+
+        if (hash.Length != 64 || !hash.All(char.IsAsciiHexDigitLower))
+        {
+            throw new InvalidOperationException($"The analysis {analysis.Id} gives no valid SHA-256 of its weights.");
+        }
+
+        return finding.Why.Contains(hash, StringComparison.Ordinal)
+            ? finding
+            : finding with { Why = finding.Why + $" Modellens vikter: SHA-256 {hash}." };
     }
 
     /// <summary>

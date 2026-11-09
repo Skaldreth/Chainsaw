@@ -8,8 +8,11 @@ namespace Chainsaw.Modules.Checks;
 /// transactions within <see cref="Window"/>, amounts that differ by at most <see cref="Tolerance"/> from the first, as
 /// when an amount is split to stay under a limit (structuring). Round amounts (two significant digits or fewer, such
 /// as 0,01, 0,25 or 1 BTC) are everyday and break a run, and payments below <see cref="MinimumAmount"/> are dust and
-/// left to the dust check. The limit itself is in money the chain does not know, so the rule reads only that the
-/// amounts are alike; it names another actor only when it pays the same recipient the same amount.
+/// left to the dust check. The payments must also add up to something (<see cref="AddsUp"/>): the recipient is a
+/// labelled exchange or service (a deposit), or it later spends at least <see cref="MinimumRun"/> of the run's coins
+/// together, so that a subscription paid daily to someone is no structuring. The limit itself is in money the chain
+/// does not know, so the rule reads only that the amounts are alike; it names another actor only when it pays the
+/// same recipient the same amount.
 /// </summary>
 internal static class StructuringPattern
 {
@@ -40,9 +43,25 @@ internal static class StructuringPattern
         var runs = shape.Actors
             .Where(actor => actor.Sort == ActorSort.Unknown && !PatternActors.IsHub(shape, actor))
             .SelectMany(actor => RunsOf(shape, actor))
+            .Where(run => AddsUp(shape, run))
             .ToList();
         return runs.Select(run => Describe(shape, run, runs, analysis));
     }
+
+    /// <summary>
+    /// Whether a run adds up to something: its recipient is a labelled exchange or service, or one transaction spends
+    /// at least <see cref="MinimumRun"/> of the coins it paid.
+    /// </summary>
+    /// <param name="shape">The shape.</param>
+    /// <param name="run">The run.</param>
+    /// <returns>Whether it does.</returns>
+    private static bool AddsUp(GraphShape shape, List<ShapeFlow> run) =>
+        shape.Actors[run[0].To].Sort is ActorSort.Exchange or ActorSort.Service
+        || run.SelectMany(payment => payment.Paid)
+            .SelectMany(coin => shape.SpentBy(coin).Select(index => (Coin: coin, shape.Flows[index].Txid)))
+            .Distinct()
+            .GroupBy(spend => spend.Txid)
+            .Any(spender => spender.Count() >= MinimumRun);
 
     /// <summary>Whether an amount is round: at most <see cref="RoundDigits"/> significant digits.</summary>
     /// <param name="satoshi">The amount in satoshi; above zero.</param>
@@ -146,7 +165,8 @@ internal static class StructuringPattern
             + $"{CheckText.Count(run.Count)} gånger i följd bland de hämtade tx:erna, på "
             + $"{PatternText.Between(run[0], run[^1])} och i skilda tx, belopp som skiljer högst "
             + $"{CheckText.Percent(Tolerance)} från det första ({amounts}{more} BTC, tx {txids}{more}). Jämna belopp "
-            + "räknas inte. Likadana belopp i följd är formen när någon delar upp ett större belopp för att hålla sig "
+            + "räknas inte, och betalningarna samlas: mottagaren är en börs eller tjänst, eller spenderar mynten "
+            + "tillsammans. Likadana belopp i följd är formen när någon delar upp ett större belopp för att hålla sig "
             + "under en gräns, till exempel en börs gräns för kundkontroll; gränsen räknas i pengar som kedjan inte "
             + $"känner, så analysen läser bara att beloppen är lika.{others}";
         return PatternText.Check(

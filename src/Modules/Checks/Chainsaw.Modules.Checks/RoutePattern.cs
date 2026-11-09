@@ -9,9 +9,10 @@ namespace Chainsaw.Modules.Checks;
 /// the same exchange or mixer. A way is a walk (<see cref="PatternWalk"/>) that follows the coins from an actor nothing
 /// is known about (or a start point) through at least two others nothing is known about, none of them a hub, and
 /// ends at the first labelled actor it reaches, within <see cref="PatternWalk.Window"/>; it is never followed through
-/// a labelled actor, since what comes out of an exchange or a mixer is other coins. Two ways are alike when they end at
-/// the same actor through the same number of steps; they are separate when they start at different actors and share
-/// no transaction, so that money gathered in one place and moved together is no second way.
+/// a labelled actor, since what comes out of an exchange or a mixer is other coins. Two ways are alike when their last
+/// line pays the same addresses of the labelled actor (the same deposit address, never just the same exchange, which
+/// has many customers) through the same number of steps; they are separate when they start at different actors and
+/// share no transaction, so that money gathered in one place and moved together is no second way.
 /// </summary>
 internal static class RoutePattern
 {
@@ -81,12 +82,15 @@ internal static class RoutePattern
     /// <returns>The indexes, joined.</returns>
     private static string Text(int[] lines) => string.Join(',', lines);
 
-    /// <summary>Gives what makes two ways alike: the actor they end at and how many steps.</summary>
+    /// <summary>
+    /// Gives what makes two ways alike: the addresses their last line pays (the deposit address) and how many steps.
+    /// </summary>
     /// <param name="shape">The shape.</param>
     /// <param name="walk">The way.</param>
     /// <returns>For example <c>bc1q…&gt;3</c>.</returns>
     private static string SignatureOf(GraphShape shape, int[] walk) =>
-        shape.Actors[shape.Flows[walk[^1]].To].Key + ">" + CheckText.Count(walk.Length);
+        string.Join(',', shape.Flows[walk[^1]].ToAddresses.Select(address => address.Value)
+            .Order(StringComparer.Ordinal)) + ">" + CheckText.Count(walk.Length);
 
     /// <summary>
     /// Picks, the earliest first, the ways that start at different actors and share no transaction with one picked.
@@ -125,7 +129,8 @@ internal static class RoutePattern
         var steps = CheckText.Count(ways[0].Length);
         var parts = ways.Select(way => Part(shape, way)).ToList();
         var why = $"Analysen {analysis.Named()} ser mynt från {CheckText.Count(ways.Count)} skilda delar av ärendet, "
-            + $"bland de hämtade tx:erna, föras vidare på samma sätt till {end}: {steps} steg, där varje steg "
+            + $"bland de hämtade tx:erna, föras vidare på samma sätt till samma adress hos {end} "
+            + $"({CheckText.Short(last.ToAddresses[0])}): {steps} steg, där varje steg "
             + "spenderar mynt ur det förra, bär minst "
             + $"{CheckText.Percent(Carry.Least)} av dess belopp och kommer inom {CheckText.Span(PatternWalk.Window)} "
             + "från det första, genom aktörer som inget är känt om. Delarna börjar hos olika aktörer och har ingen tx "

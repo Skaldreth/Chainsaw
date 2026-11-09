@@ -17,8 +17,8 @@ namespace Chainsaw.Modules.Checks.Contracts;
 /// <para>
 /// A model's identity is its name, its version and its weights: a local model gives the SHA-256 of its weights in
 /// <see cref="WeightsSha256"/>, raises <see cref="ICheckAnalysis.Id"/>'s version whenever the weights change (so that
-/// what an earlier version found is never silently changed, and a dismissal holds for its version only), and says
-/// the hash in every finding's <see cref="CheckFinding.Why"/>.
+/// what an earlier version found is never silently changed, and a dismissal holds for its version only). The check
+/// service seals the hash with every finding, at the end of its <see cref="CheckFinding.Why"/>.
 /// </para>
 /// </remarks>
 public interface IGraphShapeAnalysis : ICheckAnalysis

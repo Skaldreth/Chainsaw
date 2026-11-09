@@ -11,7 +11,8 @@ namespace Chainsaw.Modules.Checks;
 /// says something only when at least two collecting actors sweep to the <em>same</em> actor that nothing is known
 /// about (the same cluster or deposit address). A labelled exchange or service, or a hub, as the destination says
 /// nothing (it has many customers), and a payment that only forwards money the payer got in the graph (a deposit
-/// address sweeping to its hot wallet) is no payer of a collection.
+/// address sweeping to its hot wallet) is no payer of a collection. A merchant that empties its tills to its cold
+/// wallet has the same form, and the text says so.
 /// </summary>
 internal static class CollectionPattern
 {
@@ -133,7 +134,8 @@ internal static class CollectionPattern
             + $"{CheckText.Count(MinimumPayers)} olika avsändare betalar till en aktör som inte spenderar under tiden, "
             + $"och sedan sveps {CheckText.Percent(SweepShare)} till {CheckText.Percent(MostSweep)} av det insamlade "
             + "vidare i en tx som spenderar deras mynt. " + PatternText.Parts(parts) + " Det är formen hos "
-            + "insamlingsadresser i ett bedrägeri som töms till samma plånbok. Insättningar som bara förs vidare från "
+            + "insamlingsadresser i ett bedrägeri som töms till samma plånbok, men det kan också vara en handlare som "
+            + "tömmer sina kassor till sin kalla plånbok. Insättningar som bara förs vidare från "
             + "en annan adress i grafen räknas inte som avsändare, och en börs eller tjänst med etikett som mottagare "
             + "säger inget, eftersom den har många kunder.";
         var flows = group.SelectMany(collection => collection.Payments.Concat(collection.Sweep))

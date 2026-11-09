@@ -20,7 +20,8 @@ internal static class PatternWalk
 
     /// <summary>
     /// Gives every walk from a line, of two lines or more and at most the rules' most, in a fixed order: the coins in
-    /// order and their spenders in time order, depth first.
+    /// order and their spenders in time order, depth first. The first line's payee is held to the same rules as every
+    /// later actor: the walk must be allowed to enter it, and it must not be where a walk ends.
     /// </summary>
     /// <param name="shape">The shape.</param>
     /// <param name="start">The first line.</param>
@@ -29,7 +30,8 @@ internal static class PatternWalk
     public static List<int[]> From(GraphShape shape, ShapeFlow start, Rules rules)
     {
         var walks = new List<int[]>();
-        if (start.IsShared || start.Block is null || rules.Ends(shape.Actors[start.To]))
+        var first = shape.Actors[start.To];
+        if (start.IsShared || start.Block is null || rules.Ends(first) || !rules.MayEnter(first))
         {
             return walks;
         }

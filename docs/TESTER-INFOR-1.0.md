@@ -1814,16 +1814,19 @@ Testärendet visar inga mönster än (TODO); prova i ett ärende där formen fin
 SJÄLVT* i *Förslag · N*, med analysen *pattern v1* och att det är en bedömning; *?* öppnar Guidens avsnitt *Mönster*.
 - **Samma insamling:** två adresser som var och en tar emot från minst fem avsändare och sedan sveper deras mynt i en
   tx till samma adress som inget är känt om ger *Samma insamling, 2 aktörer*; *Varför?* nämner båda med belopp, antal
-  avsändare och svepets tx. Sveper de till en börs med etikett, eller är avsändarna en börs insättningsadresser, ger
-  det inget.
+  avsändare och svepets tx, och att det också kan vara en handlare. Sveper de till en börs med etikett, eller är
+  avsändarna en börs insättningsadresser, ger det inget. Ett stort bedrägeri (tolv eller trettio insamlingsadresser
+  till samma plånbok) ger fortfarande en träff.
 - **Samma väg:** två offers mynt som var för sig förs genom två mellanhänder till samma börs (etikett) ger *Samma väg,
-  2 delar* med *3 steg till börs …* i raden under. Vägen slutar vid en mixer och följs aldrig igenom den. Pengar som
+  2 delar* med *3 steg till börs …* i raden under, men bara när de kommer till samma insättningsadress; två olika
+  insättningsadresser hos samma börs ger inget. Vägen slutar vid en mixer och följs aldrig igenom den. Pengar som
   samlas och flyttas i en tx, eller en mellanhand som betalar med andra mynt, ger ingen andra väg.
 - **Rundgång:** mynt som går ut genom två andra och tillbaka (minst 80 %, inom 30 dygn) ger *Rundgång, 3 steg*. En
   återbetalning direkt tillbaka, en insättning och ett uttag på en börs, eller mynt som inte följer varandra, ger
   inget.
 - **Likadana belopp:** minst fyra lika betalningar (inom 1 %) till samma mottagare på en vecka ger *Likadana belopp,
-  N i följd*; jämna belopp (0,01 eller 0,25 BTC) ger inget. Betalar en annan aktör samma mottagare samma belopp nämner
+  N i följd* när mottagaren är en börs eller spenderar mynten tillsammans; jämna belopp (0,01 eller 0,25 BTC) och en
+  daglig betalning till någon ger inget. Betalar en annan aktör samma mottagare samma belopp nämner
   *Varför?* den.
 - **En falsk träff går inte att avfärda** (kontroller har inget beslut i KF2b); säg till om något står kvar som inte
   borde (TODO).

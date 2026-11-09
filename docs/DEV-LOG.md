@@ -5185,3 +5185,23 @@ former, och en kontroll kan inte avfärdas; slumpgrafen saknade länkade mynt oc
   två linjer av fem är länkade, vilket testet kräver): inga larm i 300 grafer med 1 500 tx. 33 tester i
   `PatternCheckTests`. 20 000 tx tar omkring 1,7 s i molnmiljön.
 - **Kvar:** en kontroll kan inte avfärdas; TODO, [skiss] *Avfärda en kontroll*.
+
+**Andra granskningens rättelser (2 I, 5 M), 2026-11-09.**
+- **I-A:** en knutpunkt räknar inte offer, startpunkter eller motparter som bara samlar in och tömmer till aktören
+  (de betalar den, betalar ingen annan, och aktören betalar dem aldrig). Det som räknas är aktörer med etikett och de
+  aktören själv betalar. Regeln är en (`PatternActors.IsHub`) och gäller alla fyra regler, också vägarna och
+  rundgången. Avsteg: *okända som också tar emot från andra* blev *de aktören betalar*, eftersom en börs betalar ut
+  till många kunder som inte tar emot från andra i grafen; så står insättning och uttag på en börs utan etikett
+  kvar som negativt fall. Tester med 12 och 30 insamlingsadresser och med tolv offer i struktureringen.
+- **I-B:** två vägar är lika när den sista linjen betalar samma adresser (insättningsadressen), aldrig bara samma
+  börs. Tester med två insättningsadresser hos samma börs (inget) och samma (träff).
+- **M-a:** insamlingens text säger att det också kan vara en handlare som tömmer till sin kalla plånbok.
+- **M-b:** Guiden beskriver avvägningen i rundgången (minst en mellanhand med andra affärer).
+- **M-c:** `PatternWalk.From` prövar nu också den första mottagaren mot reglerna, som texten säger; eftersom
+  knutpunkten inte längre räknar offer och insamlingsadresser stänger det inte ute ett stort bedrägeri.
+- **M-d:** strukturering kräver att betalningarna samlas: mottagaren är en börs eller tjänst med etikett, eller en tx
+  spenderar minst fyra av mynten. En daglig betalning av samma udda belopp till någon ger inget.
+- **M-e:** `CheckService` förseglar `WeightsSha256` med varje fynd, sist i *Varför?*, när analysen har vikter och
+  texten inte redan säger hashen; en ogiltig hash får analysen att misslyckas för sig.
+- **Falsklarm och fart:** inga larm i 300 slumpgrafer; 20 000 tx tar omkring 2 s med alla tester igång. 41 tester i
+  `PatternCheckTests`.

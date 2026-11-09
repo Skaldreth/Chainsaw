@@ -8,7 +8,8 @@ internal static class PatternActors
 {
     /// <summary>
     /// How many different counterparties make an actor a hub: an exchange, a payment service or a mixer without a
-    /// label, whose many customers make everyday money look like a pattern.
+    /// label, whose many customers make everyday money look like a pattern. Only counterparties that say so count
+    /// (<see cref="Counts"/>), so that a large fraud, with many victims and many collecting addresses, is no hub.
     /// </summary>
     public const int HubCounterparties = 10;
 
@@ -16,7 +17,8 @@ internal static class PatternActors
     private static readonly ConditionalWeakTable<GraphShape, bool[]> Hubs = [];
 
     /// <summary>
-    /// Whether an actor is a hub: it has paid or been paid by at least <see cref="HubCounterparties"/> others.
+    /// Whether an actor is a hub: at least <see cref="HubCounterparties"/> counterparties that count
+    /// (<see cref="Counts"/>) have paid it or been paid by it.
     /// </summary>
     /// <param name="shape">The shape.</param>
     /// <param name="actor">The actor.</param>
@@ -27,12 +29,44 @@ internal static class PatternActors
     /// <summary>Reads which actors of a shape are hubs.</summary>
     /// <param name="shape">The shape.</param>
     /// <returns>Whether each actor is.</returns>
-    private static bool[] ReadHubs(GraphShape shape) =>
-        [.. shape.Actors.Select(actor => shape.Out(actor.Index).Select(index => shape.Flows[index].To)
+    private static bool[] ReadHubs(GraphShape shape)
+    {
+        var paid = shape.Actors
+            .Select(actor => shape.Out(actor.Index).Select(index => shape.Flows[index].To).ToHashSet())
+            .ToArray();
+        return [.. shape.Actors.Select(actor => paid[actor.Index]
             .Concat(shape.In(actor.Index).Select(index => shape.Flows[index].From))
             .Distinct()
+            .Where(other => Counts(shape, paid, actor.Index, other))
             .Take(HubCounterparties)
             .Count() >= HubCounterparties)];
+    }
+
+    /// <summary>
+    /// Whether a counterparty counts towards making an actor a hub. A start point or victim never does, and neither
+    /// does one that only collects and empties into the actor (a victim who paid it, or a collecting address that
+    /// swept to it): it pays the actor, pays no one else, and the actor never pays it. Everything else counts: a
+    /// labelled actor, and every actor the actor pays (an exchange pays out to many customers, a scam's collector
+    /// sweeps to few).
+    /// </summary>
+    /// <param name="shape">The shape.</param>
+    /// <param name="paid">The actors each actor pays.</param>
+    /// <param name="actor">The actor's index.</param>
+    /// <param name="other">The counterparty's index.</param>
+    /// <returns>Whether it counts.</returns>
+    private static bool Counts(GraphShape shape, HashSet<int>[] paid, int actor, int other)
+    {
+        var counterparty = shape.Actors[other];
+        if (counterparty.Sort == ActorSort.Protected)
+        {
+            return false;
+        }
+
+        return counterparty.IsLabelled
+            || paid[actor].Contains(other)
+            || paid[other].Count > 1
+            || (paid[other].Count == 1 && !paid[other].Contains(actor));
+    }
 
     /// <summary>Whether an actor does more than pass money on: it has lines beyond the given ones, in or out.</summary>
     /// <param name="shape">The shape.</param>

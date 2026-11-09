@@ -331,12 +331,15 @@ public sealed class PatternCheckTests
         var deposit = Tx("deposit", Start + 20).In(user, 20_000_000).Out(Wpkh("deposit-address"), 10_000_000)
             .Build();
         var sweep = Tx("sweep", Start + 21).Spend(deposit, 0).Out(hot, 9_990_000).Build();
+        var withdrawals = Enumerable.Range(0, 12)
+            .Select(i => Tx($"withdrawal-{i}", Start + 25).Spend(customers[i], 0)
+                .Out(Wpkh($"withdrawer-{i}"), 3_990_000).Build())
+            .ToList();
         var sameCoin = Tx("withdraw", Start + 30).Spend(sweep, 0).Out(user, 9_900_000).Build();
-        var otherCoin = Tx("withdraw-other", Start + 30).Spend(customers[0], 0).Spend(customers[1], 0)
-            .Out(user, 7_900_000).Build();
+        var otherCoin = Tx("withdraw-other", Start + 30).In(hot, 8_000_000).Out(user, 7_900_000).Build();
 
-        Assert.Empty(Run([.. customers, deposit, sweep, sameCoin]));
-        Assert.Empty(Run([.. customers, deposit, sweep, otherCoin]));
+        Assert.Empty(Run([.. customers, .. withdrawals, deposit, sweep, sameCoin]));
+        Assert.Empty(Run([.. customers, .. withdrawals, deposit, sweep, otherCoin]));
     }
 
     // ---- Likadana belopp i följd -----------------------------------------------------------------------------
@@ -349,7 +352,7 @@ public sealed class PatternCheckTests
             .Concat(Split("q", Start + 2_000, 9_960_000, count: 4, gap: 50, recipient))
             .ToList();
 
-        var findings = Run(txs);
+        var findings = Run(txs, exchanges: [recipient]);
 
         var p = Assert.Single(findings, finding => finding.Key == "struct:" + Txid("p-0").Value);
         Assert.Equal("Likadana belopp, 5 i följd", p.Title);
@@ -367,7 +370,8 @@ public sealed class PatternCheckTests
             .Concat(Split("q", Start + 2_000, 9_960_000, count: 4, gap: 50, Wpkh("y")))
             .ToList();
 
-        var p = Assert.Single(Run(txs), finding => finding.Key == "struct:" + Txid("p-0").Value);
+        var p = Assert.Single(Run(txs, exchanges: [Wpkh("x"), Wpkh("y")]),
+            finding => finding.Key == "struct:" + Txid("p-0").Value);
 
         Assert.DoesNotContain(CheckTextShort(Wpkh("q")), p.Why, StringComparison.Ordinal);
     }
@@ -377,7 +381,7 @@ public sealed class PatternCheckTests
     {
         var txs = Split("long", Start, 9_871_234, count: StructuringPattern.MaxRun + 5, gap: 1, Wpkh("x"), step: 3);
 
-        var findings = Run(txs);
+        var findings = Run(txs, exchanges: [Wpkh("x")]);
 
         Assert.Equal(2, findings.Count);
         Assert.Equal($"Likadana belopp, {StructuringPattern.MaxRun} i följd", findings[0].Title);
@@ -425,6 +429,99 @@ public sealed class PatternCheckTests
 
         Assert.Empty(Run(payouts));
         Assert.Empty(Run(Split("ex", Start, 9_950_000, count: 6, gap: 10, Wpkh("x")), exchanges: [Wpkh("ex")]));
+    }
+
+    // ---- Large frauds are no hubs (I-A) ----------------------------------------------------------------------
+
+    [Theory]
+    [InlineData(12)]
+    [InlineData(30)]
+    public void Many_collecting_addresses_that_sweep_to_the_same_wallet_are_one_collection(int collectors)
+    {
+        var txs = Enumerable.Range(0, collectors)
+            .SelectMany(i => Collection($"c{i}", Start + (i * 200), Wpkh("launder")))
+            .ToList();
+
+        var finding = Single(Run(txs), "collect:");
+
+        Assert.Equal($"Samma insamling, {collectors} aktörer", finding.Title);
+        Assert.Contains("handlare", finding.Why, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void A_scammer_paid_by_twelve_victims_who_splits_the_money_is_no_hub()
+    {
+        var victims = Enumerable.Range(0, 12)
+            .Select(i => Tx($"victim-{i}", Start + i).In(Wpkh($"victim-{i}"), 30_000_000)
+                .Out(Wpkh("scammer"), 20_000_000 + (i * 1_234)).Out(Wpkh($"victim-{i}"), 9_000_000).Build())
+            .ToList();
+        var split = Split("scammer", Start + 20, 9_950_000, count: 5, gap: 10, Exchange);
+        var input = Input([.. victims, .. split], exchanges: [Exchange]) with
+        {
+            Protected = new HashSet<BitcoinAddress> { Wpkh("victim-0"), Wpkh("victim-1") },
+        };
+
+        Assert.Single(Analysis.Run(input), finding => finding.Key == "struct:" + Txid("scammer-0").Value);
+    }
+
+    // ---- The same deposit address, never just the same exchange (I-B) --------------------------------------
+
+    [Fact]
+    public void Two_ways_into_one_exchange_at_different_deposit_addresses_are_not_the_same_way()
+    {
+        var depositA = Wpkh("exchange-deposit-a");
+        var depositB = Wpkh("exchange-deposit-b");
+        var txs = Way("v1", Start, to: depositA).Concat(Way("v2", Start + 300, to: depositB)).ToList();
+        var input = Input(txs) with { Services = [new KnownService([Exchange, depositA, depositB], true, "Börsen")] };
+
+        Assert.Empty(Analysis.Run(input));
+    }
+
+    [Fact]
+    public void Two_ways_into_one_exchange_at_the_same_deposit_address_are_the_same_way()
+    {
+        var depositA = Wpkh("exchange-deposit-a");
+        var depositB = Wpkh("exchange-deposit-b");
+        var txs = Way("v1", Start, to: depositA).Concat(Way("v2", Start + 300, to: depositA)).ToList();
+        var input = Input(txs) with { Services = [new KnownService([Exchange, depositA, depositB], true, "Börsen")] };
+
+        var finding = Single(Analysis.Run(input), "route:");
+
+        Assert.Equal($"route:{depositA.Value}>3", finding.Key);
+    }
+
+    // ---- Structuring must add up (M-d) -----------------------------------------------------------------------
+
+    [Fact]
+    public void A_daily_payment_of_the_same_odd_amount_to_someone_is_no_structuring()
+    {
+        Assert.Empty(Run(Split("subscriber", Start, 1_234_567, count: 7, gap: 144, Wpkh("someone"), step: 0)));
+    }
+
+    [Fact]
+    public void Alike_payments_that_the_recipient_spends_together_add_up_and_are_structuring()
+    {
+        var split = Split("p", Start, 9_950_000, count: 5, gap: 100, Wpkh("collector"));
+        var together = split.Aggregate(Tx("together", Start + 600), (tx, paid) => tx.Spend(paid, 0))
+            .Out(Wpkh("onward"), 49_000_000).Build();
+
+        Assert.Single(Run([.. split, together]), finding => finding.Key == "struct:" + Txid("p-0").Value);
+    }
+
+    // ---- A model's weights (M-e) -----------------------------------------------------------------------------
+
+    [Fact]
+    public void A_models_weights_are_sealed_with_every_finding()
+    {
+        using var harness = new Harness(services => services.AddSingleton<ICheckAnalysis, WeightedAnalysis>());
+        var tx = Tx("pay", Start).In(Wpkh("a"), 1_000_000).Out(Wpkh("b"), 600_000).Build();
+
+        var run = harness.Run([tx]);
+
+        var check = Assert.Single(run.Checks, check => check.Analysis.Name == WeightedAnalysis.Name);
+        Assert.EndsWith($"Modellens vikter: SHA-256 {WeightedAnalysis.Weights}.", check.Finding.Why,
+            StringComparison.Ordinal);
+        Assert.True(harness.Verify().IsIntact);
     }
 
     // ---- Everyday shapes ---------------------------------------------------------------------------------------
@@ -580,15 +677,16 @@ public sealed class PatternCheckTests
     }
 
     /// <summary>A victim pays a mule, who pays a second mule, who pays the exchange, each later.</summary>
-    private static IEnumerable<BitcoinTransaction> Way(string victim, long height, bool linked = true, long gap = 5)
+    private static IEnumerable<BitcoinTransaction> Way(
+        string victim, long height, bool linked = true, long gap = 5, BitcoinAddress? to = null)
     {
         var paid = Tx($"{victim}-paid", height).In(Wpkh(victim), 20_000_000).Out(Wpkh($"{victim}-mule"), 10_000_000)
             .Build();
         var hop = Tx($"{victim}-hop", height + gap).Spend(paid, 0).Out(Wpkh($"{victim}-mule2"), 9_900_000).Build();
         var cashed = linked
-            ? Tx($"{victim}-cashed", height + (2 * gap)).Spend(hop, 0).Out(Exchange, 9_800_000).Build()
+            ? Tx($"{victim}-cashed", height + (2 * gap)).Spend(hop, 0).Out(to ?? Exchange, 9_800_000).Build()
             : Tx($"{victim}-cashed", height + (2 * gap)).In(Wpkh($"{victim}-mule2"), 10_000_000)
-                .Out(Exchange, 9_800_000).Build();
+                .Out(to ?? Exchange, 9_800_000).Build();
         return [paid, hop, cashed];
     }
 
@@ -681,6 +779,26 @@ public sealed class PatternCheckTests
         }
 
         return (txs, [Wpkh($"g{seed}-a0"), Wpkh($"g{seed}-a1"), Wpkh($"g{seed}-a2")]);
+    }
+
+    /// <summary>A stand-in for a local model: it has weights, and says nothing of them itself.</summary>
+    private sealed class WeightedAnalysis : IGraphShapeAnalysis
+    {
+        public const string Name = "weighted";
+
+        public const string Weights = "3b7e1c5d9f0a2b4c6d8e0f1a3b5c7d9e1f2a4b6c8d0e2f4a6b8c0d2e4f6a8b0c";
+
+        public HeuristicId Id { get; } = new(Name, 1);
+
+        public string DisplayName => "Vägd";
+
+        public string? WeightsSha256 => Weights;
+
+        public IReadOnlyList<CheckFinding> Run(GraphShape shape) =>
+        [
+            new CheckFinding("all", CheckKind.Check, AreaSort.Obfuscation, "Allt", "", "En bedömning.",
+                [], [], [.. shape.Flows.Select(flow => new CheckBasis(flow.Txid, flow.Block))], []),
+        ];
     }
 
     /// <summary>A stand-in for a later analysis through the door: it counts the shape's lines.</summary>
