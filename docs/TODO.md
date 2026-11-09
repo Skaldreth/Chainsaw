@@ -130,8 +130,8 @@ Hela `docs/BACKLOG.md` byggs före 1.0, i omgångar där agenterna inte rör sam
 byggt ur BACKLOG; det som skriver i ärendet granskas oberoende.
 1. **Ethereum fullt** (användarens beslut 2026-11-09: byggs nu, en etapp i taget av huvudsessionen, utan agenter
    utom granskningen): Tornado Cash, kända DEX:ar och bryggor, OFAC:s ETH-adresser och en borta tx är byggda. Etapperna
-   i ordning: E1 Etherscan med nyckeln i valvet (raden för nycklar på sidan Källor är skissad som NY1a och NY1b, väntar på val), E2
-   kontoheuristikerna, E3 kontrollerna och Tornado Cash, E4 resterna efter etapp 23 och 23b. Kvar: kontoheuristikerna, kontrollerna och plånböckerna på Ethereum, egna ytor, Etherscan med nyckel
+   i ordning: E1 Etherscan (byggt 2026-11-09; raden för nycklar i valvet är skissad som NY1a och NY1b, väntar på val), E2
+   kontoheuristikerna (hur ett kluster på Ethereum syns är skissat som KE1a och KE1b, väntar på val), E3 kontrollerna och Tornado Cash, E4 resterna efter etapp 23 och 23b. Kvar: kontoheuristikerna, kontrollerna och plånböckerna på Ethereum, egna ytor, Etherscan med nyckel
    (fråga 20) och fynden från etapp 23 och 23b (BACKLOG).
 2. **Monero** [etapp], väntar på ditt klartecken: inget är byggt utom orsaken *Spåret tar slut här*. Källan (en öppen
    nod eller egen), ringarnas kända svagheter som förslag (CLAUDE.md, *Privacy coins*) och ytorna, som skissas först.
