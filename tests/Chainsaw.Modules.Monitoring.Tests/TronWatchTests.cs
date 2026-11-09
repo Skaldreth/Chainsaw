@@ -44,7 +44,10 @@ public sealed class TronWatchTests : IDisposable
         _harness.Tron.BlockHashes[Block.Height] = Id(Block.Height);
         var before = _harness.Service.GetChecked(_harness.Case).Values.Single();
 
-        await _harness.Service.CheckAsync(_harness.Case, Chain.Tron, 80_000_050);
+        var run = await _harness.Service.CheckAsync(_harness.Case, Chain.Tron, 80_000_050);
+
+        Assert.Contains(run.Outcomes.SelectMany(outcome => outcome.Problems), problem =>
+            problem.StartsWith("Väntar på källan för tx " + new string('e', 64), StringComparison.Ordinal));
 
         // A movement the source could not place may lie anywhere on the page, also below the one it did place.
         Assert.Equal(before.Height, _harness.Service.GetChecked(_harness.Case).Values.Single().Height);

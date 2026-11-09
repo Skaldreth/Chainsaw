@@ -304,7 +304,8 @@ internal static class AccountTraceCalculator
                 if (taint is { Fees.Units.Sign: > 0 })
                 {
                     ends.Add(End(TrailEndReason.MinerFee, taint.Fees.Units, key, [],
-                        "Gick till avgifter (gas) som adressen betalade.", [], outdated));
+                        "Gick till avgifter som adressen betalade (gas på Ethereum, energi och bandbredd på TRON).",
+                        [], outdated));
                 }
             }
 

@@ -17,6 +17,17 @@ internal static class FeedTexts
     public const string Incomplete =
         "Källan gav inte hela historiken för {0} ner till block {1}; resten kan ha missats.";
 
+    /// <summary>
+    /// When a check waits for the source to place a transaction (TRON's token history): it stays at its block and goes
+    /// on when the source answers; nothing is missed.
+    /// </summary>
+    public const string Waiting =
+        "Väntar på källan för tx {1} hos {0}; kontrollen står kvar vid block {2} och fortsätter när källan svarar.";
+
+    /// <summary>When a check left out a transfer whose final transaction holds no readable event.</summary>
+    public const string Unplaced =
+        "{1} TRC-20-överföringar till eller från {0} har ingen läsbar Transfer-händelse i sin tx och räknas inte.";
+
     /// <summary>When an address on a watch is not one the chain knows.</summary>
     public const string NotAnAddress = "{0} är ingen adress på kedjan.";
 
@@ -280,10 +291,19 @@ internal sealed class EthereumCaseFeed(IAccountSource source, ICase @case) : IWa
                 lowest = Math.Min(lowest, transfer.Block?.Height ?? lowest);
             }
 
+            if (read.Unplaced > 0)
+            {
+                problems.Add(FeedTexts.Format(FeedTexts.Unplaced, address.Value, read.Unplaced));
+            }
+
             if (read.IsIncomplete)
             {
-                // The source has not finished reading the history: nothing below its newest page is trusted yet.
-                problems.Add(FeedTexts.Format(FeedTexts.Incomplete, address.Value, downTo + 1));
+                // The source has not finished reading the history: nothing below its newest page is trusted yet. On
+                // TRON it is waiting to place a transaction, which is said as waiting, not as something missed.
+                problems.Add(read.Waiting.Count > 0
+                    ? FeedTexts.Format(FeedTexts.Waiting, address.Value,
+                        string.Join(", ", read.Waiting.Select(hash => hash.Value)), downTo)
+                    : FeedTexts.Format(FeedTexts.Incomplete, address.Value, downTo + 1));
 
                 // On TRON a movement the source could not place has no block yet, so it may lie anywhere on the page:
                 // the check stays where it was until the page can be read whole.
@@ -353,8 +373,8 @@ internal sealed class EthereumCaseFeed(IAccountSource source, ICase @case) : IWa
 
     /// <summary>
     /// Gives the time of the block a check reads back to, on a chain whose sources page by time (TRON), so that the
-    /// source does not look up each older entry of a page; <see langword="null"/> on Ethereum, or when the block
-    /// could not be had (then the whole page is read).
+    /// source does not look up each older entry of a page; <see langword="null"/> on Ethereum. When the block could not
+    /// be had, the earliest time, so that every entry is read but still only in the tokens a check can use.
     /// </summary>
     /// <param name="downTo">The block.</param>
     /// <param name="origins">The sealed responses so far; the block's is added.</param>
@@ -372,8 +392,11 @@ internal sealed class EthereumCaseFeed(IAccountSource source, ICase @case) : IWa
             .ConfigureAwait(false);
         if (block.Value is not { } found)
         {
-            return null;
+            // The check still asks for its own page, so that only the tokens it can use are looked up; the page is
+            // then read whole in time.
+            return DateTimeOffset.MinValue;
         }
+
 
         origins.AddRange(block.Origins.Select(origin => origin.Sequence));
         return found.Time;

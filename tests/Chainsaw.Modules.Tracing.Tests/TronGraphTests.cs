@@ -152,6 +152,32 @@ public sealed class TronGraphTests : IDisposable
     }
 
     [Fact]
+    public async Task A_contracts_trx_the_whole_transaction_lacks_stays_from_the_history_and_is_counted_once()
+    {
+        var contract = Address("contract");
+        var full = Tx("payout", 150, Scammer, (EthereumTransferKind.Native, Scammer, contract, Trx(10)),
+            (EthereumTransferKind.Internal, contract, Mule, Trx(9)));
+        _harness.Tron.Add(full);
+
+        // Its info could not be had: the whole transaction has only what it sent of its own, and says so.
+        _harness.Tron.Whole[full.Hash] = full with
+        {
+            Transfers = [.. full.Transfers.Where(transfer => transfer.Kind == EthereumTransferKind.Native)],
+            IsComplete = false,
+        };
+        _harness.Service.AddStartPoint(_harness.Case, TraceStartPoint.ForEthereumAddress(Mule));
+        await _harness.Service.ExpandAsync(_harness.Case, ExpansionRequest.ForEthereumAddress(Mule));
+        await _harness.Service.ExpandAsync(_harness.Case, ExpansionRequest.ForEthereumAddress(Scammer));
+
+        var graph = (await _harness.Service.ExpandAsync(
+            _harness.Case, ExpansionRequest.ForEthereumTransaction(full.Hash))).Graph;
+
+        var movements = graph.Account.Transfers.Where(transfer => transfer.Transaction == full.Hash).ToList();
+        Assert.Single(movements, transfer => transfer.Kind == EthereumTransferKind.Native);
+        Assert.Single(movements, transfer => transfer.Kind == EthereumTransferKind.Internal);
+    }
+
+    [Fact]
     public async Task A_link_from_a_tron_movement_leads_to_another_chain_only()
     {
         Chain();

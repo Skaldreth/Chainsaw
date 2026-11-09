@@ -387,7 +387,7 @@ internal sealed class EthereumReader(IAccountSource source)
             {
                 Notes = Lookups.Join(Notes,
                     "Poster som Chainsaw inte räknar hoppades över (NFT, token med för många decimaler, "
-                    + "överföring på noll).");
+                    + "överföring på noll, en TRC-20-händelse som inte går att läsa).");
             }
         }
 

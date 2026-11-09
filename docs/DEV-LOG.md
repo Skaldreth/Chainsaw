@@ -4213,3 +4213,13 @@ topp.
     spårningen och kontrollerna nämner Ethereum och TRON. **M9:** Bitstamp har `trxeur` och `trxusd` (kontrollerat i
     deras öppna `trading-pairs-info`). **M10:** TRX ritas i myntets stål, inte stablecoinens grönt, och *Väntar på
     källan* visar `T` för TRON, inte ₮; en egen ton och ett eget märke står i TODO som [skiss].
+- **Andra granskningen (1 I, 3 M, alla rättade):**
+  - **I4:** en tx vars info finns och är slutlig men saknar en läsbar händelse (en skräptoken med egen händelse) räknas
+    som överhoppad och *oplacerad* (`EthereumAddressPage.Unplaced`) och sägs, men gör aldrig sidan ofullständig; bara
+    info som saknas eller ett grunt block gör det (`Waiting` säger vilka tx). En kontroll slår bara upp kända tokens, så
+    en främlings token kan aldrig hålla bevakningen stilla. Tester med en skräptoken följd av riktig USDT.
+  - **M11:** bevakningen säger *Väntar på källan för tx …* och vid vilket block den står, inte att något kan ha missats.
+  - **M13:** en ofullständig hel tx på TRON behåller också historikens TRX och interna TRX på de platser den saknar,
+    utan att räkna något två gånger. Test.
+  - **M8:** *Varför?* nämner inte Ethereum på TRON; avgiftens slut säger nu *gas på Ethereum, energi och bandbredd på
+    TRON*, och Guidens *ERC-20 och tokens* säger att TRC-20 är samma sak.

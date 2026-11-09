@@ -199,6 +199,20 @@ public sealed record EthereumAddressPage(
     /// counted now, and keep the page from being final, so that it is asked for again.
     /// </summary>
     public int Unread { get; init; }
+
+    /// <summary>
+    /// Gets how many of the <see cref="Skipped"/> entries are left out because their transaction's final answer holds
+    /// no event they can be read from (TRON's token history, whose entries are placed by each transaction's info): a
+    /// token with a non-standard event, common among scam tokens. They never make the page incomplete.
+    /// </summary>
+    public int Unplaced { get; init; }
+
+    /// <summary>
+    /// Gets the transactions a page waits for: their entries could not be placed yet (the source did not give the
+    /// transaction's answer now, or its block is still shallow). Such a page is incomplete
+    /// (<see cref="IsIncomplete"/>) and is read again; empty otherwise.
+    /// </summary>
+    public IReadOnlyList<EthereumTxHash> Waiting { get; init; } = [];
 }
 
 /// <summary>The height of Ethereum's newest block.</summary>

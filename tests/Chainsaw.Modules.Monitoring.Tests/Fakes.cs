@@ -239,7 +239,10 @@ internal sealed class FakeTronSource : ITronSource
     {
         Asked.Add((address.Value, history, mode));
         var transfers = Histories.GetValueOrDefault((address.Value, history)) ?? [];
-        var page = new EthereumAddressPage(address, history, atOrBelow, transfers, [], null, false, Incomplete);
+        var page = new EthereumAddressPage(address, history, atOrBelow, transfers, [], null, false, Incomplete)
+        {
+            Waiting = Incomplete ? [EthereumTxHash.Parse(Chain.Tron, new string('e', 64))] : [],
+        };
         return Task.FromResult(new BitcoinLookup<EthereumAddressPage>(
             LookupStatus.Fetched, page, [FakeBitcoinSource.Origin(21)], null));
 

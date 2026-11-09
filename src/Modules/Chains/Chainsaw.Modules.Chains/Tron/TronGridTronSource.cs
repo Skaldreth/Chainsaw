@@ -78,7 +78,9 @@ internal sealed class TronGridTronSource : ITronSource
 
     /// <summary>
     /// Gets a page of an address's history for a check that needs nothing older than a time: the token history's
-    /// entries older than it are neither looked up nor counted, so that a check reads only what is new.
+    /// entries older than it, and those in a token Chainsaw does not know (which a check never takes as hits), are
+    /// neither looked up nor counted, so that a check reads only what it can use and a stranger's token never holds
+    /// it back.
     /// </summary>
     /// <param name="case">The open case.</param>
     /// <param name="address">The address.</param>
@@ -99,7 +101,10 @@ internal sealed class TronGridTronSource : ITronSource
     /// <param name="history">Which history.</param>
     /// <param name="atOrBelow">Where the page starts, or <see langword="null"/> for the newest.</param>
     /// <param name="mode">Whether the source may be asked.</param>
-    /// <param name="notBefore">The oldest block time needed, or <see langword="null"/> for all.</param>
+    /// <param name="notBefore">
+    /// For a check, the oldest block time needed; the token history then keeps only the known tokens. For a read of the
+    /// whole history (the graph), <see langword="null"/>.
+    /// </param>
     /// <param name="cancellationToken">Stops the lookup.</param>
     /// <returns>The page.</returns>
     private async Task<BitcoinLookup<EthereumAddressPage>> HistoryAsync(
@@ -296,16 +301,25 @@ internal sealed class TronGridTronSource : ITronSource
 
     /// <summary>
     /// Reads a page of an address's TRC-20 transfers, and each of its transactions' info for the block and the event's
-    /// place, so that the page holds the same movements a whole transaction gives. A transfer whose info could not be
-    /// had now (the source asked Chainsaw to wait, did not answer, or has not indexed it yet), or whose event the info
-    /// does not hold, is not counted and makes the page incomplete, so that it is read again and a check never moves
-    /// past it. Only an entry without decimals, which the source will not give for that page, counts as unread.
+    /// place, so that the page holds the same movements a whole transaction gives. Two kinds of gap are kept apart:
+    /// <list type="bullet">
+    /// <item>A transfer whose info could not be had now (the source asked Chainsaw to wait, did not answer, or has not
+    /// indexed it yet), or whose info lacks the event while its block is still shallow, waits: the page is incomplete,
+    /// says which transactions it waits for, and is read again, so that a check never moves past it.</item>
+    /// <item>A transfer whose info is final but holds no event it can be matched with (a token with a non-standard
+    /// event, common among scam tokens) is left out for good: counted as skipped and as unplaced, and said, but it
+    /// never keeps the page incomplete, so that no stranger's token can hold a check back.</item>
+    /// </list>
+    /// An entry without decimals, which the source will not give for that page, counts as unread.
     /// </summary>
     /// <param name="case">The open case.</param>
     /// <param name="address">The address.</param>
     /// <param name="atOrBelow">Where the page starts, or <see langword="null"/> for the newest.</param>
     /// <param name="mode">Whether the source may be asked.</param>
-    /// <param name="notBefore">The oldest block time needed, or <see langword="null"/> for all.</param>
+    /// <param name="notBefore">
+    /// For a check, the oldest block time needed (only known tokens are then looked up); <see langword="null"/> for
+    /// all.
+    /// </param>
     /// <param name="cancellationToken">Stops the lookup.</param>
     /// <returns>The page.</returns>
     private async Task<BitcoinLookup<EthereumAddressPage>> TokenHistoryAsync(
@@ -322,31 +336,83 @@ internal sealed class TronGridTronSource : ITronSource
 
         var parts = new LookupParts(lookup.Status, lookup.Origins, lookup.Notes, lookup.Problem);
         var transfers = new List<EthereumTransfer>();
-        var waiting = false;
-        var needed = raw.Entries.Where(entry => notBefore is not { } oldest || entry.Time >= oldest);
+        var waiting = new List<EthereumTxHash>();
+        var unplaced = 0;
+        var needed = raw.Entries.Where(entry => notBefore is not { } oldest
+            || (entry.Time >= oldest && KnownTokens.IssuerOf(entry.Asset) is not null));
         foreach (var group in needed.GroupBy(entry => entry.Transaction))
         {
             var info = await _lookups.LookupAsync(@case, InfoQuery(group.Key), mode, cancellationToken)
                 .ConfigureAwait(false);
             parts.Take(info);
-            var placed = info.Value is null ? [] : Place(group, info.Value);
+            if (info.Value is not { } found)
+            {
+                waiting.Add(group.Key);
+                continue;
+            }
+
+            var placed = Place(group, found);
             transfers.AddRange(placed);
-            waiting |= placed.Count < group.Count();
+            var missing = group.Count() - placed.Count;
+            if (missing == 0)
+            {
+                continue;
+            }
+
+            if (await IsFinalAsync(@case, found.Height, cancellationToken).ConfigureAwait(false))
+            {
+                unplaced += missing;
+            }
+            else
+            {
+                waiting.Add(group.Key);
+            }
         }
 
-        if (waiting)
-        {
-            parts.Note("En tx:s block och plats kunde inte hämtas nu; dess överföringar räknas när de kan hämtas.");
-        }
-
+        NoteGaps(parts, waiting, unplaced);
         var page = new EthereumAddressPage(
-            address, EthereumHistory.Tokens, atOrBelow, transfers, [], raw.NextAtOrBelow, raw.IsCutShort, waiting)
+            address, EthereumHistory.Tokens, atOrBelow, transfers, [], raw.NextAtOrBelow, raw.IsCutShort,
+            waiting.Count > 0)
         {
-            Skipped = raw.Skipped,
+            Skipped = raw.Skipped + unplaced,
             Unread = raw.Unread,
+            Unplaced = unplaced,
+            Waiting = waiting,
         };
         return parts.Page(page);
     }
+
+    /// <summary>Says what a token page waits for and what it left out for good.</summary>
+    /// <param name="parts">The page's answer.</param>
+    /// <param name="waiting">The transactions whose info could not be had now or whose block is still shallow.</param>
+    /// <param name="unplaced">How many transfers have no readable event in their final info.</param>
+    private static void NoteGaps(LookupParts parts, IReadOnlyList<EthereumTxHash> waiting, int unplaced)
+    {
+        if (waiting.Count > 0)
+        {
+            parts.Note("Väntar på källan för tx " + string.Join(", ", waiting.Select(hash => hash.Value))
+                + ": deras block och plats kunde inte hämtas än; överföringarna räknas när de kan hämtas.");
+        }
+
+        if (unplaced > 0)
+        {
+            parts.Note(string.Create(CultureInfo.InvariantCulture,
+                $"{unplaced} TRC-20-överföringar har ingen läsbar Transfer-händelse i sin slutliga tx (vanligt för ")
+                + "skräptokens); de räknas inte.");
+        }
+    }
+
+    /// <summary>Says whether a block is final: as deep as the source's setting asks, from the highest block known.</summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="height">The block.</param>
+    /// <param name="cancellationToken">Stops the reading.</param>
+    /// <returns><see langword="true"/> when it is final.</returns>
+    private Task<bool> IsFinalAsync(ICase @case, long height, CancellationToken cancellationToken) =>
+        Task.Run(
+            () => @case.Read(reader => SourceLookups.Confirmations(height, _lookups.Store.KnownHeight(reader))
+                >= _options.SafeConfirmations),
+            cancellationToken);
+
 
     /// <summary>
     /// Reads a page, and when a full page lay in one block reads it again with the most entries TronGrid gives a page

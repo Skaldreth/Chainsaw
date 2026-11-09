@@ -255,6 +255,66 @@ public sealed class TronSourceTests
     }
 
     [Fact]
+    public async Task AScamTokenWithoutAReadableEventInAFinalBlockIsLeftOutAndNeverHoldsThePage()
+    {
+        using var harness = new TronHarness();
+        AnswerScam(harness);
+        harness.Answer(TronHarness.TipUrl, "tip.json");
+        await harness.Source.GetTipHeightAsync(harness.Case);
+
+        var lookup = await harness.Source.GetAddressHistoryAsync(harness.Case, TronHarness.A, EthereumHistory.Tokens);
+
+        var page = lookup.Value!;
+        Assert.False(page.IsIncomplete);
+        Assert.Empty(page.Waiting);
+        Assert.Equal(1, page.Unplaced);
+        var usdt = Assert.Single(page.Transfers);
+        Assert.Equal(KnownTokens.TronUsdt, usdt.Amount.Asset);
+        Assert.Contains(lookup.Notes, note => note.Contains("ingen läsbar Transfer-händelse", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task AnEventMissingFromAShallowBlocksInfoWaitsForTheSource()
+    {
+        using var harness = new TronHarness();
+        AnswerScam(harness);
+        harness.Answer(TronHarness.TipUrl, "tip-shallow.json");
+        await harness.Source.GetTipHeightAsync(harness.Case);
+
+        var page = (await harness.Source.GetAddressHistoryAsync(
+            harness.Case, TronHarness.A, EthereumHistory.Tokens)).Value!;
+
+        Assert.True(page.IsIncomplete);
+        Assert.Equal([TronHarness.Hash("c8")], page.Waiting);
+        Assert.Equal(0, page.Unplaced);
+    }
+
+    [Fact]
+    public async Task ACheckNeverLooksUpATokenChainsawDoesNotKnow()
+    {
+        using var harness = new TronHarness();
+        AnswerScam(harness);
+
+        var page = (await harness.Source.GetRecentHistoryAsync(
+            harness.Case, TronHarness.A, EthereumHistory.Tokens, null, LookupMode.AsNeeded,
+            DateTimeOffset.MinValue)).Value!;
+
+        Assert.False(page.IsIncomplete);
+        Assert.Single(page.Transfers);
+        Assert.DoesNotContain(harness.Http.Sent, request => request.Uri.AbsoluteUri
+            == TronHarness.InfoUrl(TronHarness.Hash("c8")));
+    }
+
+    /// <summary>Answers the page with the scam token and the real USDT, and both transactions' info.</summary>
+    /// <param name="harness">The harness.</param>
+    private static void AnswerScam(TronHarness harness)
+    {
+        harness.Answer(harness.HistoryUrl("transactions/trc20", TronHarness.A), "history-scam.json");
+        harness.Answer(TronHarness.InfoUrl(TronHarness.Hash("c8")), "tx-c8-info.json");
+        harness.Answer(TronHarness.InfoUrl(TronHarness.C1), "tx-c1-info.json");
+    }
+
+    [Fact]
     public async Task ACheckReadsOnlyTheTokenEntriesItNeedsAndLooksNothingOlderUp()
     {
         using var harness = new TronHarness();

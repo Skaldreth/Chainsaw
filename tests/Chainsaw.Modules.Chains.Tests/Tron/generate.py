@@ -153,6 +153,19 @@ write("history-stranger.json", {"data": [
      "block_timestamp": TIME, "from": b58(B), "to": b58(C), "type": "Transfer", "value": "1"},
 ], "success": True, "meta": {"at": LATER, "page_size": 1}})
 
+# A scam token whose event is not a standard Transfer (two topics, no amount), and a real USDT movement after it.
+C8 = "c8" * 32
+write("tx-c8-info.json", {
+    "id": C8, "fee": 0, "blockNumber": 900, "blockTimeStamp": TIME, "contractResult": [""],
+    "receipt": {"result": "SUCCESS"},
+    "log": [{"address": FOO[2:], "topics": [TRANSFER, word(FOO)], "data": ""}]})
+write("history-scam.json", {"data": [
+    {"transaction_id": C8, "token_info": {"symbol": "USDT", "address": b58(FOO), "decimals": 6, "name": "Tether USD"},
+     "block_timestamp": TIME, "from": b58(FOO), "to": b58(A), "type": "Transfer", "value": "5000000"},
+    {"transaction_id": C1, "token_info": {"symbol": "USDT", "address": b58(USDT), "decimals": 6, "name": "Tether USD"},
+     "block_timestamp": TIME, "from": b58(A), "to": b58(B), "type": "Transfer", "value": "52000000000"},
+], "success": True, "meta": {"at": LATER, "page_size": 2}})
+
 write("account.json", {"data": [{"address": A, "balance": 5_000_000, "create_time": TIME,
                                  "trc20": [{b58(USDT): "1000000"}, {b58(FOO): "5"}]}],
                        "success": True, "meta": {"at": LATER, "page_size": 1}})
