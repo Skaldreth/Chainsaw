@@ -168,7 +168,8 @@ byggt ur BACKLOG; det som skriver i ärendet granskas oberoende.
    - Resterna i BACKLOG under Exponering, Begäran, Låsskärmen, Historik, Testärendet och *Vyerna efter 1.0* står kvar
      där, med varför.
 8. **TRON med USDT** är byggt (omgång 8, DEV-LOG, resterna i BACKLOG under *TRON efter omgång 8*), och **Litecoin** och
-   **BSC** (omgång 8b, DEV-LOG); kvar **Solana** och den genomskinliga delen av **Zcash**. Litecoin och BSC, kvar:
+   **BSC** (omgång 8b, DEV-LOG) och **Solana** (omgång 8c, DEV-LOG, resterna i BACKLOG under *Solana efter omgång
+   8c*); kvar den genomskinliga delen av **Zcash**. Litecoin och BSC, kvar:
    - **Litecoin i grafen:** grafens UTXO-del (`UtxoGraph`, `TraceCalculator`, `GraphStateStore`, `TracingService`
      med en källa) räknar i bitcoin och lagrar Bitcoins txid utan kedja. En Litecoin-startpunkt hämtas i förväg och
      kan bevakas men läggs inte i grafen. Att bära kedjan i UTXO-delen (en källa per kedja, `litecoin-address` och
@@ -183,6 +184,16 @@ byggt ur BACKLOG; det som skriver i ärendet granskas oberoende.
    - [skiss] **Ett eget märke för Litecoin och BSC:** raden i *Nytt ärende* och *Väntar på källan* visar `Ł` och `B`
      som text, inte en ritad ikon som TRON:s.
    - **Testärendet** (`/testdata`) har ingen Litecoin- eller BSC-källa än (som TRON:s `TestTronHttp`).
+
+   Solana, kvar:
+   - **Testärendet** (`/testdata`) har ingen Solana-källa än (som TRON:s `TestTronHttp`).
+   - [skiss] **Ett eget märke för Solana:** raden i *Nytt ärende* och *Väntar på källan* visar `S` som text, som `B`
+     för BSC; SOL har stålets färg på kortets baksida som ether.
+   - [skiss] **Startpunktsnodens brickor (GR6c)** visar inte Solana.
+   - [skiss] **Fryst på Solana:** saldot säger redan när ett tokenkonto är fryst (`state: frozen`); en markering
+     *Fryst* bredvid snöflingan skissas med TRON:s.
+   - [skiss] **En tx som inte kunde paras:** en Solana-tx med flera avsändare och mottagare av samma tillgång sägs i
+     inspektörens text; hur den syns i grafen (en streckad nod för tx:en?) skissas först.
 
    TRON:s ytor som väntar:
    - [skiss] **Fryst:** Tethers kontrakt på TRON har en svartlista (`isBlackListed`); en adress som står där kunde få

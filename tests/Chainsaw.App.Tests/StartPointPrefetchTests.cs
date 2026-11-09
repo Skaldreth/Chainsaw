@@ -426,6 +426,22 @@ public sealed class StartPointPrefetchTests
         Assert.Empty(_ethereum.Calls);
     }
 
+    [Fact]
+    public async Task A_solana_start_point_is_recognised_with_or_without_its_chain_and_not_built_without_its_source()
+    {
+        var key = Base58.Encode(Enumerable.Repeat((byte)0x44, 32).ToArray());
+
+        var named = StartPointText.Parse("sol:" + key);
+        var preview = await Prefetch().PreviewAsync(named, mayFetch: true);
+
+        Assert.Equal(Chain.Solana, named.Chain);
+        Assert.Equal(Chain.Solana, StartPointText.Parse(key).Chain);
+        Assert.Equal(Chain.Solana, WatchFormViewModel.ChainOf(key));
+        Assert.NotNull(CaseWorkflow.ToTrace(named));
+        Assert.Equal(PreviewState.NotBuilt, preview.State);
+        Assert.Empty(_ethereum.Calls);
+    }
+
     private static async Task WaitUntil(Func<bool> condition)
     {
         for (var tries = 0; tries < 300 && !condition(); tries++)

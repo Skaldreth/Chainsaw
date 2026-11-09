@@ -767,9 +767,11 @@ public sealed class InspectorFormsTests
         Assert.False(rig.Forms.IsOpen);
     }
 
-    /// <summary>A chain that is not built is shown toned and cannot be chosen.</summary>
+    /// <summary>
+    /// Every chain the form offers is built now, Solana last among them; choosing one makes it the link's chain.
+    /// </summary>
     [Fact]
-    public void ChainsNotBuiltCannotBeChosen()
+    public void EveryChainOfferedCanBeChosenSolanaToo()
     {
         var rig = new Rig();
         rig.Graph.Choose(GraphSamples.UKey, null);
@@ -778,9 +780,8 @@ public sealed class InspectorFormsTests
 
         rig.Forms.ChooseChain(solana);
 
-        Assert.False(solana.IsBuilt);
-        Assert.Contains(InspectorFormsViewModel.NotBuiltText, solana.ToolTip, StringComparison.Ordinal);
-        Assert.Equal(Chain.Ethereum, rig.Forms.TargetChain);
+        Assert.All(rig.Forms.Chains, chain => Assert.True(chain.IsBuilt));
+        Assert.Equal(Chain.Solana, rig.Forms.TargetChain);
         rig.Forms.ChooseChain(rig.Forms.Chains.Single(chain => chain.Name == "TRON"));
         Assert.Equal(Chain.Tron, rig.Forms.TargetChain);
     }

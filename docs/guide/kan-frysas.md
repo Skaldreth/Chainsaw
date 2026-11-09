@@ -35,3 +35,6 @@ insättningsadress är det börsen som har kunden, och då kan en begäran om up
 
 Snöflingan sätts bara efter **kontraktet**, aldrig efter namnet: en token som kallar sig USDT men har ett annat
 kontrakt kan inte frysas av Tether. Se [ERC-20 och tokens](erc-20.md).
+På **Solana** heter kontraktet en **mint**, och frysningen sker hos ett **tokenkonto** (se [Solana](solana.md)): mint-
+kontona för USDT och USDC anger en *freeze authority*, och därför får de snöflingan också där. Ett tokenkonto som
+redan är fryst sägs i saldot.

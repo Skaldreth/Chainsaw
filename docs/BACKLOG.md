@@ -173,11 +173,34 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
 - **`ChainTransactionRef.Of(Txid)`** kontrollerar en txid som redan är kontrollerad med ett reguljärt uttryck, för varje
   överföring i varje bygge av grafen (granskningen av etapp 20, M). Billigt, men kan tas bort med en konstruktor som
   litar på `Txid`.
-- **Solana och SOL** (användarens fråga 2026-11-07), efter Ethereum (uppskattningsvis 3–4 etapper): kontomodellen från
-  etapp 20 och Ethereum, men tokens (SPL, Token-2022) ligger i egna tokenkonton som måste knytas till ägaren, en tx har
-  många instruktioner som läses per program (System, Token, DEX-swappar som Jupiter och Raydium), och historiken kräver
-  en arkiverande RPC-källa med API-nyckel i valvet. USDC och USDT på Solana får *Kan frysas*. Swappar mellan tokens och
-  bryggor (Wormhole, deBridge, Mayan) är vanlig förvirring och hör till *Förvirringstekniker*.
+- **Solana efter omgång 8c** (källan, grafen, startpunkterna, sanktionerna, kurserna och bevakningen är byggda,
+  DEV-LOG):
+  - **Instruktionerna läses inte:** rörelserna paras ur saldona före och efter, bara där aritmetiken ger ett svar. En
+    tillgång med flera avsändare och flera mottagare i samma tx räknas inte (och sägs). Att läsa System- och
+    Token-programmens instruktioner (`jsonParsed`, också de inre) och använda dem när de förklarar saldoändringarna
+    exakt skulle para också de.
+  - **Token-2022** läses i en tx (dess saldon står bredvid de klassiska), men saldot på kortets baksida frågar bara
+    Token-programmet (`TokenkegQ…`), och en överföringsavgift i Token-2022 gör att summan inte går ihop, så tokenen
+    räknas inte i den tx:en.
+  - **Stängda tokenkonton:** tokenhistoriken läser ägarens tokenkonton som noden listar dem nu; ett stängt konto finns
+    inte där, och dess rörelser hittas bara i tx:er som ägaren själv signerade.
+  - **Kända tokens i tokenhistoriken** är USDT och USDC; andra SPL-tokens syns i hela tx:er och i ägarens egna
+    signaturer.
+  - **En sida kostar ett uppslag per tx** (signaturlistan säger inte vad som flyttades), och den publika noden tar tio
+    `getTransaction` per tio sekunder. En köpt eller egen nod med högre takt behöver bara läggas till under *Källor*;
+    en batch av JSON-RPC-anrop skulle spara tid men förseglas då som ett svar för flera tx.
+  - **Sidorna efter signatur:** Solana bläddrar med `before` (en signatur), så en äldre sida kan bara frågas efter att
+    den nyare har lästs i samma körning (`SolanaPageMemory`); läsarna gör alltid så, och ur ärendet läses sidan på sin
+    slot.
+  - **Gamla tx utan `blockTime`** (de första månaderna 2020) kan inte läsas: tiden saknas.
+  - **Fryst:** saldot säger när ett tokenkonto är fryst (`state: frozen`), men grafen har ingen markering för det
+    (TODO, [skiss] *Fryst*).
+  - **Jupiter och Raydium som DEX i swap-pillret (DX1b):** swappen känns igen på mönstret och priset prövas, men
+    programmens adresser står inte i `KnownContracts` med en offentlig källa; läggs till när de kan beläggas.
+  - **Bryggor från Solana** (Wormhole, deBridge, Mayan) känns inte igen som slut på spåret; samma skäl.
+  - **Chainabuse på Solana:** leverantören frågas bara för Bitcoin och Ethereum (`ChainabuseProvider`).
+  - **Wrapped SOL som ägarens:** ett wrapped-SOL-kontos lamports räknas som ägarens (dess tokensaldo säger vem det
+    är), också den hyra som ligger i kontot; det gör att en pools SOL och token möts hos samma ägare.
 - **Zcash** (användarens fråga 2026-11-07): den genomskinliga delen (t-adresser) är en UTXO-kedja som Bitcoin och
   passar efter etapp 20 som de andra UTXO-kedjorna, men Esplora finns inte för Zcash, så källan blir en annan (en
   tjänst med API-nyckel eller egen nod med Zebra). Tx som går in i den skyddade poolen (Sapling, Orchard) blir *Spåret
@@ -203,7 +226,6 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
 - **Varför en endpoint fick röd prick** (etapp 24, granskningen omgång 2, M): en nyckel som saknas i valvet gör att
   endpointen hoppas över och får röd prick med den allmänna texten *Ett uppslag genom den misslyckades …*; att nyckeln
   saknas står bara i uppslagets text. Raden kunde säga orsaken.
-- **Solana i sidan Källor** (etapp 24): chipet står tonat, men `Chain` har inget värde för Solana än.
 - **Tx på en adress sida kontrolleras inte mot sina bytes** (etapp 15): bara tx som expanderas för sig (och deras
   spenderare) hämtar `/tx/:txid/hex`. En adress historik med 50 tx skulle kosta 50 uppslag till. Kontrollera dem när
   de visas i inspektören, eller i bakgrunden?
