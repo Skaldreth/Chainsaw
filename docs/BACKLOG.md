@@ -292,6 +292,10 @@ tidsmönster (`active-hours`) och tjänster ur beteende (`service-behaviour`). K
   förseglat, och ett nytt beslut om samma kandidat ersätter det förra.
 
 ## Spårning (Tracing)
+- **Efter slutkontrollen av SW1a (2026-11-09, M):** det utfällda valet *Följer / Följer inte* ritas inuti linjens
+  toning, så det tonas ned när en annan nod är vald (prova på Windows, och att pillrets öppna läge ritas om när
+  linjelagret är cachat); ett ovanligt specialfall i Exponering (länkad insättning till ämnet i en köpt tillgång,
+  `_onOtherChain[(ämne, tillgång)]`) saknar test.
 - **LIFO och poison** (etapp 7): kontraktet `ITracingMethod` tar emot fler metoder, men LIFO behöver en definition
   (inom en tx är ordningen redan FIFO:s; LIFO handlar om en adress saldo över tid), och poison ger inga belopp som går
   jämnt ut, så den behöver visas som *berört* i stället för ett belopp. Se `docs/KRYPTOSPARAREN.md`, fråga 1.
