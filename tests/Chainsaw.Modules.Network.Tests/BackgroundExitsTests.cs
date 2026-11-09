@@ -134,6 +134,41 @@ public sealed class BackgroundExitsTests : IDisposable
     }
 
     [Fact]
+    public async Task Forbidding_or_removing_with_an_unreadable_file_removes_the_whole_file()
+    {
+        var exit = _store.Add("Exit A", "Oslo", ExitKind.WireGuard, NetworkHarness.Configuration);
+        await _store.SelectAsync(exit.Id);
+        _file.Allow(exit.Id);
+        Corrupt();
+
+        _file.Forbid(exit.Id);
+        Assert.False(File.Exists(FilePath));
+
+        _file.Allow(exit.Id);
+        Corrupt();
+        await _store.RemoveAsync(exit.Id);
+        Assert.False(File.Exists(FilePath));
+    }
+
+    [Fact]
+    public async Task Removing_the_selected_exit_leaves_the_background_no_exit_even_with_another_allowed()
+    {
+        var removed = _store.Add("Exit A", "Oslo", ExitKind.WireGuard, NetworkHarness.Configuration);
+        var other = _store.Add("Exit B", "Bern", ExitKind.WireGuard, NetworkHarness.Configuration);
+        await _store.SelectAsync(other.Id);
+        _file.Allow(other.Id);
+        await _store.SelectAsync(removed.Id);
+        _file.Allow(removed.Id);
+
+        await _store.RemoveAsync(removed.Id);
+
+        Assert.False(_file.IsAllowed(removed.Id));
+        Assert.True(_file.IsAllowed(other.Id));
+        Assert.Null(_file.Usable());
+        Assert.Null(new BackgroundExitFile(FilePath, _protector, null).Selected());
+    }
+
+    [Fact]
     public async Task The_background_connects_only_the_allowed_selected_exit_without_the_vault()
     {
         var exit = _store.Add("Exit A", "Oslo", ExitKind.WireGuard, NetworkHarness.Configuration);
@@ -186,6 +221,14 @@ public sealed class BackgroundExitsTests : IDisposable
         var reader = new BackgroundExitFile(FilePath, _protector, null);
         var records = new ExitRecords(new BackgroundExitSecrets(reader));
         Assert.Equal("Exit Z", records.List().Single().Name);
+    }
+
+    /// <summary>Breaks one byte of the file, as a damaged or foreign file would be.</summary>
+    private void Corrupt()
+    {
+        var bytes = File.ReadAllBytes(FilePath);
+        bytes[0] ^= 0xFF;
+        File.WriteAllBytes(FilePath, bytes);
     }
 
     /// <summary>DPAPI's stand-in: XOR with a key from the purpose and a check sum, so that a changed byte fails.</summary>

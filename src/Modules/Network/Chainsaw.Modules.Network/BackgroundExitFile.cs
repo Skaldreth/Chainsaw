@@ -77,12 +77,37 @@ internal sealed class BackgroundExitFile : IBackgroundExits
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// It closes safely: a file that cannot be read (held, broken or foreign) or changed just now is removed whole, so
+    /// that a copy of a WireGuard file can never outlive the permission; only when that fails too is it thrown.
+    /// </remarks>
     public void Forbid(Guid exitId)
     {
-        var key = exitId.ToString(IdFormat);
-        if (IsAllowed(exitId))
+        if (_path is null)
         {
-            Change(file => file with { Exits = file.Exits.Where(each => each.Key != key).ToDictionary() });
+            return;
+        }
+
+        var key = exitId.ToString(IdFormat);
+        if (!TryRead(out var file))
+        {
+            Clear();
+            return;
+        }
+
+        if (!file.Exits.ContainsKey(key))
+        {
+            return;
+        }
+
+        try
+        {
+            Change(written => written with { Exits = written.Exits.Where(each => each.Key != key).ToDictionary() });
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException
+            or InvalidOperationException)
+        {
+            Clear();
         }
     }
 
@@ -96,7 +121,14 @@ internal sealed class BackgroundExitFile : IBackgroundExits
 
         lock (_writing)
         {
-            File.Delete(_path);
+            try
+            {
+                File.Delete(_path);
+            }
+            catch (UnauthorizedAccessException exception)
+            {
+                throw new IOException("The exits kept for the background could not be removed.", exception);
+            }
         }
     }
 
@@ -119,7 +151,8 @@ internal sealed class BackgroundExitFile : IBackgroundExits
         {
             Change(file => file with { Selected = selected?.ToString(IdFormat) });
         }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException
+            or InvalidOperationException)
         {
             Clear();
         }
@@ -164,21 +197,37 @@ internal sealed class BackgroundExitFile : IBackgroundExits
     /// <returns>What it holds.</returns>
     private ExitsFile Read()
     {
-        if (_path is null || _protector is null)
+        TryRead(out var file);
+        return file;
+    }
+
+    /// <summary>Reads the file, telling a missing file apart from one that cannot be read.</summary>
+    /// <param name="file">What it holds; empty when it is missing or cannot be read.</param>
+    /// <returns><see langword="false"/> when a file is there but cannot be read (held, broken or foreign).</returns>
+    private bool TryRead(out ExitsFile file)
+    {
+        file = ExitsFile.Empty;
+        if (_path is null || _protector is null || !File.Exists(_path))
         {
-            return ExitsFile.Empty;
+            return true;
         }
 
         byte[]? json = null;
         try
         {
             json = _protector.Unprotect(File.ReadAllBytes(_path), Purpose);
-            return JsonSerializer.Deserialize<ExitsFile>(json) is { Exits: not null } file ? file : ExitsFile.Empty;
+            if (JsonSerializer.Deserialize<ExitsFile>(json) is not { Exits: not null } read)
+            {
+                return false;
+            }
+
+            file = read;
+            return true;
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException
             or CryptographicException or JsonException or PlatformNotSupportedException)
         {
-            return ExitsFile.Empty;
+            return false;
         }
         finally
         {

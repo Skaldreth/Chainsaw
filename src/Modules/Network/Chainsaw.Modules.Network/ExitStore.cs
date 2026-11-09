@@ -74,6 +74,7 @@ internal sealed class ExitStore(ExitRecords records, ExitConnection connection, 
                 if (records.SelectedId() == id)
                 {
                     records.SetSelected(null);
+                    background?.Follow(null);
                 }
 
                 records.RemoveSighting(id);

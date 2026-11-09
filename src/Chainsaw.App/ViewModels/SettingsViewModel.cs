@@ -584,6 +584,8 @@ public sealed partial class SettingsViewModel : ObservableObject
             return;
         }
 
+        // The user's intent decides: what the switch showed is what they turned, so turning it off always forbids.
+        var allow = !ExitInBackground;
         try
         {
             await Task.Run(() =>
@@ -593,8 +595,7 @@ public sealed partial class SettingsViewModel : ObservableObject
                     return;
                 }
 
-                // Decided from the file, not the switch, so that a selection changed meanwhile is never mistaken.
-                if (!exits.IsAllowed(selected.Id))
+                if (allow)
                 {
                     exits.Allow(selected.Id);
                 }
