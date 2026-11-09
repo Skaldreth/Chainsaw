@@ -4,8 +4,10 @@ namespace Chainsaw.App.TestData;
 /// <summary>
 /// The test case's chain, told as the money moves: the victim's payment, the scammer's consolidation and change, a
 /// coinbase with OP_RETURN spent in a shared transaction, the distribution to a mixer, a CoinJoin, a peel chain through
-/// shops to an exchange, a hub with many transactions, services of every sort and a new victim in the newest block.
-/// Each transaction's label is how the steps name it.
+/// shops to an exchange, a hub with many transactions, services of every sort and a new victim in the newest block;
+/// and the obfuscation the checks recognise: dust, a look-alike address, many hops with a pause, a split whose parts
+/// meet, a possible PayJoin, an exchange's sweeps into its hot wallet, and a spend replaced by a higher fee. Each
+/// transaction's label is how the steps name it.
 /// </summary>
 public static class TestStoryChain
 {

@@ -161,7 +161,8 @@ public sealed class TestDataPriceRouter(IPriceService real, Lazy<IPriceService> 
 /// <summary>
 /// Gives the sanction lists a made-up hit while <c>/testdata</c> builds the test case: the story's sanctioned actor is
 /// on a made-up list, under the list's own made-up name, so that the test case has a sanction hit (sketch ET1a) without
-/// a real list being imported or replaced. Every other time, and for every other address, the lists are the real ones.
+/// a real list being imported or replaced, and the OTC desk is an uncertain entry on a made-up list in the EU's form, a
+/// possible sanction. Every other time, and for every other address, the lists are the real ones.
 /// </summary>
 /// <param name="inner">The real lists.</param>
 /// <param name="actors">The story's actors.</param>

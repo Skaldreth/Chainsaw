@@ -5100,3 +5100,44 @@ offline), App 6 i `ChainStateTests` (rutans rad och fot, länken, en fråga per 
   resten vid nästa uppslag*.
 - **M-3:** det instabila App-testet gick inte att framkalla (App.Tests tre gånger i rad, alla gröna); lämnat.
 - **M-4:** raderna i `ersatt-tx.md` är brutna.
+
+## Testärendet fylls på och TESTER-INFOR städas (2026-11-09)
+
+**Byggt** (`src/Chainsaw.App/TestData/`, berättelsen version 4, allt påhittat och inget går ut):
+- **Förvirringen i berättelsen** (`TestStoryChain`): damm (600 satoshi till tolv adresser i grafen), en
+  adressförgiftning (en look-alike till Sydbörsens insättning skickar 1 000 satoshi till mixerns troliga utgång), fem
+  hopp med en in och en ut efter en Whirlpool-utgång med drygt tre dygns uppehåll, en uppdelning i sex lika delar där
+  tre möts igen (en efter ett eget hopp), en möjlig PayJoin med de starka tecknen, och Sydbörsens tio kunder vars
+  insättningar sveps två gånger till en het plånbok utan etikett (för *Som etikett …*, TJ1b). `Tip` är nu fem dygn
+  efter start, så att uppehållet ryms.
+- **En borta tx med ersättare** (GR9a, RBF): testkedjan har ersatta tx (`TestChain.AddReplaced`, `TestDraft.Replaced`)
+  som bara besvaras medan de visas i ett avknoppat block, och kan ligga ett block efter (`TestChain.Behind`).
+  `LagStep` först och `ReplacedStep` efter omorganisationen: tx:en expanderas ur det avknoppade blocket, källan svarar
+  `404` en gång före och en gång efter det nyaste blocket, och `/tx/:txid/outspends` på tx:en mynten kom ur ger
+  ersättaren.
+- **Omgång 5:** en möjlig sanktion ur en påhittad lista i EU:s form (Torgväxlaren, `IsUncertain`), en *Rapporterad*
+  adress ur en påhittad öppen källa i Ransomwheres form (`TestDataOpenSources`, bedragarens andra adress) och en
+  etikett på tx:en där delarna möts (`TransactionLabelStep`).
+- **En påhittad Ethereum-källa** (`TestEthereumChain`, `TestEthereumHttp`, `TestDataEthereumRouter` och
+  `Chains/TestData/TestDataEthereum`): Blockscouts svar i form, som TRON:s. Ett annat offer betalar bedragaren USDT,
+  bedragaren byter till ether genom Uniswaps V2-router (SW1a med priskontroll, DX1b:s routermarkering) och betalar
+  Tornado Cash 1 ETH, som `KnownContractsStep` märker som mixer och *Tidigare sanktionerad*; bedragaren har *Kan
+  frysas*. TRON-stegen heter nu `AccountStartPointStep`, `AccountExpandStep` och `AccountLabelStep`
+  (`TestAccountSteps.cs`) och gäller båda kontokedjorna.
+- **Tester** (`tests/Chainsaw.App.TestData.Tests`, 32): kontrollerna och tjänsten ur beteende, den ersatta tx:en,
+  möjlig sanktion, Rapporterad och etiketten på tx:en, Ethereum-delen, och att varje påhittad tx spenderar mynt ur ett
+  tidigare block. *Tidigare sanktionerad* är tillbaka bland markeringarna som grafen ska visa.
+
+**Egna beslut:**
+- Adressförgiftningens par söktes fram med ett skript (cirka fem miljoner frön) tills de fyra första tecknen efter
+  `bc1q` och de fyra sista var lika; fröna står i `TestActors` och i BACKLOG.
+- Hoppen och delarna utgår från en Whirlpool-utgång, inte från växeln: från växeln hamnade navets hög utan plats för
+  sitt belopp i layouttestet. Gaspengarna på Ethereum togs bort av samma skäl (beloppet fick ingen plats).
+- Swappen på Ethereum skickar USDT till routern själv (inte till ett par), eftersom bara historiken hämtas; Tornado
+  Cash, routern och USDT:s kontrakt är de riktiga adresserna ur Chainsaws egna listor, allt annat är påhittat.
+- TESTER-INFOR-1.0: de tillagda dubbletterna efter ihopslagningarna är borta (de flesta stod två gånger, ordagrant
+  eller i en äldre form), det som ersatts är struket (BV2a:s formulär, statusraden, rosa, *inte byggt än* för TRON,
+  Tidslinje och Flöde), och de nya avsnitten är fördelade på sina områden i ordningen genom programmet. Varje punkt är
+  en ruta att bocka av (`- [ ]`).
+
+**Kvar:** BACKLOG, *Testärendet* (det som saknas i Ethereum-delen, valvyn, högar) och TODO (HB1a i testärendet).

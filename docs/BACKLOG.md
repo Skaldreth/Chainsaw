@@ -9,8 +9,6 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
   stället räknas fram på nytt ur svaret av källan (en tolk per sort av svar), så att det aldrig tas emot utifrån.
 - **Ethereum efter etapp 23b** (grafen, inspektören, startpunkterna, swap-pillret och kurserna för USDT och USDC är
   byggda). Kvar:
-  - **Swappen i testärendet** (SW1a, 2026-11-08): `/testdata` har ingen Ethereum-källa, så spåret genom en swap syns
-    inte där.
   - **Swappens pris och val** (SW1a, femte och sjätte granskningen): `StopAtSwap` läser hela ärendets Ethereum-del
     för att se att swappen finns, inte bara tx:ens svar; och exponeringen (EP1b) drar inte av den del som stannar i
     poolen när det som kom ut var värt mindre, och inte heller andelen när det var värt mer (spåret gör båda;
@@ -377,9 +375,8 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
   redan står i kö (till exempel en ändring som väntar på disken) väntas inte in, eftersom den återkommer på UI-tråden.
 
 ## Attribution
-- **Efter fjärde granskningen av omgång 5 (2026-11-09, M):** testärendet visar inte längre *Tidigare sanktionerad*
-  (steget på Blandaren gick genom `Add`, som nu vägrar sorten); låt den påhittade listan eller ett förseglat steg ge
-  den igen [direkt]. `StartPointPreview.IsPossiblySanctioned` läses ur tipsets text; bär `IsUncertain` som data.
+- **Efter fjärde granskningen av omgång 5 (2026-11-09, M):** `StartPointPreview.IsPossiblySanctioned` läses ur
+  tipsets text; bär `IsUncertain` som data.
 - **Vyn Etiketter (ET1a), det som återstår:**
   - *Sprid inte* som slås på i efterhand tar etiketten ur biblioteket och hindrar att den ges vidare, men kopior som
     redan gått till andra ärenden ligger kvar där (toasten säger det).
@@ -660,17 +657,9 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
 
 ## Testärendet (/testdata)
 
-- **Ethereum i testärendet:** sedan omgång 8 fortsätter swappen på TRON (en påhittad TronGrid-källa i Debug, med USDT
-  och snöflingan); Ethereum har ännu ingen påhittad källa (Blockscout går inte lika lätt att fejka: tx, kvitton med
-  Transfer-loggar, tokenuppgifter).
-
-- **Tidigare sanktionerad syns inte i testärendet** sedan omgång 5: en sanktion, en möjlig och en tidigare kommer
-  bara ur en lista (aldrig ur en etikett i formuläret), och den påhittade listan har inga borttagna poster. En
-  påhittad lista med borttagna poster (som Tornado Cash i Chainsaws kontraktlista) fyller luckan [direkt].
-
-- **Omgång 5 syns inte i testärendet än:** en träff på EU:s lista, en *Rapporterad* adress ur Ransomwhere och en
-  etikett på en tx (en swap som avslutar spåret) behöver påhittade listor på samma sätt som
-  `TestDataSanctionLists` och ett steg i berättelsen (`TestStory`) som sätter etiketten på tx:en [direkt].
+- **Ethereum i testärendet, det som saknas:** bara bedragarens adress är expanderad; offret, ett bytt block och en
+  borta tx på Ethereum, en brygga och USDC finns inte i den påhittade Ethereum-delen (`TestEthereumChain`). Swappen
+  går genom Uniswaps router med USDT till routern själv, som den påhittade källan inte skiljer från paret.
 - **Kollegans etiketter** (Garantitorget, Nordbörsen) ligger kvar i etikettbiblioteket på datorn efter `/testdata`. De
   gäller bara påhittade adresser och kan aldrig träffa en riktig, men biblioteket saknar ännu ett sätt att rensa dem.
 - **Valvyn i testärendet:** Navet (66 tx, många motparter) och gruvbelöningens OP_RETURN finns i testärendet; en
@@ -681,8 +670,11 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
   tydligare.
 - **Högar** i testärendet: grafens samlingsnod kommer först när användaren expanderar Navet, och startvyns högar
   (GR8a) sparas på datorn och läses bara när startvyn visas, så `/testdata` lägger inga ärenden i en hög.
-- **Bara Bitcoin** i det bytta blocket och i kurserna: en tx på Ethereum som bytt block väntar på att Ethereums svar
-  jämförs (TODO, *Bytt block på Ethereum*).
+- **Bara Bitcoin** i det bytta blocket: en tx på Ethereum som bytt block väntar på att Ethereums svar jämförs (TODO,
+  *Bytt block på Ethereum*).
+- **Adressförgiftningens par** är framsökt: fröna till Sydbörsens insättning och förgiftarens adress
+  (`sydborsen-insattning-1849900` och `forgiftaren-754626`) hittades genom att pröva miljontals frön tills de fyra
+  första och sista tecknen var lika. Byts adresstyp eller prefix i `TestAddress` måste paret sökas om.
 
 ## Övrigt
 - **Guiden:** avsnitten skrivs medan funktionerna byggs i `docs/guide/` och byggs in i programmet. Ett nytt avsnitt
