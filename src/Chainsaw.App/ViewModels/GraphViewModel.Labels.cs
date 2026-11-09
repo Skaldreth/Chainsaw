@@ -14,19 +14,43 @@ public sealed partial class GraphViewModel
     /// <summary>What the graph says when <em>Nytt → Etikett</em> has no node to label.</summary>
     public const string ChooseNodeForLabelText = "Välj noden i grafen som etiketten gäller, och tryck L.";
 
-    /// <summary><em>Visa i grafen</em> (G): a node is chosen and shown, the rest drawn faint.</summary>
+    /// <summary>
+    /// <em>Visa i grafen</em> (G): a node is chosen and shown, the rest drawn faint. A node lying in a pile is found
+    /// there: the pile is shown and fanned out, so that its card can be seen.
+    /// </summary>
     /// <param name="nodeKey">The node.</param>
-    /// <returns><see langword="true"/> when the node is in the graph.</returns>
+    /// <returns><see langword="true"/> when the node is in the graph or in one of its piles.</returns>
     public bool ShowNode(string nodeKey)
     {
         if (Scene?.Node(nodeKey) is not { } node)
+        {
+            return ShowInPile(nodeKey);
+        }
+
+        Choose(node.Key, null);
+        ShowNodesWanted?.Invoke(this, [node.Key]);
+        return true;
+    }
+
+    /// <summary>Shows the pile a node lies in, fanned out; says so when the node is in no pile either.</summary>
+    /// <param name="nodeKey">The node.</param>
+    /// <returns><see langword="true"/> when a pile holds it.</returns>
+    private bool ShowInPile(string nodeKey)
+    {
+        var pile = Scene?.Piles.Values.FirstOrDefault(
+            pile => pile.Cards.Any(card => string.Equals(card.Key, nodeKey, StringComparison.Ordinal)));
+        if (pile is null)
         {
             Say(LabelNotInGraphText);
             return false;
         }
 
-        Choose(node.Key, null);
-        ShowNodesWanted?.Invoke(this, [node.Key]);
+        ShowNodesWanted?.Invoke(this, [pile.Key]);
+        if (Fan?.Pile.Key != pile.Key)
+        {
+            OpenFan(pile.Key);
+        }
+
         return true;
     }
 

@@ -8,7 +8,7 @@ using static Chainsaw.Modules.Tracing.Tests.Synthetic;
 namespace Chainsaw.Modules.Tracing.Tests;
 
 /// <summary>
-/// The analysis <em>exposure v2</em> (sketch EP1b) against a key of synthetic transfers: what reaches a service
+/// The analysis <em>exposure v3</em> (sketch EP1b) against a key of synthetic transfers: what reaches a service
 /// directly and over hops by FIFO and haircut, what reaches none and why, read out and in, and that the services and the
 /// rest always add up to what the subject paid or got.
 /// </summary>
@@ -201,7 +201,7 @@ public sealed class ExposureTests
 
         var text = result.Explain(result.Reached[0]);
 
-        Assert.Contains("exposure v2", text, StringComparison.Ordinal);
+        Assert.Contains("exposure v3", text, StringComparison.Ordinal);
         Assert.Contains("FIFO v1", text, StringComparison.Ordinal);
         Assert.Contains("0x" + Tx(4), text, StringComparison.Ordinal);
         Assert.Contains("bedömning", text, StringComparison.Ordinal);
@@ -589,6 +589,28 @@ public sealed class ExposureTests
         var other = Assert.Single(result.Reached);
         Assert.Equal(("X", 60_000_000L, 2), (other.NodeKey, (long)other.Amount.Units, other.Hops));
         Assert.Contains(result.Flows, flow => flow.EdgeKey == "K>X");
+    }
+
+    [Fact]
+    public void OnAnAccountChainReadInTheShareOfADepositLinkedToAnotherChainContinuesThere()
+    {
+        // V's 0.7 to K is linked to another chain; by FIFO K's 0.5 to S came from it, and goes on there.
+        var cases = ReadInCase();
+        var linked = cases.Edges.Single(edge => edge.Key == "V>K");
+        var onward = new GraphEdge(
+            "K>Y", "K", "Y", GraphEdgeKind.ContinuesOnOtherChain, linked.Amount, linked.Transfers, linked.FirstTime,
+            EdgeDirection.Forward);
+        var graph = cases with
+        {
+            Nodes = [.. cases.Nodes, Node("Y", GraphNodeKind.OtherChain)],
+            Edges = [.. cases.Edges, onward],
+        };
+
+        var result = In(graph, depth: 2, TracingMethodKind.Fifo, "V", "X");
+
+        Assert.DoesNotContain(result.Reached, reach => reach.NodeKey == "V");
+        Assert.Equal(50_000_000, (long)result.Rest[ExposureRest.OtherChain].Units);
+        Assert.False(result.Rest.ContainsKey(ExposureRest.BeforeHistory));
     }
 
     [Fact]

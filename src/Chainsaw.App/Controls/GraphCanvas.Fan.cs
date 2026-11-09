@@ -122,7 +122,7 @@ public sealed partial class GraphCanvas
 
         _cardDraggedTo = surface;
         Cursor = Cursors.SizeAll;
-        InvalidateVisual();
+        Redraw();
         return true;
     }
 
@@ -160,7 +160,7 @@ public sealed partial class GraphCanvas
             fan.Close();
         }
 
-        InvalidateVisual();
+        Redraw();
         return true;
     }
 
@@ -247,7 +247,7 @@ public sealed partial class GraphCanvas
         {
             _fanOpen = target;
             _fanMove = null;
-            InvalidateVisual();
+            Redraw();
             return;
         }
 
@@ -386,7 +386,7 @@ public sealed partial class GraphCanvas
             _model?.ViewportChanged(_viewport);
         }
 
-        InvalidateVisual();
+        Redraw();
     }
 
     /// <summary>Forgets where the surface was before the pile was centred.</summary>
@@ -436,7 +436,7 @@ public sealed partial class GraphCanvas
 
         var elapsed = DateTime.UtcNow - start;
         var zoom = _viewport.Zoom;
-        var pen = PenOf(GraphPalette.Find(this, "Brush.BorderHover"), 1.5 / zoom);
+        var pen = PenOf(Ink("Brush.BorderHover"), 1.5 / zoom);
         var centre = new Point(_fanPile.X, _fanPile.Y);
         for (var index = 0; index < FanShock.RingCount; index++)
         {
@@ -467,7 +467,7 @@ public sealed partial class GraphCanvas
 
         dc.PushOpacity(FanDim * _fanOpen);
         dc.DrawRectangle(
-            GraphPalette.Find(this, "Brush.Background"),
+            Ink("Brush.Background"),
             null,
             new Rect(visible.X, visible.Y, visible.Width, visible.Height));
         dc.Pop();
@@ -535,25 +535,25 @@ public sealed partial class GraphCanvas
         var frame = PileFanLayout.TileFrame(centre);
         var rect = new Rect(frame.X, frame.Y, frame.Width, frame.Height);
         var edge = chosen
-            ? PenOf(GraphPalette.Find(this, "Brush.Accent"), 1.5)
-            : PenOf(GraphPalette.Find(this, "Brush.BorderStrong"), 1);
-        dc.DrawRoundedRectangle(GraphPalette.Find(this, "Brush.SurfaceRaised"), edge, rect, TileRadius, TileRadius);
+            ? PenOf(Ink("Brush.Accent"), 1.5)
+            : PenOf(Ink("Brush.BorderStrong"), 1);
+        dc.DrawRoundedRectangle(Ink("Brush.SurfaceRaised"), edge, rect, TileRadius, TileRadius);
         var look = card.Node.Look;
         var iconCorner = new Point(rect.X + 7, rect.Y + ((rect.Height - TileIconBox) / 2));
-        DrawSmallIcon(dc, look, GraphPalette.Brush(this, look.Ink), iconCorner, TileIconBox, TileIconSize);
+        DrawSmallIcon(dc, look, InkOf(look.Ink), iconCorner, TileIconBox, TileIconSize);
         var left = iconCorner.X + TileIconBox + 8;
         var room = rect.Right - 9 - left;
         var title = card.Node.IsNamed ? card.Node.Name : card.Node.Subject;
-        var name = CachedFitted(title, 12, GraphPalette.Find(this, "Brush.Text"), FontWeights.SemiBold, room);
-        var line = CachedText(card.Line, 10.5, GraphPalette.Find(this, "Brush.TextDim"), FontWeights.Normal);
+        var name = CachedFitted(title, 12, Ink("Brush.Text"), FontWeights.SemiBold, room);
+        var line = Text(card.Line, 10.5, Ink("Brush.TextDim"), FontWeights.Normal);
         var top = rect.Y + ((rect.Height - name.Height - line.Height + 2) / 2);
         dc.DrawText(name, new Point(left, top));
         dc.DrawText(line, new Point(left, top + name.Height - 2));
         if (HeldBackChoice.GroupOf(look.Sort) == CounterpartyGroup.Risk)
         {
             dc.DrawEllipse(
-                GraphPalette.Find(this, "Brush.Kind.Risk"),
-                PenOf(GraphPalette.Find(this, "Brush.Background"), 1.5),
+                Ink("Brush.Kind.Risk"),
+                PenOf(Ink("Brush.Background"), 1.5),
                 new Point(rect.Right, rect.Y),
                 NegativeDot / 2,
                 NegativeDot / 2);
@@ -576,8 +576,8 @@ public sealed partial class GraphCanvas
             var behind = front;
             behind.Offset(step * DeckStep, step * DeckStep);
             dc.DrawRoundedRectangle(
-                GraphPalette.Find(this, "Brush.Background"),
-                PenOf(GraphPalette.Find(this, step == 2 ? "Brush.Border" : "Brush.BorderStrong"), 1),
+                Ink("Brush.Background"),
+                PenOf(Ink(step == 2 ? "Brush.Border" : "Brush.BorderStrong"), 1),
                 behind,
                 NodeRadius,
                 NodeRadius);
@@ -586,18 +586,18 @@ public sealed partial class GraphCanvas
         var chosen = _model!.SelectedNode == node.Key;
         var frameKey = open || _model.HoveredNode == node.Key ? "Brush.BorderHover" : "Brush.BorderStrong";
         dc.DrawRoundedRectangle(
-            GraphPalette.Find(this, open ? "Brush.SurfaceSelected" : "Brush.Surface"),
-            PenOf(GraphPalette.Find(this, chosen ? "Brush.Accent" : frameKey), chosen ? 1.5 : 1),
+            Ink(open ? "Brush.SurfaceSelected" : "Brush.Surface"),
+            PenOf(Ink(chosen ? "Brush.Accent" : frameKey), chosen ? 1.5 : 1),
             front,
             NodeRadius,
             NodeRadius);
-        var muted = GraphPalette.Find(this, "Brush.TextMuted");
+        var muted = Ink("Brush.TextMuted");
         var iconCorner = new Point(front.X + NodePadding, front.Y + ((front.Height - IconBox) / 2));
         DrawSmallIcon(dc, node.Look, muted, iconCorner, IconBox, IconSize);
         var left = iconCorner.X + IconBox + NodeGap;
         var room = front.Right - NodePadding - left;
-        var name = CachedFitted(node.Name, 12.5, GraphPalette.Find(this, "Brush.Text"), FontWeights.SemiBold, room);
-        var sub = CachedFitted(node.Subject, 11, GraphPalette.Find(this, "Brush.TextDim"), FontWeights.Normal, room);
+        var name = CachedFitted(node.Name, 12.5, Ink("Brush.Text"), FontWeights.SemiBold, room);
+        var sub = CachedFitted(node.Subject, 11, Ink("Brush.TextDim"), FontWeights.Normal, room);
         var top = front.Y + ((front.Height - name.Height - sub.Height + 2) / 2);
         dc.DrawText(name, new Point(left, top));
         dc.DrawText(sub, new Point(left, top + name.Height - 2));
@@ -617,23 +617,23 @@ public sealed partial class GraphCanvas
         const double Pad = 13;
         var hovered = _model!.HoveredNode == node.Key;
         var words = node.Name.TrimStart('+').Trim();
-        var count = CachedText(words, 12.5, GraphPalette.Find(this, "Brush.Text"), FontWeights.SemiBold);
+        var count = Text(words, 12.5, Ink("Brush.Text"), FontWeights.SemiBold);
         var width = Pad + Plus + 7 + count.Width + Pad;
         var middle = place.X + (GraphSizes.NodeWidth / 2);
         var pill = new Rect(middle - (width / 2), place.Y, width, PillHeight);
-        var pen = PenOf(GraphPalette.Find(this, hovered ? "Brush.Text" : "Brush.TextDim"), 1.5, FrameDash);
+        var pen = PenOf(Ink(hovered ? "Brush.Text" : "Brush.TextDim"), 1.5, FrameDash);
         dc.DrawRoundedRectangle(
-            GraphPalette.Find(this, hovered ? "Brush.SurfaceRaised" : "Brush.Surface"),
+            Ink(hovered ? "Brush.SurfaceRaised" : "Brush.Surface"),
             pen,
             pill,
             PillHeight / 2,
             PillHeight / 2);
         var plusCorner = new Point(pill.X + Pad, pill.Y + ((PillHeight - Plus) / 2));
-        DrawGlyph(dc, "Icon.Plus", GraphPalette.Find(this, "Brush.TextMuted"), plusCorner, Plus);
+        DrawGlyph(dc, "Icon.Plus", Ink("Brush.TextMuted"), plusCorner, Plus);
         dc.DrawText(count, new Point(plusCorner.X + Plus + 7, pill.Y + ((PillHeight - count.Height) / 2)));
         if (node.Subject.Length > 0)
         {
-            var line = CachedText(node.Subject, 11, GraphPalette.Find(this, "Brush.TextFaint"), FontWeights.Normal);
+            var line = Text(node.Subject, 11, Ink("Brush.TextFaint"), FontWeights.Normal);
             dc.DrawText(line, new Point(middle - (line.Width / 2), pill.Bottom + 4));
         }
     }

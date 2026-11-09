@@ -3894,6 +3894,168 @@ Kollegans fil med ärendelösenordet, ärendets egenskaper med fliken *Kuvert*, 
 - **Skriver i ärendet (granskas):** den nya etiketten (förseglad som de andra), och hämtningarna av start-tx, som nu
   också görs när ärendet öppnas och när utgången ansluts.
 
+## Spåret genom en swap, SW1a (2026-11-08)
+
+Användarens beslut 2026-11-08: genom en swap följer det spårade **värdet** med, och utredaren väljer per swap att det
+inte gör det (skissen SW1a).
+
+- **Regeln på ett ställe:** `SwapValue` (Tracing.Contracts) är analysen `swap-value v1`: den spårade andelen av det
+  som gick in i bytet (`TokenSwap.Sold`, summerat) blir samma andel av varje överföring som kom ut, avrundat nedåt
+  (`SwapValue.Follow`), så att regeln aldrig skapar spårade pengar. `TokenSwap.IsSold`/`IsBought` säger vilka rörelser
+  som hör till bytet. Spårningen, exponeringen, grafen, inspektören och rapporten använder samma regel.
+- **Spårningen:** `AccountTraceCalculator` spårar nu alla tillgångar tillsammans, runda för runda, tills inget ändras:
+  varje tillgångs konton med metoden (FIFO eller haircut, kontrollerad av `AccountChecks.Run` som förut), och sedan
+  varje följd swap, som sätter det spårade på det som kom ut. Det som gick in i en swap går aldrig in i poolens
+  plånbok (som en länk till annan kedja), så att inget räknas två gånger. Slutet för den sålda tillgången är det nya
+  `TrailEndReason.Swapped` (inte ett slut, pengarna fortsätter i den nya tillgången) eller `SwapStopped` (ett riktigt
+  slut, användarens val). `AssetTrace.SwappedIn` och `Total` säger hur mycket som kom genom swappar; ändarna summerar
+  till `Total`. `AccountTraceResult.Swaps` har en `SwapConversion` per swap som spårade pengar nådde, med in, ut,
+  metoden och valet. `TracedAmount.Swaps` säger vilka swappar ett belopp kan vila på (generöst: en utgående rörelse
+  ärver från alla tidigare spårade inkommande), och `RestsOnSwap` gör linjen streckad. `Explain()` nämner analysen.
+- **Valet:** `ITracingService.StopAtSwap`/`FollowSwap`/`GetSwapStopHistory`. Ett val och dess tillbakatagande är var
+  sin förseglad rad i den nya kedjan `tracing.swap_stops` (schemats version 6) med journalrad
+  (`tracing.swap-stopped`, `tracing.swap-followed`), som länkarna till annan kedja; skälet är frivilligt. Att välja
+  *Följer inte* igen för samma swap lämnar valet som redan gäller. `TraceGraph.SwapStops` bär valen som gäller.
+- **Exponeringen** (`exposure v3`): `AccountExposureRun` läser plånböckerna per tillgång och följer pengarna genom en
+  swap åt båda hållen (ut: det som gick in blir det som kom ut; in: det som kom ut leder tillbaka till det som gick
+  in). Varje överföring bär pengarna i sina egna enheter och deras **värde** i ämnets tillgång, som är det som räknas;
+  värdet som gick in i en swap är exakt värdet som kom ut (resten av avrundningen läggs på den sista överföringen).
+  Ämnets egna swappar läses som en plånbok i de andra tillgångarna. *Följer inte* stoppar pengarna som *Spåret tar
+  slut*. Summan av tjänsterna och resten är fortfarande exakt totalen.
+- **Grafen (SW1a):** `EdgeView.SwapStops`, `SwapConversions` och `IsSwapStopped`; en linje vars spårade belopp vilar på
+  en följd swap är streckad i accent. `GraphCanvas.Swaps.cs`: ett klick på pillret fäller ut *Följer* och *Följer
+  inte* och **?** (Guiden), hovring visar rutan med stegen (`SwapPill.Box`, utan WPF); vid *Följer inte* blir pilen ett
+  stopp (`Icon.Swap.Stop`), en person sitter i pillrets hörn och ett kort streck korsar linjen efter pillret.
+  `GraphViewModel.ChooseSwapAsync` sparar valet genom `IGraphEditor` och läser om grafen.
+- **Historik (AN1b):** adressen som bytte har raden *Följer inte genom swappen · ₮ → Ξ* med *Ta tillbaka*
+  (`HistoryUndo.FollowSwap`), och tillbakatagandet som egen rad.
+- **Rapporten:** en slutsats per swap på spåren, med andelen och analysen, eller att spåret slutar i swappen; skälet
+  tas aldrig med. Begäran följer de spårade linjerna och får därför uttag efter en swap av sig själv.
+- **Guiden:** nytt avsnitt *Spåret genom en swap* (`swappar.md`, under Ethereum); *ERC-20*, *Varför ett spår tar slut*
+  och *Bryggor och swappar* hänvisar dit.
+- **Skriver i ärendet (granskas):** valen och deras tillbakatagande (förseglade, journalförda). Spårade belopp på
+  Ethereum ändras: det som tidigare stannade som *inte expanderat* hos poolen följer nu med i den nya tillgången.
+- **Avsteg och egna beslut:** rutan säger *Ditt val* med tiden, inte namnet (namnet står i Historik, som läser
+  journalen). Skissens kortkommando F i pillret är inte byggt. Har en linje flera swappar gäller valet dem alla, och
+  rutan visar den första. Poolens överföringar som kom ut ur en swap räknas inte i poolens egen plånbok i exponeringen.
+  Golden-facit för Bitcoin är omskrivet bara för schemats version och den nya kedjan.
+- **Kvar:** testärendet har ingen Ethereum-källa, så swappen syns inte i `/testdata`. Exponeringens *Varför?* säger
+  inte när vägen gick genom en swap (bara analysens version).
+
+## Granskningen av SW1a rättad (2026-11-08)
+
+Den oberoende granskningen fann inga C, tre I och fyra M; alla är rättade, och granskarens prober är tester
+(`SwapEdgeTests`).
+- **I1, tredje part i swappens tx:** bara det som gick till bytets andra sida (en adress som skickade tillbaka den
+  köpta tillgången, kontraktet tx:en anropade eller den kända DEX:en) räknas som insatt; finns ingen sådan och bara en
+  överföring i den sålda tillgången, är det den. Annars visas ingen swap. `TokenSwap.SoldMovements` säger vilka
+  rörelser det är, och pillret sitter bara på deras linje. En swap identifieras av tx och konto.
+- **I2, en länkad överföring:** `SwapValue.GoesIn` är regeln på ett ställe för spårningen och exponeringen: en
+  överföring som användaren länkat till annan kedja är aldrig en del av en swap.
+- **I3 och M3:** Begäran nämner `swap-value v1`, andelen och swappens tx för varje swap på spåret dit
+  (`RequestTrail.Swaps`), och exponeringens *Varför?* säger när vägen gick genom en swap (`ExposureReach.Swaps`).
+- **M1:** inspektörens *Spårat hit* nämner analysen när beloppet kom genom en swap, och *Följer med genom en swap*
+  skrivs som antal swappar, aldrig som ett summerat belopp som *stannar här*.
+- **M2:** startpunkter på båda sidor av en swap vägras som startpunkter i varandras flöde.
+- **M4:** `StopAtSwap` vägrar en swap som ärendets graf inte visar; `tracing.swap_stops` har kolumnen `chain`;
+  swapparnas rörelser är indexerade, och spårningen räknar om bara de tillgångar som ändrades.
+
+## Andra granskningen av SW1a rättad (2026-11-08)
+
+Inga C; två I med samma rot i hur en swap känns igen, och fyra M.
+- **Hellre ingen swap än en felaktig** (`AccountData.SwapOf`): reserven *exakt en utgående överföring* är borta. Det är
+  en swap bara när adressen fick tillbaka en tillgång den inte också skickade (en återbetalning i samma tillgång är
+  aldrig ett köp), skickade en tillgång och allt av den gick till bytets sida (`TradeSide`: det anropade kontraktet, de
+  som skickade tillbaka den köpta tillgången, en känd DEX, och adresser som i samma tx syns föra den köpta tillgången
+  eller WETH dit), och ingen motpart är en känd brygga eller mixer eller har en etikett som börs, mixer eller brygga
+  (`GraphBuilder.IsSwapEndpoint`). `KnownTokens.EthereumWeth` är ny.
+- **Tester** (`SwapRecognitionTests`): granskarens tre prober (ingen swap; pengarna når bryggans pool, handlaren och
+  paret), och positiva fall: Uniswap V2 genom routern när tx:en är läst hel, en V3-pool direkt och 1inch. V2 genom
+  routern ur bara historiken känns inte igen (parets WETH syns inte); det står i Guiden och BACKLOG, liksom en
+  aggregators avgift till en egen adress.
+- **M:** exponeringens *Varför?* ger ämnets andel i siffror per swap (`ExposureSwap`); `StopAtSwap` kontrollerar i
+  skrivtransaktionen att swappens tx finns i grafens tillstånd, utan att läsa om grafen; tester för Begärans spår
+  genom en swap och för inspektörens nya rader.
+
+## Tredje granskningen av SW1a rättad (2026-11-08)
+
+- **I, damm som gör en betalning till en swap:** det som kom tillbaka måste ha ett värde Chainsaw känner (ether, WETH
+  eller en token igenkänd på sitt kontrakt), eller bytet ha gått genom en känd DEX eller aggregator; annars ingen
+  swap, och pengarna når mottagaren. Granskarens prob är ett test.
+- **M-1:** en tx som skulle vara en swap men har en motpart som spåret ska nå (känd brygga eller mixer, eller en
+  etikett som börs, mixer eller brygga, också satt senare) sparas som `SwapRefusal` (`AccountGraph.RefusedSwaps`).
+  *Varför?* på linjen och noderna säger *Ingen swap i tx …* med etiketten och källan, och ett förseglat *Följer inte*
+  utan swap står i Historik med *ingen swap längre* och kan tas tillbaka.
+- **M-2:** exponeringens *Varför?* läst in säger andelen av det som kom ut.
+- **M-3:** `StopAtSwap` läser ärendets Ethereum-fakta (inte hela grafen) och kräver att just den tx:en är en swap för
+  just det kontot.
+
+## Fjärde granskningen av SW1a rättad (2026-11-08)
+
+- **I, en egen pool med en påhittad token genom den riktiga routern:** det som kom tillbaka måste alltid ha ett känt
+  värde (ether, WETH, en token igenkänd på kontraktet); en känd DEX räcker aldrig, eftersom vem som helst kan öppna en
+  pool där. Granskarens prob är ett test (med symbolen FAKE och en falsk USDC).
+- **Sidofyndet:** en token som inte känns igen på kontraktet står med symbolen och ett frågetecken (`USDC?`) i pillret,
+  i inspektören och på linjen (`SwapMarks.MarkOf`, `SwapMarks.UnknownTokenMark`).
+- **M:** `StopAtSwap` frågar etiketterna som när grafen byggs (`GraphBuilder.SwapEndpoint`, en regel för båda), så att
+  en swap som en etikett vägrar inte heller kan väljas.
+
+## Femte granskningen av SW1a rättad: priset prövas (2026-11-09)
+
+- **I, en riktig token till ett absurt pris i en egen pool:** kontrollen `swap-price v1` (`SwapValue.CheckPrice`)
+  prövar värdet av det som gick in mot det som kom ut vid swappens tid, med kurserna ärendet redan har (Pricing,
+  bara ur ärendet, inget uppslag). Skiljer de mer än `SwapValue.MostPriceGap` (20 %, för avgifter, slippage och att en
+  kurs gäller en timme) är det ingen swap i spåret eller exponeringen: pengarna går till poolen som en vanlig
+  betalning. Pillret är streckat i riskens färg med ett stopp, inget val går att göra, och *Varför?* och rutan visar
+  båda beloppen och värdena. Tracing hämtar inga kurser själv: anroparen ger dem som `SwapPricing` (i
+  `AccountTraceRequest` och `ExposureRequest`), och GraphSource läser dem ur ärendet; WETH värderas som ether.
+- **Utan kurs, eget beslut:** värdet följer med som förval, och pillret är streckat i en lugn ton med *priset inte
+  prövat* i rutan och *Varför?*. Skälet: användarens beslut är att värdet följer med, kurserna för ether, USDT och
+  USDC finns oftast i ärendet så snart linjerna har värderats, och ett offline-ärende ska inte tyst tappa spår som
+  annars följts; osäkerheten syns i stället, som allt annat osäkert, streckad.
+- **Tester:** granskarens två prober (1 000 USDT mot 1 wei WETH; 0,000001 USDT mot 1 000 ETH, också i exponeringen)
+  och en swap till rimligt pris som följer, och samma utan kurser (inte prövat, följer).
+- **Kvar (BACKLOG):** `StopAtSwap` läser fortfarande hela Ethereum-delen (inte bara tx:ens svar), och prisprövningen
+  görs om först när grafen läses om efter att kurserna hämtats i bakgrunden.
+
+## Sjätte granskningen av SW1a rättad: kurserna för swappen hämtas (2026-11-09)
+
+- **Kurserna:** `GraphSource.FillRatesAsync` hämtar först kurserna vid varje swaps tid, för båda sidor och med WETH
+  som ether, inom `MostRateLookups`, och sedan linjernas. Kom en kurs som ärendet saknade (`GraphRates.SwapRatesFetched`)
+  läses grafen om, så att spåret räknas med prövningen.
+- **M-1, aldrig tyst:** ändras spåret av prövningen (orimligt pris, eller en del som stannar i poolen) säger toastern
+  det en gång, *Spåret genom en swap räknades om efter kurserna*, med swappen och prövningens resultat
+  (`GraphViewModel.RecalculatedSwaps`).
+- **Begäran och rapporten** säger alltid prövningens resultat: `RequestSwap` har `PriceCheck` och `PriceGap`, och
+  begäran skriver *prövat … skiljer x %* eller *inte prövat: kursen vid tx:ens tid saknas i ärendet* (M-3: också
+  offline och när källan ber Chainsaw vänta). Rapportens slutsats har `SwapPriceCheck.Summary`.
+- **M-2, stannar i poolen:** inom 20 % blir skillnaden i värde ett eget slut, `TrailEndReason.KeptBySwapPool`
+  (*Stannar i poolen*), vid poolen: det spårade gånger (1 − ut/in). Det som följer genom swappen är resten, så att
+  summan av sluten fortfarande är det spårade. Eget beslut: det köpta som följer räknas som förut på mängden, eftersom
+  det som kom ut redan är värt mindre.
+- **Tester:** granskarens prob genom GraphSource med en falsk kurskälla (WETH till ett absurt pris vägras efter att
+  kurserna hämtats, och sägs som omräknad), ett rimligt pris med 2,5 % i poolen, en källa som ber Chainsaw vänta, och
+  i Tracing 1 000 USDT mot 0,32 ETH (40 USDT stannar i poolen, 960 följer, summan 1 000).
+- **Kvar (BACKLOG):** exponeringen drar inte av poolens del.
+
+## Sjunde granskningen av SW1a rättad: värdet växer aldrig genom en swap (2026-11-09)
+
+- **I, mer ut än in inom bandet:** regeln är symmetrisk. Var det som kom ut värt mer än det som gick in följer bara
+  andelen (värdet in / värdet ut) av det köpta som spårat, avrundat nedåt (`SwapPriceCheck.FollowShare`,
+  `SwapPriceCheck.ShareOf`); resten är inte spårat. Granskarens prob (10 000 kr in, 12 000 kr ut) är ett test bredvid
+  fallet med mindre ut.
+- **M-4:** toastern säger också när beloppen ändrades av detta (`SwapPriceCheck.ChangesAmounts`).
+- **M-1:** *Varför?* i Exponering säger att poolens del inte dras av där (BACKLOG).
+- **M-2:** grafen läses om för swapparnas kurser högst en gång per läsning.
+- **M-3:** `HasUntestedSwapPrices` gäller bara swappar som spårade pengar går genom.
+
+## Åttonde granskningen av SW1a: de tre M rättade (2026-11-09)
+
+- **M-a:** andelen genom en swap räknas exakt med heltal (värdena läses som exakta bråk), avrundat nedåt
+  (`SwapPriceCheck.FollowingOf` och `KeptOf`), i stället för med tolv decimaler.
+- **M-b:** grafen läses om för swapparnas kurser så länge den förra omläsningen prövade fler priser, och swapparna på
+  spåret får sina kurser först.
+- **M-c:** jämförelsen inför toasten glöms när omläsningen ersattes eller väntar på en expansion.
 ## Vyerna Tidslinje (TL3a) och Flöde (FL1a) (2026-11-08)
 
 - **Byggt:** vyn *Tidslinje* (Ctrl+2) med en bana per aktör, en tx som ett lodrätt streck i färgen för vad pengarna
@@ -4146,6 +4308,607 @@ topp.
     tillbaka version 2. Tester åt båda hållen: en riktig PayJoin blir förslag, granskarens prob (bedragaren som betalar
     en börs från tre insättningar) och en vanlig plånboks betalning med ett extra mynt slås ihop.
 
+## Omgång 3: Bitcoin-källan, bevakningen och bakgrunden (backloggen, 2026-11-08)
+
+- **VPN i bakgrunden** (användarens beslut 2026-11-08): `IBackgroundExits` i Network håller en kopia av en utgångs post
+  ur valvet (namn, plats och WireGuard-fil) under DPAPI i `Bevakning\exits.bin`, bara för utgångar användaren tillåter,
+  och programmets valda utgång. Bakgrundsprocessen läser utgångarna bara därifrån (`NetworkOptions.ExitsFromBackground`,
+  `BackgroundExitSecrets`), så att samma `ExitConnection`, hjälpprogram och SHA-256-kontroll startar tunneln utan valvet.
+  Den ansluter bara den valda utgången när den är tillåten, högst en gång i minuten efter ett misslyckande, kopplar ner
+  när tillåtelsen tas tillbaka eller en annan utgång väljs, och gör inga uppslag utan ansluten utgång (princip 4).
+  Kopian tas bort när utgången tas bort (`ExitStore.RemoveAsync`), när reglaget slås av och när bakgrunden slås av
+  (`BackgroundLink`), och följer namnbyte och val. `BackgroundLink` startar bakgrunden också med VPN när den valda
+  utgången är tillåten. Reglaget är en enkel rad under Nätverk (*Bevaka genom utgången när Chainsaw är stängt*).
+- **Nya block i realtid:** `IExitWebSocket` (Network) öppnar bara `wss`, genom samma utgång som `IExitHttp`, med samma
+  User-Agent och utan kakor, och stängs när utgången går. `IBlockNews` (Chains) frågar en Esplora-endpoints
+  `/api/v1/ws` bara efter `blocks` och räknar nya block; en endpoint utan websocket (Blockstream) hoppas över en timme.
+  `WatchRunner` och bakgrunden frågar höjden genast när ett nytt block hörts, i stället för att vänta på minuten, och
+  slutar lyssna när grinden stängs, ärendet stängs eller utgången saknas. Nyheten sparas aldrig och tros aldrig: varje
+  kontroll frågar som förut och förseglar svaren (princip 1). Reserven är de vanliga frågorna en gång i minuten.
+- **Bevakningen:** höjden en bevakning startar och räknar från kommer bara från en endpoint i fas
+  (`GetTipHeightAsync(…, LookupMode.InStep)`; källor utan valet vägrar `InStep` i stället för att strunta i det). En
+  träff vars tx hittas i ett annat block förseglas igen med det nya blocket under journalraden `monitoring.hit.moved`
+  (*… förut i block N (omorganisation)*); `GetHits` ger träffen en gång, med `MovedFrom`.
+- **Bakgrundens kö:** tysta kontroller (inga träffar) slås ihop till en post per bevakning och körning, med varje svar
+  kvar (inget som hämtats släpps), högst 600 svar per post.
+- **Bitcoin-källan:** provet vid start frågar också blockets hash vid höjden (KL2b; en hash som inte kommer fäller inte
+  provet); *finns inte* bara från endpoints som inte går att lita på blir *misslyckades* med orsaken; *Prova* på en
+  adress som redan är en endpoint går i dess takt; huvudets mål måste ligga inom nätets gräns (powLimit, mainnet
+  `0x1d00ffff`, testnät signets `0x1e0377ae`) och beskrivningens `bits` och `nonce` vara huvudets; en beskrivning som
+  motsäger huvudet hämtas igen i stället för att vägras för gott; `VerifyInBlockAsync` kontrollerar med
+  `/tx/:txid/merkle-proof` att tx:en ligger i blocket (roten räknas av Chainsaw och jämförs med huvudets);
+  svaret om spenderade utgångar jämförs med det förra och en ändring sägs.
+- **Tester:** `BackgroundExitsTests`, `ExitWebSocketTests` (Network), `BlockNewsTests`, `MerkleProofTests` (block 170 och
+  ett syntetiskt block), `SpendChangeTests` och nya fall i `VerificationTests`, `EndpointPaceTests`,
+  `EndpointPhaseAndLocalTests` och `ChainSourcesTests` (Chains), `VpnInBackgroundTests` och nya fall i
+  `WatcherLoopTests` (Watcher), omorganisationen och höjden i fas (Monitoring), `BackgroundLinkTests` och
+  `WatchRunnerTests` (App). Inget test når nätet.
+- **Egna beslut:** websocketen frågar bara efter block, aldrig `track-address`, eftersom det skickar de bevakade
+  adresserna tillsammans över en anslutning (BACKLOG). Bakgrunden går bara genom den valda utgången, aldrig en annan
+  tillåten. De inspelade testblocken är brutna i regtest-svårighet, så Chains-testernas harness slår av gränsen
+  (`BitcoinSourceOptions.CheckWorkLimit`, internal); gränsen prövas för sig mot Bitcoins första block.
+- **Skriver i ärendet** (granskas oberoende): `monitoring.hit.moved` och en ny träffpost i `monitoring.hits`;
+  merkle-beviset förseglas som `bitcoin.merkle-proof`; provets hash och den nya hämtningen av en motsagd blockbeskrivning
+  förseglas som andra svar; bakgrundens hopslagna köposter förs in som förut. Princip 4: `exits.bin`, websocketen och
+  bakgrundens tunnel.
+- **Kvar:** ytorna står i TODO (*Ur omgång 3*, [skiss]); i BACKLOG med en notering: den egna noden utan utgång, ett
+  behållet prov som åldras, ärenden som flyttats ur planen, sammanslagning av lika svar, luckor hos mycket aktiva
+  adresser, svårigheten på höjden, realtid för Ethereum och egen nod, och resten under Bitcoin-källan (prestanda,
+  jämförelse mellan källor, svarshuvuden).
+- **Rättat efter den oberoende granskningen** (0 C, 2 I, 6 M, alla rättade):
+  - **I1:** `Forbid` stänger säkert: en `exits.bin` som inte går att läsa eller ändra tas bort hel, och kastar bara om
+    inte heller det går; `RemoveAsync` släpper också den valda utgången i kopian (`Follow(null)`); reglaget går efter
+    användarens avsikt. Tester med en trasig fil.
+  - **I2:** `InBlockVerified` är ersatt av `InBlockCheck` (`NotChecked`, `SourceOnly`, `ConfirmedElsewhere`): blockets
+    hash vid höjden frågas av en annan endpoint i fas (`FetchAsync(…, except:)`, `bitcoin.block-height`), och det som
+    bara vilar på en källa sägs så. powLimit beskrivs ärligt (svårighet 1 säger inget om kedjan). Kontrollpunkter i koden
+    står i BACKLOG.
+  - **M1:** `VerifyInBlockAsync` kontrollerar bytes först, vägrar en tx på 64 bytes utan vittnesdata, kräver att
+    bevisets djup och plats passar blockets antal tx (blocket kontrollerat mot sitt huvud) och vägrar en dubblerad nod
+    som egen plats (CVE-2012-2459).
+  - **M2:** testnet har mainnets gräns `0x1d00ffff`; signet (eget värde saknas) står i BACKLOG.
+  - **M3:** nyheterna knuffar högst var 30:e sekund, tror inte på ett hopp över tre block eller en omöjlig höjd, och
+    en misslyckad höjd håller sin minut oavsett nyheter.
+  - **M4:** en träff flyttas bara på en fullständig kontroll i fas och högst en gång per tio minuter (dämpning).
+  - **M5:** en hopslagen post skrivs om under samma id med den senaste kontrollens tid; finns två filer efter en krasch
+    läses den nyaste och båda tas bort vid införandet.
+  - **M6:** `exits.bin` tas bort när valvet skapas på nytt (`FirstRunViewModel`).
+  - **Omgranskningen** (0 C, 0 I, 4 M): M7 bekräftelsen kräver en annan värd och säger vilken endpoint; M9 en
+    hopslagen post får ett nytt id (det äldre kan ha förts in); M10 den första höjden från en socket hålls mot
+    provens högsta och knuffar inget utan referens. M8 och resten av M7 står i BACKLOG.
+## Låsskärmens figur flyter (2026-11-08)
+
+Användaren provade på Windows: kedjan ryckte konstigt när den kom in, och rörelsen kändes som 25 bilder i sekunden.
+
+- **Takten:** `ChainFigure` följer nu skärmens bildrutor (`CompositionTarget.Rendering`, ett steg per ny `RenderingTime`)
+  i stället för en `DispatcherTimer` på 16 ms, som i Windows tickar i steg om ungefär 15,6 ms och därför gav ojämna
+  rutor (16 eller 31 ms).
+- **Ingen layout per ruta:** varje ruta spelas in i en `DrawingGroup` som elementet visar en gång, i stället för
+  `InvalidateVisual`, som begär en ny layout.
+- **Färre lager:** partiklarna ritas med styrkan i tecknets egen färg (24 steg, gjorda en gång) i stället för en
+  `PushOpacity` per tecken; länkar, strängar och steg får ett lager bara när de tonar. Pennorna görs en gång per
+  nyans, ton och bredd.
+- **Bandet räknas ut en gång per ruta** (`BandMotion.Current`) och återanvänds när rutan ritas. Modellen tar ungefär
+  0,5 ms per ruta på en sida som är 1920 px bred.
+- **Partiklarna ritas som former**, inte som text: WPF lägger text på hela bildpunkter, så ett tecken som driver några
+  bildpunkter i sekunden hoppade en bildpunkt med några rutors mellanrum och såg ut som 25 bilder i sekunden när den
+  stora animationen var klar. Tecknens former (`FormattedText.BuildGeometry`) görs en gång och står mellan
+  bildpunkterna; styrkan ligger i penseln.
+- **Darret** när den långa länken spänns är lugnare: 8 svängningar i sekunden och 0,9 px i stället för 15 och 1,4 px,
+  som vid 60 bilder i sekunden bara fick fyra bilder per svängning och såg ut som skakigt brus.
+
+## Panelerna under arbetet (2026-11-08)
+
+Användarens krav: allt som står på inspektörens plats ska ligga under arbetet som IN5a.
+
+- **`Controls/UnderPanel`** är en `Decorator` som ritar panelens ton (`Brush.Underlay`), bladets skugga längs
+  vänsterkanten (en toning, inte en effekt, så att texten förblir skarp) och bladets rundade hörn vid foten, och
+  lägger innehållet med 40 px luft till vänster. De paneler som visas räknas, och `UnderPanel.Reach` säger hur långt in
+  från fönstrets högerkant de når; `MainWindow.ShowSheet` tar det största av det och grafens inspektör, så att
+  titelraden slutar där panelen börjar och fönstrets knappar står på den.
+- **Ombyggda:** Guidens panel (GD1b), vyn Bevakningens valda bevakning, Tidslinjens inspektör, Flödets och
+  Exponeringens sidor och Etiketternas valda etikett. Vyernas sidor var kort inne i marginalen; nu står de i kanten i
+  full höjd, och vyns övriga innehåll har kvar sin luft upptill och nedtill. Förslagspanelen (KF2b) står redan i
+  grafens inspektör och har fått panelens ton och luften.
+
+**Egna beslut:** Nytt ärende (NC2a) och dialogerna mörkar resten och ligger över arbetet; de är oförändrade.
+Begärans och Rapportens förhandsvisningar är dokument, inte inspektörer, och står kvar som kort.
+
+
+## Kodgranskningen i sju varv (2026-11-08)
+
+Användaren bad om en fullständig granskning med minst sex varv: semantiska fel, säkerhet och kodkvalitet med *less is
+more*. Varje varv kördes av parallella granskande agenter, som rättade C och I med tester; huvudsessionen byggde och
+testade varje del ovanpå grenen och pushade (commits *Audit round 1 … 6*). Under granskningen pushade en annan session
+drygt 250 commits till samma gren; varv 1 granskade därför den äldre koden och varv 2 hela den nya (ungefär 150 000
+rader).
+
+- **Varv 1, per modul:** bland annat en fientlig kö från bakgrundsprocessen som kunde stoppa ärendets bevakning för
+  gott eller försegla en träff filtret inte kunde ge (C), en sanktionslista daterad i framtiden som skuggade alla
+  senare, en nyare heuristikversion som inte kunde ta tillbaka en äldre sammanslagning, `/verify` som kastade på en
+  ändrad första post och en kvarlämnad SQLite-journal som spelades in i en ny arbetskopia.
+- **Varv 2, per modul på den nya koden:** en endpoint med orimlig höjd eller fel genesis (testnet, eller en som ljuger)
+  som fick alla svar att se djupa ut och dolde omorganiseringar; en Ethereum-expansion med förlorade tx som räknades
+  som läst; exponeringen som vägrade vid en rundtur; grafen som byggdes i O(noder × linjer); Bryt upp som bara sparade
+  den första valda adressen; zoom och panorering som kunde vägras för gott; råa felmeddelanden på ett tiotal ställen.
+- **Varv 3, flöden tvärs över modulerna:** en ny titel som läste om alla vyer, en tillbakatagen etikettkopia som syntes
+  kvar, samma token-träff två gånger under olika symbol, en borttagen bevakning som bakgrunden fortsatte med, uppslag
+  genom Windows med VPN valt när planen inte kunde skrivas, högar på Ethereum i BTC, exporter av token utan kontrakt,
+  och det instabila exporttestets orsak.
+- **Varv 4, användarens tre beslut och säkerhet:** bakgrundens träffar är tips tills Chainsaws eget uppslag ger dem
+  (`monitoring.tips`, grå och streckade medan de väntar); internetkontrollen bara med Windows som väg; en ändrad
+  ärendefil skrivs aldrig över (arbetet sparas som gren); kopior utanför urklippshistoriken och molnet; filer inte i
+  Senaste; planterade utlösare rapporteras av `/verify`; en länk kan inte visa ett falskt bevakningskort.
+- **Varv 5, *less is more* och integritet:** omkring 400 rader död eller dubblerad kod borta med oförändrat beteende;
+  indexhöjder räknas bara med ett förseglat svar bakom sig och under det kedjan kan ha nått; `/verify` prövar varje
+  förseglat svar mot sin SHA-256; bakgrundens lästa höjd begränsas; ett försvagat delningslösenordskuvert vägras och tas
+  bort med journalrad.
+- **Varv 6, granskning av granskningen:** varje rättelse lästes om efter sammanslagningarna. Varv 5:s höjdfråga hade
+  gjort cachade uppslag 100 gånger långsammare (rättad); Tidslinjen kopierade förbi urklippsskyddet (ny kod); bakgrundens
+  starthöjd begränsas som den lästa höjden; exponeringen ordnar en kontos poster som spåret, så Graf och Exponering
+  stämmer; det instabila högtestet berodde på testets trådar, inte produkten.
+- **Varv 7:** varv 6:s gräns för bakgrundens starthöjd tog ärendets gamla höjd, så att ett år gamla pengar kunde
+  bli träffar, eller tappade bakgrundens träff när ärendet inte sett kedjan. Nu väntar en sådan post i kön tills
+  ärendet läst så långt, och rundan tar in kön igen efter höjden. Det instabila BackgroundLink-testet berodde på
+  testets trådar.
+- **Varv 8**, bara bakgrundens höjder, i 19 fall: en förfalskad kontroll med en tid i framtiden fick ärendets egen
+  kontroll att aldrig köras (C). Rättelsen förenklar: bakgrunden flyttar aldrig hur långt ärendet läst eller när det
+  kontrollerades; ärendets kontroll läser från sin egen senaste läsning, och bakgrundens träffar bekräftas som tips.
+  En start golvas också när ärendet inte hade någon höjd då bevakningen gjordes, och väntar medan bevakningen är
+  pausad.
+- **Varv 9:** kontroll av varv 8 utan C eller I. Granskningen avslutades där.
+
+**Användarens beslut under granskningen:** txid:er får stå i bakgrundens plan; bakgrundens träffar kontrolleras mot
+kedjan innan de förseglas; internetkontrollen bara när Windows är vägen.
+
+**Egna beslut:** en ändrad ärendefil på disken räknas som en konflikt (inte som ett beslut för användaren), eftersom
+det säkra valet var givet; bakgrundens start- och lästa höjder följer användarens beslut att bakgrunden bara ger tips.
+
+**Kvar:** frågorna 12–19 i TODO (*Från kodgranskningen*) och de mindre fynden i BACKLOG (*Kodgranskningen
+2026-11-08*). Det som ska provas på Windows står i TESTER-INFOR.
+
+## VT1a, LN1a och AK1a (2026-11-08): byt filnyckel, en länk till ett befintligt ärende och ankaret
+
+Byggt efter skisserna VT1a, LN1a och AK1a (användarens val 2026-11-08).
+
+- **VT1a, byt filnyckel** (`ICase.ReplaceFileKey`, `Case.FileKey.cs`): huvudnyckeln kontrolleras igen
+  (`IVault.VerifyMasterKey`, nytt, med ett förval som kastar `NotSupportedException` så att testernas valv inte
+  behöver ändras), ärendet sparas, arbetskopian kopieras till `.work.rekey` där journalraden
+  `case.file-key-replaced` förseglas under den gamla nyckeln och kopian krypteras om (SQLite3 Multiple Ciphers rekey)
+  under en ny slumpad filnyckel. Den nya filen (nytt huvud med ditt valvs kuvert, den inbyggda återställningsnyckelns
+  och vid behov ett nytt ärendelösenord, kopian och sigillet under den nya nyckeln) skrivs bredvid, arbetskopian
+  flyttas undan till `.work.old-key` och den nya filen tar den gamlas plats i en flytt. Sedan blir kopian
+  arbetskopian och ärendet fortsätter under den nya nyckeln; ankarna flyttas fram som vid varje sparning.
+  - **En krasch** före flytten lämnar den gamla filen hel (arbetskopian tas ut på nytt nästa gång), efter flytten den
+    nya; det som blir kvar (`.rekey`, `.old-key`) tas bort vid nästa öppning. Ett fel före flytten lämnar ärendet
+    öppet under den gamla nyckeln; ett fel efter flytten stänger det, och det öppnas från den nya filen.
+  - **Testerna** (`FileKeyTests`) tar en bild av mappen vid varje steg, som en krasch skulle lämna den, och öppnar
+    den: gamla filen till och med *set-aside*, nya från *replaced*. Kollegans valv, det gamla lösenordet och en
+    ändrad byte (sigillet) öppnar inte; organisationens nyckel, ett nytt lösenord och en tidigare utlämnad kopia gör det.
+  - **Fliken Kuvert:** *Byt filnyckel …* under korten (bara med eget kuvert), korten får *Lindas om* eller *Faller
+    bort* (streckat och överstruket), bekräftelsen fälls ut under korten med huvudnyckeln och strömbrytaren för ett
+    nytt ärendelösenord, och efteråt står en streckad rad med det som drogs tillbaka och journalraden (läst ur
+    journalen, så den står kvar nästa gång).
+- **LN1a:** `LinkInbox` säger när en länk börjar och slutar vänta (`WaitingChanged`), och låsskärmen säger då bara
+  *En länk väntar*. Efter upplåsningen fälls ärendeväljaren ut med länken överst (`CasePickerViewModel.OpenForLink`);
+  Enter eller ett andra klick öppnar ärendet och lägger adressen som startpunkt med raden
+  `app.start-point-from-link` i journalen (`CaseWorkflow.AddLinkedStartPointAsync`), *Nytt ärende med adressen …*
+  (Ctrl+N) öppnar NC2a med adressen, och Esc slänger länken. En länk medan Chainsaw är upplåst går som förut.
+- **AK1a:** `AnchorReplacement` (Contracts) läser raden `case.anchors-replaced`. *Verifiera* säger *Hashkedjan är
+  hel* med rader, tid och topp, och ett bytt ankare som en gul rad med *Troligast: …*; *Varför?* öppnar Guidens panel
+  (`GuideAnchorChange`) med kedjan som prickar, före och efter och orsaken som en streckad bricka. `/verify` säger
+  också att kedjan är hel och ankaret byttes, i stället för ett fel. Guideavsnittet `docs/guide/ankaret.md`.
+
+**Egna beslut och avsteg från skisserna:**
+- **Kuvert som faller bort:** också andra (icke inbyggda) återställningsnycklars och okända kuvert, eftersom Chainsaw
+  inte kan linda den nya nyckeln åt dem; de skulle annars bära en nyckel som inte öppnar något.
+- **Inga steg med förlopp** under bytet (skissens list med fyra steg): Cases säger inte hur långt det kommit, så en
+  rad säger vad som görs och att ärendet är låst under tiden, i stället för påhittade steg.
+- **Länkens ursprung:** skissen säger *Länk från Gawk*, men länken bär inte vilket program som skickade den, så det
+  står *Länk från ett annat program*. Brickan *Etikett härifrån* (etikettbiblioteket per ärende) är inte byggd.
+- **Två datorer** avgörs ur raderna: ett ankare längre fram än filens topp är en äldre kopia, annars två datorer.
+  Raden där de gick isär (*samma rader fram till 402*) står inte, eftersom raden bara sparar ankaret och toppen.
+
+**Granskningen** (oberoende, nyckeln, de gamla sidorna, varje kraschsteg och ankarna): inga C eller I, fyra M:
+- **M1:** `/verify` svarar nu med en gul varning (`CommandReply.Warning`, nytt) när ankaret byttes av ett skäl i filen
+  (`AnchorReplacement.ConcernsTheFile`: Diverged, RolledBack, okänt), och lugnt *klart* bara när det gäller datorn
+  (ankaret saknades eller gick inte att läsa).
+- **M2:** andra fel från valvet blir `CaseError.VaultFailed` (nytt), och ett SQLite-fel när journalraden skrivs i kopian
+  blir `Corrupt`, så att fliken Kuvert säger det i stället för ett ohanterat fel.
+- **M3:** den nya filen som skrivits bredvid (`.cut.tmp`, med den nya nyckeln och ett nytt lösenord) tas bort med de
+  andra resterna. Fanns det rester från ett byte och är journalens sista rad inte bytet, säger öppningen det med raden
+  `case.file-key-replacement-interrupted` och en varning som ligger kvar: filen har kvar sina gamla kuvert.
+- **M4** står i BACKLOG under *Säkerhet* (den gamla databasnyckeln i bibliotekets minne).
+
+**Återstår:** brickan *Etikett härifrån* i LN1a, och att prova allt på Windows.
+
+
+## PX1a, UT4a och KL3b: proxy med inloggning, en ansluten utgång i läget Windows, den egna nodens certifikat (2026-11-08)
+
+Byggt efter skisserna PX1a, UT4a och KL3b (användarens val samma dag). PX1a och KL3b rör princip 4 och väntar på en
+oberoende granskning.
+
+- **PX1a, proxyn under Windows** (`IWindowsProxy`, `WindowsProxyLogin`, `WinHttpProxyReader`, `ProxyLoginViewModel`):
+  Chainsaw läser Windows proxyinställning som .NET själv gör (`WinHttpGetIEProxyConfigForCurrentUser`) och ändrar inget.
+  Automatisk identifiering (WPAD) eller ett skript (PAC) gör inställningen *automatisk*, också när en proxy dessutom är
+  inställd för hand, eftersom Windows då frågar nätet först. Bara en proxy inställd för hand får raden *Logga in med
+  Windows-kontot*. Påslagen sparas adressen (`host:port`) i `settings.json` (`ProxyLoginFor`) och i bakgrundens plan.
+  Röret genom Windows får då `DefaultProxyCredentials` som en grind: den svarar bara när proxyn som frågar (.NET skickar
+  proxyns egen adress till `GetCredential`, provat mot en proxy på loopback) är exakt den adressen, bara medan Windows
+  inställning fortfarande är just den proxyn inställd för hand (läses om vid varje fråga, så att ett byte till WPAD eller
+  en annan adress gäller direkt), och bara för Negotiate, Kerberos och NTLM, där lösenordet aldrig lämnar datorn
+  (Basic och Digest får inget). Källorna får aldrig några uppgifter (`Credentials` är fortsatt `null`). Att slå av,
+  på eller flytta inloggningen bygger röret genom Windows på nytt, så att ingen inloggad anslutning står kvar.
+  En `407` från proxyn noteras (`LoginAskedAt`, också från provet om datorn når internet) och sägs i raden; ett
+  uppslag som får `407` ger `ExitError.ProxyLoginRequired`, som räknas som utgångens fel och aldrig märker en endpoint.
+  Bevakningen i bakgrunden följer valet genom samma grind (`WatcherLoop.FollowProxyLogin`).
+- **UT4a, en ansluten VPN-utgång i läget Windows** (`ExitPanelViewModel.ShowsExits`, `ExitRowViewModel.IsIdle` och
+  `IsToned`): listan visas när en utgång är ansluten, tonad, och bara den anslutna raden har färg, en ihålig grön prick,
+  *Ansluten · används inte* under namnet och strömknappen. Verktygstipset säger sedan när den är ansluten. När den
+  kopplas ner försvinner listan; de andra raderna har ingen knapp.
+- **KL3b, den egna nodens certifikat** (`CertificatePin`, `NodeCertificate`, `EndpointCertificate`,
+  `ILocalHttp.ReadCertificateAsync`, `IChainSources.PinAsync`/`UnpinAsync`/`ReadCertificateAsync`/`CertificateRefused`,
+  `NodePinViewModel`): fingeravtrycket är **SHA-256 av hela certifikatet** i DER-form, eftersom det är det Windows
+  certifikatdialog, webbläsarna och `openssl x509 -fingerprint -sha256` visar, så att användaren kan jämföra det med
+  det noden visar, och eftersom det fäster exakt det certifikat användaren tittade på; ett förnyat certifikat med samma
+  nyckel blir då ett byte som syns och bekräftas, aldrig ett som går tyst. Bara endpoints märkta lokala fästs. Fästet
+  sparas i `sources.json` med endpointen (inställningarna, aldrig ärendet), med vem och när, och de tidigare fästena
+  (högst tio) med när och av vem de byttes. Varje uppslag till noden bär fästet i `ExitRequest.CertificatePin`, och
+  `LocalHttp` har ett eget rör per fäste som godtar exakt det certifikatet, betrott av Windows eller inte, och vägrar
+  alla andra innan något av förfrågan skickas (`ExitError.CertificateChanged`); utan fäste gäller Windows rötter som
+  förut. `IExitHttp` vägrar en förfrågan med fäste. Att läsa certifikatet gör bara TLS-handskakningen, direkt till noden
+  i det egna nätet. Ett byte sägs en gång per endpoint och fäste i toastern (*Egen nod vägras* med *Visa*), noden
+  vägras tills *Lita på det nya …* har bekräftats, och de andra endpointarna används under tiden.
+
+**Egna beslut och avsteg:**
+- PX1a: raden under de tre utfällda raderna (vilken metod proxyn godtog och när) är inte byggd, eftersom .NET inte säger
+  vilken metod som användes; rutan säger *Kerberos eller NTLM*. Utan proxy står bara raden *Proxy* med *Ingen*.
+  Den automatiska proxyns adress visas inte (den blir känd först när en förfrågan frågar efter den); chipet säger
+  *WPAD eller skript*. *Proxy i Windows* öppnar `ms-settings:network-proxy`.
+- PX1a: en inloggning vars proxy har bytts i Windows slås av och sparas som av när sidan Nätverk visas; tills dess
+  gäller den ändå inte (grinden läser om inställningen).
+- KL3b: ett fäst certifikat godtas också när det har gått ut eller har ett annat namn: det är just det certifikatet som
+  användaren litar på. *Ta bort fästet …* frågar först, som *Lita på det nya …*.
+
+**Återstår:** att prova på Windows (`docs/TESTER-INFOR-1.0.md`), särskilt en riktig proxy med Kerberos och NTLM.
+
+## Ytorna för omgång 4 (2026-11-08): KV1a, HB1a, BU1a, DM1a, HP1a och TJ1b
+
+Byggt efter skisserna som valdes 2026-11-08 (andra omgången), på backend från omgång 4.
+
+- **Clustering:** `PreviewWithdraw` räknar ut klustren före och efter ett tillbakadragande ur det som är sparat
+  (`ClusterChanges`), utan att spara något. Det en körning håller tillbaka sparas som arbetsläge i
+  `clustering_held_back` (ersätts av nästa körning som håller tillbaka något annat, inte förseglat eftersom det alltid
+  kan räknas ut igen), och `GetHeldBack` ger slutsatserna med vad som saknades och senaste beslutet.
+  `DecideHeldBack` förseglar *Låt stå* eller *Släpp slutsatsen* i den nya kedjan `clustering.held_back_decisions`
+  (schema version 5) med en rad i journalen; adresserna sparas med beslutet så att historiken kan visa det också
+  efter att slutsatsen släppts. En släppt tx:s slutsatser före beslutet räknas inte längre (som ett tillbakadragande
+  för en tx), och nästa körning sparar det den kommer fram till nu.
+- **KV1a:** `ClusterWhyViewModel` och `ClusterWhyView` i inspektören, `ChangeBarView` för staplarna, spöket under
+  noden och nedtoningen i `GraphCanvas.Rounds`. *Ta tillbaka* i Historik och *Ångra* på toasten.
+- **HB1a:** ringen och hovringen i `GraphCanvas.Rounds`, kortet i Historik (`HistoryUndo.DecideHeldBack`) med *Låt stå*
+  bredvid *Släpp slutsatsen*.
+- **BU1a:** `PairPath` (stegen, den svagaste länken och vad ett snitt bryter ut) och `InspectorFormsViewModel.Pair`.
+  Ett snitt sparas som uppbrytningen av det som lämnar (`InspectorForms.BreakOut`), så att samma regler gäller som
+  för att bryta ut adresser. Två noder valda med Ctrl+klick i grafen ger paret när U öppnas.
+- **DM1a och HP1a:** `ObfuscationMarks` läser `dust v1` och `pass-through v1` ur de sparade kontrollerna;
+  `GraphViewModel.Obfuscation` tonar ned, fäller ihop och frågar före kopiering. Bara visning, inget sparas.
+- **TJ1b:** `InspectorFormsViewModel.Check` öppnar etikettformuläret från kontrollen med källan som
+  `LabelSource.Behaviour` (`service-behaviour`, `v1`), förseglad av Attribution som andra etiketter.
+
+**Egna beslut och avsteg från skisserna:**
+- Enum-namnet `ConclusionChoice` (inte `HeldBackChoice`, som redan finns i appen för EX1).
+- KV1a: bekräftelsen fälls ut under raderna i inspektören, inte fast längst ner; raden längst ner säger när men inte
+  vem. Förhandsvisningen räknar på det som är sparat (TODO).
+- HB1a: hovringen säger vad slutsatsen byggde på, inte vad som ersatte den (väntar på *Ersatt av vilken tx*).
+- BU1a: Ctrl+klick sker i formulärets lista över adresser, eftersom klustret inte öppnas som kort i grafen här;
+  varningen nås genom två valda noder i grafen.
+- DM1a: jämförelsen står överst i inspektören (som skissen säger) och kopiering av den liknande lyser upp den, i
+  stället för en egen ruta vid noden; dammets linjer är oförändrade.
+- HP1a: utfällt står noderna på sina platser och *Fäll ihop* är en bricka ovanför raden.
+- TJ1b: *Som etikett …* står i inspektörens rad, eftersom `service-behaviour` är en kontroll som inte står i
+  KF2b-panelen (fråga i TODO); panelen tonas därför inte.
+- Testärendet fylls inte på än (TODO).
+
+**Tester:** Clustering 6 nya (förhandsvisningen, det som hålls tillbaka, *Låt stå*, *Släpp* och nästa körning),
+App 14 nya i `RoundFourSurfacesTests`. Ett befintligt test räknar en läsning till av klustret (Varför?).
+
+**Granskningens rättelser (4 I, 9 M):**
+- **BU1a:** ett snitt räknas som klustringen gör: uppbrytningen vägrar hela förslaget (alla adresser i det), så
+  klustret delas om tills inget mer faller bort, och allt som inte når adressen som stannar lämnar, i de plånböcker
+  det faller isär i (`PairPath.Cut`).
+- **TJ1b och etiketterna:** en etikett ur en analys av beteende sätts bara när användaren godkänner den, så den är
+  användarens egen (`LabelSources.IsUsersOwn`): den kan tas tillbaka i Historik och överallt i biblioteket och märkas
+  *Sprid inte*. Tre äldre tester som sa motsatsen är ändrade.
+- **DM1a:** inspektörens kopieringsknapp frågar också vid den liknande adressen, och dess id-ruta visas inte.
+- **KV1a:** bekräftelsen säger streckat att tx som den andra versionen aldrig analyserat syns efter nästa körning, och
+  toasten att fler kan följa. *Dra tillbaka* erbjuds när en annan version står kvar. *Ångra* på toasten säger till
+  när det redan var taget tillbaka.
+- **HB1a:** besluten kan tas tillbaka med *Ångra* (`ReopenHeldBack`, ett nytt förseglat beslut med `undoes`). Det som
+  saknades kontrolleras mot de förseglade slutsatsernas grund innan beslutet förseglas, så en ändrad arbetsrad kan
+  inte förseglas. En tx med bara fynd (till exempel CoinJoin) visas också, och ett släpp säger att fynden följer med.
+  Arbetsraden jämförs som mängd, så ordningen ensam skriver inget.
+- **ClusterChanges** räknar också länkar som börjar eller slutar slå ihop utan att förslaget ändras (efter en
+  uppbrytning). **HP1a** fäller bara bort noder vars alla linjer hör till raden.
+
+## Omgång 7: vyerna och appen (2026-11-08)
+
+Byggt ur BACKLOG och TODO (omgång 7, användarens beslut att allt i BACKLOG görs före 1.0).
+
+- **Grafens prestanda vid tusentals noder.** `SceneLayout` håller platserna, kurvorna och beloppen med ett index efter
+  plats (`GraphIndex`, celler på 256 enheter; en linje som når fler än 32 celler hålls åt sidan och prövas alltid).
+  Hovring, klick och det som syns frågar indexet i stället för alla noder och linjer. Under ett drag räknas bara det om
+  som beror på de dragna noderna: deras linjer, i hoppkolumnerna bara de linjer vars väg runt noderna tittade i en cell
+  som noden lämnar eller kommer in i (`LineRouting.Route` säger vilka celler den tittade i), och de linjernas belopp
+  mot ett rutnät som hålls kvar (`RoomGrid.Remove`). Kurvorna blir exakt desamma som när allt räknas om (test), och
+  hela layouten räknas om när draget släpps, så att beloppen hittar sin plats igen. Ytan cachar områdena per
+  platser och scen.
+  - **Mätt** med ett påhittat ärende på 3 000 aktörer och 3 427 linjer (`GraphScaleTests.MeasureLargeGraph`, i
+    molnmiljön, ms per gång, före → efter): ett steg i ett drag 19 → 0,5 på den fria ytan och 123 → 1,3 i
+    hoppkolumnerna; en hovring 2–3 → under 0,5; det som syns 2–3 → 0,1–0,3. Hela layouten när draget släpps: 20 ms
+    fritt och 100 ms i hoppkolumnerna (förut betalades det vid varje steg).
+  - **Eget beslut:** beloppen som inte tillhör de dragna linjerna står kvar under draget, också där den dragna noden
+    nu står, och flyttas först när draget släpps. **Kvar** (BACKLOG): hela layouten efter draget räknas på UI-tråden.
+- **Exponering:**
+  - **Mixerns troliga utgångar** (TODO): en godkänd kandidat (KF2b) ritas bortom tjänsten pengarna betalades till, på
+    nästa ring eller bortom den sista (`ExposureLayout.Beyond`), som en streckad nod med en prickad linje och *förslag*
+    i stället för andelen. Den räknas aldrig och går inte att välja. Kandidaterna läses ur kontrollerna
+    (`ChecksViewModel.ApprovedPayouts`), också när panelen visar annat.
+  - **Kontokedjan och länkade insättningar:** läst bakåt på Ethereum räknas den länkade insättningens del av det
+    plånboken betalade vidare som *Fortsätter på annan kedja*, som på Bitcoin, i stället för *Kom före historiken*.
+  - *Pengar i cirkel i Fått från* var redan rättat och testat (omgång 2) och är struket.
+- **Rapport:** en godkänd trolig utbetalning ur en markerad aktör är en slutsats med analysens namn och version och
+  tx:en, kandidaten med förkortad adress. Toasten efter exporten har *Visa i mappen* (`IFolderView`, Utforskaren med
+  filen vald). *Ändra i grafen* ger *‹ Rapport Esc* i grafens huvud. Utan delen *Hashkedjornas topphash* bär utkastet
+  ingen gammal kontroll, så exporten provar inte om i onödan och journalraden har ingen rad för kontrollen
+  (`ReportService`). Den spårade andelen räknas utan att tokenbelopp görs om till `decimal`.
+- **Kommentarsnoden:** lagret har en och samma transform, skuggan är delad och ritas i en bitmapp
+  (`BitmapCache`), och en lapp som skrivs i när högen eller valvyn fälls ut släpper tangentbordet. En lapp som tappar
+  musgreppet sparas där den står, och soptunnan krymper.
+- **Valvyn:** de prickade guiderna görs en gång per vy och rombens hörnmärke är delat.
+- **Vyerna:** *Visa i grafen* hittar ett kort i en hög och fäller ut högen; Exponering gör plats för Guidens panel.
+- **Sökningen:** Enter på en rad *I soptunnan* lägger tillbaka den direkt (`TrashFilter.PlaceOf`), med tipset
+  *Lägg tillbaka*.
+- **Strukna som redan byggda eller inaktuella:** Nytt → Etikett (kopplad), fältets loop (teckenfältet finns inte
+  längre), äldre ärenden före etapp 21 (schemat får ändras före 1.0).
+- **Skriver i ärendet** (för den oberoende granskningen): rapportens export utan topphashen (journalradens detaljer,
+  `ReportService.TryExport`), och Enter på en rad i soptunnan (en återläggning, samma förseglade väg som soptunnans
+  vy). Exponeringens kontokedja och de godkända kandidaterna i rapporten och ringarna ändrar bara det som visas och
+  exporteras.
+- **Lämnat** (står kvar i BACKLOG med varför): `Compose` i Begäran utanför UI-tråden (testerna och vymodellen bygger på
+  att det sker direkt), sanktionslistans import mot grafen (Attribution), testärendets nya delar (en annan omgång
+  bygger in kontrollerna i berättelsen), att återuppta förstagångsinställningen efter en låsning, och gasavgifterna i
+  plånboksläsningen.
+- **Rättat efter granskningen** (0 C, 1 I, 5 M, alla rättade):
+  - **I:** Enter på en sökrad i soptunnan lägger bara tillbaka det användaren själv slängde, under nodens egen nyckel,
+    och bara när noden då syns igen (`TrashFilter.PlaceOf`); annars öppnas soptunnan med trädet. Tester med
+    granskarens fall (klustret slängt, en adress slängd för sig och sedan sammanslagen).
+  - **M2:** en sökrad vars plats i soptunnan inte längre gäller säger det och öppnar soptunnan
+    (`GraphViewModel.PutBackFoundAsync`). **M3:** en nod som bara följde med en slängning öppnar soptunnan.
+  - **M4:** flera troliga utgångar vid kanten flyttas som en grupp i stället för att klämmas en och en.
+  - **M5:** på sidan *Fått från* heter resten *Kom från en tx som fortsatte på annan kedja*.
+  - **M6:** en tokenmängd som är för stor för `decimal` ger spåret utan värde i stället för ett undantag, och en
+    rapport som inte gick att bygga om säger det i en toast.
+
+## Grafens fart (2026-11-08)
+
+Användaren bad om så många bildrutor som möjligt i grafen. Inget provat på Windows än.
+
+- **Scenen i ett eget lager:** allt som ritas på grafens enheter (hoppkolumner, tidsband, områden, linjer, belopp,
+  bevakningar, noder och kort) ritas i en egen `DrawingVisual` över skärmen och en marginal runt den (en fjärdedel av
+  bredden och höjden åt varje håll). Panorering, glidning och zoom ändrar bara lagrets transform
+  (`GraphCanvas.MoveView`, utan ny layout), så renderingstråden får en matris i stället för hela grafen.
+  `SceneWindow` avgör när scenen ritas om: när något ändras (`Redraw`), när skärmen lämnar det ritade, och när en
+  zoom landar. Under själva zoomen skalas den färdiga ritningen.
+- **Eget lager, inte `OnRender`:** WPF släpper det förra `OnRender` ritade innan det tar emot det nya, så en ritning
+  som sparas mellan rutorna skickas ändå om i sin helhet om den ritas där. Det som står på skärmen över scenen
+  (dygnens namn, rutan, blockmärkets ruta, valvyn) ritas i ett andra lager i varje ruta, och lapparna ligger
+  överst som förut.
+- **Inget görs per ruta som kan göras en gång:** temats penslar slås upp en gång och fryses (`Ink`), ikonerna slås
+  upp en gång (`GlyphOf`), alla pennor i ritvägen är frysta och sparade (`PenOf`, `RoundPen`), texterna mäts en gång
+  (`Text`, också nodernas namn, som förut mättes om i en slinga i varje ruta), och varje linjes kurva görs en gång.
+  Textcachen rymmer 16 384 texter, så att ett stort ärende inte tömmer den varje ruta.
+- **Avsteg:** en scen ritas om med marginal, så en ändring (hovring, val) ritar lite mer än skärmen. Medan något
+  rör sig av sig självt (ringar, ett kort som vänds, timglaset, valvyn, högen) ritas utan marginal, som förut.
+- **Återstår:** prova på Windows (`docs/TESTER-INFOR-1.0.md`, *Grafens fart*). Räcker det inte är nästa steg
+  grafytan med SkiaSharp på grafikkortet (`docs/TODO.md`).
+
+### Granskningen och den eventstyrda slingan (samma dag)
+
+- **Granskningen** (inga C): lagren tar inte emot träfftester (WPF gick annars igenom hela scenen vid varje
+  musrörelse), en ändring ritas utan marginal (nästa panorering tar den), ringar och timglas håller bildrutor bara
+  när de syns på skärmen, och bevakningens vaktlinje använder den sparade kurvan.
+- **En bildruteslinga** (användarens krav: strukturerat och eventstyrt): `FramePump` samlar det som begärs
+  (`GraphChange`) och rörelserna (`GraphMotion`: glidning, zoom, sökningens glidning, rutans rullning, valvy och hög,
+  ringar, kort). Varje rörelse är ett steg som flyttar sitt läge med tiden sedan förra steget och säger vad som
+  ändrades. Den ersätter fem egna krokar på `CompositionTarget.Rendering` och två `DispatcherTimer`. Ritkoden noterar
+  bara vad som rör sig, och slingan startar och stoppar rörelserna efter att scenen ritats. Pekarens rörelser under en
+  panorering slås ihop till en per bildruta. Ett test läser källan och vaktar att ingen annan del håller bildrutor,
+  kör timrar eller anropar `InvalidateVisual`.
+- **Smått:** en kurvas gränser räknas utan att fyra punkter läggs i en lista (det görs för varje linje i varje
+  träfftest och varje scen).
+- **Återstår:** när en nod dras ritas hela scenen om i varje ruta. Nästa steg är ett eget draglager för de dragna
+  noderna och deras linjer, så att resten står still.
+
+### Draglagret och ingen förlust i kvalitet (samma dag)
+
+Användarens krav: optimeringarna får inte minska kvaliteten alls.
+
+- **Zoomen ritas exakt i varje ruta igen.** Den skalade förut den färdiga ritningen under svepet, så att ikonernas
+  linjer blev en aning tjockare eller tunnare. Ikonernas linjebredd avrundas inte längre. Bara panorering och
+  glidning flyttar den färdiga ritningen, vilket ger exakt samma bild.
+- **Scenen ligger i fyra lager i sin ritordning:** linjernas lager (hoppkolumner, tidsband, rubriker, områden,
+  lapparnas trådar, linjer, belopp och bevakningar), nodernas lager, det lösa lagret (dragna noder) och lagret över
+  noderna (kort, soptunnans varning, kandidater, områdenas brickor, guiden, högen och sökringen).
+- **Draglagret:** medan noder dras skickar vymodellen `Moved` (de noder som fått ny plats och de dragna) i stället
+  för `Redraw`. Varje ruta ritar linjernas lager, det lösa lagret och lagret över noderna igen, medan de stilla
+  noderna, den dyraste delen, behåller sin ritning. Bilden blir exakt densamma som en hel ritning. Överlappar en
+  dragen nod en nod som ritas efter den, ritas hela scenen, så att den stilla noden ligger kvar ovanpå.
+- **Fler bäckar:** opacitet 1 öppnar inget lager, en linjes opacitet ligger i penseln (samma bildpunkter för en
+  enda stråke), `Near` räknas en gång per ritning i stället för en gång per lager, och kurvor som inte ändrats
+  behåller sin instans, så att deras geometri används igen.
+
+### Musen, animationerna och lagren som kan ritas var för sig (2026-11-09)
+
+- **Musen:** varje rörelse gjorde hela träfftestet två gånger, och dessutom letades tips upp i guiden, korten,
+  blockmärkena och beloppen, upp till 1000 gånger i sekunden med en snabb mus. Nu noteras bara var pekaren är, och
+  slingan tittar en gång per bildruta, med ett enda träfftest (`HoverAt` ger träffen).
+- **Lagren ritas var för sig:** en ändring säger vilka lager den rör (`GraphChange.Lines`, `Loose`, `OverNodes`;
+  ett drag är alla tre). Ringarnas steg ritar linjerna och lagret över noderna, ett korts skimmer bara lagret över
+  noderna, och timglasets andning bara de noder som andas, som görs lösa för den. Förut ritades hela scenen om i
+  varje sådant steg. Ett kort som vänds ritar fortfarande hela scenen, eftersom noden döljs och syns igen.
+- **Ikonerna förblir vektorer:** en bitmapp blir suddig vid zoom, och att göra stråkarna till färdiga ytor ger små
+  avrundningsskillnader. Geometrin, pennorna och penslarna görs redan en gång.
+
+### Varje nod en egen visual, rutnätet och granskningen (2026-11-09)
+
+- **Som en spelmotor:** varje nod är en egen visual i nodlagret, i ritordningen. Ett drag, en hovring eller ett
+  timglas som andas ritar om bara sina noder, som behåller sin plats i ordningen. Det lösa lagret och kontrollen
+  av överlapp behövs inte längre, och bilden är exakt densamma som en hel ritning.
+- **Hovring:** vymodellen skickar `Hovered` (noden som lämnades, noden som nåddes och om linjen bytte) i stället för
+  `Redraw`. En ny nod under pekaren ritar om två noder, och en ny linje ritar om linjernas lager. Hovring på ett
+  kort ritar bara lagret över noderna, och på ett blockmärke bara överlagret.
+- **Rutnätet `GraphIndex`:** noderna och linjerna ligger i celler om 512 enheter, och vad som syns och vad som
+  ligger under pekaren slås upp bara i de celler som berörs. Svaren är exakt desamma som den linjära genomgångens,
+  i samma ordning, vilket ett test visar med 1200 slumpade prov. Långa linjer läggs åt sidan och prövas alltid.
+  Indexet görs om när scen, platser eller kurvor byts.
+- **Granskningen av draglagret** (inga C eller I): en linjes opacitet ligger åter i ett eget lager, eftersom en
+  blekt pensel kan skilja en nyans (1/255) mot förut. Zoomen ritar utan marginal, och pennornas cache rymmer 16 384,
+  så att zoomens pennor inte tömmer den.
+- **Medvetet inte gjort:** LOD (förenklad ritning vid utzoomning), strömning i rutor och bitmappsikoner, eftersom
+  de ändrar bilden. LOD kan bli ett val om användaren vill.
+- **Andra granskningen av nodernas visuals och rutnätet:** ett kort som vändes tillbaka kunde lämna sin nod
+  osynlig (C), och hovring på en linje stoppade sökringen och sonaren (I). Kortens turer avgörs nu innan noderna
+  ritas, en tur som tagit slut ritar hela scenen, och ringarna noteras per lager. Rutnätet räknar celler i `long`,
+  tål NaN och absurda koordinater, slår upp en hårsmån förbi cellgränserna och följer ett drag genom att flytta bara
+  det som flyttats.
+
+### Sammanslagning med omgång 7: grafen vid tusentals aktörer (2026-11-09)
+
+Huvudgrenen fick samtidigt modellsidan av samma arbete från en annan session: `SceneLayout` med ett eget index
+(`GraphIndex`, celler om 256 enheter) och ett drag som räknar om bara de dragna linjerna och placerar beloppen igen
+när draget slutar. Den behölls, och renderingen från denna gren ligger ovanpå: lagren, nodernas egna visuals, den
+eventstyrda slingan och cacharna. Mitt eget rutnät och diffningen av platser (`GraphMoved.Between`,
+`KeepSameCurves`) togs bort; ett drag skickar `Moved` med de dragna noderna i stället för `Redraw`.
+
+## Omgång 5: attribution och kurser (backloggen, 2026-11-08)
+
+- **EU:s konsoliderade lista** (`EuFsfParser`): läses ur en sparad FSF-fil i XML (`export` med `sanctionEntity`)
+  bredvid OFAC:s SDN-lista, med genereringsdatumet som listans datum, och sparas orörd som `eu-fsf-<sha256>.xml`.
+  **Eget beslut:** EU:s lista har ingen egen sort för kryptoadresser (kontrollerat mot den publicerade strukturen),
+  så en adress känns igen på formen, en Bitcoin-adress med giltig kontrollsumma eller `0x` och 40 hextecken, i en
+  identifierings nummer eller i en anmärkning, och etikettens skäl säger var den stod och att den känts igen på
+  formen. Listan kan sakna adresser helt; det sägs ärligt i TESTER-INFOR.
+- **Varje sorts lista har sin aktuella** (`ISanctionLists.CurrentLists`, `FindAll`): en adress slås upp på alla, så
+  en nyare OFAC-lista skuggar aldrig EU:s. `Current` och `Find` finns kvar för den nyaste listan, och de nya
+  medlemmarna har standardimplementationer så att andras attrapper fortsätter att fungera. Journalens rad nämner alla
+  listor träffarna kom från.
+- **Fynden i appdata (etapp 8, M5 och M6):** `Remove` (utan yta, TODO [skiss]), en trasig beskrivning skrivs om ur
+  listan i stället för att listan försvinner, ändringar utanför Chainsaw märks på mappens ändringstid, och en post
+  läses del för del med ett tak på 20 000 delar (`SanctionXml.Parts`), så en konstruerad post kan inte fylla minnet.
+- **Öppna källor** (`IOpenSourceLists`, `RansomwhereParser`): granskade för licens och kvalitet. Ransomwhere ligger
+  på Zenodo under CC BY 4.0 och byggs in; varje träff blir *Rapporterad* (`Ransomware: <familj>`) med
+  `LabelSource.OpenSource`, källans datum och hash som version och licensen i skälet. WalletExplorer (inga villkor)
+  och OpenSanctions (icke-kommersiellt) byggs inte in; det står i BACKLOG.
+- **Sanktionskontroll vid en expansion, båda kedjorna:** `GraphSource` kontrollerar grafens adresser mot listorna och
+  de öppna källorna varje gång grafen läses eller expanderas (`CheckSanctions` för `ChainAddress`,
+  `CheckOpenSources`), så en adress som kommer in märks direkt, och en lista som importeras medan ärendet är öppet
+  gäller vid nästa läsning. Ett fel i en lista hindrar aldrig grafen.
+- **Etiketter på tx** (`ITransactionLabels`): förseglas i en egen hashkedja (`attribution.transaction_labels`, schema
+  steg 4, så att adressetiketterna behåller sina hashar), tas tillbaka som en ny post, och `LabelTrailEnds`
+  avslutar spåret vid en märkt Bitcoin-tx efter samma regler som för adresser. Ingen yta än (TODO [skiss]).
+- **Importen** (`SanctionListImport`): samma menyrad tar en JSON-fil som öppen källa och säger det i svaret;
+  filväljaren visar `*.xml;*.json`.
+- **Kurser:** ett svar som kom efter att perioden var slut och saknar kurs (före Bitstamps eller Riksbankens historik)
+  pekas ut som slutligt och besvaras ur ärendet utan att frågas igen, med ett svar som säger det; bara ett lyckat svar
+  (2xx) kan bli ett sådant. Riksbankens dygnsgräns räknas över omstarter i `Kurser\riksbank-requests.json`
+  (`PricingOptions.StateDirectory`).
+- **Avsteg och kvar:** fler tokens (TRX och USDT på TRON väntar på TRON-agentens kedja), en andra kryptokälla och
+  Riksbankens nyckel i valvet står kvar i BACKLOG. Det gemensamma lagret för råsvar bedömdes och sköts upp (BACKLOG,
+  med skälen). Testärendet visar inte omgångens delar än (BACKLOG, [direkt]).
+- **Skriver i ärendet** (granskas oberoende): träffar på EU:s lista och i öppna källor förseglas som etiketter med
+  journalrad (`attribution.sanctions-matched`, `attribution.open-sources-matched`), etiketter på tx i en ny
+  förseglad tabell (`attribution.transaction-label-added`, `-retracted`), grafens läsning skriver nu träffar, och
+  Pricing pekar ut svar utan kurs i registret (oförseglat, som förut, men läst bara när det förseglade svaret är
+  lyckat och kom efter perioden).
+
+- **Rättat efter den oberoende granskningen av omgång 5** (0 C, 7 I, 9 M, alla rättade):
+  - **I1:** `CheckSanctions` och `CheckOpenSources` läser först och öppnar en skrivning bara när något är nytt; test
+    med en räknande `ICase`.
+  - **I2:** Riksbankens tomma svar är aldrig slutliga (eget beslut: utan bevis, i stället för ett bevis som bara
+    fungerar vid seriens början).
+  - **I3:** Bitstamps svar utan perioden är slutligt bara när svaret har perioder som alla börjar efter den
+    (`ICryptoRateSource.HistoryStartsAfter`); ett tomt svar aldrig.
+  - **I4:** listorna slås upp en gång per anrop (`ISanctionLists.FindMany`, `IOpenSourceLists.Find`) och varje lista
+    för sig; en lista som tappat sin hash hoppas över, minns som trasig (läses inte om) och nämns i
+    `SanctionCheck.Unusable`. Grafen säger det i sina problem, som blir en toast en gång. Sanktionslistorna och de
+    öppna källorna kontrolleras var för sig.
+  - **I5:** EU:s lista tar bara adresser på huvudnätet och hoppar över en adress när texten runt den nämner en annan
+    kedja; de räknas som överhoppade.
+  - **I6:** etikettens skäl citerar ungefär 100 tecken runt adressen.
+  - **I7:** licensen och erkännandet för Ransomwhere står i *Varför?*, i vyn Etiketter och i rapporten
+    (`OpenSourceLicenses`); öppna källor har ett eget filter, *Öppna källor*, med jordgloben (`Icon.Globe`, en ikon som
+    redan fanns), och *Varför?* visas för dem.
+  - **M1** delarna räknas med allt inuti, **M2** `CurrentLists` en gång per anrop, **M3** etiketterna på tx läses en
+    gång per öppet ärende och glöms när de skrivs, **M4** en trasig beskrivning av en öppen källa skrivs om, **M5**
+    datum efter i dag vägras för öppna källor, **M6** TRON-adresser och testnät räknas som överhoppade, **M7** en fil
+    med BOM känns igen, **M8** dygnsräknaren nollställs inte när klockan ställs bakåt och skriver genom en unik
+    temporär fil, **M9** ytan för etiketter på tx står redan i TODO som [skiss].
+- **Andra granskningen av omgång 5** (0 C, 2 nya I, 3 M, alla rättade):
+  - **I-a:** EU:s lista tar kedjan ur den närmaste märkningen före adressen i samma del av texten (delad vid `;`,
+    komma och radbrytning): XBT/BTC/Bitcoin och ETH/Ethereum/ERC-20 ger en träff, BCH, LTC, TRX/TRC-20, BEP-20/BSC med
+    flera hoppas över, och allt annat (ingen märkning, ett namn som Polygon som kan vara ett företags, en märkning som
+    inte passar formen, en Base58-adress utan märkning) blir **Möjlig sanktion** (`LabelKind.PossiblySanctioned`),
+    aldrig en sanktion och aldrig ett slut på spåret. En SegWit-adress (`bc1…`) är Bitcoins och en träff utan
+    märkning. Importens svar säger *tvetydiga* i stället för *ogiltiga*. Test med EU:s typiska rad med flera kedjor.
+    Markeringen i grafen skissas (TODO).
+  - **I-b:** en räknad dag mer än en dag efter i dag glöms och skrivs i loggen, så att Riksbanken aldrig stängs till
+    det datumet; test.
+  - **M-b** lås runt cachen för etiketter på tx, **M-c** licensen hör till den inbyggda källans ursprung (id som börjar
+    med `open/`), aldrig bara namnet, **M-d** en fil som saknas är inte ändrad (`Missing`) och frågas igen; M-a står i
+    BACKLOG märkt *prova mot ett riktigt anrop före 1.0*.
+- **Tredje granskningen av omgång 5** (0 C, 2 I, 4 M, alla rättade):
+  - **I-1:** förhandshämtningen i Nytt ärende visar en säker träff först och skriver *Möjlig sanktion enligt …* för en
+    tvetydig; brickan säger då *Möjlig sanktion* och är nedtonad.
+  - **I-2:** vyn Etiketter avgör sanktionen på etikettens sort: `IsSanction` och träffarna överst gäller bara
+    *Sanktionerad*; en möjlig sanktion står streckad med brickan *Möjlig: kedjan står inte säkert*, utanför den röda
+    gruppen. Test.
+  - **M-1** en märkning gäller över kommatecken tills nästa märkning (kedjan delas vid `;` och radbrytning), **M-2**
+    tjänsten vägrar en sanktion, möjlig eller tidigare ur ett utkast (`LabelRules.IsFromListsOnly`, också för
+    etiketter på tx); testärendets sanktion på Skuggtorget kommer nu ur den påhittade listan, och *Tidigare
+    sanktionerad* står i BACKLOG, **M-3** en lista som saknas säger *saknas på datorn* (`Missing`), **M-4** *etc* och
+    *base* är borttagna ur de svaga orden.
+
+## DX1b: en DEX:s router som markering i swap-pillret (2026-11-09)
+
+Byggt efter skissen DX1b (användarens val 2026-11-08). Bara visning i App; spåret genom swappen är oförändrat.
+
+- **`SwapRoute`** (`Graph/SwapRoute.cs`, utan WPF): läser vägen genom bytet ur tx:ens överföringar för en swap vars
+  `TokenSwap.Venue` är ett känt kontrakt (`KnownContracts`, DEX eller aggregator): den sålda tillgången först, sedan
+  varje ny tillgång i den ordning tx:en betalade ut den med adressen som betalade (poolen, med namnet ur listan om
+  kontraktet är känt, annars `pool 0x…`), och den köpta sist med allt som kom tillbaka. Ether och WETH räknas som en
+  tillgång, eftersom routern bara lindar om. Antalet byten är stegen minus ett. `EdgeView.SwapRoute` sätts för linjens
+  första swap, som pillrets ruta (SW1a).
+- **Markeringen** (`GraphCanvas.SwapRoutes.cs`): en liten grå rundad fyrkant i pillrets övre högra hörn med routerns
+  ikon (`Icon.Swap.Router`, ur skissen), eller antalet byten för en aggregator. Hovring visar rutan ovanför pillret:
+  routerns namn (*· aggregator*), *Känt kontrakt · byter token, inte ägare* eller *N byten i en tx*, vägen som
+  brickor med belopp och pool under, *Spåret går igenom* (eller *Spåret slutar i swappen*), *Klicka för Varför?* och
+  kontraktet och tx:en i Cascadia Mono. Ett klick öppnar *Varför?* i Guidens panel (`OpenSwapRouteWhy`) med fyra
+  rader: vad som skickades genom vilken router, vägen, regeln och listans källa och version, vid rubriken *En DEX:s
+  router* i avsnittet om swappar (ny text i `docs/guide/swappar.md`).
+
+**Egna beslut och avsteg från skissen:**
+- **Klicket ligger på markeringen, inte på pillret.** I skissen öppnar ett klick på pillret *Varför?*, men i SW1a
+  fäller samma klick ut valet *Följer* / *Följer inte*. Pillret behåller SW1a:s klick, och markeringen är en egen
+  träffyta med egen hovring; pillrets ruta och routerns ruta visas aldrig samtidigt.
+- **Poolernas namn** (skissens *Uniswap v3 · USDT/WETH 0,05 %*) finns inte i kedjans överföringar och inte i listan,
+  så poolen visas med adressen förkortad; inget hittas på.
+- **Vägen kan vara ofullständig:** är tx:en bara känd ur adressens historik (inte läst hel) säger rutan *vägen kan vara
+  ofullständig*, och *Varför?* ber användaren expandera tx:en.
+- När användaren valt *Följer inte* står personmarkeringen i pillrets **vänstra** hörn, eftersom routern tar det högra.
+- Markeringen byter inte färg vid hovring (den ritas i scenens linjelager, och hovringen ritar bara lagret över).
+
+**Återstår:** testärendet har ingen Ethereum-källa, så markeringen går inte att se i `/testdata` än.
 ## Omgång 8: TRON med USDT (backloggen, 2026-11-08)
 
 - **Byggt:** TRON i kontomodellen bredvid Ethereum. Källan är TronGrid (`TronGridApi`, `TronGridTronSource`):
@@ -4250,6 +5013,11 @@ topp.
     frågas igen) i grafens problem.
   - **M18:** att räkna slutligt mot TRON:s fastställda block (`walletsolidity/getnowblock`) kräver en egen sorts
     uppslag och ett eget index; står i BACKLOG.
+- **Femte granskningen (4 M, alla rättade):** **M19:** väntan räknas bara på svar som var slutliga när de kom, inte
+  på de som hämtades om för att blocket var grunt. **M20–M22:** en regel för när något görs nästa gång
+  (`SourceLookups.WhenText`, i `EthereumDisputedAnswer.AskedAgainText`): *kl. HH:mm* samma dag, *den åååå-mm-dd kl.
+  HH:mm* en annan dag och *vid nästa uppslag* när tiden redan passerat (när ärendet bara lästes); bevakningen använder
+  samma text.
 
 ## Omgång 8b: Litecoin och BSC (backloggen, 2026-11-09)
 
@@ -4296,7 +5064,10 @@ topp.
   - **BSC utan förvald källa** (TODO, *Väntar på dig* 12) och **USDT/USDC på BSC utan *Kan frysas*** (13).
   - **Två adresser med samma hex:** grafens expansioner hittas på kedja och adress, så att samma `0x…` på Ethereum och
     BSC aldrig blir en expanderad nod (felet fanns redan men syntes inte förrän två kedjor skrev adresser lika).
-  - **Grenen bygger på TRON-grenen** (`worktree-agent-aa2a18e73e1f9f659`), eftersom TRON visar mönstret och rör samma
-    filer; SW1a på huvudgrenen är inte inslaget här.
+  - **Grenen byggdes på TRON-grenen** och slogs sedan ihop med huvudgrenen (SW1a, omgång 3, 5 och 7, DX1b):
+    sanktionerna går genom `FindMany` med kedjornas egna koder (`SanctionCurrency.On`), höjden för bevakningen genom
+    `WatchSchedule.HeightAsync` (i fas, `InStep`) för en UTXO- eller kontokälla, och `CaseHeights` känner Litecoin och
+    BSC. På Litecoin prövas inte ett blockhuvuds arbete (scrypt, inte dubbel SHA-256), bara att det hashar till
+    blocket.
 - **Återstår:** TODO punkt 8 (Litecoin i grafen, MWEB:s kandidater, ytorna som skissas, testärendet) och BACKLOG,
   *Litecoin och BSC efter omgång 8b*. Oberoende granskning återstår.

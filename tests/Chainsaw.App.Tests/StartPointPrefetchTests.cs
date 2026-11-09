@@ -213,6 +213,23 @@ public sealed class StartPointPrefetchTests
     }
 
     [Fact]
+    public async Task An_uncertain_hit_is_only_a_possible_sanction_and_a_certain_one_comes_first()
+    {
+        _sanctions.Named = true;
+        _sanctions.Uncertain = true;
+        var possible = await Prefetch().PreviewAsync(StartPointText.Parse(Samples.Address), mayFetch: false);
+        _sanctions.AlsoCertain = true;
+        var certain = await Prefetch().PreviewAsync(StartPointText.Parse(Samples.Address), mayFetch: false);
+
+        Assert.False(possible.IsSanctioned);
+        Assert.True(possible.IsPossiblySanctioned);
+        Assert.StartsWith("Möjlig sanktion enligt OFAC SDN", possible.SanctionTip, StringComparison.Ordinal);
+        Assert.Equal("Möjlig sanktion", possible.SanctionChipText);
+        Assert.True(certain.IsSanctioned);
+        Assert.Contains("· Säker", certain.SanctionTip, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Without_the_exit_nothing_is_asked_but_the_sanction_list_is()
     {
         _sanctions.Named = true;
@@ -482,6 +499,9 @@ public sealed class StartPointPrefetchTests
 
         public IReadOnlyList<CaseEnvelope> DescribeEnvelopes() => [];
 
+        public FileKeyReplacement ReplaceFileKey(ReadOnlySpan<char> masterKey, ReadOnlySpan<char> sharingPassword) =>
+            throw new NotSupportedException();
+
         public void Save()
         {
         }
@@ -556,8 +576,26 @@ public sealed class StartPointPrefetchTests
 
         public bool Locked { get; set; }
 
+        public bool Uncertain { get; set; }
+
+        public bool AlsoCertain { get; set; }
+
         public SanctionMatch? Find(BitcoinAddress address) => Locked ? throw new IOException("låst") : new(
-            Info, Named ? [new SanctionedAddress(SanctionCurrency.Bitcoin, address.Value, "1", "Blandaren", [])] : []);
+            Info, Named ? BitcoinHits(address) : []);
+
+        private List<SanctionedAddress> BitcoinHits(BitcoinAddress address)
+        {
+            var hits = new List<SanctionedAddress>
+            {
+                new(SanctionCurrency.Bitcoin, address.Value, "1", "Blandaren", []) { IsUncertain = Uncertain },
+            };
+            if (AlsoCertain)
+            {
+                hits.Add(new(SanctionCurrency.Bitcoin, address.Value, "2", "Säker", []));
+            }
+
+            return hits;
+        }
 
         public SanctionMatch? Find(EthereumAddress address) => Locked ? throw new IOException("låst") : new(
             Info, Named ? [new SanctionedAddress(EthereumCurrency, address.Checksummed, "1", "Blandaren", [])] : []);

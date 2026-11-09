@@ -178,7 +178,7 @@ public sealed class EthereumGraphTests : IDisposable
         foreach (var asset in result.Assets)
         {
             var ended = asset.Ends.Aggregate(AssetAmount.Zero(asset.Traced.Asset), (sum, end) => sum + end.Amount.Amount);
-            Assert.Equal(asset.Traced, ended);
+            Assert.Equal(asset.Total, ended);
         }
 
         var usdt = result.Assets.Single(asset => asset.Traced.Asset == KnownTokens.EthereumUsdt);
@@ -393,6 +393,46 @@ public sealed class EthereumGraphTests : IDisposable
         var error = await Assert.ThrowsAsync<ArgumentException>(() => _harness.Service.TraceAccountsAsync(graph,
             new AccountTraceRequest(TracingMethodKind.Fifo, [AccountSeed.Of(graph.Account.Transfers.Single())])));
         Assert.Contains("itself", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task An_out_placed_before_an_in_in_one_block_gives_fifo_the_same_answer_in_the_trace_and_the_exposure()
+    {
+        // In block 100 the scammer pays the exchange at place 5, before the victim's money comes in at place 10; so
+        // FIFO sends none of the victim's money to the exchange, in the graph's trace and in the exposure alike.
+        _harness.Ethereum.Add(
+            Placed(Tx("early-out", 100, Scammer, 0.001m, Token(Scammer, Exchange, Usdt(400))), 5),
+            Placed(Tx("late-in", 100, Victim, 0.001m, Token(Victim, Scammer, Usdt(600))), 10),
+            Tx("later-out", 110, Scammer, 0.001m, Token(Scammer, Mule, Usdt(600))));
+        _harness.Service.AddStartPoint(_harness.Case, TraceStartPoint.ForEthereumAddress(Scammer));
+        var graph = (await _harness.Service.ExpandAsync(
+            _harness.Case, ExpansionRequest.ForEthereumAddress(Scammer))).Graph;
+        var exchange = graph.NodeOf(Exchange.ToChainAddress())!.Key;
+        var mule = graph.NodeOf(Mule.ToChainAddress())!.Key;
+        var seed = graph.Account.Transfers.Single(transfer => transfer.From == Victim);
+
+        var trace = await _harness.Service.TraceAccountsAsync(
+            graph, new AccountTraceRequest(TracingMethodKind.Fifo, [AccountSeed.Of(seed)]));
+        var exposure = new ExposureAnalysis([new AccountFifoMethod()]).Analyse(new ExposureRequest(
+            graph, graph.NodeOf(Victim.ToChainAddress())!.Key, KnownTokens.EthereumUsdt, ExposureDirection.Out, 2,
+            TracingMethodKind.Fifo, new HashSet<string>([exchange, mule], StringComparer.Ordinal)));
+
+        AssetAmount Traced(string key) => trace.Ends.Where(end => end.NodeKey == key)
+            .Aggregate(Usdt(0), (sum, end) => sum + end.Amount.Amount);
+        AssetAmount Exposed(string key) => exposure.Reached.Where(reach => reach.NodeKey == key)
+            .Aggregate(Usdt(0), (sum, reach) => sum + reach.Amount);
+        Assert.Equal((Usdt(0), Usdt(600)), (Traced(exchange), Traced(mule)));
+        Assert.Equal((Traced(exchange), Traced(mule)), (Exposed(exchange), Exposed(mule)));
+    }
+
+    /// <summary>Gives a transaction its place in its block, as an answer that names it does.</summary>
+    private static EthereumTransaction Placed(EthereumTransaction transaction, long index)
+    {
+        var block = transaction.Block! with { TransactionIndex = index };
+        return transaction with
+        {
+            Block = block, Transfers = [.. transaction.Transfers.Select(transfer => transfer with { Block = block })],
+        };
     }
 
     private static EthereumTransfer Usdt1000ToScammer(TraceGraph graph) =>

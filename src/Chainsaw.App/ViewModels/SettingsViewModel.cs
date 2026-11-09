@@ -34,6 +34,10 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>What the dialog says when the settings' file could not be written.</summary>
     public const string SaveFailedText = "Inställningarna gick inte att spara. De gäller tills Chainsaw stängs.";
 
+    /// <summary>The error when the exit's copy for the background could not be kept or removed.</summary>
+    public const string ExitInBackgroundFailedText =
+        "Utgången gick inte att spara för bakgrunden. Försök igen om en stund.";
+
     /// <summary>What the profile says when the name is left empty.</summary>
     public const string NameNeededText = "Namnet behövs: det står med varje uppslag i ärendets journal.";
 
@@ -78,6 +82,12 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     /// <summary>Shows the message and plays the sound when asked, or <see langword="null"/> where it cannot.</summary>
     private readonly IAlertPreview? _alerts;
+
+    /// <summary>The exits the background may use, or <see langword="null"/>.</summary>
+    private readonly IBackgroundExits? _backgroundExits;
+
+    /// <summary>The exits in the vault, for the selected exit, or <see langword="null"/>.</summary>
+    private readonly IExitStore? _exitStore;
 
     /// <summary>The settings as they are now.</summary>
     private AppSettings _settings;
@@ -126,6 +136,15 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// How many rates the open case keeps, on the page Kurser (sketch KU1a), or <see langword="null"/> where there is
     /// no case to count.
     /// </param>
+    /// <param name="backgroundExits">
+    /// The exits the background may use (decided 2026-11-08), or <see langword="null"/> where there are none (the row
+    /// is then not shown).
+    /// </param>
+    /// <param name="exitStore">The exits in the vault, for the selected exit, or <see langword="null"/>.</param>
+    /// <param name="proxy">
+    /// The proxy under Windows and the login to it (sketch PX1a), whose choice is written to the file, or
+    /// <see langword="null"/> where there is none.
+    /// </param>
     public SettingsViewModel(
         AppSettings settings,
         AppSettingsStore store,
@@ -142,7 +161,10 @@ public sealed partial class SettingsViewModel : ObservableObject
         LinkRegistration? links = null,
         AboutViewModel? about = null,
         IAlertPreview? alerts = null,
-        RatesSummaryViewModel? rates = null)
+        RatesSummaryViewModel? rates = null,
+        IBackgroundExits? backgroundExits = null,
+        IExitStore? exitStore = null,
+        ProxyLoginViewModel? proxy = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(cases);
@@ -156,9 +178,17 @@ public sealed partial class SettingsViewModel : ObservableObject
         _vault = vault;
         _links = links;
         _alerts = alerts;
+        _backgroundExits = backgroundExits;
+        _exitStore = exitStore;
         Exits = exits;
         Sources = sources;
         Rates = rates;
+        Proxy = proxy;
+        if (proxy is not null)
+        {
+            proxy.LoginChosen += (_, chosen) => Save(_settings with { ProxyLoginFor = chosen });
+        }
+
         Menu = SettingsMenu.Groups
             .Select(group => new SettingsMenuGroup(group.Name, [.. group.Entries.Select(e => new SettingsMenuItem(e))]))
             .ToList();
@@ -194,6 +224,9 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     /// <summary>Gets the page Källor, or <see langword="null"/> where there is none.</summary>
     public SourcesViewModel? Sources { get; }
+
+    /// <summary>Gets the proxy under Windows on the page Nätverk (sketch PX1a), or <see langword="null"/>.</summary>
+    public ProxyLoginViewModel? Proxy { get; }
 
     /// <summary>Gets the automatic lock's times.</summary>
     public IReadOnlyList<SettingsChoice> LockChoices { get; }
@@ -263,6 +296,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>Gets whether Windows is the way out (its card is marked).</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsVpn))]
+    [NotifyPropertyChangedFor(nameof(ShowsExitInBackground))]
     public partial bool IsWindows { get; private set; }
 
     /// <summary>Gets whether VPN is the way out (its card is marked, and the exits are shown under it).</summary>
@@ -296,6 +330,23 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// Chainsaw is open.
     /// </summary>
     public bool HasNoAlertWay => !AlertsInWindows && !AlertsWithSound && !AlertsOnScreen;
+
+    /// <summary>
+    /// Gets whether the selected exit is allowed in the background (decided 2026-11-08): its WireGuard file is then
+    /// kept protected for the Windows user outside the vault, so that the watching goes through VPN also when Chainsaw
+    /// is closed.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool ExitInBackground { get; private set; }
+
+    /// <summary>
+    /// Gets whether the switch can be used: copies can be kept, an exit is selected and the background is on.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool CanExitInBackground { get; private set; }
+
+    /// <summary>Gets whether the row is shown: with VPN chosen, and only where copies can be kept.</summary>
+    public bool ShowsExitInBackground => IsVpn && _backgroundExits?.IsAvailable == true;
 
     /// <summary>Gets whether an exit is checked once each time it connects (sketch UT3b).</summary>
     [ObservableProperty]
@@ -463,7 +514,13 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     /// <summary>Turns the watching when Chainsaw is closed on or off (the switch).</summary>
     [RelayCommand]
-    public void ToggleWatchInBackground() => Save(_settings with { WatchInBackground = !_settings.WatchInBackground });
+    public void ToggleWatchInBackground()
+    {
+        Save(_settings with { WatchInBackground = !_settings.WatchInBackground });
+
+        // Turning it off removes the exits' copies (BackgroundLink); the switch under Nätverk follows.
+        _ = ShowExitInBackgroundAsync();
+    }
 
     /// <summary>Turns the notification in Windows on or off (the switch).</summary>
     [RelayCommand]
@@ -526,6 +583,51 @@ public sealed partial class SettingsViewModel : ObservableObject
     [RelayCommand]
     public void ToggleCheckExitOnConnect() =>
         Save(_settings with { CheckExitOnConnect = !_settings.CheckExitOnConnect });
+
+    /// <summary>
+    /// Lets the background use the selected exit, or takes the permission back (the switch): the exit's WireGuard file
+    /// is copied under the Windows user's protection, or the copy is removed, off the UI thread; then the background
+    /// is started or stopped by the settings' change.
+    /// </summary>
+    /// <returns>A task that completes when it is done.</returns>
+    [RelayCommand]
+    public async Task ToggleExitInBackgroundAsync()
+    {
+        if (_backgroundExits is not { } exits || _exitStore is not { } store || !CanExitInBackground)
+        {
+            return;
+        }
+
+        // The user's intent decides: what the switch showed is what they turned, so turning it off always forbids.
+        var allow = !ExitInBackground;
+        try
+        {
+            await Task.Run(() =>
+            {
+                if (store.FindSelected() is not { } selected)
+                {
+                    return;
+                }
+
+                if (allow)
+                {
+                    exits.Allow(selected.Id);
+                }
+                else
+                {
+                    exits.Forbid(selected.Id);
+                }
+            });
+            ErrorText = string.Empty;
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            ErrorText = ExitInBackgroundFailedText;
+        }
+
+        SettingsChanged?.Invoke(this, _settings);
+        await ShowExitInBackgroundAsync();
+    }
 
     /// <summary>Turns the lock with Windows on or off (the switch).</summary>
     [RelayCommand]
@@ -731,15 +833,54 @@ public sealed partial class SettingsViewModel : ObservableObject
     private void ShowPage(SettingsPage page)
     {
         Page = page;
+        if (page == SettingsPage.Network)
+        {
+            _ = ShowExitInBackgroundAsync();
+        }
+
         if (page == SettingsPage.Pricing)
         {
             _ = Rates?.RefreshAsync();
+        }
+
+        if (page == SettingsPage.Network)
+        {
+            Proxy?.Refresh();
         }
 
         foreach (var item in Menu.SelectMany(group => group.Items))
         {
             item.IsSelected = item.Entry.Page == page;
         }
+    }
+
+    /// <summary>
+    /// Reads, off the UI thread, whether the selected exit is allowed in the background and whether the switch can be
+    /// used; a vault or file that cannot be read leaves the switch off and unusable.
+    /// </summary>
+    /// <returns>A task that completes when it is shown.</returns>
+    private async Task ShowExitInBackgroundAsync()
+    {
+        if (_backgroundExits is not { IsAvailable: true } exits || _exitStore is not { } store)
+        {
+            (ExitInBackground, CanExitInBackground) = (false, false);
+            return;
+        }
+
+        var on = _settings.WatchInBackground;
+        (bool Allowed, bool Usable) state;
+        try
+        {
+            state = await Task.Run(() => store.FindSelected() is { } selected
+                ? (exits.IsAllowed(selected.Id), on)
+                : (false, false));
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            state = (false, false);
+        }
+
+        (ExitInBackground, CanExitInBackground) = state;
     }
 
     /// <summary>Reads where the link <c>chainsaw:</c> points, for the switch and the row's line.</summary>

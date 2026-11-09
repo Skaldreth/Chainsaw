@@ -94,8 +94,9 @@ internal static class WatcherServices
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Chainsaw");
 
     /// <summary>
-    /// Builds the services: the chains' sources from Chainsaw's endpoints, the way out (Windows only; the exits are in
-    /// the vault), the check and feeds of Monitoring, the shared files under DPAPI and the ways of telling.
+    /// Builds the services: the chains' sources from Chainsaw's endpoints, the way out (Windows, or the exit the user
+    /// allowed in the background, read from its file under DPAPI and never from the vault), the check and feeds of
+    /// Monitoring, the shared files under DPAPI and the ways of telling.
     /// </summary>
     /// <param name="appData">Chainsaw's folder.</param>
     /// <param name="configure">Lets a test put its own services in place (protector, clock, ways, network).</param>
@@ -107,7 +108,13 @@ internal static class WatcherServices
         services.AddSingleton<IOperatorProfileStore, BackgroundOperator>();
         services.AddSingleton<IVaultSecrets, LockedSecrets>();
         services.AddUserDataProtection();
-        services.AddNetworkModule(options => options.Route = ExitRoute.Vpn);
+        services.AddNetworkModule(options =>
+        {
+            options.Route = ExitRoute.Vpn;
+            options.BackgroundExitsFile =
+                Path.Combine(appData, BackgroundNames.Folder, NetworkOptions.BackgroundExitsFileName);
+            options.ExitsFromBackground = true;
+        });
         services.AddChainsModule(sources: options => options.Directory = appData);
         services.AddSingleton<WatcherGate>();
         services.AddSingleton<IWatchGate>(provider => provider.GetRequiredService<WatcherGate>());
@@ -128,7 +135,12 @@ internal static class WatcherServices
             provider.GetRequiredService<IChainSources>(),
             provider.GetRequiredService<IResponseTransfer>(),
             provider.GetRequiredService<IAlerts>(),
-            provider.GetRequiredService<IClock>()));
+            provider.GetRequiredService<IClock>())
+        {
+            Exit = provider.GetRequiredService<IExitConnection>(),
+            Exits = provider.GetRequiredService<IBackgroundExits>(),
+            News = provider.GetRequiredService<IBlockNews>(),
+        });
 
         services.AddMemoryCases();
         services.AddSingleton<Func<IMemoryCase>>(provider =>
@@ -141,7 +153,8 @@ internal static class WatcherServices
             provider.GetRequiredService<WatcherParts>(),
             provider.GetRequiredService<IExitRoute>(),
             provider.GetRequiredService<WatcherGate>(),
-            provider.GetRequiredService<Func<IMemoryCase>>()));
+            provider.GetRequiredService<Func<IMemoryCase>>(),
+            provider.GetRequiredService<IWindowsProxy>()));
 
         // Last, so that what a test puts in place wins.
         configure?.Invoke(services);

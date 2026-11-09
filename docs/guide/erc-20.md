@@ -56,5 +56,5 @@ till en DEX och ether tillbaka) har den bytt token. Det ritas som ett litet pill
 slut på spåret: pengarna bytte token men inte ägare. Pillret sätts bara när tx:en själv visar bytet; skickar eller får
 adressen flera tillgångar går det inte att läsa vad som byttes mot vad, och då står inget piller.
 
-Spårningen räknar än så länge varje tillgång för sig, så de spårade USDT:na blir inte spårad ether i bytet. Det står i
-*Varför?* på linjen.
+Genom bytet följer det spårade **värdet** med: lika stor andel av det som kom ut som av det som gick in. Du kan välja
+per swap att det inte följer med. Se [Spåret genom en swap](swappar.md).

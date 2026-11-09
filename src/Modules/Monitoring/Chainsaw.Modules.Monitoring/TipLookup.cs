@@ -73,6 +73,7 @@ internal static class TipLookup
                 tron, @case, tip.Match, true, cancellationToken).ConfigureAwait(false);
             complete = false;
         }
+
         if (status == LookupStatus.NotFound)
         {
             return new TipFinding(TipVerdict.Rejected, null, origins, null);
@@ -189,10 +190,7 @@ internal static class TipLookup
         }
 
         var block = value.Block is { Hash: { } blockHash } at ? new WatchBlock(at.Height, blockHash, at.Time) : null;
-        var flows = value.Transfers.Select(transfer => new WatchFlow(
-            [new WatchLeg(transfer.From.ToChainAddress(), transfer.Amount)],
-            [new WatchLeg(transfer.To.ToChainAddress(), transfer.Amount)]));
-        var transaction = new WatchTransaction(source.Chain, value.Hash.Value, block, [.. flows]);
+        var transaction = EthereumCaseFeed.Of(source.Chain, value.Hash.Value, block, value.Transfers);
 
         var asset = match.Amount.Asset;
         var countedWhole = source.Chain == Chain.Tron && value.Outcome != EthereumOutcome.Pending

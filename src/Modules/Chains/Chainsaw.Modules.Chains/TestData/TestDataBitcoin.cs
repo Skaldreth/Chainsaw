@@ -95,6 +95,11 @@ public static class TestDataBitcoin
             inner.VerifyTransactionAsync(@case, txid, cancellationToken);
 
         /// <inheritdoc/>
+        public Task<BitcoinLookup<BitcoinTransaction>> VerifyInBlockAsync(
+            ICase @case, Txid txid, CancellationToken cancellationToken = default) =>
+            inner.VerifyInBlockAsync(@case, txid, cancellationToken);
+
+        /// <inheritdoc/>
         public Task<BitcoinLookup<BitcoinAddressSummary>> GetAddressSummaryAsync(
             ICase @case, BitcoinAddress address, CancellationToken cancellationToken = default) =>
             inner.GetAddressSummaryAsync(@case, address, cancellationToken);
@@ -114,6 +119,18 @@ public static class TestDataBitcoin
         public Task<BitcoinLookup<BitcoinTip>> GetTipHeightAsync(
             ICase @case, CancellationToken cancellationToken = default) =>
             inner.GetTipHeightAsync(@case, cancellationToken);
+
+        /// <inheritdoc/>
+        public async Task<BitcoinLookup<BitcoinTip>> GetTipHeightAsync(
+            ICase @case, LookupMode mode, CancellationToken cancellationToken = default)
+        {
+            if (mode == LookupMode.InStep)
+            {
+                await ProbeOnceAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            return await inner.GetTipHeightAsync(@case, mode, cancellationToken).ConfigureAwait(false);
+        }
 
         /// <inheritdoc/>
         public Task<BitcoinLookup<ChainTip>> GetTipAsync(ICase @case, CancellationToken cancellationToken = default) =>

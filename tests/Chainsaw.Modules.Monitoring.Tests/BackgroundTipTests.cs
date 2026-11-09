@@ -98,12 +98,14 @@ public sealed class BackgroundTipTests : IDisposable
     {
         var watch = await StartedWatch();
         Genuine();
+        _harness.SeenByTheCase(900_004);
         Queue.Add(Entry(watch, "hit"));
         Background.Import(_harness.Case);
         _harness.Gate.State = gate;
         _harness.Bitcoin.TransactionStatus = status;
 
-        var waiting = await _harness.Service.CheckAsync(_harness.Case, Chain.Bitcoin, 900_004);
+        // No new block for the watch's own check, which would otherwise find the hit itself.
+        var waiting = await _harness.Service.CheckAsync(_harness.Case, Chain.Bitcoin, 900_000);
 
         Assert.Empty(waiting.Hits);
         Assert.Equal(WatchTipState.Pending, Assert.Single(_harness.Service.GetTips(_harness.Case)).State);
@@ -199,6 +201,20 @@ public sealed class BackgroundTipTests : IDisposable
         Assert.Single(_harness.Journal(MonitoringJournalKinds.TipDropped));
         Assert.Empty(_harness.Service.GetHits(_harness.Case));
         Assert.Empty(_harness.Bitcoin.TransactionsAsked);
+    }
+
+    [Fact]
+    public async Task A_tip_of_a_watch_taken_back_is_closed_at_once_since_no_check_of_its_chain_may_come_again()
+    {
+        var watch = await StartedWatch();
+        Genuine();
+        Queue.Add(Entry(watch, "hit"));
+        Background.Import(_harness.Case);
+
+        _harness.Service.Remove(_harness.Case, watch.Id, null);
+
+        Assert.Equal(WatchTipState.Dropped, _harness.Service.GetTips(_harness.Case).Single().State);
+        Assert.Single(_harness.Journal(MonitoringJournalKinds.TipDropped));
     }
 
     /// <summary>Puts the genuine transaction on the watched address's page: 25 000 sat out to the destination.</summary>

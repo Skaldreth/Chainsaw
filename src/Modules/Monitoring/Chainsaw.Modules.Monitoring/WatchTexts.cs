@@ -64,6 +64,21 @@ internal static class WatchTexts
     public static string Hits(IEnumerable<WatchMatch> matches) => string.Join(", ", matches.Select(match =>
         $"{DirectionText(match.Direction)} {match.Amount} i block {Number(match.Block.Height)}"));
 
+    /// <summary>Lists hits that moved to another block in a few words.</summary>
+    /// <param name="moves">Each hit, with the block it was sealed in before.</param>
+    /// <returns>
+    /// For example <c>tx a1b2c3d4… ligger nu i block 921 341, förut i block 921 340 (omorganisation)</c>.
+    /// </returns>
+    public static string Moved(IEnumerable<(WatchMatch Match, WatchBlock Before)> moves) =>
+        string.Join(", ", moves.Select(move =>
+            $"tx {Short(move.Match.Transaction)} ligger nu i block {Number(move.Match.Block.Height)}, förut i block "
+            + $"{Number(move.Before.Height)} (omorganisation)"));
+
+    /// <summary>Shortens a transaction's id to its first characters.</summary>
+    /// <param name="id">The id.</param>
+    /// <returns>For example <c>a1b2c3d4…</c>.</returns>
+    private static string Short(string id) => id.Length > 8 ? id[..8] + "…" : id;
+
     /// <summary>Writes a number with spaces between thousands.</summary>
     /// <param name="value">The number.</param>
     /// <returns>For example <c>921 344</c>.</returns>

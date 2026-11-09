@@ -16,7 +16,7 @@ namespace Chainsaw.Modules.Cases;
 /// operations the guard refuses everything. The file key is kept while the case is open only to wrap new envelopes,
 /// and the anchor key to write the anchors when saving after the vault has been locked; both are cleared on close.
 /// </remarks>
-internal sealed class Case : ICase
+internal sealed partial class Case : ICase
 {
     /// <summary>The size of the buffer when the working copy is copied into the case file.</summary>
     private const int CopyBufferSize = 81920;
@@ -355,11 +355,11 @@ internal sealed class Case : ICase
             }
 
             RequireRoomFor(_header.Envelopes);
-            var wrappingKey = CaseCrypto.AllocateSecret(CaseCrypto.KeySize);
+            var wrappingKey = _services.DeriveVaultKey(CaseCrypto.EnvelopePurpose);
             try
             {
-                DeriveVaultKey(_services.PurposeKeys, CaseCrypto.EnvelopePurpose, wrappingKey);
-                var envelope = KeyEnvelopes.CreateOperator(Info.Id, _fileKey, wrappingKey, CurrentOperator().Name);
+                var envelope = KeyEnvelopes.CreateOperator(
+                    Info.Id, _fileKey, wrappingKey, _services.CurrentOperator().Name);
                 AppendOwnJournal(new JournalDraft(
                     CaseJournalKinds.OperatorAccessAdded, "Operatörens valv fick ett eget kuvert"));
                 _header = _header.WithEnvelopes(_header.Envelopes.Append(envelope));
@@ -379,10 +379,9 @@ internal sealed class Case : ICase
         lock (_gate)
         {
             using var operation = BeginOperation();
-            var wrappingKey = CaseCrypto.AllocateSecret(CaseCrypto.KeySize);
+            var wrappingKey = _services.DeriveVaultKey(CaseCrypto.EnvelopePurpose);
             try
             {
-                DeriveVaultKey(_services.PurposeKeys, CaseCrypto.EnvelopePurpose, wrappingKey);
                 return EnvelopeDescriptions.Describe(_header, wrappingKey, _fileKey, _services.Options);
             }
             finally
@@ -518,7 +517,7 @@ internal sealed class Case : ICase
     internal JournalEntry AppendJournalIn(SqliteTransaction transaction, JournalDraft draft)
     {
         JournalRecords.Validate(draft);
-        var profile = CurrentOperator();
+        var profile = _services.CurrentOperator();
         var values = JournalRecords.Values(draft, profile, _services.Clock.UtcNow, _services.Options.TimeZone);
         var record = SealAsCases(transaction, CasesSchema.Journal, values);
         return JournalRecords.ToEntry(record, values);
@@ -802,6 +801,29 @@ internal sealed class Case : ICase
     }
 
     /// <summary>
+    /// Removes a sharing envelope weaker than this build accepts when the case is opened, with a line in the journal: it
+    /// would never open here, and kept, every copy handed on would let the password be guessed cheaply. A new password
+    /// set later gets a proper envelope. The caller saves.
+    /// </summary>
+    /// <returns><see langword="true"/> when one was removed.</returns>
+    internal bool RemoveWeakSharingEnvelope()
+    {
+        var minimum = _services.Options.MinimumSharingIterations;
+        if (!_header.Envelopes.Any(envelope => KeyEnvelopes.IsWeakPassword(envelope, minimum)))
+        {
+            return false;
+        }
+
+        AppendOwnJournal(new JournalDraft(
+            CaseJournalKinds.SharingPasswordRemoved,
+            "Delningslösenordets kuvert var svagare än Chainsaw godtar och togs bort; "
+            + "sätt ett nytt delningslösenord för att dela ärendet"));
+        _header = _header.WithEnvelopes(
+            _header.Envelopes.Where(envelope => !KeyEnvelopes.IsWeakPassword(envelope, minimum)));
+        return true;
+    }
+
+    /// <summary>
     /// Refuses to add an envelope to a header that is full, before anything is journalled, since a header with one
     /// more could not be written (and every later save, and the close, would fail).
     /// </summary>
@@ -828,23 +850,6 @@ internal sealed class Case : ICase
             "Ärendet fick ett kuvert för organisationens nya återställningsnyckel; återkallade togs bort",
         _ => "Kuverten för återkallade återställningsnycklar togs bort ur ärendet",
     };
-
-    /// <summary>Derives a key from the vault, giving a locked vault the case's own error.</summary>
-    /// <param name="purposeKeys">The vault's keys per purpose.</param>
-    /// <param name="purpose">The purpose.</param>
-    /// <param name="destination">Receives the key.</param>
-    /// <exception cref="CaseException"><see cref="CaseError.VaultLocked"/>.</exception>
-    internal static void DeriveVaultKey(IPurposeKeys purposeKeys, string purpose, Span<byte> destination)
-    {
-        try
-        {
-            purposeKeys.DeriveKey(purpose, destination);
-        }
-        catch (VaultException exception) when (exception.Error == VaultError.Locked)
-        {
-            throw new CaseException(CaseError.VaultLocked, exception);
-        }
-    }
 
     /// <summary>
     /// Compares the case with this computer's anchors when it is opened, and seals what does not match in the
@@ -1082,32 +1087,14 @@ internal sealed class Case : ICase
         return HashChain.Append(database, transaction, chain, normalized);
     }
 
-    /// <summary>Gets the operator from the vault for the journal.</summary>
-    /// <returns>The profile.</returns>
-    /// <exception cref="CaseException">
-    /// <see cref="CaseError.VaultLocked"/> or <see cref="CaseError.NoOperatorProfile"/>.
-    /// </exception>
-    private OperatorProfile CurrentOperator()
-    {
-        try
-        {
-            return _services.Profiles.Get() ?? throw new CaseException(CaseError.NoOperatorProfile);
-        }
-        catch (VaultException exception) when (exception.Error == VaultError.Locked)
-        {
-            throw new CaseException(CaseError.VaultLocked, exception);
-        }
-    }
-
     /// <summary>Checks whether this vault has an envelope in the file that opens to this case's file key.</summary>
     /// <returns><see langword="true"/> when it has.</returns>
     private bool VaultHasEnvelope()
     {
-        var wrappingKey = CaseCrypto.AllocateSecret(CaseCrypto.KeySize);
+        var wrappingKey = _services.DeriveVaultKey(CaseCrypto.EnvelopePurpose);
         var opened = CaseCrypto.AllocateSecret(CaseCrypto.KeySize);
         try
         {
-            DeriveVaultKey(_services.PurposeKeys, CaseCrypto.EnvelopePurpose, wrappingKey);
             return KeyEnvelopes.TryOpenOperator(_header, wrappingKey, opened)
                 && CryptographicOperations.FixedTimeEquals(opened, _fileKey);
         }

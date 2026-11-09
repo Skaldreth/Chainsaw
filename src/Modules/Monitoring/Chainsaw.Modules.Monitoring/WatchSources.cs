@@ -1,5 +1,6 @@
 using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Chains.Contracts;
+using Chainsaw.Modules.Monitoring.Contracts;
 using Chainsaw.SharedKernel;
 
 namespace Chainsaw.Modules.Monitoring;
@@ -48,25 +49,14 @@ internal sealed record WatchSources(
         _ => null,
     };
 
-    /// <summary>Asks a chain's height through its source, as a check needs it: only a fetched answer counts.</summary>
+    /// <summary>
+    /// Asks a chain's height through its source, only of an endpoint in step with the chain
+    /// (<see cref="WatchSchedule.HeightAsync"/>).
+    /// </summary>
     /// <param name="case">The case the response is sealed in.</param>
     /// <param name="chain">The chain.</param>
     /// <param name="cancellationToken">Stops the lookup.</param>
     /// <returns>The height, or <see langword="null"/> when it could not be had or the chain has no source.</returns>
-    public async Task<long?> HeightAsync(ICase @case, Chain chain, CancellationToken cancellationToken)
-    {
-        if (Utxo(chain) is { } utxo)
-        {
-            var tip = await utxo.GetTipHeightAsync(@case, cancellationToken).ConfigureAwait(false);
-            return tip.Status == LookupStatus.Fetched ? tip.Value?.Height : null;
-        }
-
-        if (Account(chain) is not { } account)
-        {
-            return null;
-        }
-
-        var height = await account.GetTipHeightAsync(@case, cancellationToken).ConfigureAwait(false);
-        return height.Status == LookupStatus.Fetched ? height.Value?.Height : null;
-    }
+    public Task<long?> HeightAsync(ICase @case, Chain chain, CancellationToken cancellationToken) =>
+        WatchSchedule.HeightAsync(Utxo(chain), Account(chain), @case, cancellationToken);
 }

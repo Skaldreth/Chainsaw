@@ -433,8 +433,46 @@ public static class RequestExits
             .Select(step => Short(step.Node?.Addresses ?? [], step.Key))
             .ToList();
         steps.Add(SafeName(end));
-        return steps.Count < 2 ? null : new RequestTrail(steps, scene.MethodText);
+        return steps.Count < 2
+            ? null
+            : new RequestTrail(steps, scene.MethodText) { Swaps = SwapsOn(scene, path) };
     }
+
+    /// <summary>
+    /// Gives the swaps the traced money's value followed through on a trail (<see cref="SwapValue"/>), so that the
+    /// request says the analysis, its share and the swap's transaction where the trail rests on one.
+    /// </summary>
+    /// <param name="scene">The graph.</param>
+    /// <param name="path">The trail's node keys, from the start to the end.</param>
+    /// <returns>The swaps, each once, in chain order of the trace.</returns>
+    private static IReadOnlyList<RequestSwap> SwapsOn(GraphScene scene, IReadOnlyList<string> path)
+    {
+        var hops = path.Zip(path.Skip(1)).ToHashSet();
+        var swaps = scene.Edges
+            .Where(edge => hops.Contains((edge.Edge.From, edge.Edge.To)) && edge.TracedEdge is not null)
+            .SelectMany(edge => edge.TracedEdge!.Amount.Swaps)
+            .Where(conversion => conversion.Follows)
+            .Select(conversion => conversion.Swap)
+            .ToHashSet();
+        return
+        [
+            .. (scene.Snapshot.AccountTrace?.Swaps ?? []).Where(conversion => swaps.Contains(conversion.Swap))
+                .Select(conversion => new RequestSwap(
+                    conversion.Swap.Transaction.Value,
+                    SwapMarks.Of(conversion.Swap).Text,
+                    conversion.ShareText,
+                    SwapValue.Analysis,
+                    SwapPriceCheck.Check,
+                    GapText(conversion.Price))),
+        ];
+    }
+
+    /// <summary>Writes how much a swap's values in and out differed, or nothing when its price is not tested.</summary>
+    /// <param name="price">The swap's price check, or <see langword="null"/>.</param>
+    /// <returns>For example <c>0,1 %</c>, or <see langword="null"/>.</returns>
+    private static string? GapText(SwapPriceCheck? price) => price?.Gap is { } gap
+        ? (gap * 100).ToString("0.0", CultureInfo.GetCultureInfo("sv-SE")) + " %"
+        : null;
 
     /// <summary>Gives a step's node in Tracing's model.</summary>
     /// <param name="graph">The graph.</param>

@@ -109,6 +109,12 @@ public sealed partial class SourcesViewModel : ObservableObject
     /// <summary>The toaster that says a problem (sketch TO1a), or <see langword="null"/> in some tests.</summary>
     private readonly Toaster? _toaster;
 
+    /// <summary>The operator profile, whose name is kept with a pin; none in some tests.</summary>
+    private readonly IOperatorProfileStore? _profiles;
+
+    /// <summary>The clock of the pin's box.</summary>
+    private readonly IClock _clock;
+
     /// <summary>Whether the round at the start has been made (or the chains were off).</summary>
     private bool _startDone;
 
@@ -134,6 +140,8 @@ public sealed partial class SourcesViewModel : ObservableObject
     /// <param name="providers">The suppliers of attribution, or <see langword="null"/> where there are none.</param>
     /// <param name="switches">Which suppliers are on, or <see langword="null"/> where there are none.</param>
     /// <param name="toaster">The toaster that says a problem (sketch TO1a); none in some tests.</param>
+    /// <param name="profiles">The operator profile, whose name is kept with a pin (KL3b); none in some tests.</param>
+    /// <param name="clock">The clock of the pin's box; the system's when <see langword="null"/>.</param>
     public SourcesViewModel(
         IChainSources sources,
         ExitWay way,
@@ -143,12 +151,16 @@ public sealed partial class SourcesViewModel : ObservableObject
         TimeZoneInfo? timeZone = null,
         IAttributionProviders? providers = null,
         AttributionSwitches? switches = null,
-        Toaster? toaster = null)
+        Toaster? toaster = null,
+        IOperatorProfileStore? profiles = null,
+        IClock? clock = null)
     {
         ArgumentNullException.ThrowIfNull(sources);
         ArgumentNullException.ThrowIfNull(way);
         ArgumentNullException.ThrowIfNull(vault);
         _toaster = toaster;
+        _profiles = profiles;
+        _clock = clock ?? new SystemClock();
         _sources = sources;
         _way = way;
         _vault = vault;
@@ -163,14 +175,25 @@ public sealed partial class SourcesViewModel : ObservableObject
             : [.. providers.Providers.Select(info => new AttributionSupplierViewModel(info, switches, keys))];
         vault.StateChanged += (_, _) => ui.Post(ShowSupplierStates);
         sources.Changed += (_, chain) => ui.Post(() => ShowChain(chain));
+        sources.CertificateRefused += (_, endpoint) => ui.Post(() => SayRefused(endpoint));
         way.Changed += (_, _) => _ = ProbeAtStartAsync();
         vault.StateChanged += (_, _) => ui.Post(() => _ = ProbeAtStartAsync());
         ShowChip(Chips[0]);
         _ = ProbeAtStartAsync();
     }
 
+    /// <summary>
+    /// Raised when the toaster's <em>Visa</em> asks for the box of a node whose certificate changed, so that the
+    /// settings open at Källor.
+    /// </summary>
+    public event EventHandler? PinWanted;
+
     /// <summary>Gets the chains as chips.</summary>
     public IReadOnlyList<SourceChainChip> Chips { get; }
+
+    /// <summary>Gets the box of the own node's certificate that is folded out, or <see langword="null"/>.</summary>
+    [ObservableProperty]
+    public partial NodePinViewModel? NodePin { get; private set; }
 
     /// <summary>Gets the modes.</summary>
     public IReadOnlyList<SettingsChoice> ModeChoices { get; }
@@ -385,6 +408,81 @@ public sealed partial class SourcesViewModel : ObservableObject
         }
 
         OnPropertyChanged(nameof(CanProbe));
+    }
+
+    /// <summary>
+    /// The pin on an own node's row (sketch KL3b): folds its box out with the certificate read from the node, or in
+    /// when it is out.
+    /// </summary>
+    /// <param name="row">The endpoint, marked local.</param>
+    /// <returns>A task that completes when the box is shown.</returns>
+    [RelayCommand]
+    public Task OpenPinAsync(EndpointRowViewModel row)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        var open = !row.IsPinOpen;
+        foreach (var each in Rows)
+        {
+            each.IsPinOpen = false;
+        }
+
+        if (!open || !row.HasPin || Chip.Chain is not { } chain)
+        {
+            NodePin = null;
+            return Task.CompletedTask;
+        }
+
+        var host = Uri.TryCreate(row.Address, UriKind.Absolute, out var address) ? address.IdnHost : row.Name;
+        var box = new NodePinViewModel(_sources, chain, row.Id, host, OperatorName, _clock, _timeZone);
+        box.Pinned += (_, said) => _toaster?.Show(ToastKind.Success, said);
+        NodePin = box;
+        row.IsPinOpen = true;
+        return box.LoadAsync();
+    }
+
+    /// <summary>
+    /// Says in the toaster that the own node showed another certificate (sketch KL3b), since it can happen while
+    /// Chainsaw works with something else; <em>Visa</em> opens its box.
+    /// </summary>
+    /// <param name="endpoint">The endpoint.</param>
+    private void SayRefused(SourceEndpoint endpoint) => _toaster?.Show(new ToastRequest(
+        ToastKind.Error,
+        "Egen nod vägras",
+        $"Certifikatet för {endpoint.Address.IdnHost} har bytts",
+        "Visa",
+        () => ShowPin(endpoint)));
+
+    /// <summary>Shows the chain of an endpoint, folds its box out and asks for the page Källor.</summary>
+    /// <param name="endpoint">The endpoint.</param>
+    private void ShowPin(SourceEndpoint endpoint)
+    {
+        if (Chips.FirstOrDefault(chip => chip.Chain == endpoint.Chain && chip.IsBuilt) is not { } chip)
+        {
+            return;
+        }
+
+        ShowChip(chip);
+        if (Rows.FirstOrDefault(row => row.Id == endpoint.Id) is { } row)
+        {
+            row.IsPinOpen = false;
+            _ = OpenPinAsync(row);
+        }
+
+        PinWanted?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Gives the operator's name from the profile, or nothing while it cannot be read.</summary>
+    /// <returns>The name, or an empty text.</returns>
+    private string OperatorName()
+    {
+        try
+        {
+            return _profiles?.Get()?.Name ?? string.Empty;
+        }
+        catch (VaultException)
+        {
+            return string.Empty;
+        }
     }
 
     /// <summary>Chooses the shown chain's mode; it applies to the next lookup.</summary>

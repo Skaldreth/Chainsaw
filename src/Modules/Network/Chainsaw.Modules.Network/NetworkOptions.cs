@@ -42,6 +42,28 @@ public sealed class NetworkOptions
     /// </summary>
     public ExitRoute Route { get; set; } = ExitRoute.Vpn;
 
+    /// <summary>The name of the file with the exits allowed in the background, in the background's folder.</summary>
+    public const string BackgroundExitsFileName = "exits.bin";
+
+    /// <summary>
+    /// Gets or sets the file that keeps the exits the user allows in the background (decided 2026-11-08), protected
+    /// for the Windows user; <see langword="null"/> (the default) keeps none, and no exit can be allowed.
+    /// </summary>
+    public string? BackgroundExitsFile { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether the exits are read from <see cref="BackgroundExitsFile"/> only, never from the vault: the
+    /// background process, which never opens the vault, connects only an allowed, selected exit. Off by default.
+    /// </summary>
+    public bool ExitsFromBackground { get; set; }
+
+    /// <summary>
+    /// Gets or sets the proxy set by hand in Windows that the user let Chainsaw log in to with the Windows account, as
+    /// <c>host:port</c> (sketch PX1a), read from the application's settings; <see langword="null"/>, off, by default.
+    /// It is changed afterwards with <see cref="IWindowsProxy.AllowLogin"/>.
+    /// </summary>
+    public string? ProxyLoginFor { get; set; }
+
     /// <summary>
     /// Gets or sets whether plain <c>http</c> is allowed. Only the tests turn it on, to talk to a proxy on the
     /// loopback address; the application only sends <c>https</c>, so the exit sees no content.
@@ -66,7 +88,7 @@ public sealed class NetworkOptions
 
     /// <summary>Refuses limits that would make every request fail or never end.</summary>
     /// <exception cref="ArgumentOutOfRangeException">
-    /// A limit is zero, negative or too long, or the way is unknown.
+    /// A limit is zero, negative or too long, the way is unknown, or the background's exits have no file.
     /// </exception>
     internal void Validate()
     {
@@ -78,6 +100,12 @@ public sealed class NetworkOptions
             TunnelStartTimeout, TimeSpan.Zero, nameof(TunnelStartTimeout));
         ArgumentOutOfRangeException.ThrowIfGreaterThan(TunnelStartTimeout, LongestTimeout, nameof(TunnelStartTimeout));
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(MaximumResponseBytes, 0, nameof(MaximumResponseBytes));
+        if (ExitsFromBackground && BackgroundExitsFile is null)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(BackgroundExitsFile), "The background reads its exits from a file, which must be named.");
+        }
+
         if (!Enum.IsDefined(Route))
         {
             throw new ArgumentOutOfRangeException(nameof(Route), Route, "Unknown way out.");

@@ -31,6 +31,39 @@ public static class KnownTokens
     public static Asset EthereumUsdc { get; } =
         Asset.Token(Chain.Ethereum, "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48", "USDC", 6);
 
+    /// <summary>
+    /// Wrapped ether (WETH9) on Ethereum, 18 decimals: ether as a token, which an exchange's pool holds and its router
+    /// unwraps to ether, so that a swap to ether moves WETH inside the transaction.
+    /// </summary>
+    public static Asset EthereumWeth { get; } =
+        Asset.Token(Chain.Ethereum, "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2", "WETH", 18);
+
+    /// <summary>
+    /// Wrapped BNB (WBNB) on BSC, 18 decimals: BNB as a token, as WETH is ether on Ethereum, so that a swap to BNB moves
+    /// WBNB inside the transaction. The contract was read from CoinGecko's record of WBNB (2026-11-09).
+    /// </summary>
+    public static Asset BscWbnb { get; } =
+        Asset.Token(Chain.Bsc, "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c", "WBNB", 18);
+
+    /// <summary>Gives a chain's own coin as a token (WETH on Ethereum, WBNB on BSC), when Chainsaw knows it.</summary>
+    /// <param name="chain">The chain.</param>
+    /// <returns>The wrapped coin, or <see langword="null"/> on a chain without one Chainsaw knows.</returns>
+    public static Asset? WrappedNative(Chain chain) => chain switch
+    {
+        Chain.Ethereum => EthereumWeth,
+        Chain.Bsc => BscWbnb,
+        _ => null,
+    };
+
+    /// <summary>Says whether an asset is a chain's own coin as a token (WETH, WBNB).</summary>
+    /// <param name="asset">The asset.</param>
+    /// <returns><see langword="true"/> when it is.</returns>
+    public static bool IsWrappedNative(Asset asset)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+        return asset == WrappedNative(asset.Chain);
+    }
+
     /// <summary>Tether's USDT on TRON (TRC-20), 6 decimals, for when TRON is built.</summary>
     public static Asset TronUsdt { get; } =
         Asset.Token(Chain.Tron, "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t", "USDT", 6);

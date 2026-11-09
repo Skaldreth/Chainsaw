@@ -1,4 +1,3 @@
-using System.Buffers;
 using Chainsaw.Modules.Security.Contracts;
 
 namespace Chainsaw.Modules.Security;
@@ -7,10 +6,6 @@ namespace Chainsaw.Modules.Security;
 /// <param name="vault">The vault that holds the secrets.</param>
 internal sealed class VaultSecrets(Vault vault) : IVaultSecrets
 {
-    /// <summary>The characters a name may contain after its first character (the same rule as purpose names).</summary>
-    private static readonly SearchValues<char> NameCharacters =
-        SearchValues.Create("abcdefghijklmnopqrstuvwxyz0123456789/-._");
-
     /// <inheritdoc />
     public IReadOnlyList<string> List(string prefix)
     {
@@ -75,11 +70,7 @@ internal sealed class VaultSecrets(Vault vault) : IVaultSecrets
     /// <exception cref="ArgumentException">The name is not allowed.</exception>
     private static void RequireValidName(string? name)
     {
-        var valid = !string.IsNullOrEmpty(name)
-            && name.Length <= IVaultSecrets.MaximumNameLength
-            && (char.IsAsciiLetterLower(name[0]) || char.IsAsciiDigit(name[0]))
-            && !name.AsSpan().ContainsAnyExcept(NameCharacters);
-        if (!valid)
+        if (!PurposeKeys.IsValidName(name, IVaultSecrets.MaximumNameLength))
         {
             throw new ArgumentException(
                 "The name must be lower-case ASCII letters, digits and / - . _, starting with a letter or digit.",

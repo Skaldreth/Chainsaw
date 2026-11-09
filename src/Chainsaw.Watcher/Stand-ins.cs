@@ -20,8 +20,9 @@ internal sealed class BackgroundOperator : IOperatorProfileStore
 }
 
 /// <summary>
-/// The vault's named secrets as the background sees them: always locked. The exits (WireGuard) and the API keys are
-/// in the vault, so the background can never use them; it never asks for the master key.
+/// The vault's named secrets as the background sees them: always locked. The API keys are in the vault, so the
+/// background can never use them; it never asks for the master key. The exits it may use come from their own file
+/// (<c>IBackgroundExits</c>), never from here.
 /// </summary>
 internal sealed class LockedSecrets : IVaultSecrets
 {
@@ -43,11 +44,13 @@ internal sealed class LockedSecrets : IVaultSecrets
 }
 
 /// <summary>
-/// Whether the background may look anything up (principles 4 and 9): never with VPN as the way out (its exits are in
-/// the vault), never for a chain whose sources are off. The way out is the plan's, set by the loop.
+/// Whether the background may look anything up (principles 4 and 9): through Windows when the plan says so, through VPN
+/// only while the exit the user allowed in the background is connected, and never for a chain whose sources are off.
+/// The way out is the plan's, set by the loop.
 /// </summary>
 /// <param name="sources">The chains' sources.</param>
-internal sealed class WatcherGate(IChainSources sources) : IWatchGate
+/// <param name="exit">The connection to the exit allowed in the background.</param>
+internal sealed class WatcherGate(IChainSources sources, IExitConnection exit) : IWatchGate
 {
     /// <summary>Gets or sets the way out chosen in the plan; VPN until the plan is read.</summary>
     public ExitRoute Route { get; set; } = ExitRoute.Vpn;
@@ -55,7 +58,8 @@ internal sealed class WatcherGate(IChainSources sources) : IWatchGate
     /// <inheritdoc/>
     public WatchGate For(Chain chain)
     {
-        if (Route != ExitRoute.Windows)
+        var through = Route == ExitRoute.Windows || exit.Status.State == ExitState.Connected;
+        if (!through)
         {
             return WatchGate.NoExit;
         }

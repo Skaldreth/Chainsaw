@@ -47,10 +47,11 @@ public static class WatchWords
     public const string BackgroundWaitsText =
         "Bakgrunden väntar på utgången · bevakar bara medan Chainsaw är öppet";
 
-    /// <summary>The head's tooltip when VPN is the way out.</summary>
+    /// <summary>The head's tooltip when VPN is the way out and the selected exit is not allowed in the background.</summary>
     public const string BackgroundWaitsTip =
         "VPN-utgången ligger krypterad i valvet, så bakgrunden kan inte ansluta den när Chainsaw är stängt och " +
-        "gör då inga uppslag. Välj Windows som utgång för att bevaka också då.";
+        "gör då inga uppslag. Låt bakgrunden använda utgången i Inställningar › Nätverk, eller välj Windows som " +
+        "utgång.";
 
     /// <summary>The head when the user has turned the background off (sketch BV1a, off).</summary>
     public const string BackgroundOffText = "Bakgrunden är av · bevakar bara medan Chainsaw är öppet";

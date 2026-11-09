@@ -390,6 +390,30 @@ public sealed class WatchRunnerTests
     }
 
     [Fact]
+    public async Task A_new_block_heard_of_asks_at_once_and_a_closed_gate_stops_the_listening()
+    {
+        _source.Add(WatchSamples.Subject(V), WatchSamples.Filter(), start: 900_000);
+        var news = new CountingNews();
+        var (_, board) = WatchSamples.Board(_source);
+        var runner = new WatchRunner(board, _clock, (_, _) => Task.CompletedTask, news: news);
+
+        await runner.RunOnceAsync();
+        _clock.UtcNow += TimeSpan.FromSeconds(10);
+        await runner.RunOnceAsync();
+        Assert.Equal(1, _source.HeightsAsked);
+
+        news.Count++;
+        _clock.UtcNow += TimeSpan.FromSeconds(10);
+        await runner.RunOnceAsync();
+        Assert.Equal(2, _source.HeightsAsked);
+        Assert.Equal(3, news.Kept);
+
+        _source.GateState = WatchGate.Locked;
+        await runner.RunOnceAsync();
+        Assert.Equal(1, news.Released);
+    }
+
+    [Fact]
     public async Task Nothing_is_asked_without_a_case_or_with_the_gate_closed_or_only_paused_watches()
     {
         _source.Add(WatchSamples.Subject(V), WatchSamples.Filter());
@@ -525,4 +549,20 @@ public sealed class GraphWatchesTests
         Assert.Equal([VKey, UKey], overlay.Marks.Select(mark => mark.NodeKey));
         Assert.DoesNotContain(overlay.Rays, ray => ray.NodeKey == UKey);
     }
+}
+
+/// <summary>News of new blocks that a test counts by hand.</summary>
+internal sealed class CountingNews : IBlockNews
+{
+    public long Count { get; set; }
+
+    public int Kept { get; private set; }
+
+    public int Released { get; private set; }
+
+    public long Heard(Chain chain) => Count;
+
+    public void Keep(Chain chain) => Kept++;
+
+    public void Release(Chain chain) => Released++;
 }

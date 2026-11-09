@@ -120,4 +120,15 @@ public sealed class BscSourceTests
         Assert.Equal(bsc, parsed);
         Assert.Throws<ArgumentException>(() => ethereum.OnChain(Chain.Tron));
     }
+
+    [Fact]
+    public void Wbnb_is_bscs_coin_wrapped_as_weth_is_ethers()
+    {
+        Assert.Equal(KnownTokens.BscWbnb, KnownTokens.WrappedNative(Chain.Bsc));
+        Assert.Equal(KnownTokens.EthereumWeth, KnownTokens.WrappedNative(Chain.Ethereum));
+        Assert.True(KnownTokens.IsWrappedNative(KnownTokens.BscWbnb));
+        Assert.False(KnownTokens.IsWrappedNative(
+            Asset.Token(Chain.Ethereum, KnownTokens.BscWbnb.Contract!, "WBNB", 18)));
+        Assert.Null(KnownTokens.WrappedNative(Chain.Tron));
+    }
 }

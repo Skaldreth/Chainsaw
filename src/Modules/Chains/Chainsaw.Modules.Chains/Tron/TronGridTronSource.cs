@@ -228,16 +228,23 @@ internal sealed class TronGridTronSource : ITronSource
             TronGridApi.BlockPath(height),
             Parse,
             block => new ResponseIndex([], block.Height),
-            reader => SourceLookups.StoredAs(_lookups.Store.Latest(reader, TronResponseKinds.Block, subject), Parse),
-            block => block.Height);
+            block => block.Height,
+            FindStored: reader => SourceLookups.StoredAs(
+                _lookups.Store.Latest(reader, TronResponseKinds.Block, subject), Parse));
         return _lookups.LookupAsync(@case, query, mode, cancellationToken);
     }
 
     /// <inheritdoc/>
+    public Task<BitcoinLookup<EthereumTip>> GetTipHeightAsync(
+        ICase @case, CancellationToken cancellationToken = default) =>
+        GetTipHeightAsync(@case, LookupMode.AsNeeded, cancellationToken);
+
+    /// <inheritdoc/>
     public async Task<BitcoinLookup<EthereumTip>> GetTipHeightAsync(
-        ICase @case, CancellationToken cancellationToken = default)
+        ICase @case, LookupMode mode, CancellationToken cancellationToken = default)
     {
-        var tip = await GetTipAsync(@case, cancellationToken).ConfigureAwait(false);
+        ArgumentNullException.ThrowIfNull(@case);
+        var tip = await _lookups.LookupAsync(@case, TipQuery(), mode, cancellationToken).ConfigureAwait(false);
         return new BitcoinLookup<EthereumTip>(
             tip.Status, tip.Value is { } known ? new EthereumTip(known.Height) : null, tip.Origins, tip.Problem)
         {
@@ -265,9 +272,9 @@ internal sealed class TronGridTronSource : ITronSource
             "v1/accounts/" + address.Value,
             Parse,
             _ => ResponseIndex.None,
-            reader => SourceLookups.StoredAs(
-                _lookups.Store.Latest(reader, TronResponseKinds.Account, address.Value), Parse),
-            _ => null);
+            _ => null,
+            FindStored: reader => SourceLookups.StoredAs(
+                _lookups.Store.Latest(reader, TronResponseKinds.Account, address.Value), Parse));
         var account = await _lookups.LookupAsync(@case, query, LookupMode.AsNeeded, cancellationToken)
             .ConfigureAwait(false);
         if (account.Value is not { } found)
@@ -493,7 +500,7 @@ internal sealed class TronGridTronSource : ITronSource
             _askedAgain[hash.Value] = _clock.UtcNow;
             again = await _lookups.FetchAsync(
                     @case, InfoQuery(hash), null, cancellationToken, mode == LookupMode.InStep,
-                    except: other ? doubted : null)
+                    doubted: other ? doubted : null)
                 .ConfigureAwait(false);
             (count, newest) = await AnswersAsync(@case, hash, cancellationToken).ConfigureAwait(false);
             due = Due(hash, count, newest);
@@ -502,11 +509,16 @@ internal sealed class TronGridTronSource : ITronSource
         var disputed = new EthereumDisputedAnswer(hash, doubted?.Endpoint ?? string.Empty)
         {
             AskedAgainAt = other ? null : due,
+            AskedAgainText = other ? string.Empty : SourceLookups.WhenText(due, _clock.UtcNow, _timeZone),
         };
+
         return (again, disputed);
     }
 
-    /// <summary>Counts a transaction's sealed infos and gives when the newest came.</summary>
+    /// <summary>
+    /// Counts a transaction's sealed infos that were final when they came (the doubted answers: one from a block still
+    /// shallow was asked again for that reason, not because it was doubted), and gives when the newest of all came.
+    /// </summary>
     /// <param name="case">The open case.</param>
     /// <param name="hash">The transaction.</param>
     /// <param name="cancellationToken">Stops the reading.</param>
@@ -517,9 +529,26 @@ internal sealed class TronGridTronSource : ITronSource
             () => @case.Read(reader =>
             {
                 var all = _lookups.Store.All(reader, TronResponseKinds.TransactionInfo, hash.Value);
-                return (all.Count, all.Count == 0 ? DateTimeOffset.MinValue : all[^1].Origin.ReceivedUtc);
+                var final = all.Count(response => WasFinal(reader, response, hash));
+                return (final, all.Count == 0 ? DateTimeOffset.MinValue : all[^1].Origin.ReceivedUtc);
             }),
             cancellationToken);
+
+    /// <summary>Says whether a sealed info's block was final when the info came.</summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <param name="response">The sealed info.</param>
+    /// <param name="hash">The transaction.</param>
+    /// <returns><see langword="true"/> when it was.</returns>
+    private bool WasFinal(ICaseReader reader, StoredResponse response, EthereumTxHash hash)
+    {
+        if (SourceLookups.StoredAs(response, body => TronGridParser.ParseTransactionInfo(body, hash)) is not { } info)
+        {
+            return false;
+        }
+
+        var knownThen = _lookups.Store.KnownHeight(reader, response.Origin.Sequence);
+        return SourceLookups.Confirmations(info.Value.Height, knownThen) >= _options.SafeConfirmations;
+    }
 
     /// <summary>
     /// Gives when a doubted info is asked of the same endpoint again: after 1, 5 and 15 minutes and then every hour
@@ -550,9 +579,8 @@ internal sealed class TronGridTronSource : ITronSource
             return start + "tx:en frågas hos en annan källa och väntar tills överföringen kan placeras.";
         }
 
-        var local = TimeZoneInfo.ConvertTime(at, _timeZone).ToString("HH:mm", CultureInfo.InvariantCulture);
-        return start + $"ingen annan källa för TRON är påslagen; frågas igen hos {disputed.Endpoint} kl. {local}, "
-            + "och tx:en väntar tills överföringen kan placeras.";
+        return start + $"ingen annan källa för TRON är påslagen; frågas igen hos {disputed.Endpoint} "
+            + $"{disputed.AskedAgainText}, och tx:en väntar tills överföringen kan placeras.";
     }
 
     /// <summary>Says whether an entry's token is one Chainsaw knows by its contract (USDT and the others).</summary>
@@ -830,9 +858,9 @@ internal sealed class TronGridTronSource : ITronSource
             Parse,
             page => Index(page.Page.Transfers.Select(transfer => transfer.Block?.Height)
                 .Concat(page.Page.Fees.Select(fee => fee.Block?.Height))),
-            reader => SourceLookups.StoredAs(
-                _lookups.Store.Latest(reader, TronResponseKinds.AddressTransactions, subject), Parse),
-            page => page.Page.IsCutShort ? null : SettledPage(atOrBelow, page.ServerTime));
+            page => page.Page.IsCutShort ? null : SettledPage(atOrBelow, page.ServerTime),
+            FindStored: reader => SourceLookups.StoredAs(
+                _lookups.Store.Latest(reader, TronResponseKinds.AddressTransactions, subject), Parse));
     }
 
     /// <summary>The lookup of a page of an address's TRC-20 transfers.</summary>
@@ -850,9 +878,9 @@ internal sealed class TronGridTronSource : ITronSource
             HistoryPath(address, "transactions/trc20", atOrBelow, size),
             Parse,
             _ => ResponseIndex.None,
-            reader => SourceLookups.StoredAs(
-                _lookups.Store.Latest(reader, TronResponseKinds.AddressTokens, subject), Parse),
-            page => page.IsCutShort || page.Unread > 0 ? null : SettledPage(atOrBelow, page.ServerTime));
+            page => page.IsCutShort || page.Unread > 0 ? null : SettledPage(atOrBelow, page.ServerTime),
+            FindStored: reader => SourceLookups.StoredAs(
+                _lookups.Store.Latest(reader, TronResponseKinds.AddressTokens, subject), Parse));
     }
 
     /// <summary>
@@ -872,9 +900,9 @@ internal sealed class TronGridTronSource : ITronSource
             "wallet/gettransactionbyid?value=" + hash.Value,
             Parse,
             _ => ResponseIndex.None,
-            reader => SourceLookups.StoredAs(
-                _lookups.Store.Latest(reader, TronResponseKinds.Transaction, hash.Value), Parse),
-            raw => raw.Result is null ? null : height);
+            raw => raw.Result is null ? null : height,
+            FindStored: reader => SourceLookups.StoredAs(
+                _lookups.Store.Latest(reader, TronResponseKinds.Transaction, hash.Value), Parse));
 
     }
 
@@ -890,9 +918,9 @@ internal sealed class TronGridTronSource : ITronSource
             "wallet/gettransactioninfobyid?value=" + hash.Value,
             Parse,
             info => Index([info.Height]),
-            reader => SourceLookups.StoredAs(
-                _lookups.Store.Latest(reader, TronResponseKinds.TransactionInfo, hash.Value), Parse),
-            info => info.Height);
+            info => info.Height,
+            FindStored: reader => SourceLookups.StoredAs(
+                _lookups.Store.Latest(reader, TronResponseKinds.TransactionInfo, hash.Value), Parse));
     }
 
     /// <summary>The lookup of the newest block, which always changes.</summary>
@@ -903,9 +931,9 @@ internal sealed class TronGridTronSource : ITronSource
         TronGridApi.NewestBlockPath,
         TronGridParser.ParseTip,
         tip => new ResponseIndex([], tip.Height),
-        reader => SourceLookups.StoredAs(
-            _lookups.Store.Latest(reader, TronResponseKinds.Tip, string.Empty), TronGridParser.ParseTip),
-        _ => null);
+        _ => null,
+        FindStored: reader => SourceLookups.StoredAs(
+            _lookups.Store.Latest(reader, TronResponseKinds.Tip, string.Empty), TronGridParser.ParseTip));
 
     /// <summary>
     /// Asks for the newest block when the newest known one is older than <see cref="TipFreshness"/>, so that an answer

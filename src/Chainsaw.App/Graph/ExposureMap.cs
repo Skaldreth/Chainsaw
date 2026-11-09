@@ -208,7 +208,10 @@ public static class ExposureMap
     {
         ArgumentNullException.ThrowIfNull(scene);
         var services = Services(scene).Where(key => key != subject).ToHashSet(StringComparer.Ordinal);
-        return new ExposureRequest(scene.Snapshot.Graph, subject, asset, direction, depth, scene.Snapshot.Method, services);
+        return new ExposureRequest(scene.Snapshot.Graph, subject, asset, direction, depth, scene.Snapshot.Method, services)
+        {
+            Pricing = scene.Snapshot.SwapPricing,
+        };
     }
 
     /// <summary>Writes a share as the view does: one decimal and a space before the sign.</summary>

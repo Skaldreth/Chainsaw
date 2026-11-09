@@ -219,6 +219,7 @@ public sealed partial class GraphViewModel
         _changes = [];
         BlockMarksByLine = new Dictionary<string, BlockMark>();
         OpenBlockMark = null;
+        OpenSwap = null;
         Timeline.ClearLens();
         Timeline.ShowNewestBlock(null);
     }

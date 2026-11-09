@@ -233,6 +233,13 @@ public sealed record EthereumDisputedAnswer(EthereumTxHash Transaction, string E
     /// then every hour); <see langword="null"/> when another endpoint was asked.
     /// </summary>
     public DateTimeOffset? AskedAgainAt { get; init; }
+
+    /// <summary>
+    /// Gets <see cref="AskedAgainAt"/> as the user reads it, in Swedish, by one rule for every text: <c>kl. 14:05</c>
+    /// today, <c>den 2026-11-10 kl. 00:05</c> another day, and <c>vid nästa uppslag</c> when the time has passed (the
+    /// case was only read, nothing asked); empty when another endpoint was asked.
+    /// </summary>
+    public string AskedAgainText { get; init; } = string.Empty;
 }
 
 /// <summary>The height of Ethereum's newest block.</summary>

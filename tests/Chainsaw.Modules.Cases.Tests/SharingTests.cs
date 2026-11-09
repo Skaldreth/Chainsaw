@@ -154,6 +154,28 @@ public sealed class SharingTests : IDisposable
         Assert.Equal(CaseError.NoAccess, Assert.Throws<CaseException>(() => store.Open("A1")).Error);
     }
 
+    [Fact]
+    public void A_sharing_envelope_weaker_than_accepted_never_opens_and_is_removed_when_the_case_is_opened()
+    {
+        // Someone with the key wrapped it again at a count that makes the password cheap to guess.
+        _owner.SharingIterations = 10;
+        var path = CreateShared();
+
+        var error = Assert.Throws<CaseException>(
+            () => _colleague.CreateStore().OpenWithPassword(path, CaseFixture.Password));
+        using (var opened = _owner.CreateStore().Open("A1"))
+        {
+            Assert.False(opened.HasSharingPassword);
+            Assert.Equal(CaseJournalKinds.SharingPasswordRemoved, opened.ReadJournal()[^1].Kind);
+        }
+
+        Assert.Equal(CaseError.Corrupt, error.Error);
+        Assert.Equal(
+            CaseError.NoAccess,
+            Assert.Throws<CaseException>(
+                () => _colleague.CreateStore().OpenWithPassword(path, CaseFixture.Password)).Error);
+    }
+
     private string CreateShared()
     {
         using var opened = _owner.CreateStore().Create("A1");

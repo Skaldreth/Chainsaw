@@ -157,7 +157,6 @@ internal abstract class BlockscoutSource : IAccountSource
             path,
             Parse,
             page => Index(page.Transfers.Select(transfer => transfer.Block?.Height)),
-            reader => SourceLookups.StoredAs(_lookups.Store.Latest(reader, kind, subject), Parse),
             page => atOrBelow is null || page.IsIncomplete || page.IsCutShort || page.Unread > 0 ? null : atOrBelow);
         return _lookups.LookupAsync(@case, query, mode, cancellationToken);
     }
@@ -258,8 +257,6 @@ internal abstract class BlockscoutSource : IAccountSource
             BlockscoutApi.BlockPath(height),
             Parse,
             block => new ResponseIndex([], block.Height),
-            reader => SourceLookups.StoredAs(
-                _lookups.Store.Latest(reader, EthereumResponseKinds.Block, subject), Parse),
             block => block.Height);
         return _lookups.LookupAsync(@case, query, mode, cancellationToken);
     }
@@ -267,9 +264,14 @@ internal abstract class BlockscoutSource : IAccountSource
     /// <inheritdoc/>
     public Task<BitcoinLookup<EthereumTip>> GetTipHeightAsync(
         ICase @case, CancellationToken cancellationToken = default)
+        => GetTipHeightAsync(@case, LookupMode.AsNeeded, cancellationToken);
+
+    /// <inheritdoc/>
+    public Task<BitcoinLookup<EthereumTip>> GetTipHeightAsync(
+        ICase @case, LookupMode mode, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(@case);
-        return _lookups.LookupAsync(@case, TipQuery(), LookupMode.AsNeeded, cancellationToken);
+        return _lookups.LookupAsync(@case, TipQuery(), mode, cancellationToken);
     }
 
     /// <inheritdoc/>
@@ -282,9 +284,6 @@ internal abstract class BlockscoutSource : IAccountSource
             BlockscoutApi.NewestBlockPath,
             BlockscoutParser.ParseNewestBlock,
             tip => new ResponseIndex([], tip.Height),
-            reader => SourceLookups.StoredAs(
-                _lookups.Store.Latest(reader, EthereumResponseKinds.TipBlock, string.Empty),
-                BlockscoutParser.ParseNewestBlock),
             _ => null);
         return _lookups.LookupAsync(@case, query, LookupMode.AsNeeded, cancellationToken);
     }
@@ -305,8 +304,7 @@ internal abstract class BlockscoutSource : IAccountSource
 
         var tokens = await _lookups.LookupAsync(
             @case, TokenBalancesQuery(address), LookupMode.AsNeeded, cancellationToken).ConfigureAwait(false);
-        var origins = ether.Origins.Concat(tokens.Origins).DistinctBy(origin => origin.Sequence)
-            .OrderBy(origin => origin.Sequence).ToList();
+        var origins = SourceLookups.Ordered(ether.Origins.Concat(tokens.Origins));
         var balance = new EthereumBalance(
             address, new AssetAmount(Chain.NativeAsset(), wei.Wei), tokens.Value?.Tokens ?? [])
         {
@@ -444,8 +442,6 @@ internal abstract class BlockscoutSource : IAccountSource
         "?module=account&action=balance&address=" + address.Value,
         BlockscoutParser.ParseBalance,
         _ => ResponseIndex.None,
-        reader => SourceLookups.StoredAs(
-            _lookups.Store.Latest(reader, EthereumResponseKinds.Balance, address.Value), BlockscoutParser.ParseBalance),
         _ => null);
 
     /// <summary>The lookup of an address's tokens, which always change.</summary>
@@ -457,9 +453,6 @@ internal abstract class BlockscoutSource : IAccountSource
         "?module=account&action=tokenlist&address=" + address.Value,
         body => BlockscoutParser.ParseTokenBalances(body, Chain),
         _ => ResponseIndex.None,
-        reader => SourceLookups.StoredAs(
-            _lookups.Store.Latest(reader, EthereumResponseKinds.TokenBalances, address.Value),
-            body => BlockscoutParser.ParseTokenBalances(body, Chain)),
         _ => null);
 
     /// <summary>Gives a token Chainsaw knows by its contract, without asking the source.</summary>
@@ -531,8 +524,6 @@ internal abstract class BlockscoutSource : IAccountSource
             "?module=transaction&action=gettxinfo&txhash=" + hash.Value,
             Parse,
             info => Index([info.Height]),
-            reader => SourceLookups.StoredAs(
-                _lookups.Store.Latest(reader, EthereumResponseKinds.Transaction, hash.Value), Parse),
             info => info.LogsCut ? null : info.Height);
     }
 
@@ -550,8 +541,6 @@ internal abstract class BlockscoutSource : IAccountSource
             "?module=account&action=txlistinternal&txhash=" + hash.Value,
             Parse,
             _ => Index([height]),
-            reader => SourceLookups.StoredAs(
-                _lookups.Store.Latest(reader, EthereumResponseKinds.TransactionInternal, hash.Value), Parse),
             calls => calls.IsIncomplete ? null : height);
     }
 
@@ -569,8 +558,6 @@ internal abstract class BlockscoutSource : IAccountSource
             "?module=token&action=getToken&contractaddress=" + contract.Value,
             Parse,
             _ => ResponseIndex.None,
-            reader => SourceLookups.StoredAs(
-                _lookups.Store.Latest(reader, EthereumResponseKinds.Token, contract.Value), Parse),
             // Decimals never change once the source has them; an answer without them (the source may not have read
             // a new token yet) is asked again. Block 0 is always deep.
             info => info.Asset is null ? null : 0L);
@@ -584,8 +571,6 @@ internal abstract class BlockscoutSource : IAccountSource
         BlockscoutApi.HeightPath,
         BlockscoutParser.ParseHeight,
         tip => new ResponseIndex([], tip.Height),
-        reader => SourceLookups.StoredAs(
-            _lookups.Store.Latest(reader, EthereumResponseKinds.TipHeight, string.Empty), BlockscoutParser.ParseHeight),
         _ => null);
 
     /// <summary>
@@ -686,7 +671,7 @@ internal abstract class BlockscoutSource : IAccountSource
         /// <returns>The answer.</returns>
         public BitcoinLookup<EthereumTransaction> Result(EthereumTransaction transaction) =>
             new(_status, transaction with { IsComplete = _complete },
-                [.. _origins.DistinctBy(origin => origin.Sequence).OrderBy(origin => origin.Sequence)], _problem)
+                SourceLookups.Ordered(_origins), _problem)
             {
                 Notes = [.. _notes.Distinct()],
             };

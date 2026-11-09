@@ -107,6 +107,26 @@ public interface IGraphEditor
     Task<UndoOutcome> UnlinkAsync(ICase @case, CrossChainLink link, string? reason);
 
     /// <summary>
+    /// Chooses that the traced value does not follow through a swap (sketch SW1a, <em>Följer inte</em>), sealed with
+    /// a line in the journal; choosing it again for the same swap stores nothing new.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="swap">The swap.</param>
+    /// <param name="reason">Why, or <see langword="null"/>; the reason is optional.</param>
+    /// <returns>A task that completes when it is sealed.</returns>
+    Task StopAtSwapAsync(ICase @case, TokenSwap swap, string? reason);
+
+    /// <summary>
+    /// Takes back a choice not to follow a swap, so that the value follows again (<em>Följer</em>, or <em>Ta
+    /// tillbaka</em> in the history), sealed with a line in the journal.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="stop">The choice.</param>
+    /// <param name="reason">Why, or <see langword="null"/>.</param>
+    /// <returns>Whether it was taken back.</returns>
+    Task<UndoOutcome> FollowSwapAsync(ICase @case, SwapStop stop, string? reason);
+
+    /// <summary>
     /// Undoes merges of the user's own (<c>user v1</c>): a merge an approved wallet made is undone by taking the
     /// approval back, so that the suggestion waits again (Checks); sealed, with a line in the journal.
     /// </summary>
@@ -123,6 +143,64 @@ public interface IGraphEditor
     /// <returns>The preview, or <see langword="null"/> when none of the merges exists.</returns>
     Task<UndoMergePreview?> PreviewUndoMergesAsync(
         ICase @case, IReadOnlyList<long> merges, CancellationToken cancellationToken);
+
+    /// <summary>Reads every version drawn back, also those taken back (sketch KV1a).</summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="cancellationToken">Stops the work.</param>
+    /// <returns>The withdrawals.</returns>
+    Task<IReadOnlyList<VersionWithdrawal>> ReadWithdrawalsAsync(ICase @case, CancellationToken cancellationToken);
+
+    /// <summary>Says what drawing a version back would do to the clusters; nothing is stored (sketch KV1a).</summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="heuristic">The analysis and version.</param>
+    /// <param name="cancellationToken">Stops the work.</param>
+    /// <returns>The preview, or <see langword="null"/> when the version cannot be drawn back.</returns>
+    Task<WithdrawPreview?> PreviewWithdrawAsync(
+        ICase @case, HeuristicId heuristic, CancellationToken cancellationToken);
+
+    /// <summary>Draws a version back, sealed with a line in the journal (sketch KV1a).</summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="heuristic">The analysis and version.</param>
+    /// <param name="reason">Why, or <see langword="null"/>.</param>
+    /// <returns>The withdrawal in force.</returns>
+    Task<VersionWithdrawal> WithdrawAsync(ICase @case, HeuristicId heuristic, string? reason);
+
+    /// <summary>Takes a withdrawal back (sketch AN1b), as a new sealed record.</summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="withdrawal">The withdrawal's sequence.</param>
+    /// <param name="reason">Why, or <see langword="null"/>.</param>
+    /// <returns>Whether it was taken back.</returns>
+    Task<UndoOutcome> TakeBackWithdrawalAsync(ICase @case, long withdrawal, string? reason);
+
+    /// <summary>Reads the conclusions the latest run held back (sketch HB1a).</summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="cancellationToken">Stops the work.</param>
+    /// <returns>The held back conclusions.</returns>
+    Task<IReadOnlyList<HeldBackConclusion>> ReadHeldBackAsync(ICase @case, CancellationToken cancellationToken);
+
+    /// <summary>Seals the user's decision about a held back conclusion (sketch HB1a).</summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="txid">The transaction whose conclusions are held back.</param>
+    /// <param name="choice">Let it stand or let it go.</param>
+    /// <param name="reason">Why, or <see langword="null"/>.</param>
+    /// <returns>Whether it was stored; not when the conclusion is no longer held back.</returns>
+    Task<UndoOutcome> DecideHeldBackAsync(ICase @case, Txid txid, ConclusionChoice choice, string? reason);
+
+    /// <summary>Takes the latest decision about a held back conclusion back (sketch AN1b).</summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="decision">The decision's sequence.</param>
+    /// <param name="reason">Why, or <see langword="null"/>.</param>
+    /// <returns>Whether it was taken back; not when a newer decision came first.</returns>
+    Task<UndoOutcome> ReopenHeldBackAsync(ICase @case, long decision, string? reason);
+
+    /// <summary>Gives the links on the way between two addresses in the same cluster (sketch BU1a).</summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="from">One address.</param>
+    /// <param name="to">The other.</param>
+    /// <param name="cancellationToken">Stops the work.</param>
+    /// <returns>The links, or <see langword="null"/> when they are not in the same cluster.</returns>
+    Task<IReadOnlyList<ClusterLink>?> ExplainConnectionAsync(
+        ICase @case, BitcoinAddress from, BitcoinAddress to, CancellationToken cancellationToken);
 }
 
 /// <summary>How a taking back or an undoing went.</summary>
@@ -242,10 +320,24 @@ public sealed class GraphEditor(
                 var merges = node.Accounts.Count > 0
                     ? []
                     : Touching(clustering.GetMergeHistory(@case), addresses.ToHashSet());
+                IReadOnlyList<SwapStopHistoryEntry> swapStops =
+                [
+                    .. tracing.GetSwapStopHistory(@case).Where(entry => node.Accounts.Contains(entry.Stop.Account)),
+                ];
+                var withdrawals = cluster is null
+                    ? []
+                    : ConcernedWithdrawals(clustering.GetWithdrawals(@case), cluster);
+                // Which held back conclusions and decisions concern the node is settled by NodeHistory, which also sees
+                // the lines through it (a conclusion with only findings merged no address).
+                var decisions = clustering.GetHeldBackDecisions(@case);
                 cancellationToken.ThrowIfCancellationRequested();
                 var operators = new Dictionary<long, string>();
                 var needs = NodeHistoryData.JournalNeeds(labels, splits, links)
-                    .Union(NodeHistoryData.JournalNeeds(merges));
+                    .Union(NodeHistoryData.JournalNeeds(merges))
+                    .Union(NodeHistoryData.JournalNeeds(swapStops))
+                    .Union(withdrawals.SelectMany(withdrawal =>
+                        new[] { withdrawal.JournalSequence, withdrawal.Undo?.JournalSequence ?? 0 }))
+                    .Union(decisions.Select(decision => decision.JournalSequence));
                 foreach (var sequence in needs)
                 {
                     if (@case.ReadJournal(sequence, 1) is [var entry] && entry.Sequence == sequence)
@@ -254,7 +346,14 @@ public sealed class GraphEditor(
                     }
                 }
 
-                return new NodeHistoryData(labels, splits, links, cluster, operators) { Merges = merges };
+                return new NodeHistoryData(labels, splits, links, cluster, operators)
+                {
+                    Merges = merges,
+                    SwapStops = swapStops,
+                    Withdrawals = withdrawals,
+                    HeldBack = clustering.GetHeldBack(@case),
+                    HeldBackDecisions = decisions,
+                };
             },
             cancellationToken);
     }
@@ -322,6 +421,22 @@ public sealed class GraphEditor(
     }
 
     /// <inheritdoc/>
+    public Task StopAtSwapAsync(ICase @case, TokenSwap swap, string? reason)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(swap);
+        return Task.Run(() => tracing.StopAtSwap(@case, swap, reason));
+    }
+
+    /// <inheritdoc/>
+    public Task<UndoOutcome> FollowSwapAsync(ICase @case, SwapStop stop, string? reason)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(stop);
+        return Task.Run(() => new UndoOutcome(tracing.FollowSwap(@case, stop, reason)));
+    }
+
+    /// <inheritdoc/>
     public Task<UndoOutcome> UndoMergesAsync(ICase @case, IReadOnlyList<long> merges, string? reason)
     {
         ArgumentNullException.ThrowIfNull(@case);
@@ -369,5 +484,83 @@ public sealed class GraphEditor(
             .Select(entry => entry.Split.JournalSequence)
             .ToHashSet();
         return [.. all.Where(entry => journals.Contains(entry.Split.JournalSequence))];
+    }
+
+    /// <inheritdoc/>
+    public Task<IReadOnlyList<VersionWithdrawal>> ReadWithdrawalsAsync(
+        ICase @case, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        return Task.Run(() => clustering.GetWithdrawals(@case), cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public Task<WithdrawPreview?> PreviewWithdrawAsync(
+        ICase @case, HeuristicId heuristic, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(heuristic);
+        return Task.Run(() => clustering.PreviewWithdraw(@case, heuristic), cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public Task<VersionWithdrawal> WithdrawAsync(ICase @case, HeuristicId heuristic, string? reason)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(heuristic);
+        return Task.Run(() => clustering.Withdraw(@case, heuristic, reason));
+    }
+
+    /// <inheritdoc/>
+    public Task<UndoOutcome> TakeBackWithdrawalAsync(ICase @case, long withdrawal, string? reason)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        return Task.Run(() => new UndoOutcome(clustering.TakeBackWithdrawal(@case, withdrawal, reason) is not null));
+    }
+
+    /// <inheritdoc/>
+    public Task<IReadOnlyList<HeldBackConclusion>> ReadHeldBackAsync(ICase @case, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        return Task.Run(() => clustering.GetHeldBack(@case), cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public Task<UndoOutcome> DecideHeldBackAsync(ICase @case, Txid txid, ConclusionChoice choice, string? reason)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(txid);
+        return Task.Run(() => new UndoOutcome(clustering.DecideHeldBack(@case, txid, choice, reason) is not null));
+    }
+
+    /// <inheritdoc/>
+    public Task<UndoOutcome> ReopenHeldBackAsync(ICase @case, long decision, string? reason)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        return Task.Run(() => new UndoOutcome(clustering.ReopenHeldBack(@case, decision, reason) is not null));
+    }
+
+    /// <inheritdoc/>
+    public Task<IReadOnlyList<ClusterLink>?> ExplainConnectionAsync(
+        ICase @case, BitcoinAddress from, BitcoinAddress to, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        return Task.Run(() => clustering.ExplainConnection(@case, from, to), cancellationToken);
+    }
+
+    /// <summary>
+    /// Gives the withdrawals that concern a cluster: those of an analysis that has merged, suggested or been stopped
+    /// in it, so that its history shows a version drawn back where the question why arose (sketch KV1a).
+    /// </summary>
+    /// <param name="withdrawals">Every withdrawal in the case.</param>
+    /// <param name="cluster">The cluster.</param>
+    /// <returns>The withdrawals.</returns>
+    private static IReadOnlyList<VersionWithdrawal> ConcernedWithdrawals(
+        IReadOnlyList<VersionWithdrawal> withdrawals, Cluster cluster)
+    {
+        var names = cluster.Links.Concat(cluster.Suggestions).Concat(cluster.Refused)
+            .Select(link => link.Evidence.Heuristic.Name)
+            .ToHashSet(StringComparer.Ordinal);
+        return [.. withdrawals.Where(withdrawal => names.Contains(withdrawal.Heuristic.Name))];
     }
 }

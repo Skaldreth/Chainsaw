@@ -87,6 +87,12 @@ internal sealed class CommentNoteView : Grid
     /// <summary>Whether the press has moved far enough to be a drag.</summary>
     private bool _dragged;
 
+    /// <summary>The paper's shadow, made and frozen once and shared by every note.</summary>
+    private static readonly DropShadowEffect Shadow = Freezing.Frozen(new DropShadowEffect
+    {
+        BlurRadius = 26, ShadowDepth = 10, Direction = 270, Opacity = 0.4, Color = Colors.Black,
+    });
+
     /// <summary>Creates the view of a note.</summary>
     /// <param name="note">The note.</param>
     /// <param name="comments">The comments.</param>
@@ -106,10 +112,11 @@ internal sealed class CommentNoteView : Grid
             CornerRadius = Corners,
             Background = Brush("Brush.Note.Paper"),
             IsHitTestVisible = false,
-            Effect = new DropShadowEffect
-            {
-                BlurRadius = 26, ShadowDepth = 10, Direction = 270, Opacity = 0.4, Color = Colors.Black,
-            },
+            Effect = Shadow,
+
+            // The blurred shadow is drawn once into a bitmap and moved with the pan, instead of blurred again on every
+            // frame of a pan with many notes (BACKLOG, Kommentarsnoden).
+            CacheMode = new BitmapCache(),
         };
         _view = new NoteMarkdownView { LinkCommand = linkCommand };
         _hint = new TextBlock
@@ -257,6 +264,33 @@ internal sealed class CommentNoteView : Grid
         else if (!sizing)
         {
             _comments.Edit(_note);
+        }
+    }
+
+    /// <summary>
+    /// Ends a press that lost the mouse to another window: a drag or a resize is stored as the note stands, and the
+    /// trash shrinks back, since a note is never thrown without the button being let go over it.
+    /// </summary>
+    /// <param name="e">The arguments.</param>
+    protected override void OnLostMouseCapture(MouseEventArgs e)
+    {
+        base.OnLostMouseCapture(e);
+        if (_pressedAt is null)
+        {
+            return;
+        }
+
+        var dragged = _dragged;
+        _pressedAt = null;
+        _dragged = false;
+        if (_surface is GraphCanvas canvas)
+        {
+            canvas.ForgetNoteDrag();
+        }
+
+        if (dragged)
+        {
+            _ = _comments.DropAsync(_note);
         }
     }
 

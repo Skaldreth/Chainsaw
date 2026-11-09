@@ -34,4 +34,11 @@ public enum CaseProblem
     /// this case, for example to drop or change rows that are not sealed, so it changes what is recorded from now on.
     /// </summary>
     TriggerAdded,
+
+    /// <summary>
+    /// A sealed raw response's stored SHA-256 does not match its body, although the chain holds: the record was
+    /// sealed that way by someone with the file key, so reading the response fails as corrupt. Checked for every
+    /// sealed chain whose content has both a <c>sha256</c> and a <c>body</c> column.
+    /// </summary>
+    BodyHashMismatch,
 }

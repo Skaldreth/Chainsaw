@@ -103,6 +103,13 @@
             <StackPanel>
                 <!-- Etikett: name, sort, source, reason and Sprid inte. -->
                 <StackPanel Visibility="{Binding IsLabelOpen, Converter={StaticResource Visible}}">
+                    <!-- From a check (sketch TJ1b): the check as the label's source, a dashed badge, never a fact. -->
+                    <Border HorizontalAlignment="Left" Margin="0,4,0,2" Padding="8,2" CornerRadius="9" BorderThickness="1"
+                            BorderBrush="{StaticResource Brush.TextDim}"
+                            ToolTip="Etiketten är en bedömning med kontrollen som källa, inte ett faktum"
+                            Visibility="{Binding IsFromCheck, Converter={StaticResource Visible}}">
+                        <TextBlock Text="{Binding CheckSourceText}" FontSize="11.5" Foreground="{StaticResource Brush.TextMuted}" />
+                    </Border>
                     <TextBlock Text="Namn" Style="{StaticResource Text.FormLabel}" />
                     <TextBox x:Name="NameBox" Style="{StaticResource TextBox.Form}" AutomationProperties.Name="Namn"
                              MaxLength="{x:Static graph:InspectorForms.MostNameLength}"
@@ -154,8 +161,10 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
-                    <TextBlock Text="Källa" Style="{StaticResource Text.FormLabel}" />
-                    <ItemsControl ItemsSource="{Binding Bases}" Focusable="False">
+                    <TextBlock Text="Källa" Style="{StaticResource Text.FormLabel}"
+                               Visibility="{Binding IsFromCheck, Converter={x:Static controls:InvertVisibility.Instance}}" />
+                    <ItemsControl ItemsSource="{Binding Bases}" Focusable="False"
+                                  Visibility="{Binding IsFromCheck, Converter={x:Static controls:InvertVisibility.Instance}}">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
                                 <WrapPanel />
@@ -214,8 +223,12 @@
                     </TextBlock>
                     <!-- Virtualized in a box of its own, so that an exchange's cluster with thousands of addresses
                          costs only the rows on screen (principle 6). -->
+                    <TextBlock Text="Ctrl + klick på adressen som inte hör ihop med den" Style="{StaticResource Text.FormNote}"
+                               Margin="0,0,0,6"
+                               Visibility="{Binding IsPairMode, Converter={x:Static controls:InvertVisibility.Instance}}" />
                     <ItemsControl x:Name="MemberList" ItemsSource="{Binding Members}" Focusable="False" MaxHeight="280"
-                                  VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.ScrollUnit="Pixel">
+                                  VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.ScrollUnit="Pixel"
+                                  Visibility="{Binding IsPairMode, Converter={x:Static controls:InvertVisibility.Instance}}">
                         <ItemsControl.Template>
                             <ControlTemplate TargetType="ItemsControl">
                                 <ScrollViewer CanContentScroll="True" VerticalScrollBarVisibility="Auto" Focusable="False">
@@ -236,6 +249,12 @@
                                                           RelativeSource={RelativeSource AncestorType=UserControl}}"
                                         CommandParameter="{Binding}">
                                     <Border x:Name="Row" CornerRadius="5" Padding="6,5" Background="Transparent">
+                                        <!-- Ctrl+click: the address that is not the same owner as the one picked (BU1a). -->
+                                        <Border.InputBindings>
+                                            <MouseBinding Gesture="Ctrl+LeftClick" CommandParameter="{Binding}"
+                                                          Command="{Binding DataContext.PickPairCommand,
+                                                                            RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                                        </Border.InputBindings>
                                         <DockPanel>
                                             <Border x:Name="Box" Width="14" Height="14" CornerRadius="3" BorderThickness="1.2"
                                                     DockPanel.Dock="Left" BorderBrush="{StaticResource Brush.TextDim}">
@@ -264,8 +283,94 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
-                    <TextBlock Text="Skäl (frivilligt)" Style="{StaticResource Text.FormLabel}" />
-                    <TextBox x:Name="SplitReasonBox" Style="{StaticResource TextBox.Reason}" AutomationProperties.Name="Skäl"
+                    <!-- The pair's way (sketch BU1a): the addresses as dots and the links as a chain, scissors on one. -->
+                    <StackPanel Visibility="{Binding IsPairMode, Converter={StaticResource Visible}}">
+                        <StackPanel Visibility="{Binding IsApart, Converter={x:Static controls:InvertVisibility.Instance}}">
+                            <DockPanel Margin="0,0,0,6">
+                                <Button DockPanel.Dock="Right" Style="{StaticResource Button.Bare}" Content="Alla adresser"
+                                        FontSize="12" Foreground="{StaticResource Brush.TextDim}" Cursor="Hand"
+                                        Command="{Binding LeavePairCommand}" />
+                                <TextBlock Text="Vägen mellan dem. Välj länken som inte stämmer." FontSize="12.5"
+                                           Foreground="{StaticResource Brush.TextMuted}" TextWrapping="Wrap" />
+                            </DockPanel>
+                            <ItemsControl ItemsSource="{Binding PathLinks}" Focusable="False">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type vm:PathLinkViewModel}">
+                                        <StackPanel>
+                                            <StackPanel Orientation="Horizontal" Margin="4,4,0,4">
+                                                <Ellipse Width="7" Height="7" Fill="{StaticResource Brush.TextDim}" VerticalAlignment="Center" />
+                                                <TextBlock Text="{Binding From}" FontFamily="{StaticResource Font.Mono}" FontSize="12.5"
+                                                           Margin="10,0,0,0" />
+                                            </StackPanel>
+                                            <Button Style="{StaticResource Button.Bare}" Cursor="Hand" CommandParameter="{Binding}"
+                                                    ToolTip="Klipp här"
+                                                    Command="{Binding DataContext.ChooseCutCommand, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                                                <Border x:Name="Link" CornerRadius="7" BorderThickness="1" Padding="8,5"
+                                                        BorderBrush="Transparent" Background="Transparent">
+                                                    <DockPanel>
+                                                        <Rectangle x:Name="Chain" DockPanel.Dock="Left" Width="1.5" Margin="3,0,14,0"
+                                                                   Fill="{StaticResource Brush.TextDim}" />
+                                                        <controls:GridIcon x:Name="Scissors" DockPanel.Dock="Right" Size="14"
+                                                                           Data="{StaticResource Icon.Scissors}" Visibility="Hidden"
+                                                                           Foreground="{StaticResource Brush.Accent}" VerticalAlignment="Center" />
+                                                        <Border DockPanel.Dock="Right" CornerRadius="8" BorderThickness="1" Padding="6,0"
+                                                                Margin="0,0,8,0" VerticalAlignment="Center"
+                                                                BorderBrush="{StaticResource Brush.BorderStrong}"
+                                                                Visibility="{Binding IsWeakest, Converter={StaticResource Visible}}">
+                                                            <TextBlock Text="svagast" FontSize="10.5" Foreground="{StaticResource Brush.TextDim}" />
+                                                        </Border>
+                                                        <StackPanel>
+                                                            <TextBlock Text="{Binding Heuristic}" FontSize="13" />
+                                                            <TextBlock Text="{Binding Tx}" FontSize="11" FontFamily="{StaticResource Font.Mono}"
+                                                                       Foreground="{StaticResource Brush.TextDim}" />
+                                                        </StackPanel>
+                                                    </DockPanel>
+                                                </Border>
+                                            </Button>
+                                        </StackPanel>
+                                        <DataTemplate.Triggers>
+                                            <DataTrigger Binding="{Binding IsCut}" Value="True">
+                                                <Setter TargetName="Link" Property="BorderBrush" Value="{StaticResource Brush.Accent}" />
+                                                <Setter TargetName="Link" Property="Background" Value="{StaticResource Brush.AccentTint}" />
+                                                <Setter TargetName="Scissors" Property="Visibility" Value="Visible" />
+                                                <Setter TargetName="Chain" Property="Fill" Value="{StaticResource Brush.Accent}" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding IsDashed}" Value="True">
+                                                <Setter TargetName="Chain" Property="Opacity" Value="0.55" />
+                                            </DataTrigger>
+                                        </DataTemplate.Triggers>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <StackPanel Orientation="Horizontal" Margin="4,4,0,8">
+                                <Ellipse Width="7" Height="7" Fill="{StaticResource Brush.Accent}" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding PairLast}" FontFamily="{StaticResource Font.Mono}" FontSize="12.5"
+                                           Margin="10,0,0,0" />
+                            </StackPanel>
+                            <Border CornerRadius="8" Padding="10,8" Background="{StaticResource Brush.SurfaceRaised}">
+                                <DockPanel>
+                                    <controls:GridIcon DockPanel.Dock="Left" Size="14" Data="{StaticResource Icon.Kind.Wallet}"
+                                                       Foreground="{StaticResource Brush.TextDim}" Margin="0,1,8,0" VerticalAlignment="Top" />
+                                    <TextBlock Text="{Binding PairResult}" FontSize="12.5" TextWrapping="Wrap" />
+                                </DockPanel>
+                            </Border>
+                        </StackPanel>
+
+                        <!-- Not in the same cluster: the two with their clusters and a broken line, and only Stäng. -->
+                        <StackPanel Visibility="{Binding IsApart, Converter={StaticResource Visible}}">
+                            <TextBlock Text="{Binding PairFromText}" FontFamily="{StaticResource Font.Mono}" FontSize="12.5" />
+                            <Rectangle Width="1.5" Height="22" HorizontalAlignment="Left" Margin="3,4" StrokeThickness="1.5"
+                                       Stroke="{StaticResource Brush.Error}" StrokeDashArray="2 2" />
+                            <TextBlock Text="{Binding PairToText}" FontFamily="{StaticResource Font.Mono}" FontSize="12.5" />
+                            <Border Margin="0,10,0,0" CornerRadius="8" Padding="10,8" Background="{StaticResource Brush.ErrorTint}">
+                                <TextBlock Text="{x:Static vm:InspectorFormsViewModel.ApartText}" FontSize="12.5" TextWrapping="Wrap" />
+                            </Border>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <TextBlock Text="Skäl (frivilligt)" Style="{StaticResource Text.FormLabel}"
+                               Visibility="{Binding IsApart, Converter={x:Static controls:InvertVisibility.Instance}}" />
+                    <TextBox x:Name="SplitReasonBox" Visibility="{Binding IsApart, Converter={x:Static controls:InvertVisibility.Instance}}" Style="{StaticResource TextBox.Reason}" AutomationProperties.Name="Skäl"
                              Text="{Binding Reason, UpdateSourceTrigger=PropertyChanged}" />
                     <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
                         <controls:GridIcon Size="13" Data="{StaticResource Icon.Hold}" Foreground="{StaticResource Brush.TextDim}" />
@@ -347,7 +452,8 @@
                 <TextBlock Text="{Binding Error}" Style="{StaticResource Text.Error}" Margin="0,10,0,0" />
                 <DockPanel Margin="0,14,0,0" LastChildFill="False">
                     <Button DockPanel.Dock="Right" Style="{StaticResource Button.Primary}" Height="32" Padding="12,0"
-                            FontSize="13.5" Command="{Binding SubmitCommand}" IsEnabled="{Binding CanSubmit}">
+                            FontSize="13.5" Command="{Binding SubmitCommand}" IsEnabled="{Binding CanSubmit}"
+                            Visibility="{Binding IsApart, Converter={x:Static controls:InvertVisibility.Instance}}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="{Binding SubmitText}" />
                             <TextBlock Text="Enter" Margin="7,0,0,0" FontWeight="Normal" Opacity="0.6" />
@@ -356,7 +462,7 @@
                     <Button DockPanel.Dock="Right" Style="{StaticResource Button.Secondary}" Height="32" Padding="12,0"
                             FontSize="13.5" Margin="0,0,8,0" Command="{Binding CancelCommand}">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="Avbryt" />
+                            <TextBlock Text="{Binding CancelText}" />
                             <TextBlock Text="Esc" Margin="7,0,0,0" Foreground="{StaticResource Brush.TextDim}" />
                         </StackPanel>
                     </Button>

@@ -21,6 +21,30 @@ internal sealed class FakeVault : IVault
     public void ChangeMasterKey(ReadOnlySpan<char> currentMasterKey, ReadOnlySpan<char> newMasterKey) =>
         throw new NotSupportedException();
 
+    /// <summary>The master key the vault opens with.</summary>
+    public const string MasterKey = "en lång och riktig huvudnyckel";
+
+    /// <summary>What <see cref="VerifyMasterKey"/> throws, as when the vault file cannot be read.</summary>
+    public VaultException? VerifyFailure { get; set; }
+
+    public void VerifyMasterKey(ReadOnlySpan<char> masterKey)
+    {
+        if (VerifyFailure is not null)
+        {
+            throw VerifyFailure;
+        }
+
+        if (State != VaultState.Unlocked)
+        {
+            throw new VaultException(VaultError.Locked);
+        }
+
+        if (!masterKey.SequenceEqual(MasterKey))
+        {
+            throw new VaultException(VaultError.WrongMasterKey);
+        }
+    }
+
     private void SetState(VaultState state)
     {
         State = state;

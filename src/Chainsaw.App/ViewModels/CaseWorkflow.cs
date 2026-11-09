@@ -352,6 +352,42 @@ public sealed partial class CaseWorkflow
         }
     }
 
+    /// <summary>
+    /// Lays a start point that came with a link in the open case (sketch LN1a): it is added as any start point, and a
+    /// line in the journal says that it came with a link from another program, so that where it came from is kept.
+    /// </summary>
+    /// <param name="startPoint">The recognised start point.</param>
+    /// <returns>The answer.</returns>
+    public async Task<CommandReply> AddLinkedStartPointAsync(ChainStartPoint startPoint)
+    {
+        ArgumentNullException.ThrowIfNull(startPoint);
+        var reply = await AddStartPointAsync(startPoint);
+        if (reply.IsError || _session.Current is not { } openCase)
+        {
+            return reply;
+        }
+
+        var draft = new JournalDraft(
+            AppJournalKinds.StartPointFromLink,
+            $"Startpunkten {startPoint.Value} kom med en länk från ett annat program",
+            JsonSerializer.Serialize(new Dictionary<string, string>
+            {
+                ["chain"] = startPoint.Chain?.ToString() ?? string.Empty,
+                ["value"] = startPoint.Value,
+            }));
+        try
+        {
+            await Task.Run(() => openCase.AppendJournal(draft));
+        }
+        catch (CaseException exception)
+        {
+            var why = CaseTexts.For(exception.Error);
+            return CommandReply.Failed($"{reply.Text} Men att den kom med en länk kunde inte journalföras: {why}");
+        }
+
+        return reply;
+    }
+
     /// <summary>Says that a start point's chain cannot be traced yet (TRON).</summary>
     /// <param name="startPoint">The start point.</param>
     /// <returns>The text.</returns>

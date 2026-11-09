@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace Chainsaw.App.Settings;
 
 /// <summary>
@@ -26,6 +28,44 @@ public static class SettingsFile
         using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
         using var reader = new StreamReader(stream);
         return reader.ReadToEnd();
+    }
+
+    /// <summary>Reads a JSON file; a missing or unreadable file gives nothing, so that it never stops Chainsaw.</summary>
+    /// <typeparam name="T">What the file holds.</typeparam>
+    /// <param name="path">The file.</param>
+    /// <param name="options">How the file is written.</param>
+    /// <returns>What it holds, or <see langword="null"/> when it is missing or cannot be read.</returns>
+    public static T? ReadJson<T>(string path, JsonSerializerOptions options)
+        where T : class
+    {
+        try
+        {
+            return File.Exists(path) ? JsonSerializer.Deserialize<T>(ReadShared(path), options) : null;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>Writes a JSON file in one step (<see cref="WriteReplacing"/>), saying whether it was written.</summary>
+    /// <typeparam name="T">What the file holds.</typeparam>
+    /// <param name="path">The file.</param>
+    /// <param name="value">What it holds.</param>
+    /// <param name="options">How it is written.</param>
+    /// <returns><see langword="true"/> when it was written.</returns>
+    /// <remarks>The caller lets one write at a time, as for <see cref="WriteReplacing"/>.</remarks>
+    public static bool TryWriteJson<T>(string path, T value, JsonSerializerOptions options)
+    {
+        try
+        {
+            WriteReplacing(path, JsonSerializer.Serialize(value, options));
+            return true;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
     }
 
     /// <summary>Writes a file in one step: the text goes to a temporary file, which replaces the old one.</summary>

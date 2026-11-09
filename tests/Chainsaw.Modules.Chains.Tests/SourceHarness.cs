@@ -42,7 +42,8 @@ internal sealed class SourceHarness : IDisposable
         });
         services.AddSingleton<ILocalHttp>(Local);
         services.AddChainsModule(
-            new BitcoinSourceOptions { EsploraBaseUri = new Uri(Fixtures.Base) },
+            // The recorded blocks were mined at regtest's ease, beyond mainnet's work limit.
+            new BitcoinSourceOptions { EsploraBaseUri = new Uri(Fixtures.Base), CheckWorkLimit = false },
             options => options.Delay = Clock.Delay,
             litecoin: BitcoinSourceOptions.ForLitecoin() with { DefaultEndpoints = [new Uri(LitecoinBase)] });
         _provider = services.BuildServiceProvider();

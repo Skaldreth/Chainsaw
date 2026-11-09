@@ -113,6 +113,16 @@ internal class FakeBitcoinSource : IBitcoinSource
         return Task.FromResult(new BitcoinLookup<BitcoinAddressPage>(LookupStatus.Fetched, page, [Origin(7)], null));
     }
 
+    public Task<BitcoinLookup<BitcoinTip>> GetTipHeightAsync(
+        ICase @case, LookupMode mode, CancellationToken cancellationToken = default)
+    {
+        TipModes.Add(mode);
+        return GetTipHeightAsync(@case, cancellationToken);
+    }
+
+    /// <summary>The modes the height was asked in.</summary>
+    public List<LookupMode> TipModes { get; } = [];
+
     public Task<BitcoinLookup<BitcoinTip>> GetTipHeightAsync(ICase @case, CancellationToken cancellationToken = default)
     {
         TipAsked++;
@@ -205,6 +215,10 @@ internal class FakeEthereumSource : IEthereumSource
         CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
     public Task<BitcoinLookup<EthereumTip>> GetTipHeightAsync(
+        ICase @case, LookupMode mode, CancellationToken cancellationToken = default) =>
+        GetTipHeightAsync(@case, cancellationToken);
+
+    public Task<BitcoinLookup<EthereumTip>> GetTipHeightAsync(
         ICase @case, CancellationToken cancellationToken = default) =>
         Task.FromResult(new BitcoinLookup<EthereumTip>(LookupStatus.Fetched, new EthereumTip(21_000_100), [], null));
 }
@@ -267,7 +281,10 @@ internal sealed class FakeTronSource : ITronSource
         {
             Waiting = Incomplete ? Waiting() : [],
             Disputed = Incomplete && DisputedBy is { } endpoint
-                ? [new EthereumDisputedAnswer(DisputedTransaction, endpoint) { AskedAgainAt = AskedAgainAt }]
+                ? [new EthereumDisputedAnswer(DisputedTransaction, endpoint) {
+                    AskedAgainAt = AskedAgainAt,
+                    AskedAgainText = AskedAgainAt is null ? string.Empty : "kl. 12:34",
+                }]
                 : [],
         };
 
@@ -316,6 +333,10 @@ internal sealed class FakeTronSource : ITronSource
     public Task<BitcoinLookup<EthereumTip>> GetTipHeightAsync(
         ICase @case, CancellationToken cancellationToken = default) =>
         Task.FromResult(new BitcoinLookup<EthereumTip>(LookupStatus.Fetched, new EthereumTip(Tip), [], null));
+
+    public Task<BitcoinLookup<EthereumTip>> GetTipHeightAsync(
+        ICase @case, LookupMode mode, CancellationToken cancellationToken = default) =>
+        GetTipHeightAsync(@case, cancellationToken);
 }
 
 /// <summary>A feed from a table of transactions per address, for the check without the case.</summary>

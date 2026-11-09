@@ -119,12 +119,6 @@ internal static class WatchCodec
     public static DateTimeOffset Time(string text) =>
         DateTimeOffset.Parse(text, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
 
-    /// <summary>Gives the key that says two hits are the same: the watch, transaction, direction and asset.</summary>
-    /// <param name="watchId">The watch.</param>
-    /// <param name="match">The match.</param>
-    /// <returns>The key.</returns>
-    public static string Key(string watchId, WatchMatch match) => WatchSchedule.Key(watchId, match);
-
     /// <summary>Gives an asset's stored form.</summary>
     /// <param name="asset">The asset.</param>
     /// <returns>The stored form.</returns>

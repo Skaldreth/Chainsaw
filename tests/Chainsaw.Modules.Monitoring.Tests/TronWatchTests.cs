@@ -89,8 +89,7 @@ public sealed class TronWatchTests : IDisposable
 
         var said = string.Join(' ', run.Outcomes.SelectMany(outcome => outcome.Problems));
         Assert.Contains(
-            "ingen annan källa för TRON är påslagen, så den frågas igen hos api.trongrid.example kl. "
-                + at.ToLocalTime().ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture),
+            "ingen annan källa för TRON är påslagen, så den frågas igen hos api.trongrid.example kl. 12:34,",
             said,
             StringComparison.Ordinal);
     }

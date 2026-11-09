@@ -203,8 +203,15 @@
                                                 <TextBlock Text="Enter" Margin="7,0,0,0" FontWeight="Normal" Opacity="0.6" />
                                             </StackPanel>
                                         </Button>
+                                        <!-- A held back conclusion (sketch HB1a): Låt stå beside Släpp slutsatsen, Esc closes. -->
                                         <Button DockPanel.Dock="Right" Style="{StaticResource Button.Secondary}" Height="30" Padding="10,0"
-                                                FontSize="13" Margin="0,0,8,0" Command="{Binding CancelCommand}">
+                                                FontSize="13" Margin="0,0,8,0" Command="{Binding KeepCommand}"
+                                                Content="{Binding KeepText}" IsEnabled="{Binding CanSubmit}"
+                                                ToolTip="Slutsatsen står kvar; beslutet förseglas"
+                                                Visibility="{Binding IsHeldOpen, Converter={StaticResource Visible}}" />
+                                        <Button DockPanel.Dock="Right" Style="{StaticResource Button.Secondary}" Height="30" Padding="10,0"
+                                                FontSize="13" Margin="0,0,8,0" Command="{Binding CancelCommand}"
+                                                Visibility="{Binding IsHeldOpen, Converter={x:Static controls:InvertVisibility.Instance}}">
                                             <StackPanel Orientation="Horizontal">
                                                 <TextBlock Text="Avbryt" />
                                                 <TextBlock Text="Esc" Margin="7,0,0,0" Foreground="{StaticResource Brush.TextDim}" />

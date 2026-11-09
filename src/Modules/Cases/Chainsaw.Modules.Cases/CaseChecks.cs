@@ -54,6 +54,12 @@ internal static class CaseChecks
         foreach (var chain in chains)
         {
             var result = HashChain.Verify(database, transaction, chain, registered.GetValueOrDefault(chain.Name));
+            if (result.Break is null && !BodiesMatchTheirHash(database, transaction, chain)
+                && !problems.Contains(CaseProblem.BodyHashMismatch))
+            {
+                problems.Add(CaseProblem.BodyHashMismatch);
+            }
+
             var anchor = anchors?.FirstOrDefault(item => item.Chain == chain.Name);
             if (result.Break is null && anchor is not null && !Reaches(database, transaction, chain, anchor))
             {
@@ -92,6 +98,35 @@ internal static class CaseChecks
 
         var hash = HashChain.ReadRecordHash(database, transaction, chain, anchor.Sequence);
         return hash is not null && CryptographicOperations.FixedTimeEquals(hash, anchor.Hash);
+    }
+
+    /// <summary>
+    /// Checks that every record of a chain with a <c>sha256</c> and a <c>body</c> column (the sealed raw responses)
+    /// holds the SHA-256 of its body. The rows are read one at a time, so a large case is not held in memory.
+    /// </summary>
+    /// <param name="database">The database.</param>
+    /// <param name="transaction">The transaction.</param>
+    /// <param name="chain">The chain, whose table is known to hold its columns.</param>
+    /// <returns><see langword="true"/> when every body matches, or the chain has no such columns.</returns>
+    private static bool BodiesMatchTheirHash(CaseDatabase database, SqliteTransaction transaction, SealedChain chain)
+    {
+        if (!chain.ContentColumns.Contains("sha256") || !chain.ContentColumns.Contains("body"))
+        {
+            return true;
+        }
+
+        using var command = database.Command($"SELECT sha256, body FROM {chain.Table}", transaction);
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            if (reader.GetValue(0) is not byte[] stored || reader.GetValue(1) is not byte[] body
+                || !SHA256.HashData(body).AsSpan().SequenceEqual(stored))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /// <summary>

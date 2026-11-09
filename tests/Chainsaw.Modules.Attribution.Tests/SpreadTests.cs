@@ -140,7 +140,7 @@ public sealed class SpreadTests : IDisposable
         });
 
         Assert.False(_harness.Labels.SetDoNotSpread(other, copy.Sequence, doNotSpread: true));
-        Assert.False(_harness.Labels.SetDoNotSpread(_harness.Case, behaviour.Sequence, doNotSpread: true));
+        Assert.True(_harness.Labels.SetDoNotSpread(_harness.Case, behaviour.Sequence, doNotSpread: true));
         Assert.True(_harness.Labels.SetDoNotSpread(_harness.Case, own.Sequence, doNotSpread: true));
     }
 

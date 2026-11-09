@@ -70,6 +70,13 @@ public sealed record BackgroundCase(Guid CaseId, IReadOnlyList<BackgroundWatch> 
 public sealed record BackgroundPlan(
     bool Enabled, ExitRoute Route, WatchAlerts Alerts, IReadOnlyList<BackgroundCase> Cases)
 {
+    /// <summary>
+    /// Gets the proxy set by hand in Windows that the user let Chainsaw log in to with the Windows account (sketch
+    /// PX1a), as <c>host:port</c>, or <see langword="null"/> when the login is off: the background follows the
+    /// choice, through the same gate as Chainsaw (never a proxy found with WPAD, never another address).
+    /// </summary>
+    public string? ProxyLoginFor { get; init; }
+
     /// <summary>Gets the plan when none is written: off, through VPN, nothing to watch.</summary>
     public static BackgroundPlan Empty { get; } = new(false, ExitRoute.Vpn, WatchAlerts.None, []);
 
@@ -377,6 +384,39 @@ public static class WatchSchedule
 
         var newBlock = height > last.Tip || last.Status is WatchFeedStatus.Failed or WatchFeedStatus.NotAsked;
         return newBlock && now - last.CheckedUtc >= pace.Interval() - Tolerance;
+    }
+
+    /// <summary>
+    /// Asks a chain's height through its source, as the open Chainsaw and the background both do, only of an endpoint
+    /// in step with the chain (<see cref="LookupMode.InStep"/>): a watch never starts or counts from a height one a
+    /// block behind gave. The chain is asked through the contract of its model: a UTXO chain's source (Bitcoin,
+    /// Litecoin) or an account chain's (Ethereum, TRON, BSC).
+    /// </summary>
+    /// <param name="utxo">The source of a UTXO chain, or <see langword="null"/>.</param>
+    /// <param name="account">The source of an account chain, or <see langword="null"/>.</param>
+    /// <param name="case">The case the response is sealed in.</param>
+    /// <param name="cancellationToken">Stops the lookup.</param>
+    /// <returns>
+    /// The height, or <see langword="null"/> when it was not fetched or neither source is given (the chain cannot be
+    /// watched).
+    /// </returns>
+    public static async Task<long?> HeightAsync(
+        IBitcoinSource? utxo, IAccountSource? account, ICase @case, CancellationToken cancellationToken)
+    {
+        if (utxo is not null)
+        {
+            var tip = await utxo.GetTipHeightAsync(@case, LookupMode.InStep, cancellationToken).ConfigureAwait(false);
+            return tip.Status == LookupStatus.Fetched ? tip.Value?.Height : null;
+        }
+
+        if (account is null)
+        {
+            return null;
+        }
+
+        var height = await account.GetTipHeightAsync(@case, LookupMode.InStep, cancellationToken)
+            .ConfigureAwait(false);
+        return height.Status == LookupStatus.Fetched ? height.Value?.Height : null;
     }
 
     /// <summary>Gives the block a check reads back to: the last read-through height less the look-back.</summary>

@@ -51,6 +51,53 @@ public sealed class RoomGrid
     public bool Touches(GraphRect rect) =>
         CellsOf(rect).Any(cell => _cells.TryGetValue(cell, out var list) && list.Any(rect.Intersects));
 
+    /// <summary>
+    /// Says whether a point lies in or on any room taken, looking in its one cell only: the lines' routing asks this
+    /// forty times for every curve it tries (<see cref="LineRouting.Route"/>).
+    /// </summary>
+    /// <param name="point">The point.</param>
+    /// <returns><see langword="true"/> when it does.</returns>
+    public bool Holds(GraphPoint point)
+    {
+        if (!_cells.TryGetValue(CellOf(point), out var list))
+        {
+            return false;
+        }
+
+        foreach (var rect in list)
+        {
+            if (rect.Contains(point))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>Gives back the room a rectangle took, for one that moved; a rectangle never taken is ignored.</summary>
+    /// <param name="rect">The rectangle, equal to the one taken.</param>
+    public void Remove(GraphRect rect)
+    {
+        var found = false;
+        foreach (var cell in CellsOf(rect))
+        {
+            if (_cells.TryGetValue(cell, out var list) && list.Remove(rect))
+            {
+                found = true;
+                if (list.Count == 0)
+                {
+                    _cells.Remove(cell);
+                }
+            }
+        }
+
+        if (found)
+        {
+            Count--;
+        }
+    }
+
     /// <summary>Takes a rectangle's room when it touches no room taken.</summary>
     /// <param name="rect">The rectangle.</param>
     /// <returns><see langword="true"/> when it was free and is now taken.</returns>
@@ -65,10 +112,15 @@ public sealed class RoomGrid
         return true;
     }
 
+    /// <summary>Gives the cell a point falls in.</summary>
+    /// <param name="point">The point.</param>
+    /// <returns>The cell.</returns>
+    public (int Column, int Row) CellOf(GraphPoint point) => (Index(point.X), Index(point.Y));
+
     /// <summary>Gives the cells a rectangle reaches into.</summary>
     /// <param name="rect">The rectangle.</param>
     /// <returns>The cells.</returns>
-    private IEnumerable<(int Column, int Row)> CellsOf(GraphRect rect)
+    public IEnumerable<(int Column, int Row)> CellsOf(GraphRect rect)
     {
         var (left, right) = (Index(rect.X), Index(rect.Right));
         var (top, bottom) = (Index(rect.Y), Index(rect.Bottom));

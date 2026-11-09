@@ -367,6 +367,26 @@ public sealed class ReportServiceTests
         Assert.True(harness.Verify().IsIntact);
     }
 
+    [Fact]
+    public void Export_without_the_hash_chains_part_never_checks_nor_carries_an_old_check()
+    {
+        using var harness = new Harness();
+        var verifier = new WritingVerifier(harness.Verifier);
+        var reports = new ReportService(harness.Clock, harness.Profiles, verifier);
+        var parts = Enum.GetValues<ReportPart>().Where(part => part != ReportPart.Ledger).ToHashSet();
+        var old = new ReportLedger(new string('e', 64), 9, 3, new(2026, 11, 8, 13, 36, 0, TimeSpan.Zero), true);
+
+        var export = reports.Export(
+            harness.Case, ReportSamples.Draft(parts) with { Ledger = old }, Path.Combine(harness.Exports, "r.md"));
+
+        Assert.Equal(0, verifier.Calls);
+        Assert.Equal("r.md", export.FileName);
+        Assert.DoesNotContain(old.Digest, File.ReadAllText(export.Path, Encoding.UTF8), StringComparison.Ordinal);
+        var details = JsonDocument.Parse(Assert.Single(harness.Journal(RequestJournalKinds.ReportExported)).Details!);
+        Assert.Equal(JsonValueKind.Null, details.RootElement.GetProperty("ledgerJournalLine").ValueKind);
+        Assert.True(harness.Verify().IsIntact);
+    }
+
     /// <summary>A verifier that writes a line to the journal after its first check, as another part of Chainsaw may.
     /// </summary>
     private sealed class WritingVerifier(ICaseVerifier inner) : ICaseVerifier

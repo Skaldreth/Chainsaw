@@ -55,6 +55,12 @@ public sealed record GraphSnapshot(
     /// </summary>
     public IReadOnlySet<ChainAddress> KeptOutOfPiles { get; init; } = GraphReading.NoAddresses;
 
+    /// <summary>
+    /// Gets the case's rates for the swaps' price check, which the exposure uses as the trace did, or
+    /// <see langword="null"/> when there are none.
+    /// </summary>
+    public SwapPricing? SwapPricing { get; init; }
+
     /// <summary>Gets whether any trace was counted, on any chain.</summary>
     public bool HasTrace => Trace is not null || AccountTrace is not null;
 }
@@ -119,6 +125,12 @@ public sealed record GraphRates(
     /// Gets whether a source asked Chainsaw to wait while these were fetched (429), so that no more is asked now.
     /// </summary>
     public bool IsThrottled { get; init; }
+
+    /// <summary>
+    /// Gets whether a rate for a swap's time arrived that the case did not have, so that the trace is calculated again
+    /// with the swaps' price check (<see cref="SwapValue.CheckPrice"/>).
+    /// </summary>
+    public bool SwapRatesFetched { get; init; }
 }
 
 /// <summary>How money in a currency is written in the graph.</summary>
@@ -270,6 +282,42 @@ public sealed record EdgeView(
     /// swap on the line; empty when it carries none.
     /// </summary>
     public IReadOnlyList<SwapMarks> SwapPairs => [.. Swaps.Select(SwapMarks.Of).Distinct()];
+
+    /// <summary>
+    /// Gets the user's choices in force that the traced value does not follow through the line's swaps (sketch
+    /// SW1a); empty when it follows, the default.
+    /// </summary>
+    public IReadOnlyList<SwapStop> SwapStops { get; init; } = [];
+
+    /// <summary>Gets what the rule <see cref="SwapValue"/> did at the line's swaps, when traced money reached them.</summary>
+    public IReadOnlyList<SwapConversion> SwapConversions { get; init; } = [];
+
+    /// <summary>
+    /// Gets whether the value does not follow through the line's swaps: the user chose so for every one of them, so
+    /// that the pill shows a stop and the person mark.
+    /// </summary>
+    public bool IsSwapStopped => Swaps.Count > 0 && Swaps.All(swap => SwapStops.Any(stop => stop.Is(swap)));
+
+    /// <summary>
+    /// Gets the price check of the line's first swap (<see cref="SwapValue.CheckPrice"/>), or <see langword="null"/>
+    /// when the trace made none.
+    /// </summary>
+    public SwapPriceCheck? SwapPrice { get; init; }
+
+    /// <summary>
+    /// Gets whether the line's swap has an absurd price, so that the value does not follow and there is nothing to
+    /// choose: the pill is dashed in the risk's colour.
+    /// </summary>
+    public bool IsSwapPriceAbsurd => SwapPrice?.IsUnreasonable == true;
+
+    /// <summary>Gets whether the line's swap price could not be tested: the pill is dashed in a quiet tone.</summary>
+    public bool IsSwapPriceUntested => Swaps.Count > 0 && SwapPrice?.Verdict is null or SwapPriceVerdict.NotTested;
+
+    /// <summary>
+    /// Gets the way the line's first swap went through a known exchange's router (sketch DX1b), shown as a small mark
+    /// in the pill's corner, or <see langword="null"/> when the line carries no swap through a known exchange.
+    /// </summary>
+    public SwapRoute? SwapRoute { get; init; }
 }
 
 /// <summary>The marks of what was sold and what was bought in a swap, as its pill on the line shows them.</summary>
@@ -286,14 +334,29 @@ public sealed record SwapMarks(string Sold, string Bought)
         return new(MarkOf(swap.Sold.Asset), MarkOf(swap.Bought.Asset));
     }
 
-    /// <summary>Gives an asset's mark, or its symbol when it has none.</summary>
+    /// <summary>Gets the pill in words, for example <c>₮ → Ξ</c>.</summary>
+    public string Text => $"{Sold} → {Bought}";
+
+    /// <summary>
+    /// Gives an asset's mark, or its symbol when it has none; a token Chainsaw does not know by its contract gets a
+    /// question mark after the symbol, since anyone can call a token USDC (<see cref="UnknownTokenMark"/>).
+    /// </summary>
     /// <param name="asset">The asset.</param>
-    /// <returns>The mark.</returns>
+    /// <returns>The mark, for example <c>₮</c>, <c>WETH</c> or <c>USDC?</c>.</returns>
     public static string MarkOf(Asset asset)
     {
         ArgumentNullException.ThrowIfNull(asset);
-        return TokenMarks.Glyph(asset) is { Length: > 0 } glyph ? glyph : asset.Symbol;
+        if (TokenMarks.Glyph(asset) is { Length: > 0 } glyph)
+        {
+            return glyph;
+        }
+
+        var known = asset.Kind != AssetKind.Token || KnownTokens.IsWrappedNative(asset) || KnownTokens.IsKnown(asset);
+        return known ? asset.Symbol : asset.Symbol + UnknownTokenMark;
     }
+
+    /// <summary>What follows the symbol of a token Chainsaw does not know by its contract.</summary>
+    public const string UnknownTokenMark = "?";
 }
 
 /// <summary>
@@ -373,6 +436,14 @@ public sealed record GraphScene(
 
     /// <summary>Gets how many lines wait for a rate the source can be asked for (sketch KU1a).</summary>
     public int PendingRates => Snapshot.ValueGaps.Values.Count(gap => gap.IsPending);
+
+    /// <summary>
+    /// Gets whether a swap that traced money goes through has not had its price tested, for want of a rate, so that the
+    /// rates are asked for and the trace calculated again.
+    /// </summary>
+    public bool HasUntestedSwapPrices => Snapshot.AccountTrace?.Swaps
+        .Any(conversion => conversion.Price is { Verdict: SwapPriceVerdict.NotTested }
+            && conversion.Swap.Time is not null) == true;
 
     /// <summary>Gives the lines' values as the scene has them, to be changed and shown again.</summary>
     public GraphRates Rates => new(Snapshot.Values, Snapshot.ValueGaps, Snapshot.Rates);
@@ -498,7 +569,7 @@ public sealed record GraphScene(
                 ValueGap = snapshot.ValueGaps.GetValueOrDefault(edge.Key),
                 Swaps = SwapsOn(edge, swaps),
             })
-            .Select(edge => edge.Swaps.Count == 0 ? edge : edge with { Swap = SwapText(edge.Swaps) })
+            .Select(edge => edge.Swaps.Count == 0 ? edge : WithSwapChoice(edge, graph, snapshot.AccountTrace))
             .ToList();
         // The lines are found by their ends once, so that building every node stays linear in a large graph.
         var into = edges.ToLookup(edge => edge.Edge.To, StringComparer.Ordinal);
@@ -595,7 +666,9 @@ public sealed record GraphScene(
     {
         var amount = traced?.Amount.Amount ?? AssetAmount.Zero(edge.Amount.Asset);
         var otherChain = edge.Kind == GraphEdgeKind.ContinuesOnOtherChain;
-        var uncertain = traced?.MayBeOutdated == true || edge.Transfers.Any(transfer => transfer.Block is null);
+        // A line whose traced money rests on a swap's value following is a judgement (sketch SW1a): dashed.
+        var uncertain = traced?.MayBeOutdated == true || traced?.Amount.RestsOnSwap == true
+            || edge.Transfers.Any(transfer => transfer.Block is null);
         var dash = (otherChain, uncertain) switch
         {
             (true, _) => EdgeDash.OtherChain,
@@ -611,8 +684,9 @@ public sealed record GraphScene(
         var label = AmountText.OnLine(edge.Amount, amount);
         if (edge.Amount.Asset != Asset.Bitcoin && TokenMarks.Glyph(edge.Amount.Asset).Length == 0)
         {
-            // A token without a mark is named by its symbol, so that a bare number never stands for an unknown asset.
-            label += " " + edge.Amount.Asset.Symbol;
+            // A token without a mark is named by its symbol (with a question mark when its contract is not known), so
+            // that a bare number never stands for an unknown asset.
+            label += " " + SwapMarks.MarkOf(edge.Amount.Asset);
         }
 
         return new EdgeView(edge, amount, traced, ink, dash, EdgeWidth.For(amount, largest), label);
@@ -628,10 +702,25 @@ public sealed record GraphScene(
     private static IReadOnlyList<TokenSwap> SwapsOn(GraphEdge edge, IReadOnlyList<TokenSwap> swaps) =>
     [
         .. swaps.Where(swap => edge.Kind == GraphEdgeKind.Transfer
-            && edge.Amount.Asset == swap.Sold.Asset
             && edge.From == AccountKey(swap.Account)
-            && edge.Transfers.Any(transfer => transfer.Transaction.Id == swap.Transaction.Value)),
+            && edge.Transfers.Any(swap.IsSold)),
     ];
+
+    /// <summary>
+    /// Gives a line that carries swaps its pill, the user's choices on them and what the rule did there (sketch SW1a).
+    /// </summary>
+    /// <param name="edge">The line, with its swaps.</param>
+    /// <param name="graph">The graph, with the choices in force.</param>
+    /// <param name="trace">The trace on Ethereum, or <see langword="null"/>.</param>
+    /// <returns>The line.</returns>
+    private static EdgeView WithSwapChoice(EdgeView edge, TraceGraph graph, AccountTraceResult? trace) => edge with
+    {
+        Swap = SwapText(edge.Swaps),
+        SwapStops = [.. graph.SwapStops.Where(stop => edge.Swaps.Any(stop.Is))],
+        SwapConversions = [.. edge.Swaps.Select(swap => trace?.SwapOf(swap)).OfType<SwapConversion>()],
+        SwapPrice = trace?.PriceOf(edge.Swaps[0]),
+        SwapRoute = SwapRoute.Read(edge.Swaps[0], graph.Account),
+    };
 
     /// <summary>Writes a swap's pill: the sold asset's mark, an arrow and the bought one's (<c>₮ → Ξ</c>).</summary>
     /// <param name="swaps">The swaps on the line, at least one.</param>
@@ -639,7 +728,7 @@ public sealed record GraphScene(
     private static string SwapText(IReadOnlyList<TokenSwap> swaps) => string.Join(" · ", swaps
         .Select(SwapMarks.Of)
         .Distinct()
-        .Select(marks => $"{marks.Sold} → {marks.Bought}"));
+        .Select(marks => marks.Text));
 
     /// <summary>Gives the key of an account's node, as Tracing writes it.</summary>
     /// <param name="account">The account.</param>

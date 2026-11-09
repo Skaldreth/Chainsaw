@@ -19,8 +19,17 @@ namespace Chainsaw.Modules.Network;
 /// <param name="presence">Whether the computer has a network, which the way through Windows needs.</param>
 /// <param name="options">The limits on requests.</param>
 /// <param name="clock">The clock for the request's times.</param>
+/// <param name="login">
+/// The login to Windows' proxy, told when the proxy asks for a login and when a request goes through; none in some
+/// tests.
+/// </param>
 internal sealed class ExitHttp(
-    ExitConnection connection, ExitRouteChoice route, INetworkPresence presence, NetworkOptions options, IClock clock)
+    ExitConnection connection,
+    ExitRouteChoice route,
+    INetworkPresence presence,
+    NetworkOptions options,
+    IClock clock,
+    WindowsProxyLogin? login = null)
     : IExitHttp
 {
     /// <summary>The size of each read from the response body.</summary>
@@ -53,6 +62,11 @@ internal sealed class ExitHttp(
             using var response = await lease.Invoker.SendAsync(message, limit.Token).ConfigureAwait(false);
             var body = await ReadBodyAsync(response, options.MaximumResponseBytes, limit.Token).ConfigureAwait(false);
             var receivedAt = clock.UtcNow;
+            if (lease.Route == ExitRoute.Windows)
+            {
+                login?.NoteThrough();
+            }
+
             return new ExitResponse(
                 request.Uri,
                 lease.ExitId,
@@ -83,6 +97,13 @@ internal sealed class ExitHttp(
         catch (OperationCanceledException exception)
         {
             throw new ExitException(ExitError.Timeout, lease.Route, exception);
+        }
+        catch (HttpRequestException exception)
+            when (lease.Route == ExitRoute.Windows && WindowsProxyLogin.AsksForLogin(exception))
+        {
+            // The proxy wants a login it did not get: the source was never reached, and the settings say why.
+            login?.NoteLoginAsked();
+            throw new ExitException(ExitError.ProxyLoginRequired, lease.Route, exception);
         }
         catch (Exception exception) when (exception is HttpRequestException or IOException)
         {
@@ -136,6 +157,16 @@ internal sealed class ExitHttp(
         if (uri.UserInfo.Length > 0)
         {
             throw new ArgumentException("The address must not carry user information.", nameof(request));
+        }
+
+        if (!toOwnNode && request.CertificatePin is not null)
+        {
+            throw new ArgumentException("Only a request to the own node may carry a certificate pin.", nameof(request));
+        }
+
+        if (toOwnNode && request.CertificatePin is not null && !CertificatePin.IsValid(request.CertificatePin))
+        {
+            throw new ArgumentException("The certificate pin is not a fingerprint.", nameof(request));
         }
 
         if (!Enum.IsDefined(request.Method))

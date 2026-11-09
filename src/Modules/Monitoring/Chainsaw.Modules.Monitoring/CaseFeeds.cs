@@ -37,7 +37,7 @@ internal static class FeedTexts
     /// </summary>
     public const string DisputedNoOther =
         "Källan {2} gav ingen Transfer-händelse för en känd token i tx {1} hos {0}; ingen annan källa för TRON är "
-        + "påslagen, så den frågas igen hos {2} kl. {4}, och kontrollen står kvar vid block {3} tills överföringen kan "
+        + "påslagen, så den frågas igen hos {2} {4}, och kontrollen står kvar vid block {3} tills överföringen kan "
         + "placeras.";
 
     /// <summary>When a check left out an unknown token's transfer whose final tx holds no readable event.</summary>
@@ -369,9 +369,9 @@ internal sealed class EthereumCaseFeed(IAccountSource source, ICase @case) : IWa
 
         foreach (var disputed in read.Disputed)
         {
-            yield return disputed.AskedAgainAt is { } at
+            yield return disputed.AskedAgainAt is not null
                 ? FeedTexts.Format(FeedTexts.DisputedNoOther, address.Value, disputed.Transaction.Brief(),
-                    disputed.Endpoint, downTo, at.ToLocalTime().ToString("HH:mm", CultureInfo.InvariantCulture))
+                    disputed.Endpoint, downTo, disputed.AskedAgainText)
                 : FeedTexts.Format(
                     FeedTexts.Disputed, address.Value, disputed.Transaction.Brief(), disputed.Endpoint, downTo);
         }
@@ -522,10 +522,22 @@ internal sealed class EthereumCaseFeed(IAccountSource source, ICase @case) : IWa
         var block = at is not null && hashes.TryGetValue(at.Height, out var blockHash)
             ? new WatchBlock(at.Height, blockHash, at.Time)
             : null;
-        var flows = transfers.Select(transfer => new WatchFlow(
-            [new WatchLeg(transfer.From.ToChainAddress(), transfer.Amount)],
-            [new WatchLeg(transfer.To.ToChainAddress(), transfer.Amount)]));
-        return new WatchTransaction(chain, hash, block, [.. flows]);
-
+        return Of(chain, hash, block, transfers);
     }
+
+    /// <summary>
+    /// Gives an account chain's transaction (Ethereum or TRON) in the check's form: one flow per movement of value,
+    /// with the addresses on the transaction's own chain.
+    /// </summary>
+    /// <param name="chain">The chain.</param>
+    /// <param name="hash">The transaction's hash.</param>
+    /// <param name="block">Its block, or <see langword="null"/> when it is not in a known block.</param>
+    /// <param name="transfers">Its movements.</param>
+    /// <returns>The check's form.</returns>
+    public static WatchTransaction Of(
+        Chain chain, string hash, WatchBlock? block, IEnumerable<EthereumTransfer> transfers) =>
+        new(chain, hash, block, [.. transfers.Select(transfer => new WatchFlow(
+            [new WatchLeg(transfer.From.ToChainAddress(), transfer.Amount)],
+            [new WatchLeg(transfer.To.ToChainAddress(), transfer.Amount)]))]);
+
 }

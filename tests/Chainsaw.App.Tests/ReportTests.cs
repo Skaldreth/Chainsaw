@@ -202,6 +202,33 @@ public sealed class ReportSelectionTests
     }
 
     [Fact]
+    public void An_approved_way_out_of_a_marked_mixer_is_a_conclusion_with_its_analysis_and_never_a_name()
+    {
+        var approved = new ApprovedPayout(
+            KKey, null, U.Value, Tx[3].Value, "mixer-exits v1");
+        var other = approved with { From = EKey };
+
+        var material = ReportSelection.Build(LabelledScene(), [VKey, KKey], NoClusters, approved: [approved, other]);
+
+        var conclusion = Assert.Single(
+            material.Conclusions, c => c.Why.StartsWith("mixer-exits v1", StringComparison.Ordinal));
+        Assert.Contains(GraphScene.Shorten(U.Value), conclusion.Statement, StringComparison.Ordinal);
+        Assert.Contains("förslag", conclusion.Statement, StringComparison.Ordinal);
+        Assert.EndsWith("tx " + GraphScene.Shorten(Tx[3].Value), conclusion.Why, StringComparison.Ordinal);
+        Assert.DoesNotContain(VictimName, conclusion.Statement, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void A_traced_share_of_more_units_than_a_decimal_holds_is_still_worked_out()
+    {
+        var sent = System.Numerics.BigInteger.Pow(10, 40);
+
+        Assert.Equal(0.5m, ReportTrails.Share(sent / 2, sent));
+        Assert.Equal(1m, ReportTrails.Share(sent * 2, sent));
+        Assert.Equal(0m, ReportTrails.Share(System.Numerics.BigInteger.Zero, sent));
+    }
+
+    [Fact]
     public void A_victims_name_never_reaches_the_report()
     {
         var material = ReportSelection.Build(LabelledScene(), [VKey, KKey, EKey], NoClusters);
@@ -466,10 +493,11 @@ public sealed class ReportViewModelTests
         [EKey] = [Label(E, LabelKind.Exchange, "Börs A")],
     });
 
-    private async Task<ReportViewModel> ModelAsync(IReadOnlyList<string>? picked = null)
+    private async Task<ReportViewModel> ModelAsync(IReadOnlyList<string>? picked = null, IFolderView? folders = null)
     {
         _session.Open(new TestCase("2026-0117"));
-        var model = new ReportViewModel(_reports, _session, _picker, new InlineUi(), null, _toaster, Zone);
+        var model = new ReportViewModel(
+            _reports, _session, _picker, new InlineUi(), null, _toaster, Zone, folders: folders);
         await model.Built;
         await model.SetShownAsync(
             true, LabelledScene(), picked ?? [VKey, KKey, EKey], new Dictionary<string, GraphPoint>());
@@ -614,6 +642,21 @@ public sealed class ReportViewModelTests
     }
 
     [Fact]
+    public async Task The_export_toast_shows_the_file_in_its_folder()
+    {
+        var folders = new NotedFolders();
+        var model = await ModelAsync(folders: folders);
+
+        await model.ExportAsync();
+
+        var toast = Assert.Single(_toaster.Toasts);
+        Assert.True(toast.HasAction);
+        Assert.Equal(ReportViewModel.ShowInFolderText, toast.ActionText);
+        toast.Request.Action!();
+        Assert.Equal(["/tmp/rapport.md"], folders.Shown);
+    }
+
+    [Fact]
     public async Task A_cancelled_save_exports_nothing()
     {
         var model = await ModelAsync();
@@ -662,4 +705,14 @@ public sealed class ReportViewModelTests
         Assert.Null(model.Document);
         Assert.Empty(model.Exports);
     }
+}
+
+/// <summary>Notes the files the view asked to show in their folders.</summary>
+internal sealed class NotedFolders : IFolderView
+{
+    /// <summary>Gets the files shown.</summary>
+    public List<string> Shown { get; } = [];
+
+    /// <inheritdoc />
+    public void ShowInFolder(string path) => Shown.Add(path);
 }

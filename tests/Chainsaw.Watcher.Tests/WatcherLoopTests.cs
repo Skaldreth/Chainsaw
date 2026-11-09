@@ -3,6 +3,7 @@ using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Monitoring.Contracts;
 using Chainsaw.Modules.Network.Contracts;
 using Chainsaw.SharedKernel;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Chainsaw.Watcher.Tests;
 
@@ -106,6 +107,79 @@ public sealed class WatcherLoopTests : IDisposable
     }
 
     [Fact]
+    public async Task A_new_block_heard_of_asks_the_height_at_once_instead_of_after_the_minute()
+    {
+        var news = new HandNews();
+        _world.Configure = services => services.AddSingleton<IBlockNews>(news);
+        await _world.UseTestEndpointAsync();
+        await _world.WatchAsync();
+        _world.WritePlan();
+        _world.Height(800_010);
+        int HeightsAsked() => _world.Http.Sent.Count(request => request.Uri.AbsolutePath.EndsWith(
+            "blocks/tip/height", StringComparison.Ordinal));
+
+        Assert.True(await Loop.RunOnceAsync());
+        var first = HeightsAsked();
+        _world.Clock.UtcNow += TimeSpan.FromSeconds(20);
+        Assert.True(await Loop.RunOnceAsync());
+        Assert.Equal(first, HeightsAsked());
+
+        news.Count++;
+        _world.Clock.UtcNow += TimeSpan.FromSeconds(20);
+        Assert.True(await Loop.RunOnceAsync());
+
+        Assert.Equal(first + 1, HeightsAsked());
+        Assert.True(news.Kept > 0);
+    }
+
+    [Fact]
+    public async Task Quiet_checks_are_merged_into_one_entry_that_keeps_every_response()
+    {
+        await _world.UseTestEndpointAsync();
+        await _world.WatchAsync(start: 900_000);
+        _world.WritePlan();
+        _world.Height(900_010);
+        _world.Clock.UtcNow += TimeSpan.FromMinutes(5);
+        Assert.True(await Loop.RunOnceAsync());
+        var first = Queue.Read(_world.Case.Info.Id, Assert.Single(Queue.List(_world.Case.Info.Id)))!;
+
+        _world.Height(900_011);
+        _world.Clock.UtcNow += TimeSpan.FromMinutes(2);
+        Assert.True(await Loop.RunOnceAsync());
+
+        var merged = Queue.Read(_world.Case.Info.Id, Assert.Single(Queue.List(_world.Case.Info.Id)))!;
+        Assert.Empty(merged.Matches);
+        Assert.NotEqual(first.Id, merged.Id);
+        Assert.True(merged.Utc > first.Utc);
+        Assert.Equal(900_011, merged.Height);
+        Assert.True(merged.Responses.Count > first.Responses.Count);
+        Assert.All(first.Responses, response => Assert.Contains(merged.Responses, kept =>
+            kept.Sha256 == response.Sha256 && kept.Url == response.Url && kept.ReceivedUtc == response.ReceivedUtc));
+    }
+
+    [Fact]
+    public async Task The_login_to_Windows_proxy_follows_the_plan_and_is_off_without_it()
+    {
+        await _world.UseTestEndpointAsync();
+        await _world.WatchAsync();
+        _world.Height(800_010);
+        var plan = _world.WritePlan();
+        _world.App<IBackgroundPlan>().Update(_ => plan with { ProxyLoginFor = "Proxy.lan.corp:8080" });
+        var proxy = _world.Background<IWindowsProxy>();
+
+        await Loop.RunOnceAsync();
+        Assert.Equal("proxy.lan.corp:8080", proxy.LoginFor);
+
+        _world.App<IBackgroundPlan>().Update(_ => plan with { ProxyLoginFor = null });
+        await Loop.RunOnceAsync();
+        Assert.Null(proxy.LoginFor);
+
+        _world.App<IBackgroundPlan>().Update(_ => plan with { ProxyLoginFor = "http://" });
+        await Loop.RunOnceAsync();
+        Assert.Null(proxy.LoginFor);
+    }
+
+    [Fact]
     public async Task Without_anything_to_watch_it_says_it_stops_and_ends()
     {
         Assert.False(await Loop.RunOnceAsync());
@@ -139,6 +213,7 @@ public sealed class WatcherLoopTests : IDisposable
         await Loop.RunOnceAsync();
 
         Assert.Equal(2, Queue.List(_world.Case.Info.Id).Count);
+        _world.SeenByTheCase(800_010);
         _world.App<IBackgroundWatches>().Import(_world.Case);
         var service = _world.App<IMonitoringService>();
         Assert.Equal(799_999, service.GetWatches(_world.Case).Single(each => each.Id == watch.Id).StartHeight);
@@ -336,5 +411,21 @@ public sealed class WatcherLoopTests : IDisposable
 
         Assert.Equal([WatchAlerts.Sound], _world.Alerts.Raised);
         Assert.True(Queue.HasHits());
+    }
+}
+
+/// <summary>News of new blocks that a test counts by hand.</summary>
+internal sealed class HandNews : IBlockNews
+{
+    public long Count { get; set; }
+
+    public int Kept { get; private set; }
+
+    public long Heard(Chain chain) => Count;
+
+    public void Keep(Chain chain) => Kept++;
+
+    public void Release(Chain chain)
+    {
     }
 }

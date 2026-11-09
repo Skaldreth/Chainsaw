@@ -80,6 +80,40 @@ internal sealed class BitstampRateSource(Uri baseUri) : ICryptoRateSource
         DateTimeOffset periodStart) =>
         Read(body, CodeOf(asset), quote, periodStart);
 
+    /// <inheritdoc/>
+    /// <remarks>
+    /// Bitstamp answers <c>ohlc</c> with the periods from <c>start</c> on; a market that began later answers with its
+    /// first periods, which then all start after the period asked about. Not checked against Bitstamp's documentation
+    /// (BACKLOG); without such periods the answer is never taken as final.
+    /// </remarks>
+    public bool HistoryStartsAfter(
+        ReadOnlySpan<byte> body, Asset asset, FiatCurrency quote, PriceResolution resolution,
+        DateTimeOffset periodStart)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+        try
+        {
+            using var document = JsonDocument.Parse(body.ToArray());
+            var data = Property(document.RootElement, "data", JsonValueKind.Object);
+            if (!string.Equals(MarketOf(data), $"{CodeOf(asset)}/{quote.Code()}", StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            var starts = Property(data, "ohlc", JsonValueKind.Array).EnumerateArray()
+                .Select(item => Number(Property(item, "timestamp")))
+                .ToList();
+            var end = periodStart.ToUnixTimeSeconds() + resolution.Seconds();
+            return starts.Count > 0 && starts.Min() >= end;
+        }
+        catch (Exception exception) when (exception is JsonException or InvalidOperationException
+            or FormatException or OverflowException or KeyNotFoundException or RateFormatException
+            or NotSupportedException)
+        {
+            return false;
+        }
+    }
+
     /// <summary>Gets whether Bitstamp quotes its markets in a currency: dollars and euro.</summary>
     /// <param name="quote">The currency.</param>
     /// <returns><see langword="true"/> for USD and EUR.</returns>

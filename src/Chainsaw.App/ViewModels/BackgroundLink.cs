@@ -15,13 +15,16 @@ public enum BackgroundMode
     /// <summary>The user has turned it off.</summary>
     Off,
 
-    /// <summary>VPN is the way out, which the background cannot connect without the vault: nothing is asked.</summary>
+    /// <summary>
+    /// VPN is the way out, and the selected exit is not allowed in the background (decided 2026-11-08): it cannot be
+    /// connected without the vault, so nothing is asked.
+    /// </summary>
     NeedsWindows,
 
     /// <summary>It should run but does not (it could not be started).</summary>
     NotRunning,
 
-    /// <summary>It runs, through Windows.</summary>
+    /// <summary>It runs, through Windows or the exit allowed in the background.</summary>
     Running,
 
     /// <summary>It runs, but its lookups fail; it tries again.</summary>
@@ -35,8 +38,9 @@ public enum BackgroundMode
 /// The open Chainsaw's side of the background watching (CLAUDE.md, <em>Bevaka</em>): it holds the open case so that the
 /// background leaves it to Chainsaw, writes the plan (the addresses, filters and case ids, under DPAPI) when the
 /// watches or the settings change, starts the background process and sets it to start with Windows while a watch is
-/// active and it is on (and the way out is Windows), brings what the background saw into the open case, and says
-/// honestly what the background does. It knows nothing of WPF.
+/// active and it is on (and the way out is Windows, or the selected exit is allowed in the background), brings what the
+/// background saw into the open case, and says honestly what the background does. Turning it off removes the exits'
+/// copies kept for it. It knows nothing of WPF.
 /// </summary>
 public sealed class BackgroundLink : IDisposable
 {
@@ -127,6 +131,11 @@ public sealed class BackgroundLink : IDisposable
         _session.Closing += (_, closing) => WriteClosing(closing);
         _board.Changed += (_, _) => WriteCaseSoon();
         HoldOpenCase();
+        if (!_settings.WatchInBackground)
+        {
+            ForgetExits();
+        }
+
         _ = WriteAsync(_session.Current);
         _ = Task.Run(() => LoopAsync(_stop.Token));
     }
@@ -138,7 +147,29 @@ public sealed class BackgroundLink : IDisposable
     {
         ArgumentNullException.ThrowIfNull(settings);
         _settings = settings;
+        if (!settings.WatchInBackground)
+        {
+            ForgetExits();
+        }
+
         return WriteAsync(null);
+    }
+
+    /// <summary>
+    /// Removes the exits' WireGuard files kept for the background (decided 2026-11-08), as when it is turned off, so
+    /// that none lies outside the vault for a watching that does not run.
+    /// </summary>
+    private void ForgetExits()
+    {
+        try
+        {
+            _parts.Exits?.Clear();
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            // Held for a moment (a scanner): removed at the next change of the settings, and the background, which
+            // stops with the plan, never reads it meanwhile.
+        }
     }
 
     /// <summary>Writes the open case's active watches into the plan now, off the UI thread.</summary>
@@ -248,7 +279,7 @@ public sealed class BackgroundLink : IDisposable
             return BackgroundMode.Idle;
         }
 
-        if (plan.Route != ExitRoute.Windows)
+        if (!HasWayOut(plan))
         {
             return BackgroundMode.NeedsWindows;
         }
@@ -267,10 +298,32 @@ public sealed class BackgroundLink : IDisposable
         };
     }
 
-    /// <summary>Says whether the background should run: on, a watch active, and Windows as the way out.</summary>
+    /// <summary>
+    /// Says whether the background should run: on, a watch active, and a way out it can take (Windows, or the selected
+    /// exit allowed in the background).
+    /// </summary>
     /// <param name="plan">The plan.</param>
     /// <returns><see langword="true"/> when it should.</returns>
-    private static bool Needed(BackgroundPlan plan) => plan.HasWork && plan.Route == ExitRoute.Windows;
+    private bool Needed(BackgroundPlan plan) => plan.HasWork && HasWayOut(plan);
+
+    /// <summary>Says whether the background has a way out: Windows, or an exit the user allowed it.</summary>
+    /// <param name="plan">The plan.</param>
+    /// <returns><see langword="true"/> when it has.</returns>
+    private bool HasWayOut(BackgroundPlan plan) => plan.Route == ExitRoute.Windows || UsableExit() is not null;
+
+    /// <summary>Gives the exit the background would connect, or none when it cannot be read.</summary>
+    /// <returns>The exit's id, or <see langword="null"/>.</returns>
+    private Guid? UsableExit()
+    {
+        try
+        {
+            return _parts.Exits?.Usable();
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
 
     /// <summary>Holds the open case, and lets go of the one held before (on the UI thread).</summary>
     private void HoldOpenCase()
@@ -354,6 +407,7 @@ public sealed class BackgroundLink : IDisposable
                     Enabled = settings.WatchInBackground,
                     Route = settings.ExitRoute,
                     Alerts = settings.Alerts,
+                    ProxyLoginFor = settings.ProxyLoginFor,
                 };
 
                 try
@@ -473,4 +527,11 @@ public sealed record BackgroundParts(
     IBackgroundStatusFile Status,
     IBackgroundProcess Process,
     IAutostart Autostart,
-    IClock Clock);
+    IClock Clock)
+{
+    /// <summary>
+    /// Gets the exits the user allows in the background, or <see langword="null"/> where there are none (then only
+    /// Windows is a way out for it).
+    /// </summary>
+    public IBackgroundExits? Exits { get; init; }
+}

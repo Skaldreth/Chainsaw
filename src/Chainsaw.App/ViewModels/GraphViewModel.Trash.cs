@@ -61,6 +61,9 @@ public sealed partial class GraphViewModel
     /// <summary>The action that puts a thrown start point back.</summary>
     public const string RestoreActionText = "Lägg tillbaka";
 
+    /// <summary>What the graph says when a search row's node was no longer in the trash as found.</summary>
+    public const string NothingPutBackText = "Det låg inte längre så i soptunnan. Soptunnan visar vad som ligger där.";
+
     /// <summary>The action on the toast after a throw.</summary>
     public const string UndoText = "Ångra · Ctrl+Z";
 
@@ -549,17 +552,46 @@ public sealed partial class GraphViewModel
     /// <param name="throwSequence">The throw.</param>
     /// <param name="key">The member, or <see langword="null"/> for the whole throw.</param>
     /// <returns>A task that completes when it is put back and shown.</returns>
-    private async Task RestoreInAsync(ICase openCase, long throwSequence, string? key)
+    private async Task RestoreInAsync(ICase openCase, long throwSequence, string? key) =>
+        await PutBackInAsync(openCase, throwSequence, key);
+
+    /// <summary>
+    /// Puts back what a search row found in the trash (TODO, <em>Lägg tillbaka direkt på raden I soptunnan</em>); when
+    /// nothing came back, as when it was put back meanwhile, the graph says so and opens the trash.
+    /// </summary>
+    /// <param name="place">Where in the trash the row's node lies.</param>
+    /// <returns>A task that completes when it is put back and shown, or the trash is open.</returns>
+    public async Task PutBackFoundAsync(TrashPlace place)
+    {
+        ArgumentNullException.ThrowIfNull(place);
+        if (_session.Current is not { } openCase)
+        {
+            return;
+        }
+
+        if (await PutBackInAsync(openCase, place.Throw, place.Key) == 0 && IsStillOpen(openCase))
+        {
+            Say(NothingPutBackText);
+            TrashView.Open();
+        }
+    }
+
+    /// <summary>Puts a member of a throw back, as <see cref="RestoreInAsync"/>, and says how much came back.</summary>
+    /// <param name="openCase">The case the throw was made in.</param>
+    /// <param name="throwSequence">The throw.</param>
+    /// <param name="key">The member, or <see langword="null"/> for the whole throw.</param>
+    /// <returns>How many came back; <see langword="null"/> when it failed or was refused, which is said already.</returns>
+    private async Task<int?> PutBackInAsync(ICase openCase, long throwSequence, string? key)
     {
         if (_trashSource is null)
         {
-            return;
+            return null;
         }
 
         if (!IsStillOpen(openCase))
         {
             Tell(ToastKind.Warning, UndoOtherCaseText);
-            return;
+            return null;
         }
 
         try
@@ -567,7 +599,7 @@ public sealed partial class GraphViewModel
             var back = await _trashSource.RestoreAsync(openCase, throwSequence, key);
             if (!IsStillOpen(openCase))
             {
-                return;
+                return null;
             }
 
             if (key is null && _lastThrow is { } last && last.Sequence == throwSequence)
@@ -580,6 +612,8 @@ public sealed partial class GraphViewModel
             {
                 Say("Lade tillbaka " + TrashViewModel.CountText(back) + " i grafen.");
             }
+
+            return back.Count;
         }
         catch (Exception exception) when (exception is CaseException or InvalidOperationException)
         {
@@ -587,6 +621,8 @@ public sealed partial class GraphViewModel
             {
                 Tell(ToastKind.Error, RestoreFailedText);
             }
+
+            return null;
         }
     }
 
