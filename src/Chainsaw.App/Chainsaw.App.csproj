@@ -53,4 +53,13 @@
     <!-- The background watching (stage 27), built next to Chainsaw.exe (its types are all internal); Chainsaw starts it. -->
     <ProjectReference Include="..\Chainsaw.Watcher\Chainsaw.Watcher.csproj" />
   </ItemGroup>
+  <!--
+    The background watching (Chainsaw.Watcher.exe) runs from this project's output folder while a watch is active, also
+    when Chainsaw is closed, and holds the module DLLs there, so copying new ones fails (MSB3027). It is asked to stop
+    through its named event before the build on Windows (build/StopWatcher.ps1); Chainsaw starts it again when it runs.
+  -->
+  <Target Name="StopBackgroundWatcher" BeforeTargets="BeforeBuild" Condition="$([MSBuild]::IsOSPlatform('Windows'))">
+    <Exec Command="powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)..\..\build\StopWatcher.ps1&quot;"
+          ContinueOnError="true" />
+  </Target>
 </Project>

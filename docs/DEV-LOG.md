@@ -6162,3 +6162,11 @@ insättning i en borta tx i Begäran, Flöde).
   avgör det; en förklarande rad står där i stället. *Lägg till nyckel …* fyller i *Etherscan* när ingen nyckel heter så.
 - Nyckeln läses ur ett maskat fält, sparas i valvet utanför UI-tråden och fältet töms.
 
+## Bygget och bakgrunden (2026-11-09)
+
+- **Bygget stoppades av bakgrunden:** `Chainsaw.Watcher.exe` kör från `Chainsaw.App`s utmapp när en bevakning är
+  aktiv, också när Chainsaw är stängt, och håller modulernas DLL:er där, så att kopieringen i bygget föll med
+  MSB3027. Nu ber målet `StopBackgroundWatcher` i `Chainsaw.App.csproj` processen att stoppa genom dess namngivna
+  händelse innan bygget på Windows (`build/StopWatcher.ps1`, väntar högst 10 s, stoppar aldrig bygget). Run-nyckeln
+  rörs inte; Chainsaw startar bakgrunden igen när den körs med en aktiv bevakning. Brytaren *Bevaka när Chainsaw är
+  stängt* under Låsning fanns redan.
