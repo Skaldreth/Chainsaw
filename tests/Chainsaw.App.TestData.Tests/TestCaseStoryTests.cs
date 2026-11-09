@@ -44,6 +44,26 @@ public sealed class TestCaseStoryTests : IDisposable
     }
 
     [Fact]
+    public async Task The_test_case_reads_back_the_made_up_rates_it_sealed_without_sending()
+    {
+        using var @case = await OpenAsync();
+        var rates = _harness.Get<TestRatesHttp>();
+        var at = _harness.Get<TestChain>()[TestStoryChain.VictimPayment].Height;
+        var time = _harness.Get<TestChain>().TimeOf(at);
+        var sealedPrice = (await _harness.Get<IPriceService>()
+            .GetPriceAsync(@case, new PriceRequest(Chain.Bitcoin, time))).Value!;
+        var asked = rates.Requests;
+
+        var stored = Assert.Single(
+            _harness.Get<ICaseRates>().ReadStored(@case, [new PriceRequest(Chain.Bitcoin, time)]));
+
+        Assert.Equal(PriceLookupStatus.FromCase, stored.Status);
+        Assert.Equal(sealedPrice.UnitPrice, stored.Value!.UnitPrice);
+        Assert.Equal(asked, rates.Requests);
+        Assert.Equal(0, _harness.Outside.Attempts);
+    }
+
+    [Fact]
     public async Task A_real_case_never_gets_made_up_rates()
     {
         var rates = _harness.Get<TestRatesHttp>();

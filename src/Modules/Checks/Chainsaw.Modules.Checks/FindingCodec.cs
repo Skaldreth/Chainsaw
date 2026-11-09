@@ -13,8 +13,8 @@ namespace Chainsaw.Modules.Checks;
 
 /// <summary>
 /// Writes a finding as the JSON that is sealed, and reads it back; the fingerprint is the SHA-256 of that JSON, so that
-/// a finding that has not changed is not sealed again. The parts only a cross-chain suggestion has are left out when
-/// empty, so that every other finding is written exactly as before.
+/// a finding that has not changed is not sealed again. The parts only a cross-chain suggestion has, and the rates only
+/// a finding about fiat amounts has, are left out when empty, so that every other finding is written exactly as before.
 /// </summary>
 internal static class FindingCodec
 {
@@ -48,7 +48,14 @@ internal static class FindingCodec
                     candidate.Reason,
                     StoredMovement.Of(candidate.Arrival))),
             ],
-            StoredMovement.Of(finding.Departure));
+            StoredMovement.Of(finding.Departure),
+            finding.Rates.Count == 0
+                ? null
+                :
+                [
+                    .. finding.Rates.Select(rate =>
+                        new StoredRate(rate.Source, rate.Sequence, rate.Sha256, rate.Reading)),
+                ]);
         return JsonSerializer.Serialize(stored);
     }
 
@@ -91,6 +98,9 @@ internal static class FindingCodec
             ])
         {
             Departure = stored.Departure?.ToMovement(),
+            Rates = stored.Rates is { } rates
+                ? [.. rates.Select(rate => new CheckRate(rate.Source, rate.Sequence, rate.Sha256, rate.Reading))]
+                : [],
         };
     }
 
@@ -144,6 +154,7 @@ internal static class FindingCodec
     /// <param name="Basis">The basis.</param>
     /// <param name="Candidates">The candidates.</param>
     /// <param name="Departure">The payment a cross-chain suggestion starts from; left out when none.</param>
+    /// <param name="Rates">The rates the finding rests on; left out when none.</param>
     private sealed record StoredFinding(
         string Key,
         string Kind,
@@ -155,7 +166,15 @@ internal static class FindingCodec
         IReadOnlyList<string> Transactions,
         IReadOnlyList<StoredBasis> Basis,
         IReadOnlyList<StoredCandidate> Candidates,
-        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] StoredMovement? Departure = null);
+        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] StoredMovement? Departure = null,
+        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<StoredRate>? Rates = null);
+
+    /// <summary>A rate a finding rests on, as sealed.</summary>
+    /// <param name="Source">The source's stable name.</param>
+    /// <param name="Sequence">The sealed response's number.</param>
+    /// <param name="Sha256">The response's SHA-256.</param>
+    /// <param name="Reading">What was read from it.</param>
+    private sealed record StoredRate(string Source, long Sequence, string Sha256, string Reading);
 
     /// <summary>A transaction a finding rests on, as sealed.</summary>
     /// <param name="Txid">The txid.</param>

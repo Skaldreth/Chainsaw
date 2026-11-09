@@ -8,5 +8,6 @@
     <ProjectReference Include="..\..\Chains\Chainsaw.Modules.Chains.Contracts\Chainsaw.Modules.Chains.Contracts.csproj" />
     <ProjectReference Include="..\..\Clustering\Chainsaw.Modules.Clustering.Contracts\Chainsaw.Modules.Clustering.Contracts.csproj" />
     <ProjectReference Include="..\..\Tracing\Chainsaw.Modules.Tracing.Contracts\Chainsaw.Modules.Tracing.Contracts.csproj" />
+    <ProjectReference Include="..\..\Pricing\Chainsaw.Modules.Pricing.Contracts\Chainsaw.Modules.Pricing.Contracts.csproj" />
   </ItemGroup>
 </Project>

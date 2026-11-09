@@ -134,9 +134,8 @@ byggt ur BACKLOG; det som skriver i ärendet granskas oberoende.
    Omgång 5 (2026-11-09, DEV-LOG) byggde trolig mixer, mixer efter mixer med grenar, uppdelning över flera tx, hopp
    med avgift, tidsmönstret i svensk tid och nästlade tjänster. Kvar:
    - **Testärendet** [direkt]: `/testdata` visar inte omgång 5:s mönster (en central mixer utan etikett, grenar, en
-     uppdelning över flera tx, hopp med avgift, en nästlad tjänst hos en börs).
-   - **Jämna belopp i fiat** [etapp]: kräver ett synkront kontrakt för ärendets kurser i `Pricing.Contracts` (BACKLOG,
-     *Förvirringstekniker*).
+     uppdelning över flera tx, hopp med avgift, en nästlad tjänst hos en börs) eller en betalning i jämna kronor
+     (`round-fiat v1`, med kurserna sparade i testärendet).
 5. **Attribution och kurser:** EU:s sanktionslista, öppna källor (efter licens), etiketter på tx, och fynden under
    *Attribution* och *Kurser*.
 6. **Säkerhet, ärenden och utgångar:** byggt 2026-11-08 (DEV-LOG, *Omgång 6*). Kvar, som behöver ritas först:

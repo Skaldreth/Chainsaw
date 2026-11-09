@@ -2144,6 +2144,21 @@ Testärendet visar inte de här kontrollerna än (TODO); prova dem i ett ärende
       står kvar streckat, och *?* öppnar Guidens *Nästlade tjänster*.
 - [ ] **Snabbhet:** *Förslag · N* blir inte märkbart långsammare i ett stort ärende.
 
+### Jämna belopp i fiat (`round-fiat v1`, 2026-11-09)
+
+Testärendet visar inte kontrollen än (TODO); prova i ett ärende med en betalning i jämna kronor. Kontrollen läser
+bara kurser som redan finns i ärendet, så visa först kronorna under beloppen i grafen (KU1a) så att kurserna sparas.
+- [ ] **En jämn betalning:** en tx med två outputs där den ena är ett jämnt belopp i kronor (till exempel 5 000 SEK
+      vid blocket) ger *Jämnt belopp i SEK* under *GJORT AV SIG SJÄLVT* i *Förslag · N*, med ett grått område runt
+      avsändaren och den udda outputen. Raden under titeln säger *Output N ≈ 5 000 SEK, output M trolig växel*.
+- [ ] **Varför?** visar beloppet i kronor och euro, hur många procent från det jämna talet, om växeladressens tecken
+      pekar ut samma output (*Det stöder klustringens change-address v2*), varje kurs med källa och SHA-256, och att
+      det är en bedömning. Saknas dollarkursen säger texten *Ärendet har ingen kurs i USD vid blocket*.
+- [ ] **Inget hämtas:** koppla från utgången och öppna *Förslag · N*: kontrollen visar samma sak som förut, och en tx
+      vars kurs inte finns i ärendet får inget fynd och ingen fråga ut. Inget nytt syns i *Inställningar › Kurser*.
+- [ ] **Inget slås ihop:** fyndet ändrar inga kluster; *?* öppnar Guidens *Jämna belopp i fiat*.
+- [ ] **Snabbhet:** *Förslag · N* blir inte märkbart långsammare i ett stort ärende med många kurser.
+
 ### Mönster (`pattern v1`, 2026-11-09)
 
 Testärendet visar *Samma väg* och *Likadana belopp* (se *Testärendet*); prova de andra i ett ärende där formen finns.

@@ -359,7 +359,7 @@ public sealed class CheckServiceTests
     }
 
     [Fact]
-    public void The_module_registers_the_eighteen_analyses_in_order()
+    public void The_module_registers_the_nineteen_analyses_in_order()
     {
         using var harness = new Harness();
 
@@ -369,7 +369,7 @@ public sealed class CheckServiceTests
                 CoinJoinCheck.Name, PeelChainCheck.Name, WalletCheck.Name, CoinJoinMergeCheck.Name,
                 ServiceBehaviourCheck.Name, NestedServiceCheck.Name,
                 SplitMergeCheck.Name, PassThroughCheck.Name, DustCheck.Name, PayJoinCheck.Name, ActiveHoursCheck.Name,
-                PatternCheck.Name,
+                RoundFiatCheck.Name, PatternCheck.Name,
                 CrossChainCheck.Name,
                 ShieldedPoolCheck.Name,
             ],

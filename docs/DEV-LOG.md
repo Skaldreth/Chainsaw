@@ -6000,3 +6000,41 @@ oberoende agent.
   ärendet öppnas (`ChainAnchor.Elsewhere`), och `ICase.WasAddedElsewhere`. Nodens historik och Tidslinjen visar en liten
   dämpad dator vid raden, *Tillagt på en annan dator* på hovring. Första öppningen på en dator märker inget, och ett
   bytt ankare börjar om. Begränsningarna står i BACKLOG.
+
+## Jämna belopp i fiat, `round-fiat v1` (etapp, 2026-11-09)
+
+Ett belopp som är jämnt i kronor, euro eller dollar vid blocket som tecken på betalningen och växeln (BACKLOG,
+*Förvirringstekniker*; TODO 4).
+
+- **`ICaseRates` i `Pricing.Contracts`:** `ReadStored(case, requests)` läser synkront, i en läsning av ärendet, de
+  priser ärendet redan har för många tidpunkter. Svaret per fråga är `FromCase` med priset, `NotInCase`,
+  `NotAvailable` (det sparade svaret visar att källan saknar kurs) eller `Unsupported`; aldrig `Fetched`, och inget
+  skickas (princip 4 och 9). `PriceService` implementerar det med samma läsning som `GetPriceAsync` gör ur ärendet
+  (de sparade läsningarna är nu synkrona metoder som den asynkrona vägen kör i `Task.Run`), och minns varje period och
+  dag inom en läsning. Modulen registrerar `PriceService` en gång och ger båda kontrakten ur den. I ett Debug-bygge
+  läser testärendet sina påhittade kurser genom `TestDataCaseRatesRouter`.
+- **`CheckInput.Prices`:** `CheckService` (med `ICaseRates` som valfritt beroende) läser priserna vid blocktiden för
+  varje bekräftad tx med minst två outputs, i SEK, EUR och USD, timme före minut före dag (`CasePrices`): en läsning
+  per upplösning och bara för det som saknas. Misslyckas läsningen sägs det som för andra analyser, och de andra körs.
+- **`round-fiat v1`** (kontroll, området *Plånböcker*): fyndet kräver att precis en output inte är jämn i någon valuta
+  och alla andra är jämna i minst en. *Jämnt* är en siffra, 1,5 eller 2,5 gånger en tiopotens, högst 0,5 % ifrån, och
+  minst 100 SEK eller 10 EUR/USD. *Varför?* säger varje jämn output med belopp och avvikelse, om
+  `change-address`-slutsatsen pekar ut samma växel (stöder eller går isär), vilka valutor som saknar kurs, och varje
+  kurs med källa och SHA-256. Kurserna sparas också med fyndet (`CheckFinding.Rates`, `CheckRate`); `FindingCodec`
+  skriver dem bara när de finns, så andra fynd förseglas som förut.
+
+**Egna beslut:**
+- **En kontroll, inte ett tecken i `change-address`.** Klustringens heuristiker är rena över tx:erna och slår ihop
+  automatiskt; ett tecken som beror på kurser skulle göra sammanslagningar beroende av vilka kurser som råkar vara
+  sparade, och tecknet är svagt (börsens kurs, slumpen). BACKLOG beskrev vägen genom `CheckInput`. Kontrollen säger i
+  stället om den stöder växeln; *Fler tecken för växeln* i BACKLOG säger det.
+- **Bara kurser som redan finns.** En tx utan kurs i ärendet vägs inte (inget fynd, ingen fråga), och en saknad valuta
+  sägs i *Varför?*. Kurserna kommer in när grafen visar kronor (KU1a).
+- **Toleransen 0,5 %** och de jämna talen är egna val i väntan på kryptospåraren (KRYPTOSPARAREN, fråga 5). Facit
+  mäter slumpen: med kronor och euro får ungefär var sjätte tx med två slumpade belopp fyndet (10–22 % i testet),
+  vilket Guiden säger.
+- **Timmen först**, oberoende av inställningen, så att samma ärende alltid ger samma fynd.
+- Ingen ny yta: fyndet syns som andra kontroller i *Förslag · N*, och *?* öppnar det nya avsnittet *Jämna belopp i
+  fiat* (`GuideTopic.RoundFiat`).
+
+**Återstår:** testärendet visar inte kontrollen (TODO 4, *Testärendet*); svaret från kryptospåraren om toleransen.

@@ -1,5 +1,6 @@
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Clustering.Contracts;
+using Chainsaw.Modules.Pricing.Contracts;
 using Chainsaw.Modules.Tracing.Contracts;
 using Chainsaw.SharedKernel;
 
@@ -86,6 +87,15 @@ public sealed record CheckInput(
     /// empty when nothing.
     /// </summary>
     public CrossChainArrivals CrossChain { get; init; } = CrossChainArrivals.Empty;
+
+    /// <summary>
+    /// Gets, per confirmed transaction with at least two outputs, the prices of its chain's coin at its block time that
+    /// the case already holds, one per currency (SEK, EUR, USD in that order) and only those it holds; read from the
+    /// case without asking any source (<c>ICaseRates</c>). A transaction or currency missing here has no rate stored,
+    /// and an analysis never guesses one. Empty when nothing.
+    /// </summary>
+    public IReadOnlyDictionary<Txid, IReadOnlyList<Price>> Prices { get; init; } =
+        new Dictionary<Txid, IReadOnlyList<Price>>();
 
     /// <summary>Gives the owner of an address (<see cref="Owners"/>).</summary>
     /// <param name="address">The address.</param>

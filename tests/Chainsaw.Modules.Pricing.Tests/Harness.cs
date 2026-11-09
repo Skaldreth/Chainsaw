@@ -47,6 +47,7 @@ internal sealed class Harness : IDisposable
         _provider = services.BuildServiceProvider();
         Case = _provider.GetRequiredService<ICaseStore>().Create(CaseNumber);
         Prices = _provider.GetRequiredService<IPriceService>();
+        Stored = _provider.GetRequiredService<ICaseRates>();
         Defaults = _provider.GetRequiredService<IPriceDefaults>();
     }
 
@@ -59,6 +60,8 @@ internal sealed class Harness : IDisposable
     public ICase Case { get; }
 
     public IPriceService Prices { get; }
+
+    public ICaseRates Stored { get; }
 
     public IPriceDefaults Defaults { get; }
 

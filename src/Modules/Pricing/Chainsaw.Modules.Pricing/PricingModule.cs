@@ -45,7 +45,7 @@ public static class PricingModule
         services.TryAddSingleton<IFiatRateSource>(_ => new RiksbankRateSource(settings.RiksbankBaseUri));
         services.AddSingleton(_ => new PriceDefaults(settings));
         services.AddSingleton<IPriceDefaults>(provider => provider.GetRequiredService<PriceDefaults>());
-        services.AddSingleton<IPriceService>(provider => new PriceService(
+        services.AddSingleton(provider => new PriceService(
             provider.GetRequiredService<ICryptoRateSource>(),
             provider.GetRequiredService<IFiatRateSource>(),
             provider.GetRequiredService<IExitHttp>(),
@@ -54,6 +54,10 @@ public static class PricingModule
             settings,
             provider.GetRequiredService<PriceDefaults>(),
             TimeZoneInfo.Local));
+
+        // One service answers both: the reader of stored prices reads the same rates the lookups seal.
+        services.AddSingleton<IPriceService>(provider => provider.GetRequiredService<PriceService>());
+        services.AddSingleton<ICaseRates>(provider => provider.GetRequiredService<PriceService>());
         return services;
     }
 }

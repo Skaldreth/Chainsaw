@@ -61,13 +61,15 @@ public static class TestDataServices
                 provider.GetRequiredService<IOperatorProfileStore>(),
                 provider.GetRequiredService<IClock>()))));
         services.AddSingleton(provider => new TestRatesHttp(provider.GetRequiredService<IClock>()));
+        services.AddSingleton(provider => new TestDataRates(new Lazy<IPriceService>(() => TestDataPricing.Create(
+            provider.GetRequiredService<TestRatesHttp>(),
+            provider.GetRequiredService<IOperatorProfileStore>(),
+            provider.GetRequiredService<IClock>(),
+            provider.GetRequiredService<IPriceDefaults>()))));
         TryDecorate<IPriceService>(services, (provider, real) => new TestDataPriceRouter(
-            real,
-            new Lazy<IPriceService>(() => TestDataPricing.Create(
-                provider.GetRequiredService<TestRatesHttp>(),
-                provider.GetRequiredService<IOperatorProfileStore>(),
-                provider.GetRequiredService<IClock>(),
-                provider.GetRequiredService<IPriceDefaults>()))));
+            real, provider.GetRequiredService<TestDataRates>().Service));
+        TryDecorate<ICaseRates>(services, (provider, real) => new TestDataCaseRatesRouter(
+            real, provider.GetRequiredService<TestDataRates>().Service));
         Decorate<ISanctionLists>(services, (provider, real) => new TestDataSanctionLists(
             real, provider.GetRequiredService<TestActors>()));
         TryDecorate<IOpenSourceLists>(services, (provider, real) => new TestDataOpenSources(

@@ -5,6 +5,7 @@ using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Checks.Contracts;
 using Chainsaw.Modules.Clustering.Contracts;
+using Chainsaw.Modules.Pricing.Contracts;
 using Chainsaw.Modules.Tracing.Contracts;
 using Chainsaw.SharedKernel;
 
@@ -39,6 +40,12 @@ internal sealed class CheckService : ICheckService
     /// </summary>
     private readonly ICrossChainLinks? _links;
 
+    /// <summary>
+    /// The prices the case already holds, for the analysis of round amounts in fiat; <see langword="null"/> when
+    /// Pricing is not registered, and then no transaction has a price.
+    /// </summary>
+    private readonly ICaseRates? _rates;
+
     /// <summary>Creates the service.</summary>
     /// <param name="analyses">Every registered analysis; those for Bitcoin run, in the order registered.</param>
     /// <param name="clustering">The clustering.</param>
@@ -51,6 +58,9 @@ internal sealed class CheckService : ICheckService
     /// What the case has of the other chains (read only, sending nothing), or <see langword="null"/>.
     /// </param>
     /// <param name="links">Where an approved continuation on another chain is linked, or <see langword="null"/>.</param>
+    /// <param name="rates">
+    /// The prices the case already holds (read only, sending nothing), or <see langword="null"/>.
+    /// </param>
     /// <exception cref="InvalidOperationException">Two analyses have the same name.</exception>
     public CheckService(
         IEnumerable<ICheckAnalysis> analyses,
@@ -58,7 +68,8 @@ internal sealed class CheckService : ICheckService
         IClock clock,
         IAttributionService? attribution = null,
         ICrossChainLookup? crossChain = null,
-        ICrossChainLinks? links = null)
+        ICrossChainLinks? links = null,
+        ICaseRates? rates = null)
     {
         ArgumentNullException.ThrowIfNull(analyses);
         var all = analyses.ToList();
@@ -78,6 +89,7 @@ internal sealed class CheckService : ICheckService
         _attribution = attribution;
         _crossChain = crossChain;
         _links = links;
+        _rates = rates;
     }
 
     /// <inheritdoc/>
@@ -100,6 +112,7 @@ internal sealed class CheckService : ICheckService
             Graph = graph,
             CrossChain = CrossChainOf(@case, graph, problems),
         };
+        input = input with { Prices = PricesOf(@case, input.Transactions, problems) };
         var raw = new List<(ICheckAnalysis Analysis, ResultKey Key, CheckFinding Finding)>();
         var found = new List<(ICheckAnalysis Analysis, ResultKey Key, CheckFinding Finding, string Content)>();
         foreach (var analysis in _analyses)
@@ -187,6 +200,34 @@ internal sealed class CheckService : ICheckService
         {
             problems.Add(string.Format(CultureInfo.InvariantCulture, FailedText, CrossChainCheck.Identity));
             return CrossChainArrivals.Empty;
+        }
+    }
+
+    /// <summary>
+    /// Reads the prices the case already holds at the block time of each confirmed transaction with at least two
+    /// outputs, in SEK, EUR and USD, sending nothing (<see cref="ICaseRates"/>); a failure leaves them empty and is
+    /// said, so that the other analyses still run.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="transactions">The graph's transactions.</param>
+    /// <param name="problems">Where a failure is said.</param>
+    /// <returns>The prices the case holds, per transaction; a transaction without any is left out.</returns>
+    private Dictionary<Txid, IReadOnlyList<Price>> PricesOf(
+        ICase @case, IReadOnlyList<BitcoinTransaction> transactions, List<string> problems)
+    {
+        if (_rates is null)
+        {
+            return [];
+        }
+
+        try
+        {
+            return CasePrices.Read(_rates, @case, transactions);
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            problems.Add(string.Format(CultureInfo.InvariantCulture, FailedText, RoundFiatCheck.Identity));
+            return [];
         }
     }
 
