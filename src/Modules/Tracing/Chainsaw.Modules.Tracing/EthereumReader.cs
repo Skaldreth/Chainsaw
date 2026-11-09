@@ -245,7 +245,7 @@ internal sealed class EthereumReader(IAccountSource source)
                 walk.Outdated |= lookup.Status == LookupStatus.FromCaseMayBeOutdated;
                 walk.Problem = Join(walk.Problem, Lookups.Outdated(lookup));
                 var before = hashes.Count;
-                walk.Add(page);
+                walk.Add(page, lookup.Notes);
                 hashes.UnionWith(page.Transfers.Select(transfer => transfer.Transaction));
                 hashes.UnionWith(page.Fees.Select(fee => fee.Transaction));
                 if (page.NextAtOrBelow is not { } next || next == atOrBelow || hashes.Count == before)
@@ -352,7 +352,11 @@ internal sealed class EthereumReader(IAccountSource source)
 
         /// <summary>Takes in a page, and says what it could not count.</summary>
         /// <param name="page">The page.</param>
-        public void Add(EthereumAddressPage page)
+        /// <param name="notes">
+        /// The source's notes on the page; for an incomplete page they say what it waits for (on TRON which
+        /// transactions, and which endpoint's answer is doubted and when it is asked again), and join the problem.
+        /// </param>
+        public void Add(EthereumAddressPage page, IEnumerable<string> notes)
         {
             foreach (var transfer in page.Transfers)
             {
@@ -375,6 +379,8 @@ internal sealed class EthereumReader(IAccountSource source)
             if (page.IsIncomplete)
             {
                 Problem = Lookups.Join(Problem, "Källan har inte läst hela historiken än; expandera igen senare.");
+                Problem = notes.Aggregate(Problem, Lookups.Join);
+
             }
 
             if (page.Unread > 0)

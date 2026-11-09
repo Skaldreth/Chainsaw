@@ -350,6 +350,68 @@ public sealed class TronSourceTests
     }
 
     [Fact]
+    public async Task WithOnlyOneEndpointADoubtedAnswerIsAskedOfItAgainAfterAWhileAndPlacedThen()
+    {
+        using var harness = new TronHarness();
+        harness.Answer(TronHarness.TipUrl, "tip.json");
+        await harness.Source.GetTipHeightAsync(harness.Case);
+        harness.Answer(harness.HistoryUrl("transactions/trc20", TronHarness.A), "history-trc20.json");
+        harness.Answer(TronHarness.InfoUrl(TronHarness.C1), "tx-c1-info-nolog.json");
+
+        var first = await harness.Source.GetAddressHistoryAsync(harness.Case, TronHarness.A, EthereumHistory.Tokens);
+
+        // The doubted answer stays in the case, but is never taken as the chain's word: the movement waits.
+        var disputed = Assert.Single(first.Value!.Disputed);
+        var wait = disputed.AskedAgainAt!.Value - harness.Clock.UtcNow;
+        Assert.InRange(wait, TimeSpan.FromSeconds(55), TimeSpan.FromSeconds(65));
+        Assert.Empty(first.Value.Transfers);
+        Assert.Contains(first.Notes, note => note.Contains(
+            "ingen annan källa för TRON är påslagen; frågas igen hos trongrid.test kl.", StringComparison.Ordinal));
+        Assert.Equal(1, InfoAsks(harness));
+
+        // Before the wait is over nothing is asked; after it the same endpoint is, and its new answer places it.
+        harness.Answer(TronHarness.InfoUrl(TronHarness.C1), "tx-c1-info.json");
+        var early = await harness.Source.GetAddressHistoryAsync(harness.Case, TronHarness.A, EthereumHistory.Tokens);
+        Assert.True(early.Value!.IsIncomplete);
+        Assert.Equal(1, InfoAsks(harness));
+
+        harness.Clock.UtcNow += wait;
+        var later = await harness.Source.GetAddressHistoryAsync(harness.Case, TronHarness.A, EthereumHistory.Tokens);
+
+        Assert.False(later.Value!.IsIncomplete);
+        Assert.Empty(later.Value.Disputed);
+        Assert.Equal(KnownTokens.TronUsdt, Assert.Single(later.Value.Transfers).Amount.Asset);
+        Assert.Equal(2, InfoAsks(harness));
+        Assert.Equal(2, harness.Rows().Count(row => row.Kind == "tron.tx-info"));
+    }
+
+    [Fact]
+    public async Task AnotherEndpointAtTheSameHostIsNotAnotherSource()
+    {
+        using var harness = new TronHarness();
+        var (_, saved) = harness.Sources.Add(Chain.Tron, new Uri(TronHarness.Base + "v2/"), "trongrid", null);
+        await saved;
+        await harness.Sources.SetModeAsync(Chain.Tron, SourceMode.Priority);
+        harness.Answer(TronHarness.TipUrl, "tip.json");
+        await harness.Source.GetTipHeightAsync(harness.Case);
+        harness.Answer(harness.HistoryUrl("transactions/trc20", TronHarness.A), "history-trc20.json");
+        harness.Answer(TronHarness.InfoUrl(TronHarness.C1), "tx-c1-info-nolog.json");
+
+        var page = (await harness.Source.GetAddressHistoryAsync(
+            harness.Case, TronHarness.A, EthereumHistory.Tokens)).Value!;
+
+        Assert.NotNull(Assert.Single(page.Disputed).AskedAgainAt);
+        Assert.DoesNotContain(harness.Http.Sent, request => request.Uri.AbsolutePath.StartsWith(
+            "/v2/", StringComparison.Ordinal) && request.Uri.AbsolutePath.Contains("info", StringComparison.Ordinal));
+    }
+
+    /// <summary>Counts the asks for C1's info.</summary>
+    /// <param name="harness">The harness.</param>
+    /// <returns>How many.</returns>
+    private static int InfoAsks(TronHarness harness) =>
+        harness.Http.Sent.Count(request => request.Uri.AbsoluteUri == TronHarness.InfoUrl(TronHarness.C1));
+
+    [Fact]
     public async Task AnUnknownTokensMissingEventIsSkippedAndNeverAskedAgain()
     {
         using var harness = new TronHarness();

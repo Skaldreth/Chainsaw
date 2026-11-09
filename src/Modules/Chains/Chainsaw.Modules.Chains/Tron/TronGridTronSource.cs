@@ -1,4 +1,6 @@
+using System.Collections.Concurrent;
 using System.Globalization;
+
 using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Network.Contracts;
@@ -26,6 +28,10 @@ internal sealed class TronGridTronSource : ITronSource
     /// <summary>How old the newest known height may be before a lookup that depends on depth asks again.</summary>
     private static readonly TimeSpan TipFreshness = TimeSpan.FromSeconds(30);
 
+    /// <summary>How long a doubted info waits before its endpoint is asked again: 1, 5, 15 min, then hourly.</summary>
+    private static readonly TimeSpan[] AskAgainWaits =
+        [TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(5), TimeSpan.FromMinutes(15), TimeSpan.FromHours(1)];
+
     /// <summary>The time now, to decide whether the known height is fresh.</summary>
     private readonly IClock _clock;
 
@@ -34,6 +40,15 @@ internal sealed class TronGridTronSource : ITronSource
 
     /// <summary>Answers the lookups through the endpoints and the case.</summary>
     private readonly SourceLookups _lookups;
+
+    /// <summary>The time zone the user reads times in.</summary>
+    private readonly TimeZoneInfo _timeZone;
+
+    /// <summary>
+    /// When a doubted info was last asked for again, by transaction, so that an ask that fails and seals nothing is not
+    /// repeated at every read.
+    /// </summary>
+    private readonly ConcurrentDictionary<string, DateTimeOffset> _askedAgain = new(StringComparer.Ordinal);
 
     /// <summary>Creates the source.</summary>
     /// <param name="operators">The operator profile.</param>
@@ -54,6 +69,7 @@ internal sealed class TronGridTronSource : ITronSource
 
         _clock = clock;
         _options = options;
+        _timeZone = timeZone;
         _lookups = new SourceLookups(
             Chain.Tron, "TRON", operators, sources, new RawResponseStore(timeZone, ChainName),
             options.SafeConfirmations,
@@ -347,7 +363,8 @@ internal sealed class TronGridTronSource : ITronSource
                 await PlaceGroupAsync(@case, [.. group], mode, parts, gaps, cancellationToken).ConfigureAwait(false));
         }
 
-        gaps.Note(parts);
+        gaps.Note(parts, DisputedText);
+
         var waiting = gaps.Waiting;
         var page = new EthereumAddressPage(
             address, EthereumHistory.Tokens, atOrBelow, transfers, [], raw.NextAtOrBelow, raw.IsCutShort,
@@ -400,37 +417,142 @@ internal sealed class TronGridTronSource : ITronSource
             return placed;
         }
 
-        if (!left.Any(IsKnown) || mode == LookupMode.CaseOnly)
+        gaps.Unplace(left.Count(entry => !IsKnown(entry)));
+        if (!left.Any(IsKnown))
         {
-            gaps.Unplace(left.Count(entry => !IsKnown(entry)));
-            if (left.Any(IsKnown))
-            {
-                gaps.Wait(hash);
-            }
-
             return placed;
         }
 
         // A final answer without a known token's event is more likely an endpoint's fault than the chain's: asked
-        // again of another endpoint, without the stored answer, and believed only when an endpoint places it.
-        var doubted = info.Origins.Count > 0 ? info.Origins[^1] : null;
-        var again = await _lookups.FetchAsync(
-                @case, InfoQuery(hash), null, cancellationToken, mode == LookupMode.InStep, except: doubted?.EndpointId)
+        // again, without the stored answer, and believed only when an endpoint places it.
+        var (again, disputed) = await AskAgainAsync(
+                @case, hash, info.Origins.Count > 0 ? info.Origins[^1] : null, mode, cancellationToken)
             .ConfigureAwait(false);
-        parts.Take(again);
-        if (again.Value is { } other && Place(entries, other) is var second
-            && second.Left.Count(IsKnown) < left.Count(IsKnown))
+        if (again is not null)
         {
-            (placed, left) = second;
+            parts.Take(again);
         }
 
-        gaps.Unplace(left.Count(entry => !IsKnown(entry)));
+        if (again?.Value is { } other && Place(entries, other) is var second
+            && second.Left.Count(IsKnown) < left.Count(IsKnown))
+        {
+            (placed, left) = (second.Placed, second.Left);
+        }
+
         if (left.Any(IsKnown))
         {
-            gaps.Dispute(hash, doubted?.Endpoint ?? string.Empty);
+            gaps.Dispute(disputed);
         }
 
         return placed;
+    }
+
+    /// <inheritdoc />
+    public async Task<BitcoinLookup<EthereumTransaction>> GetDoubtedTransactionAsync(
+        ICase @case, EthereumTxHash hash, LookupMode mode = LookupMode.AsNeeded,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(hash);
+        var info = await _lookups.LookupAsync(@case, InfoQuery(hash), mode, cancellationToken).ConfigureAwait(false);
+        string? note = null;
+        if (info.Value is { } found && await IsFinalAsync(@case, found.Height, cancellationToken).ConfigureAwait(false))
+        {
+            var (_, disputed) = await AskAgainAsync(
+                    @case, hash, info.Origins.Count > 0 ? info.Origins[^1] : null, mode, cancellationToken)
+                .ConfigureAwait(false);
+            note = DisputedText(disputed);
+        }
+
+        var lookup = await GetTransactionAsync(@case, hash, mode, cancellationToken).ConfigureAwait(false);
+        return note is null ? lookup : lookup with { Notes = [.. lookup.Notes, note] };
+    }
+
+    /// <summary>
+    /// Asks a doubted final info again, without the stored answer: of another endpoint than the one that gave it (and
+    /// not at its host) when one is switched on, at once the first time; otherwise of the same, after 1, 5 and 15
+    /// minutes and then every hour, counted from the newest sealed answer. Never more than once a minute per
+    /// transaction, also when an ask fails and seals nothing.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="hash">The transaction.</param>
+    /// <param name="doubted">The response not believed, or <see langword="null"/> when unknown.</param>
+    /// <param name="mode">Whether the source may be asked.</param>
+    /// <param name="cancellationToken">Stops the lookup.</param>
+    /// <returns>The new answer when one was asked for, and what is doubted and when it is asked again.</returns>
+    private async Task<(BitcoinLookup<TronTransactionInfo>? Again, EthereumDisputedAnswer Disputed)> AskAgainAsync(
+        ICase @case, EthereumTxHash hash, ResponseOrigin? doubted, LookupMode mode,
+        CancellationToken cancellationToken)
+    {
+        var other = doubted is not null && _lookups.HasOtherThan(doubted);
+        var (count, newest) = await AnswersAsync(@case, hash, cancellationToken).ConfigureAwait(false);
+        var due = other && count <= 1 ? DateTimeOffset.MinValue : Due(hash, count, newest);
+        BitcoinLookup<TronTransactionInfo>? again = null;
+        if (mode != LookupMode.CaseOnly && _clock.UtcNow >= due)
+        {
+            _askedAgain[hash.Value] = _clock.UtcNow;
+            again = await _lookups.FetchAsync(
+                    @case, InfoQuery(hash), null, cancellationToken, mode == LookupMode.InStep,
+                    except: other ? doubted : null)
+                .ConfigureAwait(false);
+            (count, newest) = await AnswersAsync(@case, hash, cancellationToken).ConfigureAwait(false);
+            due = Due(hash, count, newest);
+        }
+
+        var disputed = new EthereumDisputedAnswer(hash, doubted?.Endpoint ?? string.Empty)
+        {
+            AskedAgainAt = other ? null : due,
+        };
+        return (again, disputed);
+    }
+
+    /// <summary>Counts a transaction's sealed infos and gives when the newest came.</summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="hash">The transaction.</param>
+    /// <param name="cancellationToken">Stops the reading.</param>
+    /// <returns>How many, and the newest's time (<see cref="DateTimeOffset.MinValue"/> for none).</returns>
+    private Task<(int Count, DateTimeOffset Newest)> AnswersAsync(
+        ICase @case, EthereumTxHash hash, CancellationToken cancellationToken) =>
+        Task.Run(
+            () => @case.Read(reader =>
+            {
+                var all = _lookups.Store.All(reader, TronResponseKinds.TransactionInfo, hash.Value);
+                return (all.Count, all.Count == 0 ? DateTimeOffset.MinValue : all[^1].Origin.ReceivedUtc);
+            }),
+            cancellationToken);
+
+    /// <summary>
+    /// Gives when a doubted info is asked of the same endpoint again: after 1, 5 and 15 minutes and then every hour
+    /// from the newest sealed answer, and never sooner than a minute after the last try.
+    /// </summary>
+    /// <param name="hash">The transaction.</param>
+    /// <param name="count">How many infos are sealed.</param>
+    /// <param name="newest">When the newest came.</param>
+    /// <returns>The time.</returns>
+    private DateTimeOffset Due(EthereumTxHash hash, int count, DateTimeOffset newest)
+    {
+        var wait = AskAgainWaits[Math.Clamp(count - 1, 0, AskAgainWaits.Length - 1)];
+        var due = newest == DateTimeOffset.MinValue ? newest : newest + wait;
+        return _askedAgain.TryGetValue(hash.Value, out var tried) && tried + AskAgainWaits[0] > due
+            ? tried + AskAgainWaits[0]
+            : due;
+    }
+
+    /// <summary>Says, in Swedish, that a final answer lacked a known token's event and what is done about it.</summary>
+    /// <param name="disputed">The doubted answer.</param>
+    /// <returns>The text.</returns>
+    private string DisputedText(EthereumDisputedAnswer disputed)
+    {
+        var start = $"Källan {disputed.Endpoint} gav ingen Transfer-händelse för en känd token i tx "
+            + $"{disputed.Transaction.Brief()} fast blocket är slutligt; svaret tros inte, ";
+        if (disputed.AskedAgainAt is not { } at)
+        {
+            return start + "tx:en frågas hos en annan källa och väntar tills överföringen kan placeras.";
+        }
+
+        var local = TimeZoneInfo.ConvertTime(at, _timeZone).ToString("HH:mm", CultureInfo.InvariantCulture);
+        return start + $"ingen annan källa för TRON är påslagen; frågas igen hos {disputed.Endpoint} kl. {local}, "
+            + "och tx:en väntar tills överföringen kan placeras.";
     }
 
     /// <summary>Says whether an entry's token is one Chainsaw knows by its contract (USDT and the others).</summary>
@@ -467,12 +589,11 @@ internal sealed class TronGridTronSource : ITronSource
         }
 
         /// <summary>Waits for a transaction whose final answer from an endpoint lacked a known token's event.</summary>
-        /// <param name="hash">The transaction.</param>
-        /// <param name="endpoint">The endpoint that gave the answer.</param>
-        public void Dispute(EthereumTxHash hash, string endpoint)
+        /// <param name="disputed">The doubted answer.</param>
+        public void Dispute(EthereumDisputedAnswer disputed)
         {
-            Wait(hash);
-            _disputed.Add(new EthereumDisputedAnswer(hash, endpoint));
+            Wait(disputed.Transaction);
+            _disputed.Add(disputed);
         }
 
         /// <summary>Counts entries left out for good.</summary>
@@ -481,13 +602,12 @@ internal sealed class TronGridTronSource : ITronSource
 
         /// <summary>Says what the page waits for and what it left out for good.</summary>
         /// <param name="parts">The page's answer.</param>
-        public void Note(LookupParts parts)
+        /// <param name="disputedText">Says what is done about a doubted answer.</param>
+        public void Note(LookupParts parts, Func<EthereumDisputedAnswer, string> disputedText)
         {
             foreach (var disputed in _disputed)
             {
-                parts.Note($"Källan {disputed.Endpoint} gav ingen Transfer-händelse för en känd token i tx "
-                    + $"{disputed.Transaction.Brief()} fast blocket är slutligt; svaret tros inte, tx:en frågas hos en "
-                    + "annan källa och väntar tills överföringen kan placeras.");
+                parts.Note(disputedText(disputed));
             }
 
             var plain = _waiting.Where(hash => _disputed.All(disputed => disputed.Transaction != hash)).ToList();

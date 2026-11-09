@@ -33,6 +33,22 @@ public interface ITronSource : IAccountSource
 {
     /// <summary>Gets the chain: <see cref="SharedKernel.Chain.Tron"/>.</summary>
     Chain IAccountSource.Chain => Chain.Tron;
+
+    /// <summary>
+    /// Gives a transaction when the case's final answer is doubted: a movement in a token Chainsaw knows that the
+    /// answer lacks (a watch's hit whose event its info does not hold). The info is asked again, without the stored
+    /// answer, of another endpoint than the one that gave it, or of the same one after a while (1, 5 and 15 minutes,
+    /// then every hour) when no other is switched on; the notes say which, and when.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="hash">The transaction.</param>
+    /// <param name="mode">Whether the source may be asked.</param>
+    /// <param name="cancellationToken">Stops the lookup.</param>
+    /// <returns>The transaction as the newest answer gives it.</returns>
+    Task<BitcoinLookup<EthereumTransaction>> GetDoubtedTransactionAsync(
+        ICase @case, EthereumTxHash hash, LookupMode mode = LookupMode.AsNeeded,
+        CancellationToken cancellationToken = default) =>
+        GetTransactionAsync(@case, hash, mode, cancellationToken);
 }
 
 /// <summary>

@@ -213,6 +213,19 @@ public sealed class TronGraphTests : IDisposable
     }
 
     [Fact]
+    public async Task An_expansion_says_which_transaction_and_endpoint_a_page_waits_for()
+    {
+        Chain();
+        const string note = "Källan trongrid.test gav ingen Transfer-händelse för en känd token i tx c1c1c1c1…";
+        _harness.Tron.WaitingNote = note;
+        _harness.Service.AddStartPoint(_harness.Case, TraceStartPoint.ForEthereumAddress(Scammer));
+
+        var result = await _harness.Service.ExpandAsync(_harness.Case, ExpansionRequest.ForEthereumAddress(Scammer));
+
+        Assert.Contains(note, result.Problem, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task A_link_from_a_tron_movement_leads_to_another_chain_only()
     {
         Chain();

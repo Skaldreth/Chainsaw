@@ -32,6 +32,14 @@ internal static class FeedTexts
         "Källan {2} gav ingen Transfer-händelse för en känd token i tx {1} hos {0}; tx:en frågas hos en annan källa "
         + "och kontrollen står kvar vid block {3} tills överföringen kan placeras.";
 
+    /// <summary>
+    /// As <see cref="Disputed"/>, when no other endpoint is switched on: the same one is asked again at a time.
+    /// </summary>
+    public const string DisputedNoOther =
+        "Källan {2} gav ingen Transfer-händelse för en känd token i tx {1} hos {0}; ingen annan källa för TRON är "
+        + "påslagen, så den frågas igen hos {2} kl. {4}, och kontrollen står kvar vid block {3} tills överföringen kan "
+        + "placeras.";
+
     /// <summary>When a check left out an unknown token's transfer whose final tx holds no readable event.</summary>
     public const string Unplaced =
         "{1} TRC-20-överföringar av okända tokens till eller från {0} har ingen läsbar Transfer-händelse i sin tx och "
@@ -357,8 +365,11 @@ internal sealed class EthereumCaseFeed(IAccountSource source, ICase @case) : IWa
 
         foreach (var disputed in read.Disputed)
         {
-            yield return FeedTexts.Format(
-                FeedTexts.Disputed, address.Value, disputed.Transaction.Brief(), disputed.Endpoint, downTo);
+            yield return disputed.AskedAgainAt is { } at
+                ? FeedTexts.Format(FeedTexts.DisputedNoOther, address.Value, disputed.Transaction.Brief(),
+                    disputed.Endpoint, downTo, at.ToLocalTime().ToString("HH:mm", CultureInfo.InvariantCulture))
+                : FeedTexts.Format(
+                    FeedTexts.Disputed, address.Value, disputed.Transaction.Brief(), disputed.Endpoint, downTo);
         }
 
         var plain = read.Waiting.Where(hash => read.Disputed.All(disputed => disputed.Transaction != hash)).ToList();

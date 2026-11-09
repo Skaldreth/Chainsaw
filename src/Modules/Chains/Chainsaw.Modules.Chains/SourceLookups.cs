@@ -167,13 +167,15 @@ internal sealed class SourceLookups
     /// Whether endpoints in step with the chain are asked when some are known to be, and the others only when none is.
     /// </param>
     /// <param name="except">
-    /// An endpoint that is not asked, for an answer that endpoint gave and that is not believed (a final TRON answer
-    /// without a known token's event); <see langword="null"/> to ask any.
+    /// The response of an answer that is not believed (a final TRON answer without a known token's event): its
+    /// endpoint, and any other at the same host and port, is not asked (<see cref="IsOther"/>); <see langword="null"/>
+    /// to ask any.
     /// </param>
     /// <returns>The answer.</returns>
     public async Task<BitcoinLookup<T>> FetchAsync<T>(
         ICase @case, LookupQuery<T> query, (T Value, StoredResponse Response)? stored,
-        CancellationToken cancellationToken, bool inStep = false, bool preferInStep = false, Guid? except = null)
+        CancellationToken cancellationToken, bool inStep = false, bool preferInStep = false,
+        ResponseOrigin? except = null)
         where T : class
     {
         var fetchedBy = CurrentOperator(out var noOperator);
@@ -200,7 +202,11 @@ internal sealed class SourceLookups
 
         if (except is { } passedOver)
         {
-            plan = plan with { Endpoints = [.. plan.Endpoints.Where(planned => planned.Endpoint.Id != passedOver)] };
+            plan = plan with
+            {
+                Endpoints = [.. plan.Endpoints.Where(planned => IsOther(planned.Endpoint, passedOver))],
+            };
+
             if (plan.Endpoints.Count == 0)
             {
                 return Fallback(stored, LookupStatus.Failed, _noOtherText);
@@ -517,7 +523,36 @@ internal sealed class SourceLookups
         ? $"{reason} Ärendet har inget sparat svar."
         : reason;
 
+    /// <summary>
+    /// Says whether an endpoint that is switched on could be asked instead of the one that gave a response: one that is
+    /// neither that endpoint nor at its host and port (<see cref="IsOther"/>).
+    /// </summary>
+    /// <param name="origin">The response.</param>
+    /// <returns><see langword="true"/> when there is another.</returns>
+    public bool HasOtherThan(ResponseOrigin origin)
+    {
+        ArgumentNullException.ThrowIfNull(origin);
+        return _sources.Plan(_chain).Endpoints.Any(planned => IsOther(planned.Endpoint, origin));
+    }
+
+    /// <summary>
+    /// Says whether an endpoint is another than the one that gave a response: not the same endpoint, and not at the
+    /// same host and port, since the same server added twice (or under another path) would give the same answer.
+    /// </summary>
+    /// <param name="endpoint">The endpoint.</param>
+    /// <param name="origin">The response.</param>
+    /// <returns><see langword="true"/> when it is another.</returns>
+    public static bool IsOther(SourceEndpoint endpoint, ResponseOrigin origin)
+    {
+        ArgumentNullException.ThrowIfNull(endpoint);
+        ArgumentNullException.ThrowIfNull(origin);
+        return endpoint.Id != origin.EndpointId
+            && !(string.Equals(endpoint.Address.Host, origin.Url.Host, StringComparison.OrdinalIgnoreCase)
+                && endpoint.Address.Port == origin.Url.Port);
+    }
+
     /// <summary>An answer refused before anything was asked.</summary>
+
     /// <typeparam name="T">What is looked up.</typeparam>
     /// <param name="problem">Why, in Swedish.</param>
     /// <returns>The answer.</returns>

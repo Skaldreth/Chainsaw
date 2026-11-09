@@ -38,6 +38,12 @@ internal abstract class FakeAccountSource
     /// <summary>Whether a block's own lookup fails, so that a hash the history lacked stays unknown.</summary>
     public bool BlocksFail { get; set; }
 
+    /// <summary>
+    /// Gets or sets what the source says a page waits for, which makes every page it answers incomplete;
+    /// <see langword="null"/> for complete pages.
+    /// </summary>
+    public string? WaitingNote { get; set; }
+
     public void Add(params EthereumTransaction[] transactions)
     {
         foreach (var transaction in transactions)
@@ -93,9 +99,10 @@ internal abstract class FakeAccountSource
         long? next = full ? onPage.Min(entry => entry.Height) : null;
         var page = new EthereumAddressPage(
             address, history, atOrBelow, [.. onPage.Select(entry => entry.Transfer).OfType<EthereumTransfer>()],
-            [.. onPage.Select(entry => entry.Fee).OfType<EthereumFee>()], next, false, false);
+            [.. onPage.Select(entry => entry.Fee).OfType<EthereumFee>()], next, false, WaitingNote is not null);
         _givenPages[key] = page;
-        return Task.FromResult(Answer(LookupStatus.Fetched, page));
+        var answer = Answer(LookupStatus.Fetched, page);
+        return Task.FromResult(WaitingNote is { } note ? answer with { Notes = [note] } : answer);
     }
 
     public Task<BitcoinLookup<EthereumTransaction>> GetTransactionAsync(

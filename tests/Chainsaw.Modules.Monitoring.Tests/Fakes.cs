@@ -234,6 +234,9 @@ internal sealed class FakeTronSource : ITronSource
     /// </summary>
     public string? DisputedBy { get; set; }
 
+    /// <summary>Gets or sets when the same endpoint is asked again, when no other is switched on.</summary>
+    public DateTimeOffset? AskedAgainAt { get; set; }
+
     /// <summary>The transaction a disputed answer is about.</summary>
     public static EthereumTxHash DisputedTransaction { get; } = EthereumTxHash.Parse(Chain.Tron, new string('f', 64));
 
@@ -264,7 +267,7 @@ internal sealed class FakeTronSource : ITronSource
         {
             Waiting = Incomplete ? Waiting() : [],
             Disputed = Incomplete && DisputedBy is { } endpoint
-                ? [new EthereumDisputedAnswer(DisputedTransaction, endpoint)]
+                ? [new EthereumDisputedAnswer(DisputedTransaction, endpoint) { AskedAgainAt = AskedAgainAt }]
                 : [],
         };
 
@@ -288,6 +291,27 @@ internal sealed class FakeTronSource : ITronSource
             ? new BitcoinLookup<EthereumTransaction>(
                 LookupStatus.Fetched, transaction, [FakeBitcoinSource.Origin(23)], null)
             : new BitcoinLookup<EthereumTransaction>(LookupStatus.NotFound, null, [], null));
+
+    /// <summary>Gets the answers a doubted transaction gets when asked again, by its id.</summary>
+    public Dictionary<string, EthereumTransaction> AskedAgain { get; } = [];
+
+    /// <summary>Gets the transactions asked again because their answer was doubted.</summary>
+    public List<string> Doubted { get; } = [];
+
+    public async Task<BitcoinLookup<EthereumTransaction>> GetDoubtedTransactionAsync(
+        ICase @case, EthereumTxHash hash, LookupMode mode = LookupMode.AsNeeded,
+        CancellationToken cancellationToken = default)
+    {
+        Doubted.Add(hash.Value);
+        if (AskedAgain.TryGetValue(hash.Value, out var again))
+        {
+            return new BitcoinLookup<EthereumTransaction>(
+                LookupStatus.Fetched, again, [FakeBitcoinSource.Origin(24)], null);
+        }
+
+        var lookup = await GetTransactionAsync(@case, hash, mode, cancellationToken);
+        return lookup with { Notes = ["Frågas igen hos trongrid.example kl. 12:00."] };
+    }
 
     public Task<BitcoinLookup<EthereumTip>> GetTipHeightAsync(
         ICase @case, CancellationToken cancellationToken = default) =>

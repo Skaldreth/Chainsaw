@@ -226,7 +226,14 @@ public sealed record EthereumAddressPage(
 /// <summary>A transaction whose final answer lacked a known token's event, and the endpoint that gave it.</summary>
 /// <param name="Transaction">The transaction.</param>
 /// <param name="Endpoint">The endpoint's name, for example <c>api.trongrid.io</c>.</param>
-public sealed record EthereumDisputedAnswer(EthereumTxHash Transaction, string Endpoint);
+public sealed record EthereumDisputedAnswer(EthereumTxHash Transaction, string Endpoint)
+{
+    /// <summary>
+    /// Gets when the same endpoint is asked again, when no other is switched on to ask (after 1, 5 and 15 minutes,
+    /// then every hour); <see langword="null"/> when another endpoint was asked.
+    /// </summary>
+    public DateTimeOffset? AskedAgainAt { get; init; }
+}
 
 /// <summary>The height of Ethereum's newest block.</summary>
 /// <param name="Height">The block's number.</param>

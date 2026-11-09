@@ -76,7 +76,67 @@ public sealed class TronWatchTests : IDisposable
     }
 
     [Fact]
-    public async Task A_tip_in_usdt_that_the_whole_transaction_does_not_give_is_rejected()
+    public async Task With_no_other_endpoint_the_check_says_when_the_same_one_is_asked_again()
+    {
+        await WatchAllAsync();
+        _harness.Tron.Incomplete = true;
+        _harness.Tron.DisputedBy = "api.trongrid.example";
+        var at = new DateTimeOffset(2026, 11, 9, 12, 34, 0, TimeSpan.Zero);
+        _harness.Tron.AskedAgainAt = at;
+        _harness.Tron.BlockHashes[Block.Height] = Id(Block.Height);
+
+        var run = await _harness.Service.CheckAsync(_harness.Case, Chain.Tron, 80_000_050);
+
+        var said = string.Join(' ', run.Outcomes.SelectMany(outcome => outcome.Problems));
+        Assert.Contains(
+            "ingen annan källa för TRON är påslagen, så den frågas igen hos api.trongrid.example kl. "
+                + at.ToLocalTime().ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture),
+            said,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_tip_in_usdt_that_the_final_answer_lacks_waits_and_asks_again_never_rejected()
+    {
+        var (tip, hash) = UsdtTipTheAnswerLacks();
+
+        var finding = await ReadTipAsync(tip);
+
+        Assert.Equal(TipVerdict.Wait, finding.Verdict);
+        Assert.Equal([hash], _harness.Tron.Doubted);
+        Assert.Contains("Frågas igen hos trongrid.example", finding.Problem, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_tip_in_usdt_is_confirmed_when_the_answer_asked_again_gives_it()
+    {
+        var (tip, hash) = UsdtTipTheAnswerLacks();
+        var lacking = _harness.Tron.Transactions[hash];
+        _harness.Tron.AskedAgain[hash] = lacking with
+        {
+            Transfers = [.. lacking.Transfers, new EthereumTransfer(lacking.Hash, EthereumTransferKind.Token, Sender,
+                Node, tip.Match.Amount, 1, lacking.Block)],
+            IsComplete = true,
+        };
+
+        var finding = await ReadTipAsync(tip);
+
+        Assert.Equal(TipVerdict.Confirmed, finding.Verdict);
+    }
+
+    /// <summary>Reads a tip on the node with the watch on every asset coming in.</summary>
+    /// <param name="tip">The tip.</param>
+    /// <returns>What was found.</returns>
+    private Task<TipFinding> ReadTipAsync(WatchTip tip) => TipLookup.ReadAsync(
+        new WatchCheck(), _harness.Bitcoin, _harness.Ethereum, _harness.Tron, _harness.Case, tip,
+        new HashSet<ChainAddress> { Node.ToChainAddress() },
+        new WatchFilter(Chain.Tron, WatchDirection.In, [], [], null, null), 80_000_000, CancellationToken.None);
+
+    /// <summary>
+    /// Makes a tip of USDT into the node whose transaction's final answer gives only TRX: the answer lacks the event.
+    /// </summary>
+    /// <returns>The tip and its transaction's id.</returns>
+    private (WatchTip Tip, string Hash) UsdtTipTheAnswerLacks()
     {
         var hash = new string('d', 64);
         var trx = new AssetAmount(Asset.Tronix, 5_000_000);
@@ -94,14 +154,7 @@ public sealed class TronWatchTests : IDisposable
         var match = new WatchMatch(
             hash, new WatchBlock(Block.Height, Id(Block.Height), Block.Time), WatchDirection.In, usdt,
             [Sender.ToChainAddress()]);
-        var tip = new WatchTip(1, "w", Chain.Tron, match, Guid.NewGuid(), [], 1, DateTimeOffset.UnixEpoch);
-
-        var finding = await TipLookup.ReadAsync(
-            new WatchCheck(), _harness.Bitcoin, _harness.Ethereum, _harness.Tron, _harness.Case, tip,
-            new HashSet<ChainAddress> { Node.ToChainAddress() },
-            new WatchFilter(Chain.Tron, WatchDirection.In, [], [], null, null), 80_000_000, CancellationToken.None);
-
-        Assert.Equal(TipVerdict.Rejected, finding.Verdict);
+        return (new WatchTip(1, "w", Chain.Tron, match, Guid.NewGuid(), [], 1, DateTimeOffset.UnixEpoch), hash);
     }
 
     /// <summary>Watches the node for every asset coming in, started at block 80 000 000.</summary>

@@ -65,8 +65,17 @@ internal static class TipLookup
             _ => null,
         };
         var (status, transaction, origins, problem, complete) = account is not null
-            ? await EthereumAsync(account, @case, tip.Match, cancellationToken).ConfigureAwait(false)
+            ? await EthereumAsync(account, @case, tip.Match, false, cancellationToken).ConfigureAwait(false)
             : await BitcoinAsync(bitcoin, @case, tip.Match.Transaction, cancellationToken).ConfigureAwait(false);
+        if (tron is not null && IsDoubted(tip, status, transaction)
+            && Find(check, tip, transaction!, addresses, filter, after) is null)
+        {
+            // A final answer without a known token's event the watch saw is doubted, never taken as the chain's word:
+            // the info is asked again (of another endpoint, or of the same after a while), and the hit waits.
+            (status, transaction, origins, problem, _) = await EthereumAsync(
+                tron, @case, tip.Match, true, cancellationToken).ConfigureAwait(false);
+            complete = false;
+        }
         if (status == LookupStatus.NotFound)
         {
             return new TipFinding(TipVerdict.Rejected, null, origins, null);
@@ -83,9 +92,7 @@ internal static class TipLookup
             return new TipFinding(TipVerdict.Wait, null, [], "Transaktionen ligger inte i ett block än.");
         }
 
-        var key = WatchSchedule.Key(tip.WatchId, tip.Match);
-        var match = check.Match(addresses, filter, transaction)
-            .FirstOrDefault(each => each.Block.Height > after && WatchSchedule.Key(tip.WatchId, each) == key);
+        var match = Find(check, tip, transaction, addresses, filter, after);
         if (match is not null)
         {
             return new TipFinding(TipVerdict.Confirmed, match, origins, null);
@@ -95,6 +102,35 @@ internal static class TipLookup
         return complete
             ? new TipFinding(TipVerdict.Rejected, null, origins, null)
             : new TipFinding(TipVerdict.Wait, null, [], problem ?? "Svaret på transaktionen var inte komplett.");
+    }
+
+    /// <summary>
+    /// Says whether an answer on TRON in a block may be doubted for a tip: the tip is in a token Chainsaw knows, whose
+    /// event a final answer can lack only by an endpoint's fault.
+    /// </summary>
+    /// <param name="tip">The tip.</param>
+    /// <param name="status">The lookup's status.</param>
+    /// <param name="transaction">The answer.</param>
+    /// <returns><see langword="true"/> when it may be doubted.</returns>
+    private static bool IsDoubted(WatchTip tip, LookupStatus status, WatchTransaction? transaction) =>
+        tip.Chain == Chain.Tron && KnownTokens.IssuerOf(tip.Match.Amount.Asset) is not null
+        && status is LookupStatus.Fetched or LookupStatus.FromCase && transaction?.Block is not null;
+
+    /// <summary>Runs the watch's check on an answer and finds the tip's hit in it.</summary>
+    /// <param name="check">The check.</param>
+    /// <param name="tip">The tip.</param>
+    /// <param name="transaction">The answer.</param>
+    /// <param name="addresses">The watch's addresses now.</param>
+    /// <param name="filter">The watch's filter.</param>
+    /// <param name="after">The watch's start.</param>
+    /// <returns>The hit, or <see langword="null"/> when the answer does not give it.</returns>
+    private static WatchMatch? Find(
+        IWatchCheck check, WatchTip tip, WatchTransaction transaction, IReadOnlySet<ChainAddress> addresses,
+        WatchFilter filter, long after)
+    {
+        var key = WatchSchedule.Key(tip.WatchId, tip.Match);
+        return check.Match(addresses, filter, transaction)
+            .FirstOrDefault(each => each.Block.Height > after && WatchSchedule.Key(tip.WatchId, each) == key);
     }
 
     /// <summary>Looks a Bitcoin transaction up.</summary>
@@ -126,18 +162,30 @@ internal static class TipLookup
     /// <param name="source">The chain's source.</param>
     /// <param name="case">The open case.</param>
     /// <param name="match">The hit the tip was about.</param>
+    /// <param name="doubted">
+    /// Whether the case's final answer is doubted, so that TRON's info is asked again
+    /// (<see cref="ITronSource.GetDoubtedTransactionAsync"/>); its notes then say why the hit waits.
+    /// </param>
     /// <param name="cancellationToken">Stops the lookup.</param>
     /// <returns>The answer in the check's form; a block without its hash counts as not in a block.</returns>
     private static async Task<(LookupStatus, WatchTransaction?, IReadOnlyList<long>, string?, bool)> EthereumAsync(
-        IAccountSource source, ICase @case, WatchMatch match, CancellationToken cancellationToken)
+        IAccountSource source, ICase @case, WatchMatch match, bool doubted, CancellationToken cancellationToken)
     {
         if (!EthereumTxHash.TryParse(source.Chain, match.Transaction, out var hash))
         {
             return (LookupStatus.NotFound, null, [], null, true);
         }
 
-        var lookup = await source.GetTransactionAsync(@case, hash, LookupMode.InStep, cancellationToken)
-            .ConfigureAwait(false);
+        var lookup = doubted && source is ITronSource tron
+            ? await tron.GetDoubtedTransactionAsync(@case, hash, LookupMode.InStep, cancellationToken)
+                .ConfigureAwait(false)
+            : await source.GetTransactionAsync(@case, hash, LookupMode.InStep, cancellationToken)
+                .ConfigureAwait(false);
+        if (doubted && lookup.Notes.Count > 0)
+        {
+            lookup = lookup with { Problem = string.Join(' ', lookup.Notes) };
+        }
+
         if (lookup.Value is not { } value)
         {
             return (lookup.Status, null, Sequences(lookup.Origins), lookup.Problem, true);

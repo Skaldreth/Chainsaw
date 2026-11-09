@@ -92,6 +92,10 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
   också för de uttag som inte rör grafens adresser.
 - **TRON efter omgång 8** (källan, grafen, startpunkterna, sanktionerna, kurserna, bevakningen och testärendet är
   byggda). Kvar:
+  - **Slutligt mot TRON:s fastställda block** (granskningen, M18): i dag är ett block slutligt 20 block under den
+    högsta höjd Chainsaw känner, och den höjden rimlighetsprövas bara mot TRON:s takt (`ChainLimits`, 2,8 s). TRON
+    säger själv vilket block som är fastställt (`walletsolidity/getnowblock`); att räkna slutligt mot det kräver en egen
+    sorts uppslag och svar i ärendet, ett eget index för den höjden och att varje uppslag som avgör slutligt läser den.
   - **Tokens utom USDT i en hel tx:** TRON:s API ger en tokens decimaler bara i adressens tokenhistorik, så en hel tx
     räknar bara de tokens Chainsaw känner (USDT) och säger att de andra saknas. `decimals()` med
     `wallet/triggerconstantcontract` är kedjans eget svar men kräver POST, som `LookupQuery` inte har; lägg till POST i

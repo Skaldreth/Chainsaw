@@ -4236,3 +4236,17 @@ topp.
     samma adresser och med samma belopp, aldrig på platsen ensam. Test med samma och annan plats.
   - **M15:** väntetexterna förkortar tx-id till åtta tecken och *…*, och efter tre står *och N till*
     (`EthereumTxHash.Brief` och `BriefList`).
+- **Fjärde granskningen (1 I, 3 M; I6, M16 och M17 rättade, M18 i BACKLOG):**
+  - **I6:** finns ingen annan endpoint att fråga (bara TronGrid, förvalet) frågas samma endpoint igen, utan det
+    sparade svaret, efter 1, 5 och 15 minuter och sedan varje timme, räknat från det senast förseglade svaret, och
+    aldrig oftare än en gång i minuten per tx också när ett försök inte förseglar något. Det sägs ärligt: *ingen annan
+    källa för TRON är påslagen; frågas igen hos … kl. HH:mm* (`EthereumDisputedAnswer.AskedAgainAt`), i källans
+    anteckning och i bevakningens text. Med en annan endpoint frågas den direkt första gången och sedan i samma takt.
+    `TipLookup` avvisar aldrig ett tips i en känd token som ett slutligt svar saknar: det frågar igen genom
+    `ITronSource.GetDoubtedTransactionAsync` och väntar tills svaret ger träffen. Test med en endpoint där nästa svar
+    har händelsen.
+  - **M16:** `except` jämför också värd och port, så att samma server tillagd två gånger inte räknas som en annan källa.
+  - **M17:** en ofullständig sida i en expansion tar med källans anteckningar (vilken tx, vilken endpoint och när den
+    frågas igen) i grafens problem.
+  - **M18:** att räkna slutligt mot TRON:s fastställda block (`walletsolidity/getnowblock`) kräver en egen sorts
+    uppslag och ett eget index; står i BACKLOG.
