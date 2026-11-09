@@ -144,10 +144,11 @@ internal static partial class EuFsfParser
             {
                 switch (Read(place.Text, word))
                 {
-                    case { Address: { } address, Currency: { } currency } when seen.Add((address, currency)):
+                    case { Address: { } address, Currency: { } currency } reading when seen.Add((address, currency)):
                         addresses.Add(new SanctionedAddress(currency, address, reference, name, programs)
                         {
                             ListedAs = $"{place.Where}: ”{Excerpt(place.Text, word)}”",
+                            IsUncertain = reading.IsUncertain,
                         });
                         break;
                     case { Skipped: true }:
@@ -181,10 +182,18 @@ internal static partial class EuFsfParser
             .Select(remark => new Place(remark.Value, InRemark));
 
     /// <summary>
-    /// Reads a word as an address by its form: a Bitcoin address on the main network with a valid checksum, or
-    /// <c>0x</c> and 40 hex digits for Ethereum; unless the words around it name another chain (BCH, Litecoin, BEP-20,
-    /// Polygon …), since the same form is used there and a sanction must never move to the wrong chain (the review
-    /// of round 5, I5).
+    /// Reads a word as an address by its form and by the nearest label of a currency or chain before it in the same
+    /// part of the text (split at <c>;</c>, commas and line breaks), as the EU writes several chains in one remark:
+    /// <c>XBT 1A…; ETH 0x…; USDT (TRC-20) T…</c> (the review of round 5, I-a).
+    /// <list type="bullet">
+    /// <item>A label for Bitcoin before a Bitcoin address on the main network, or for Ethereum before <c>0x</c> and 40
+    /// hex digits, is a hit.</item>
+    /// <item>A SegWit address (<c>bc1…</c>) is Bitcoin's alone and a hit without a label.</item>
+    /// <item>A label for another chain (BCH, Litecoin, TRC-20, BEP-20 …), a test network or a TRON address is skipped
+    /// and counted.</item>
+    /// <item>Anything else (no label, a name that may be a company's such as Polygon, a label that does not fit the
+    /// form) is uncertain: a possible sanction, never a sanction.</item>
+    /// </list>
     /// </summary>
     /// <param name="text">The text the word stands in.</param>
     /// <param name="word">The word.</param>
@@ -196,37 +205,70 @@ internal static partial class EuFsfParser
         var isEthereum = !isBitcoin && EthereumAddress.TryParse(value.ToLowerInvariant(), out _);
         if (!isBitcoin && !isEthereum)
         {
-            return new Reading(null, null, Tron().IsMatch(value));
+            return new Reading(null, null, Tron().IsMatch(value), false);
         }
 
-        if (OtherChain().IsMatch(Around(text, word)) || (isBitcoin && bitcoin!.Network != BitcoinNetwork.Mainnet))
+        var label = LabelBefore(text, word);
+        if (label == ChainLabel.Other || (isBitcoin && bitcoin!.Network != BitcoinNetwork.Mainnet))
         {
-            return new Reading(null, null, true);
+            return new Reading(null, null, true, false);
         }
 
-        return isBitcoin
-            ? new Reading(bitcoin!.Value, SanctionCurrency.Bitcoin, false)
-            : new Reading(value, SanctionCurrency.Ether, false);
+        if (isBitcoin)
+        {
+            var certain = label == ChainLabel.Bitcoin || (label == ChainLabel.None && IsSegWit(bitcoin!));
+            return new Reading(bitcoin!.Value, SanctionCurrency.Bitcoin, false, !certain);
+        }
+
+        return new Reading(value, SanctionCurrency.Ether, false, label != ChainLabel.Ethereum);
     }
+
+    /// <summary>
+    /// Says whether a Bitcoin address is a SegWit or Taproot one (<c>bc1…</c>), a form no other chain uses; a Base58
+    /// address (<c>1…</c>, <c>3…</c>) has the same form on Bitcoin Cash and, for <c>3…</c>, on Litecoin.
+    /// </summary>
+    /// <param name="address">The address.</param>
+    /// <returns><see langword="true"/> for a SegWit or Taproot address.</returns>
+    private static bool IsSegWit(BitcoinAddress address) =>
+        address.Type is not (BitcoinScriptType.PayToPublicKeyHash or BitcoinScriptType.PayToScriptHash);
 
     /// <summary>Finds the Bitcoin and Ethereum addresses in a text, as <see cref="Read"/> reads each word.</summary>
     /// <param name="text">The text.</param>
-    /// <returns>Each address with the currency code it is looked up under.</returns>
-    internal static IEnumerable<(string Address, string Currency)> Addresses(string text) =>
+    /// <returns>Each address with the currency code it is looked up under, and whether it is uncertain.</returns>
+    internal static IEnumerable<(string Address, string Currency, bool IsUncertain)> Addresses(string text) =>
         Words().Matches(text).Cast<Match>()
             .Select(word => Read(text, word))
             .Where(reading => reading.Address is not null)
-            .Select(reading => (reading.Address!, reading.Currency!));
+            .Select(reading => (reading.Address!, reading.Currency!, reading.IsUncertain));
 
-    /// <summary>Gives the text near a word, where a chain would be named.</summary>
+    /// <summary>
+    /// Gives the label of a currency or chain nearest before a word, in the same part of the text: from the last
+    /// <c>;</c>, comma or line break before it.
+    /// </summary>
     /// <param name="text">The text.</param>
     /// <param name="word">The word.</param>
-    /// <returns>Up to <see cref="ContextLength"/> characters on each side of the word.</returns>
-    private static string Around(string text, Match word)
+    /// <returns>The chain the nearest label names, or none.</returns>
+    private static ChainLabel LabelBefore(string text, Match word)
     {
-        var from = Math.Max(0, word.Index - ContextLength);
-        var to = Math.Min(text.Length, word.Index + word.Length + ContextLength);
-        return text[from..word.Index] + " " + text[(word.Index + word.Length)..to];
+        var start = text.LastIndexOfAny([';', ',', '\n', '\r'], Math.Max(0, word.Index - 1)) + 1;
+        var labels = Labels().Matches(text[start..word.Index]);
+        if (labels.Count == 0)
+        {
+            return ChainLabel.None;
+        }
+
+        var last = labels[^1].Groups;
+        if (last["bitcoin"].Success)
+        {
+            return ChainLabel.Bitcoin;
+        }
+
+        if (last["ethereum"].Success)
+        {
+            return ChainLabel.Ethereum;
+        }
+
+        return last["other"].Success ? ChainLabel.Other : ChainLabel.Uncertain;
     }
 
     /// <summary>
@@ -245,9 +287,6 @@ internal static partial class EuFsfParser
         return (from > 0 ? "…" : string.Empty) + excerpt + (to < text.Length ? "…" : string.Empty);
     }
 
-    /// <summary>How many characters on each side of a word are looked at for the name of another chain.</summary>
-    private const int ContextLength = 60;
-
     /// <summary>About how long an excerpt is.</summary>
     private const int ExcerptLength = 100;
 
@@ -257,16 +296,19 @@ internal static partial class EuFsfParser
     private static partial Regex Words();
 
     /// <summary>
-    /// Names of other chains that use a Bitcoin or Ethereum form of address: Bitcoin Cash and SV, Litecoin, Dogecoin,
-    /// BNB Smart Chain (BEP-20), TRON, Polygon, Arbitrum, Optimism, Avalanche, Fantom, Base and Ethereum Classic.
+    /// The labels of currencies and chains, as whole words in any case: Bitcoin (<c>XBT</c>, <c>BTC</c>), Ethereum
+    /// (<c>ETH</c>, <c>ERC-20</c>), other chains that use the same forms of address (Bitcoin Cash and SV, Litecoin,
+    /// Dogecoin, TRON, BNB Smart Chain, Ethereum Classic), and names of chains that are also used as names of
+    /// companies (Polygon, Arbitrum …), which only make an address uncertain.
     /// </summary>
-    /// <returns>The pattern, as whole words in any case.</returns>
+    /// <returns>The pattern, with the groups <c>bitcoin</c>, <c>ethereum</c>, <c>other</c> and <c>weak</c>.</returns>
     [GeneratedRegex(
-        @"\b(bitcoin[\s-]?cash|bch|bitcoin[\s-]?sv|bsv|litecoin|ltc|dogecoin|doge|bep[\s-]?20|bep2|bsc|bnb|"
-        + @"binance[\s-]?smart[\s-]?chain|trc[\s-]?20|tron|trx|polygon|matic|arbitrum|optimism|avalanche|avax|"
-        + @"fantom|ftm|ethereum[\s-]?classic|blockchair\.com/bitcoin-cash|blockchair\.com/litecoin)\b",
+        @"\b(?:(?<other>bitcoin[\s-]?cash|bch|bitcoin[\s-]?sv|bsv|litecoin|ltc|dogecoin|doge|trx|tron|trc[\s-]?20|"
+        + @"bep[\s-]?20|bep2|bsc|bnb|binance[\s-]?smart[\s-]?chain|ethereum[\s-]?classic)"
+        + @"|(?<bitcoin>xbt|btc|bitcoin)|(?<ethereum>eth|ethereum|erc[\s-]?20|ether)"
+        + @"|(?<weak>polygon|matic|arbitrum|optimism|avalanche|avax|fantom|ftm|etc|base))\b",
         RegexOptions.CultureInvariant | RegexOptions.IgnoreCase)]
-    private static partial Regex OtherChain();
+    private static partial Regex Labels();
 
     /// <summary>A TRON address's form: <c>T</c> and 33 Base58 characters.</summary>
     /// <returns>The pattern.</returns>
@@ -287,5 +329,25 @@ internal static partial class EuFsfParser
     /// <param name="Address">The address as it is looked up, or <see langword="null"/>.</param>
     /// <param name="Currency">Its currency code, or <see langword="null"/>.</param>
     /// <param name="Skipped">Whether it had an address's form but can never match.</param>
-    private sealed record Reading(string? Address, string? Currency, bool Skipped);
+    /// <param name="IsUncertain">Whether the text does not say for certain which chain it is on.</param>
+    private sealed record Reading(string? Address, string? Currency, bool Skipped, bool IsUncertain);
+
+    /// <summary>What the nearest label before an address names.</summary>
+    private enum ChainLabel
+    {
+        /// <summary>No label.</summary>
+        None,
+
+        /// <summary>Bitcoin.</summary>
+        Bitcoin,
+
+        /// <summary>Ethereum.</summary>
+        Ethereum,
+
+        /// <summary>Another chain that uses the same forms of address.</summary>
+        Other,
+
+        /// <summary>A name that may be a chain's or a company's.</summary>
+        Uncertain,
+    }
 }

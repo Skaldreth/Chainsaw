@@ -4209,3 +4209,16 @@ topp.
     datum efter i dag vägras för öppna källor, **M6** TRON-adresser och testnät räknas som överhoppade, **M7** en fil
     med BOM känns igen, **M8** dygnsräknaren nollställs inte när klockan ställs bakåt och skriver genom en unik
     temporär fil, **M9** ytan för etiketter på tx står redan i TODO som [skiss].
+- **Andra granskningen av omgång 5** (0 C, 2 nya I, 3 M, alla rättade):
+  - **I-a:** EU:s lista tar kedjan ur den närmaste märkningen före adressen i samma del av texten (delad vid `;`,
+    komma och radbrytning): XBT/BTC/Bitcoin och ETH/Ethereum/ERC-20 ger en träff, BCH, LTC, TRX/TRC-20, BEP-20/BSC med
+    flera hoppas över, och allt annat (ingen märkning, ett namn som Polygon som kan vara ett företags, en märkning som
+    inte passar formen, en Base58-adress utan märkning) blir **Möjlig sanktion** (`LabelKind.PossiblySanctioned`),
+    aldrig en sanktion och aldrig ett slut på spåret. En SegWit-adress (`bc1…`) är Bitcoins och en träff utan
+    märkning. Importens svar säger *tvetydiga* i stället för *ogiltiga*. Test med EU:s typiska rad med flera kedjor.
+    Markeringen i grafen skissas (TODO).
+  - **I-b:** en räknad dag mer än en dag efter i dag glöms och skrivs i loggen, så att Riksbanken aldrig stängs till
+    det datumet; test.
+  - **M-b** lås runt cachen för etiketter på tx, **M-c** licensen hör till den inbyggda källans ursprung (id som börjar
+    med `open/`), aldrig bara namnet, **M-d** en fil som saknas är inte ändrad (`Missing`) och frågas igen; M-a står i
+    BACKLOG märkt *prova mot ett riktigt anrop före 1.0*.

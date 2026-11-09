@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Text.Json;
 
@@ -52,12 +53,17 @@ internal sealed class DailyRequestCount
     /// The count; zero for a later day than the one counted. A day before it (the clock was set back) counts as the
     /// day counted, so that setting the clock back never resets the limit (the review of round 5, M8).
     /// </returns>
-    public int On(DateOnly today) => today <= _day ? _count : 0;
+    public int On(DateOnly today)
+    {
+        Check(today);
+        return today <= _day ? _count : 0;
+    }
 
     /// <summary>Counts one request on a day, and keeps the count in the file.</summary>
     /// <param name="today">The day.</param>
     public void Add(DateOnly today)
     {
+        Check(today);
         _count = On(today) + 1;
         _day = today > _day ? today : _day;
         if (_path is null)
@@ -77,6 +83,25 @@ internal sealed class DailyRequestCount
         {
             // The count in memory still holds this session to the limit.
         }
+    }
+
+    /// <summary>
+    /// Forgets a counted day more than a day after today, which would keep the Riksbank closed until that date: the
+    /// clock was wrong when it was counted, or the file was changed (the review of round 5, I-b). Said in the log.
+    /// </summary>
+    /// <param name="today">The day now.</param>
+    private void Check(DateOnly today)
+    {
+        if (_day <= today.AddDays(1))
+        {
+            return;
+        }
+
+        Trace.TraceWarning(
+            "The Riksbank's daily count was for {0:yyyy-MM-dd}, after today {1:yyyy-MM-dd}; it starts again.",
+            _day,
+            today);
+        (_day, _count) = (today, 0);
     }
 
     /// <summary>The count as stored.</summary>

@@ -59,11 +59,12 @@ public sealed class EuSanctionTests : IDisposable
     public void An_ethereum_address_in_a_remark_is_found_whatever_the_case()
     {
         _harness.Sanctions.Import(
-            new EuFile().Remarked("EU.3.1", "SYNTETISK", "CYB", "Adress 0x" + new string('D', 40)).Stream());
+            new EuFile().Remarked("EU.3.1", "SYNTETISK", "CYB", "Adress (ETH) 0x" + new string('D', 40)).Stream());
 
         var label = Assert.Single(_harness.Labels.CheckSanctions(_harness.Case, [Account]).Added);
 
         Assert.Contains("en anmärkning", label.Origin.Reason, StringComparison.Ordinal);
+        Assert.Equal(LabelKind.Sanctioned, label.Kind);
     }
 
     [Fact]
@@ -102,7 +103,7 @@ public sealed class EuSanctionTests : IDisposable
         var bitcoin = Wpkh("both-chains");
         _harness.Sanctions.Import(new EuFile()
             .Identified("EU.6.1", "A", "RUS", bitcoin.Value)
-            .Remarked("EU.6.2", "B", "RUS", "0x" + new string('d', 40))
+            .Remarked("EU.6.2", "B", "RUS", "ETH 0x" + new string('d', 40))
             .Stream());
 
         var check = _harness.Labels.CheckSanctions(
@@ -159,7 +160,7 @@ public sealed class EuSanctionTests : IDisposable
     }
 
     [Fact]
-    public void An_address_near_the_name_of_another_chain_is_skipped_and_counted()
+    public void An_address_labelled_for_another_chain_is_skipped_and_a_company_name_only_makes_it_uncertain()
     {
         var file = new EuFile()
             .Remarked("EU.9.1", "A", "RUS", $"BCH: {Pkh("bch-1").Value}")
@@ -172,8 +173,49 @@ public sealed class EuSanctionTests : IDisposable
         var info = _harness.Sanctions.Import(file.Stream());
 
         Assert.Equal(1, info.AddressesByCurrency[SanctionCurrency.Bitcoin]);
-        Assert.False(info.AddressesByCurrency.ContainsKey(SanctionCurrency.Ether));
-        Assert.Equal(5, info.Skipped);
+        Assert.Equal(1, info.AddressesByCurrency[SanctionCurrency.Ether]);
+        Assert.Equal(1, info.Uncertain);
+        Assert.Equal(4, info.Skipped);
+    }
+
+    [Fact]
+    public void A_remark_with_several_chains_gives_each_address_the_chain_labelled_before_it()
+    {
+        var bitcoin = Pkh("multi-xbt");
+        var file = new EuFile().Remarked(
+            "EU.14.1",
+            "SYNTETISK BYRÅ",
+            "RUS",
+            $"Digital currency addresses: XBT {bitcoin.Value}; ETH 0x{new string('d', 40)}; "
+                + "USDT (TRC-20) TJCnKsPa7y5okkXvQAidZBzqx3QyQ6sxMW; Polygon Trading Ltd ETH 0x" + new string('c', 40));
+
+        var info = _harness.Sanctions.Import(file.Stream());
+        var check = _harness.Labels.CheckSanctions(
+            _harness.Case,
+            [
+                bitcoin.ToChainAddress(),
+                Account.ToChainAddress(),
+                new ChainAddress(Chain.Ethereum, "0x" + new string('c', 40)),
+            ]);
+
+        Assert.Equal(0, info.Uncertain);
+        Assert.Equal(1, info.Skipped);
+        Assert.Equal(3, check.Added.Count);
+        Assert.All(check.Added, label => Assert.Equal(LabelKind.Sanctioned, label.Kind));
+    }
+
+    [Fact]
+    public void An_address_without_a_label_is_only_a_possible_sanction()
+    {
+        var legacy = Pkh("unlabelled");
+        _harness.Sanctions.Import(new EuFile().Remarked("EU.15.1", "A", "RUS", "Plånbok " + legacy.Value).Stream());
+
+        var label = Assert.Single(_harness.Labels.CheckSanctions(_harness.Case, [legacy]).Added);
+
+        Assert.Equal(LabelKind.PossiblySanctioned, label.Kind);
+        Assert.Contains("möjlig sanktion", label.Origin.Reason, StringComparison.Ordinal);
+        Assert.Contains("Plånbok", label.Origin.Reason, StringComparison.Ordinal);
+        Assert.Empty(_harness.Classifier.ClassifyAddress(_harness.Case, legacy));
     }
 
     [Fact]

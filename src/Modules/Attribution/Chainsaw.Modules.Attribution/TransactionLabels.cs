@@ -35,6 +35,9 @@ internal sealed class TransactionLabels : ITransactionLabels
     /// <summary>The writes under way now.</summary>
     private long _active;
 
+    /// <summary>Guards the cache and its counters, so that a check and the caching after it are one step.</summary>
+    private readonly Lock _gate = new();
+
     /// <inheritdoc/>
     public TransactionLabel Add(ICase @case, TransactionLabelDraft draft)
     {
@@ -114,16 +117,25 @@ internal sealed class TransactionLabels : ITransactionLabels
     public IReadOnlyList<TransactionLabel> List(ICase @case)
     {
         ArgumentNullException.ThrowIfNull(@case);
-        if (_read.TryGetValue(@case, out var labels))
+        long before;
+        lock (_gate)
         {
-            return labels;
+            if (_read.TryGetValue(@case, out var cached))
+            {
+                return cached;
+            }
+
+            before = _active == 0 ? _writes : -1;
         }
 
-        var before = Interlocked.Read(ref _active) == 0 ? Interlocked.Read(ref _writes) : -1;
-        labels = @case.Read(Read);
-        if (Interlocked.Read(ref _active) == 0 && Interlocked.Read(ref _writes) == before)
+        // The case is read outside the lock; what was read is kept only when no write started or ended meanwhile.
+        var labels = @case.Read(Read);
+        lock (_gate)
         {
-            _read.AddOrUpdate(@case, labels);
+            if (_active == 0 && _writes == before)
+            {
+                _read.AddOrUpdate(@case, labels);
+            }
         }
 
         return labels;
@@ -136,18 +148,25 @@ internal sealed class TransactionLabels : ITransactionLabels
     /// <returns>The write's result.</returns>
     private T Writing<T>(ICase @case, Func<T> write)
     {
-        Interlocked.Increment(ref _active);
-        Interlocked.Increment(ref _writes);
-        _read.Remove(@case);
+        lock (_gate)
+        {
+            _active++;
+            _writes++;
+            _read.Remove(@case);
+        }
+
         try
         {
             return write();
         }
         finally
         {
-            _read.Remove(@case);
-            Interlocked.Increment(ref _writes);
-            Interlocked.Decrement(ref _active);
+            lock (_gate)
+            {
+                _read.Remove(@case);
+                _writes++;
+                _active--;
+            }
         }
     }
 

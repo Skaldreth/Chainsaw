@@ -153,7 +153,7 @@ public static class SanctionCurrency
 /// </param>
 /// <param name="Skipped">
 /// Addresses that are not valid for their chain and so can never match, for example an XBT address with a broken
-/// checksum.
+/// checksum, or on the EU's list one labelled for another chain or on a test network.
 /// </param>
 public sealed record SanctionListInfo(
     string Name,
@@ -163,6 +163,12 @@ public sealed record SanctionListInfo(
     IReadOnlyDictionary<string, int> AddressesByCurrency,
     int Skipped)
 {
+    /// <summary>
+    /// Gets how many of the addresses are uncertain (<see cref="SanctionedAddress.IsUncertain"/>): counted in
+    /// <see cref="AddressesByCurrency"/>, but labelled only as possible sanctions.
+    /// </summary>
+    public int Uncertain { get; init; }
+
     /// <summary>Gets the list's version as an origin states it: the publish date and the hash.</summary>
     public string Version => $"publicerad {PublishDate:yyyy-MM-dd}, sha256 {Sha256}";
 }
@@ -185,6 +191,13 @@ public sealed record SanctionedAddress(
     /// <em>Digital Currency Address</em>.
     /// </summary>
     public string? ListedAs { get; init; }
+
+    /// <summary>
+    /// Gets whether the list does not say for certain which chain the address is on (the EU's list: no label for a
+    /// currency before it, or one that may be a company's name). Such a hit is a possible sanction to look at, never a
+    /// sanction (<see cref="LabelKind.PossiblySanctioned"/>).
+    /// </summary>
+    public bool IsUncertain { get; init; }
 }
 
 /// <summary>Many addresses looked up on the current lists.</summary>
@@ -215,6 +228,9 @@ public enum SanctionListError
 
     /// <summary>A stored list no longer has the hash it was imported with.</summary>
     Tampered,
+
+    /// <summary>A stored list's file is gone since the folder was read; it is asked for again later.</summary>
+    Missing,
 
     /// <summary>
     /// The list says it was published after today; as the newest list it would stand in for every list imported
@@ -255,6 +271,7 @@ public sealed class SanctionListException : Exception
         SanctionListError.NoPublishDate => "The list does not state its publish date.",
         SanctionListError.TooLarge => "The file is too large to be a sanction list.",
         SanctionListError.Tampered => "A stored sanction list no longer has its hash.",
+        SanctionListError.Missing => "A stored sanction list's file is gone.",
         SanctionListError.FutureDate => "The list says it was published after today.",
         _ => "The sanction list could not be read.",
     };

@@ -174,6 +174,11 @@ internal sealed class OpenSourceLists(AttributionOptions options, IClock clock) 
                 _broken.Add(info.Sha256);
                 return null;
             }
+            catch (OpenSourceListException exception) when (exception.Error == OpenSourceListError.Missing)
+            {
+                // Not remembered as broken: the file may be back, and the listing follows the folder.
+                return null;
+            }
         }
     }
 
@@ -235,7 +240,8 @@ internal sealed class OpenSourceLists(AttributionOptions options, IClock clock) 
             }
             catch (Exception exception) when (exception is FileNotFoundException or DirectoryNotFoundException)
             {
-                throw new OpenSourceListException(OpenSourceListError.Tampered, exception);
+                // Gone since the folder was read (removed meanwhile): not changed, and the next listing shows it.
+                throw new OpenSourceListException(OpenSourceListError.Missing, exception);
             }
 
             if (Convert.ToHexStringLower(SHA256.HashData(bytes)) != info.Sha256)

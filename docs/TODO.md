@@ -158,6 +158,9 @@ byggt ur BACKLOG; det som skriver i ärendet granskas oberoende.
 - **Etikett på en tx:** `ITransactionLabels` finns (förseglad, tas tillbaka, avslutar spåret vid en märkt Bitcoin-tx),
   men ingen knapp. Var den sätts (ikonlisten vid tx:ens linje eller swap-pillret, en ruta som IN1b) och hur den syns
   i grafen (en markering på linjen) skissas.
+- **Möjlig sanktion i grafen:** en tvetydig adress på EU:s lista märks `LabelKind.PossiblySanctioned` och syns i
+  inspektören och vyn Etiketter, men har ingen markering i grafen än; en streckad, nedtonad sanktionsmarkering
+  (streckat betyder osäkert) skissas.
 - **Listorna på datorn:** en rad per importerad sanktionslista och öppen källa (namn, datum, hash, antal adresser,
   licens) med *Ta bort …* (`Remove` finns), till exempel på sidan Källor under *Etiketter* eller i vyn Etiketter; och
   menyraden *Importera sanktionslista …* tar nu också Ransomwhere, så den kan behöva heta *Importera lista …*.

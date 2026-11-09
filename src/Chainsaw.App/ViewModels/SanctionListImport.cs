@@ -85,8 +85,13 @@ public sealed class SanctionListImport
         var bitcoin = list.AddressesByCurrency.GetValueOrDefault(SanctionCurrency.Bitcoin);
         var date = list.PublishDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         var state = known ? "fanns redan" : "är importerad";
-        var skipped = list.Skipped > 0 ? $" {list.Skipped} ogiltiga adresser hoppades över." : string.Empty;
-        return $"{list.Name} publicerad {date} {state}: {total} adresser, {bitcoin} för Bitcoin.{skipped}";
+        var skipped = list.Skipped > 0
+            ? $" {list.Skipped} adresser hoppades över (ogiltiga, på testnät eller märkta för en annan kedja)."
+            : string.Empty;
+        var uncertain = list.Uncertain > 0
+            ? $" {list.Uncertain} är tvetydiga (kedjan står inte säkert) och märks bara Möjlig sanktion."
+            : string.Empty;
+        return $"{list.Name} publicerad {date} {state}: {total} adresser, {bitcoin} för Bitcoin.{skipped}{uncertain}";
     }
 
     /// <summary>
@@ -130,6 +135,7 @@ public sealed class SanctionListImport
             "Listan säger inte när den publicerades, så dess ursprung går inte att ange.",
         SanctionListError.TooLarge => "Filen är för stor för att vara en sanktionslista.",
         SanctionListError.Tampered => "En sparad sanktionslista har inte längre sin hash.",
+        SanctionListError.Missing => "En sparad sanktionslista finns inte längre i mappen.",
         SanctionListError.FutureDate => "Listan säger att den publicerades efter i dag, så den importerades inte.",
         _ => "Sanktionslistan gick inte att läsa.",
     };

@@ -80,7 +80,10 @@ internal sealed class SanctionLists(AttributionOptions options, IClock clock) : 
             _loaded.Remove(sha);
 
             var info = new SanctionListInfo(
-                parsed.Name, sha, parsed.PublishDate, clock.UtcNow, Counts(parsed), parsed.Skipped);
+                parsed.Name, sha, parsed.PublishDate, clock.UtcNow, Counts(parsed), parsed.Skipped)
+            {
+                Uncertain = UncertainOf(parsed),
+            };
             Directory.CreateDirectory(options.SanctionDirectory);
             ListFiles.WriteAtomically(PathFor(kind, sha, ListExtension), bytes);
             WriteDescription(kind, info);
@@ -231,6 +234,11 @@ internal sealed class SanctionLists(AttributionOptions options, IClock clock) : 
                 _broken.Add(info.Sha256);
                 return null;
             }
+            catch (SanctionListException exception) when (exception.Error == SanctionListError.Missing)
+            {
+                // Not remembered as broken: the file may be back, and the listing follows the folder.
+                return null;
+            }
         }
     }
 
@@ -330,7 +338,8 @@ internal sealed class SanctionLists(AttributionOptions options, IClock clock) : 
         }
         catch (Exception exception) when (exception is FileNotFoundException or DirectoryNotFoundException)
         {
-            throw new SanctionListException(SanctionListError.Tampered, exception);
+            // Gone since the folder was read (removed meanwhile): not changed, and the next listing shows it.
+            throw new SanctionListException(SanctionListError.Missing, exception);
         }
 
         if (Convert.ToHexStringLower(SHA256.HashData(bytes)) != sha)
@@ -384,7 +393,10 @@ internal sealed class SanctionLists(AttributionOptions options, IClock clock) : 
             if (stored is not null)
             {
                 return new SanctionListInfo(
-                    kind.Name, sha, stored.PublishDate, stored.ImportedUtc, stored.AddressesByCurrency, stored.Skipped);
+                    kind.Name, sha, stored.PublishDate, stored.ImportedUtc, stored.AddressesByCurrency, stored.Skipped)
+                {
+                    Uncertain = stored.Uncertain,
+                };
             }
         }
         catch (JsonException)
@@ -406,7 +418,10 @@ internal sealed class SanctionLists(AttributionOptions options, IClock clock) : 
             var parsed = ReadStored(kind, sha);
             var imported = new DateTimeOffset(File.GetLastWriteTimeUtc(PathFor(kind, sha, ListExtension)));
             var info = new SanctionListInfo(
-                kind.Name, sha, parsed.PublishDate, imported, Counts(parsed), parsed.Skipped);
+                kind.Name, sha, parsed.PublishDate, imported, Counts(parsed), parsed.Skipped)
+            {
+                Uncertain = UncertainOf(parsed),
+            };
             WriteDescription(kind, info);
             return info;
         }
@@ -423,7 +438,8 @@ internal sealed class SanctionLists(AttributionOptions options, IClock clock) : 
     /// <param name="info">The list.</param>
     private void WriteDescription(ListKind kind, SanctionListInfo info) =>
         ListFiles.WriteAtomically(PathFor(kind, info.Sha256, DescriptionExtension), JsonSerializer.SerializeToUtf8Bytes(
-            new StoredDescription(info.PublishDate, info.ImportedUtc, info.AddressesByCurrency, info.Skipped)));
+            new StoredDescription(
+                info.PublishDate, info.ImportedUtc, info.AddressesByCurrency, info.Skipped, info.Uncertain)));
 
     /// <summary>Says whether a file name is a stored list's: the kind's prefix and a lower-case SHA-256.</summary>
     /// <param name="kind">The kind of list.</param>
@@ -445,6 +461,11 @@ internal sealed class SanctionLists(AttributionOptions options, IClock clock) : 
     /// <returns>The path.</returns>
     private string PathFor(ListKind kind, string sha, string extension) =>
         Path.Combine(options.SanctionDirectory, kind.Prefix + sha + extension);
+
+    /// <summary>Counts the addresses whose chain the list does not say for certain.</summary>
+    /// <param name="parsed">The list.</param>
+    /// <returns>The count.</returns>
+    private static int UncertainOf(ParsedSanctionList parsed) => parsed.Addresses.Count(address => address.IsUncertain);
 
     /// <summary>Counts the addresses per currency.</summary>
     /// <param name="parsed">The list.</param>
@@ -474,9 +495,11 @@ internal sealed class SanctionLists(AttributionOptions options, IClock clock) : 
     /// <param name="ImportedUtc">When it was imported.</param>
     /// <param name="AddressesByCurrency">The addresses per currency.</param>
     /// <param name="Skipped">Addresses that can never match.</param>
+    /// <param name="Uncertain">Addresses whose chain the list does not say for certain.</param>
     private sealed record StoredDescription(
         DateOnly PublishDate,
         DateTimeOffset ImportedUtc,
         IReadOnlyDictionary<string, int> AddressesByCurrency,
-        int Skipped);
+        int Skipped,
+        int Uncertain = 0);
 }

@@ -830,7 +830,7 @@ public sealed record LabelWords(string CaseNumber, string Providers, TimeZoneInf
             LabelFilter.Provider => (origin.SourceName, "Hämtad " + when + " av " + origin.SetBy.Name,
                 origin.SourceVersion),
             LabelFilter.OpenSource => (origin.SourceName, "Läst " + when + " av " + origin.SetBy.Name,
-                OpenSourceLicenses.Of(origin.SourceName) is { } license
+                OpenSourceLicenses.Of(origin) is { } license
                     ? $"{origin.SourceVersion} · {license}"
                     : origin.SourceVersion),
             LabelFilter.Behaviour => ($"Analysen {origin.SourceName} {origin.SourceVersion}", when, string.Empty),

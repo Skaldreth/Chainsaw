@@ -337,9 +337,10 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
   - *Ångra* i toasten efter *Ta tillbaka* (skissens Ctrl+Z) är inte byggt: en tillbakatagen etikett sätts på nytt, och
     då med den som ångrar som ursprung, inte den ursprungliga. Behöver ett eget förseglat *återinsatt*.
   - Raderna *Kom in*, *Gick ut* och *Sprids inte* under BIBLIOTEKET är bara antal; de kunde filtrera listan.
-- **EU:s lista, orden för andra kedjor** (granskningen av omgång 5, I5): en adress hoppas över när texten inom 60
-  tecken nämner en annan kedja (BCH, Litecoin, BEP-20, TRON, Polygon och några till, `EuFsfParser.OtherChain`).
-  Listan med namn är Chainsaws egen och kan behöva fyllas på när en riktig EU-fil har setts.
+- **EU:s lista, märkningarna för kedjor** (granskningen av omgång 5, I5 och I-a): kedjan tas ur den närmaste
+  märkningen före adressen i samma del av texten (delad vid `;`, komma och radbrytning, `EuFsfParser.Labels`). Listan
+  med märkningar är Chainsaws egen och kan behöva fyllas på när en riktig EU-fil har setts; en adress utan säker
+  märkning blir *Möjlig sanktion*.
 - **EU:s lista (omgång 5, byggd 2026-11-08), det som återstår:** listan har ingen egen sort för kryptoadresser, så
   `EuFsfParser` känner igen en adress på formen (Bitcoin med kontrollsumma, `0x` och 40 hextecken) i identifieringar
   och anmärkningar. Det är inte kontrollerat mot en riktig fil om EU skriver adresser någon annanstans (till exempel i
@@ -434,9 +435,10 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
   och föregående pris.
 - **Svar utan kurs räknas som kurser** (omgång 5): ett slutligt svar före Bitstamps historik pekas ut i registret som
   en kurs, så *Sparas i ärendet* (`RateSummary`) räknar det. Ett eget register för *ingen kurs* vore rättare.
-- **Före källans historik, efter granskningen av omgång 5:** ett svar från Bitstamp utan perioden är slutligt bara
-  när svaret har perioder som alla börjar efter den (`HistoryStartsAfter`); att Bitstamp svarar så för en period före
-  marknadens början är inte kontrollerat mot dokumentationen eller ett riktigt anrop. Riksbanken pekas aldrig ut som
+- **Före källans historik, efter granskningen av omgång 5 (prova mot ett riktigt anrop före 1.0):** ett svar från
+  Bitstamp utan perioden är slutligt bara när svaret har perioder som alla börjar efter den (`HistoryStartsAfter`);
+  att Bitstamp svarar så för en period före marknadens början är inte kontrollerat mot dokumentationen eller ett
+  riktigt anrop. Riksbanken pekas aldrig ut som
   slutlig utan kurs (ett tomt svar visar inte att serien saknade kurs), så en dag före 1993 frågas igen efter
   väntetiden. Bevis för Riksbanken (kurser efter dagen men ingen före i samma svar) kan läggas till.
 - **Riksbankens dygnsgräns** räknas sedan omgång 5 över omstarter på den här datorn (`Kurser\riksbank-requests.json`),

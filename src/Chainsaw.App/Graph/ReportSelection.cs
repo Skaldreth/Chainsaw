@@ -277,7 +277,7 @@ public static class ReportSelection
     /// <param name="origin">The origin.</param>
     /// <returns>The licence after a comma, or nothing.</returns>
     private static string LicenseOf(LabelOrigin origin) =>
-        OpenSourceLicenses.Of(origin.SourceName) is { } license ? $" ({license})" : string.Empty;
+        OpenSourceLicenses.Of(origin) is { } license ? $" ({license})" : string.Empty;
 
     /// <summary>Says that the traced amounts are counted by the method, and so are a judgement.</summary>
     /// <param name="method">The method.</param>

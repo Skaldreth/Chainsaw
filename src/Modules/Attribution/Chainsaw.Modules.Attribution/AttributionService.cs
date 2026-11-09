@@ -370,7 +370,7 @@ internal sealed class AttributionService(
                 found.Address, found.Hit, found.List, SanctionOriginId(found.List, found.Hit, found.Address)))
             .Where(found => !stored.Has(
                 LabelStore.Key(
-                    found.Origin, LabelSubject.ForAccount(found.Address), LabelKind.Sanctioned, found.Hit.EntryName),
+                    found.Origin, LabelSubject.ForAccount(found.Address), KindOf(found.Hit), found.Hit.EntryName),
                 LabelSource.SanctionList)),
     ];
 
@@ -444,7 +444,7 @@ internal sealed class AttributionService(
     /// <param name="hit">What it says.</param>
     /// <returns>The origin id.</returns>
     private static string OpenSourceOriginId(OpenSourceListInfo list, OpenSourceEntry hit) =>
-        $"open/{list.Sha256}/{hit.Address.Chain}/{hit.Address.Value}/{hit.Name}";
+        $"{OpenSourceLicenses.OriginPrefix}{list.Sha256}/{hit.Address.Chain}/{hit.Address.Value}/{hit.Name}";
 
     /// <summary>Gives the label for a hit in an open source.</summary>
     /// <param name="list">The source.</param>
@@ -541,11 +541,15 @@ internal sealed class AttributionService(
                 CultureInfo.InvariantCulture,
                 "Adressen står på EU:s konsoliderade lista över finansiella sanktioner för {0} (EU-referens {1}, " +
                 "{2}), i {3}. Listan har ingen egen sort för kryptoadresser; Chainsaw kände igen adressen på dess " +
-                "form, och inget i texten runt den nämner en annan kedja.",
+                "form{4}",
                 hit.EntryName,
                 hit.EntryUid,
                 programs,
-                hit.ListedAs ?? "posten")
+                hit.ListedAs ?? "posten",
+                hit.IsUncertain
+                    ? ", men texten säger inte säkert vilken kedja den gäller, så det är en möjlig sanktion " +
+                      "att kontrollera, aldrig en bekräftad."
+                    : " och på valutan som står närmast före den.")
             : string.Format(
                 CultureInfo.InvariantCulture,
                 "Adressen står på listan som Digital Currency Address - {0} för {1} (uid {2}, {3}).",
@@ -575,9 +579,17 @@ internal sealed class AttributionService(
             journal.Utc,
             SanctionReason(list, hit),
             null);
-        return new LabelEntry(
-            0, LabelSubject.ForAccount(address), LabelKind.Sanctioned, hit.EntryName, origin, false, 0);
+        return new LabelEntry(0, LabelSubject.ForAccount(address), KindOf(hit), hit.EntryName, origin, false, 0);
     }
+
+    /// <summary>
+    /// Gives what a hit is labelled: a sanction, or only a possible one when the list does not say for certain which
+    /// chain the address is on (principle 2: never a sanction on a guess).
+    /// </summary>
+    /// <param name="hit">The list's entry.</param>
+    /// <returns>The label's kind.</returns>
+    private static LabelKind KindOf(SanctionedAddress hit) =>
+        hit.IsUncertain ? LabelKind.PossiblySanctioned : LabelKind.Sanctioned;
 
     /// <summary>A hit on a sanction list for an address.</summary>
     /// <param name="Address">The address with its chain.</param>

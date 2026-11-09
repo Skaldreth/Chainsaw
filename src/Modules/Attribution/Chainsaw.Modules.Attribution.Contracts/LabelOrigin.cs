@@ -56,7 +56,7 @@ public sealed record LabelOrigin(
     public bool IsFromOtherCase => Source == LabelSource.OtherCase;
 
     /// <summary>Gets the licence of an open source Chainsaw knows, after a comma, or nothing.</summary>
-    private string LicenseText => OpenSourceLicenses.Of(SourceName) is { } license ? ", " + license : string.Empty;
+    private string LicenseText => OpenSourceLicenses.Of(this) is { } license ? ", " + license : string.Empty;
 
     /// <summary>Describes the origin in plain Swedish, for <em>varför?</em>.</summary>
     /// <returns>One line.</returns>

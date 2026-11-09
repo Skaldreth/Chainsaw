@@ -112,6 +112,9 @@ public enum OpenSourceListError
     /// <summary>A stored source no longer has the hash it was imported with.</summary>
     Tampered,
 
+    /// <summary>A stored source's file is gone since the folder was read; it is asked for again later.</summary>
+    Missing,
+
     /// <summary>
     /// The source's newest record is dated after today; as the newest file of its source it would stand in for every
     /// file imported later, so it is refused.
@@ -151,6 +154,7 @@ public sealed class OpenSourceListException : Exception
         OpenSourceListError.NoDate => "The source does not state how new its data is.",
         OpenSourceListError.TooLarge => "The file is too large to be an open source.",
         OpenSourceListError.Tampered => "A stored open source no longer has its hash.",
+        OpenSourceListError.Missing => "A stored open source's file is gone.",
         OpenSourceListError.FutureDate => "The source's data is dated after today.",
         _ => "The open source could not be read.",
     };
