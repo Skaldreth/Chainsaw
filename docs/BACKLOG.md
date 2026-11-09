@@ -130,7 +130,6 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
     (adressen och tx:en vet sin kedja). Byt till `AccountAddress`, `AccountTxHash` och så vidare när ingen annan etapp
     rör Chains och Tracing; `IAccountSource` är redan kontraktets namn.
   - **Kontrollerna (KF1a)** och kontoheuristikerna körs inte på TRON, som på Ethereum.
-- **Fler kedjor** efter behov: Litecoin, BSC.
 - **Det som fortfarande är bundet till Bitcoin efter etapp 20** (står i DEV-LOG, etapp 20):
   - **Efter etapp 23b** (Ethereum byggt vid sidan av): grafens noder har `Chain`, `Accounts` och `Addresses`
     (`ChainAddress`) bredvid `GraphAddresses`, och kontomodellens del är `TraceGraph.Account` med ett eget resultat
@@ -139,10 +138,23 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
     heuristikkontraktet för konton (`IAccountHeuristic`) när kluster och bevis kan hålla andra adresser än Bitcoins;
     `ITracingService` med en källa per kedja i stället för `IBitcoinSource` och `IEthereumSource` var för sig;
     `GraphScene.Shown` (Bitcoin-nodernas summor räknar BTC) och *Kontroll* i inspektören (bara Bitcoins tx).
-  - **Med nästa UTXO-kedja (Litecoin, Zcash):** `UtxoGraph` får sin kedja och tillgång (i dag räknar
-    `TraceCalculator` alltid i BTC), och UTXO-kontraktet en egen tx och egna adresser (eller `BitcoinTransaction` och
-    `BitcoinAddress` en kedja), eftersom `BitcoinAddress` inte tar `ltc1` eller `t1`. `CrossChainLink.From` blir ett
-    mynt på vilken UTXO-kedja som helst.
+  - **Med nästa UTXO-kedja (Litecoin, Zcash):** `BitcoinAddress` bär sin kedja genom nätet (`BitcoinNetwork.Litecoin`,
+    omgång 8b), men `UtxoGraph` saknar fortfarande sin kedja och tillgång (i dag räknar `TraceCalculator` alltid i
+    BTC), och `CrossChainLink.From` blir ett mynt på vilken UTXO-kedja som helst (TODO, *Litecoin i grafen*).
+- **Litecoin och BSC efter omgång 8b:**
+  - **Litecoin och Taproot:** Chainsaw skriver Litecoins vittnesversion 1 med Bech32m (BIP 350) och MWEB:s versioner 8
+    och 9 med Bech32, som litecoinspace.org gör; att litecoinspace.org skriver en Litecoin-Taproot-adress med Bech32m
+    är inte prövat mot ett riktigt svar. Svarar källan annorlunda vägras tx:en (adressen stämmer inte med skriptet).
+  - **OFAC:s token-poster utan kedja:** `USDT` och `USDC` med en `0x`-adress räknas som Ethereums, aldrig BSC:s, och
+    `BNB`-poster (`bnb1…`, Beacon Chain) räknas inte alls. Samma nyckel styr samma 20 byte på båda kedjorna, så en
+    post kunde visas som en bedömning också på BSC.
+  - **Chainabuse på Litecoin och BSC:** leverantören frågas bara för Bitcoin och Ethereum (`ChainabuseProvider`).
+  - **PancakeSwap och andra DEX:ar på BSC:** swappen känns igen på mönstret, men inget kontrakt på BSC står i
+    `KnownContracts`; läggs till när adresserna kan beläggas med en offentlig källa.
+  - **BSC:s takt i `ChainLimits`:** 0,25 s per block som undre gräns (blocken har kommit snabbare med varje fork, under
+    en sekund sedan 2025). Blir de ännu snabbare måste gränsen sänkas.
+  - **Etiketter på BSC** lagras som `bsc:0x…` (`LabelSubject.Stored`), eftersom ämnet lagras utan kedja; en kolumn
+    för kedjan vore renare.
 - **Facit för Bitcoin (granskningen av etapp 20, M):** utöka `Flows` med en länk till annan kedja, en startpunkt med del
   av ett mynt, en adress som får två betalningar och en obekräftad tx, och spela in facit på nytt mot koden före
   etapp 20 (commiten med facit).

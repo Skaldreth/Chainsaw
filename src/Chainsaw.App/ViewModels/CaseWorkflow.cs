@@ -437,9 +437,10 @@ public sealed partial class CaseWorkflow
         }
 
         var chain = CaseTexts.ChainName(startPoint.Chain!.Value);
+        var why = startPoint.CanFetch ? "kan inte spåras i grafen än" : "är inte byggt än";
         created.AppendJournal(new JournalDraft(
             AppJournalKinds.StartPointNoted,
-            $"Startpunkt på {chain} noterad, men {chain} är inte byggt än: {startPoint.Value}",
+            $"Startpunkt på {chain} noterad, men {chain} {why}: {startPoint.Value}",
             JsonSerializer.Serialize(new Dictionary<string, string>
             {
                 ["chain"] = startPoint.Chain.Value.ToString(),
