@@ -69,6 +69,9 @@ public sealed record Asset
     /// <summary>Gets BNB, BSC's own coin, counted in wei (18 decimals).</summary>
     public static Asset Bnb { get; } = new(Chain.Bsc, AssetKind.Native, "BNB", 18, null);
 
+    /// <summary>Gets SOL, Solana's own coin, counted in lamports (9 decimals).</summary>
+    public static Asset Sol { get; } = new(Chain.Solana, AssetKind.Native, "SOL", 9, null);
+
     /// <summary>Gets the chain it lives on.</summary>
     public Chain Chain { get; }
 

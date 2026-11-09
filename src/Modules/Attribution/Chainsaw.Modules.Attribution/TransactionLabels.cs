@@ -191,6 +191,9 @@ internal sealed class TransactionLabels : ITransactionLabels
         Chain.Ethereum when EthereumTxHash.TryParse(id?.ToLowerInvariant(), out var hash) => hash.Value,
         Chain.Litecoin when Txid.TryParse(id, out var litecoin) => litecoin.Value,
         Chain.Bsc when EthereumTxHash.TryParse(Chain.Bsc, id?.ToLowerInvariant(), out var bsc) => bsc.Value,
+
+        // A Solana signature is Base58, whose case is part of it.
+        Chain.Solana when EthereumTxHash.TryParse(Chain.Solana, id?.Trim(), out var solana) => solana.Value,
         _ => null,
     };
 

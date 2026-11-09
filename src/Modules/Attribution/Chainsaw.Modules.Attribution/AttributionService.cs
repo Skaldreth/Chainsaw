@@ -352,9 +352,9 @@ internal sealed class AttributionService(
 
     /// <summary>Says whether an address is on a chain the sanction lists are read for.</summary>
     /// <param name="address">The address with its chain.</param>
-    /// <returns><see langword="true"/> for Bitcoin, Ethereum, TRON, Litecoin and BSC.</returns>
+    /// <returns><see langword="true"/> for Bitcoin, Ethereum, TRON, Litecoin, BSC and Solana.</returns>
     private static bool IsSanctionChain(ChainAddress address) =>
-        address.Chain is Chain.Bitcoin or Chain.Ethereum or Chain.Tron or Chain.Litecoin or Chain.Bsc;
+        address.Chain is Chain.Bitcoin or Chain.Ethereum or Chain.Tron or Chain.Litecoin or Chain.Bsc or Chain.Solana;
 
     /// <summary>Gives the hits the case has not had from the same list, with their origins.</summary>
     /// <param name="stored">The case's labels.</param>

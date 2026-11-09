@@ -44,6 +44,11 @@ internal abstract class FakeAccountSource
     /// </summary>
     public string? WaitingNote { get; set; }
 
+    /// <summary>
+    /// Gets or sets the transactions whose movements the source could not all read; a page that holds one says so.
+    /// </summary>
+    public IReadOnlyList<EthereumTxHash> Unexplained { get; set; } = [];
+
     public void Add(params EthereumTransaction[] transactions)
     {
         foreach (var transaction in transactions)
@@ -99,7 +104,10 @@ internal abstract class FakeAccountSource
         long? next = full ? onPage.Min(entry => entry.Height) : null;
         var page = new EthereumAddressPage(
             address, history, atOrBelow, [.. onPage.Select(entry => entry.Transfer).OfType<EthereumTransfer>()],
-            [.. onPage.Select(entry => entry.Fee).OfType<EthereumFee>()], next, false, WaitingNote is not null);
+            [.. onPage.Select(entry => entry.Fee).OfType<EthereumFee>()], next, false, WaitingNote is not null)
+        {
+            Unexplained = [.. Unexplained.Where(hash => onPage.Any(entry => entry.Hash == hash))],
+        };
         _givenPages[key] = page;
         var answer = Answer(LookupStatus.Fetched, page);
         return Task.FromResult(WaitingNote is { } note ? answer with { Notes = [note] } : answer);

@@ -209,6 +209,14 @@ public sealed record EthereumAddressPage(
     public int Unplaced { get; init; }
 
     /// <summary>
+    /// Gets the transactions on the page whose movements could not all be read: their balances changed more than the
+    /// movements the source could read in them (on Solana, a program that moved value without an instruction the node
+    /// parses). The movements that could be read are on the page; the rest is not shown, never guessed, and this says
+    /// so. They never make the page incomplete, since asking again gives the same answer. Empty otherwise.
+    /// </summary>
+    public IReadOnlyList<EthereumTxHash> Unexplained { get; init; } = [];
+
+    /// <summary>
     /// Gets the transactions a page waits for: their entries could not be placed yet (the source did not give the
     /// transaction's answer now, or its block is still shallow). Such a page is incomplete
     /// (<see cref="IsIncomplete"/>) and is read again; empty otherwise.

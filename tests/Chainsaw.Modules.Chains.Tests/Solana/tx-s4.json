@@ -1,0 +1,90 @@
+{
+  "jsonrpc": "2.0",
+  "result": {
+    "blockTime": 1793872815,
+    "meta": {
+      "computeUnitsConsumed": 450,
+      "err": null,
+      "fee": 5000,
+      "innerInstructions": [],
+      "logMessages": [],
+      "postBalances": [
+        8999995000,
+        8000000000,
+        1500000000,
+        1500000000,
+        1
+      ],
+      "postTokenBalances": [],
+      "preBalances": [
+        10000000000,
+        10000000000,
+        0,
+        0,
+        1
+      ],
+      "preTokenBalances": [],
+      "rewards": [],
+      "status": {
+        "Ok": null
+      }
+    },
+    "slot": 400000030,
+    "transaction": {
+      "message": {
+        "accountKeys": [
+          {
+            "pubkey": "29d2S7vB453rNYFdR5Ycwt7y9haRT5fwVwL9zTmBhfV2",
+            "signer": true,
+            "source": "transaction",
+            "writable": true
+          },
+          {
+            "pubkey": "3JF3sEqM796hk5WFqA6EtmEwJQ9quALszsfJyvXNQKy3",
+            "signer": true,
+            "source": "transaction",
+            "writable": true
+          },
+          {
+            "pubkey": "4Ss5JMkXAD9Z7cktFEdrqeMuT6jGMF1pVozTyPHZ6zT4",
+            "signer": false,
+            "source": "transaction",
+            "writable": true
+          },
+          {
+            "pubkey": "5bV6jUfhDHCQVA1WfKBUnXUsboJgoKgkzkKcxr3joew5",
+            "signer": false,
+            "source": "transaction",
+            "writable": true
+          },
+          {
+            "pubkey": "AByCTxLPRZPoyK22KdMxa3xkCbcNbeNWzVeEvh6UcJs9",
+            "signer": false,
+            "source": "transaction",
+            "writable": true
+          }
+        ],
+        "instructions": [
+          {
+            "accounts": [
+              "29d2S7vB453rNYFdR5Ycwt7y9haRT5fwVwL9zTmBhfV2",
+              "3JF3sEqM796hk5WFqA6EtmEwJQ9quALszsfJyvXNQKy3",
+              "4Ss5JMkXAD9Z7cktFEdrqeMuT6jGMF1pVozTyPHZ6zT4",
+              "5bV6jUfhDHCQVA1WfKBUnXUsboJgoKgkzkKcxr3joew5"
+            ],
+            "data": "3Bxs4ffTu9T19DNF",
+            "programId": "AByCTxLPRZPoyK22KdMxa3xkCbcNbeNWzVeEvh6UcJs9",
+            "stackHeight": 1
+          }
+        ],
+        "recentBlockhash": "BGfvkmnYtL9SCm29JQafE4Jx78ybNfMdw2Jjrmp4Ze2T"
+      },
+      "signatures": [
+        "4HvRgwtKwLYKAWVoraNvArDECDwG95qQekd29SGbwMB2RZzqJ337H7aDQD2fADq3bwKb2FyJTAY4qXwkCUga8ZFq"
+      ]
+    },
+    "transactionIndex": 1,
+    "version": "legacy"
+  },
+  "id": 1
+}

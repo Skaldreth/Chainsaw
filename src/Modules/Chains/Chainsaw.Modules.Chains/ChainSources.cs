@@ -51,6 +51,18 @@ internal sealed class ChainSources : IChainSources
     /// </summary>
     public const int HeightMargin = 1;
 
+    /// <summary>
+    /// How many of Solana's slots below the highest an endpoint may be and still count as answering right: about 30
+    /// seconds of finalized slots, which advance some 2.5 a second, so that two endpoints probed a moment apart are not
+    /// taken for one behind the other.
+    /// </summary>
+    public const int SolanaHeightMargin = 75;
+
+    /// <summary>Gives how far below the highest an endpoint of a chain may be and still answer right.</summary>
+    /// <param name="chain">The chain.</param>
+    /// <returns><see cref="SolanaHeightMargin"/> on Solana, otherwise <see cref="HeightMargin"/>.</returns>
+    public static int HeightMarginOf(Chain chain) => chain == Chain.Solana ? SolanaHeightMargin : HeightMargin;
+
     /// <summary>How long an endpoint that failed a lookup is passed over first; each new failure doubles it.</summary>
     public static readonly TimeSpan FirstPause = TimeSpan.FromMinutes(1);
 
@@ -755,12 +767,13 @@ internal sealed class ChainSources : IChainSources
     /// (<see cref="LookupMode.InStep"/>).
     /// </summary>
     /// <param name="probes">The round's probes.</param>
+    /// <param name="margin">How far below the highest is not behind (<see cref="HeightMarginOf"/>).</param>
     /// <returns>The probes with those behind marked.</returns>
-    internal static EndpointProbe[] Ranked(EndpointProbe[] probes)
+    internal static EndpointProbe[] Ranked(EndpointProbe[] probes, int margin = HeightMargin)
     {
         var highest = probes.Where(p => p.Outcome == ProbeOutcome.Answered).Max(p => p.Height);
         return [.. probes.Select(probe => probe.Outcome == ProbeOutcome.Answered && probe.Height < highest
-            ? highest - probe.Height > HeightMargin
+            ? highest - probe.Height > margin
                 ? probe with
                 {
                     Outcome = ProbeOutcome.Behind,
@@ -944,7 +957,9 @@ internal sealed class ChainSources : IChainSources
             return null;
         }
 
-        var same = string.Equals(first.Value, genesis, StringComparison.OrdinalIgnoreCase);
+        // Base58 (Solana's genesis hash) is case sensitive; hex hashes are compared without case.
+        var comparison = api.Info.Chain == Chain.Solana ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
+        var same = string.Equals(first.Value, genesis, comparison);
         NoteChain(endpoint, same);
         return same
             ? null
@@ -1266,7 +1281,8 @@ internal sealed class ChainSources : IChainSources
                 .Select(probe => new EndpointProbe(Guid.Empty, ProbeOutcome.Answered,
                     probe.Height + probe.BlocksBehind, null, null, probe.At, null));
             state.Probes.Clear();
-            foreach (var probe in Ranked([.. merged, .. references]).Where(probe => probe.EndpointId != Guid.Empty))
+            var ranked = Ranked([.. merged, .. references], HeightMarginOf(chain));
+            foreach (var probe in ranked.Where(probe => probe.EndpointId != Guid.Empty))
             {
                 state.Probes[probe.EndpointId] = probe;
             }
@@ -1310,7 +1326,8 @@ internal sealed class ChainSources : IChainSources
                     probe.Height + (probe.BlocksBehind ?? 0), null, null, probe.At, null));
             foreach (var probe in probes.Where(probe => !IsWait(probe)))
             {
-                var measured = Ranked([probe, .. known]).First(each => each.EndpointId == probe.EndpointId);
+                var measured = Ranked([probe, .. known], HeightMarginOf(chain))
+                    .First(each => each.EndpointId == probe.EndpointId);
                 state.Probes[probe.EndpointId] = measured.Height is null
                     ? measured
                     : measured with { Unreferenced = true };

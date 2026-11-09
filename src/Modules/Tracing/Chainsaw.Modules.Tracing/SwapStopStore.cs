@@ -76,10 +76,12 @@ internal static class SwapStopStore
                 continue;
             }
 
+            // The transaction is read on the stop's own chain, whose hashes TRON and Solana write without 0x.
+            var chain = Enum.Parse<Chain>(rows.GetString(3));
             stops.Add(new SwapStop(
                 rows.GetInt64(0),
-                EthereumTxHash.Parse(rows.GetString(4)),
-                new ChainAddress(Enum.Parse<Chain>(rows.GetString(3)), rows.GetString(5)),
+                EthereumTxHash.Parse(chain, rows.GetString(4)),
+                new ChainAddress(chain, rows.GetString(5)),
                 given,
                 rows.GetInt64(7),
                 utc));

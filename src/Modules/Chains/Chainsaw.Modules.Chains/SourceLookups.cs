@@ -265,7 +265,9 @@ internal sealed class SourceLookups
             var planned = turn.Endpoint;
             remaining.Remove(planned);
             var endpoint = planned.Endpoint;
-            var unkeyed = planned.Api.Request(endpoint.Address, query.Path);
+            var unkeyed = query.Body is { } body
+                ? planned.Api.Post(endpoint.Address, query.Path, body)
+                : planned.Api.Request(endpoint.Address, query.Path);
             if (_sources.WithKey(endpoint, planned.Api, unkeyed, out var keyProblem) is not { } request)
             {
                 _sources.Pacer.Release(turn);
@@ -314,9 +316,12 @@ internal sealed class SourceLookups
                     + "Svaret är sparat i ärendet men används inte.";
             }
 
+            var sealedAs = query.Body is { } call
+                ? response with { Uri = SealedPostUri(response.Uri, call) }
+                : response;
             var sealedResponse = await Task.Run(
                 () => @case.Write(transaction => _store.Append(
-                    transaction, query.Kind, query.Subject, response, endpoint, fetchedBy, index)),
+                    transaction, query.Kind, query.Subject, sealedAs, endpoint, fetchedBy, index)),
                 CancellationToken.None).ConfigureAwait(false);
             if (value is not null)
             {
@@ -455,6 +460,21 @@ internal sealed class SourceLookups
 
             _sources.Pacer.Release(turn);
         }
+    }
+
+    /// <summary>
+    /// Gives the address a POST's response (a JSON-RPC call) is sealed under: the endpoint's scheme, host and port
+    /// only, since a provider may put its key in the path or the query and a key never goes into a case (it belongs in
+    /// the vault); and the call that was sent as the fragment, which is never sent itself, so that the case says what
+    /// was asked (the method and its parameters, for example the signature a page was asked after).
+    /// </summary>
+    /// <param name="sent">The address the call was sent to.</param>
+    /// <param name="call">The call's body.</param>
+    /// <returns>The address to seal.</returns>
+    public static Uri SealedPostUri(Uri sent, string call)
+    {
+        ArgumentNullException.ThrowIfNull(sent);
+        return new UriBuilder(sent.Scheme, sent.Host, sent.Port, "/") { Fragment = call }.Uri;
     }
 
     /// <summary>

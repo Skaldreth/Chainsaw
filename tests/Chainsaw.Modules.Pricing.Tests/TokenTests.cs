@@ -393,6 +393,14 @@ public sealed class BitstampTokenSourceTests
         { Asset.Token(Chain.Bsc, KnownTokens.EthereumUsdt.Contract!, "USDT", 6), FiatCurrency.Usd, false },
         { Asset.Litecoin, FiatCurrency.Eur, true },
         { Asset.Bnb, FiatCurrency.Eur, true },
+        { Asset.Sol, FiatCurrency.Eur, true },
+        { Asset.Sol, FiatCurrency.Sek, false },
+        { KnownTokens.SolanaUsdt, FiatCurrency.Eur, true },
+        { KnownTokens.SolanaUsdc, FiatCurrency.Usd, true },
+        {
+            Asset.Token(Chain.Solana, Base58.Encode(Enumerable.Repeat((byte)0x77, 32).ToArray()), "USDC", 6),
+            FiatCurrency.Usd, false
+        },
     };
 
     [Theory]

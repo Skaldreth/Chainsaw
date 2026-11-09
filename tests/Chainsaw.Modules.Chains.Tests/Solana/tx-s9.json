@@ -1,0 +1,126 @@
+{
+  "jsonrpc": "2.0",
+  "result": {
+    "blockTime": 1793872840,
+    "meta": {
+      "computeUnitsConsumed": 450,
+      "err": null,
+      "fee": 5000,
+      "innerInstructions": [],
+      "logMessages": [],
+      "postBalances": [
+        3999995000,
+        0,
+        1000000000,
+        2039280,
+        1,
+        1
+      ],
+      "postTokenBalances": [],
+      "preBalances": [
+        5000000000,
+        2039280,
+        0,
+        0,
+        1,
+        1
+      ],
+      "preTokenBalances": [
+        {
+          "accountIndex": 1,
+          "mint": "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
+          "owner": "29d2S7vB453rNYFdR5Ycwt7y9haRT5fwVwL9zTmBhfV2",
+          "programId": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+          "uiTokenAmount": {
+            "amount": "0",
+            "decimals": 6,
+            "uiAmount": 0.0,
+            "uiAmountString": "0.0"
+          }
+        }
+      ],
+      "rewards": [],
+      "status": {
+        "Ok": null
+      }
+    },
+    "slot": 400000080,
+    "transaction": {
+      "message": {
+        "accountKeys": [
+          {
+            "pubkey": "29d2S7vB453rNYFdR5Ycwt7y9haRT5fwVwL9zTmBhfV2",
+            "signer": true,
+            "source": "transaction",
+            "writable": true
+          },
+          {
+            "pubkey": "6k78AbasGMFFrhG95Pj6jQbqkVt7FQMhVgemxJovWKR6",
+            "signer": false,
+            "source": "transaction",
+            "writable": true
+          },
+          {
+            "pubkey": "3JF3sEqM796hk5WFqA6EtmEwJQ9quALszsfJyvXNQKy3",
+            "signer": false,
+            "source": "transaction",
+            "writable": true
+          },
+          {
+            "pubkey": "4Ss5JMkXAD9Z7cktFEdrqeMuT6jGMF1pVozTyPHZ6zT4",
+            "signer": false,
+            "source": "transaction",
+            "writable": true
+          },
+          {
+            "pubkey": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+            "signer": false,
+            "source": "transaction",
+            "writable": true
+          },
+          {
+            "pubkey": "11111111111111111111111111111111",
+            "signer": false,
+            "source": "transaction",
+            "writable": true
+          }
+        ],
+        "instructions": [
+          {
+            "parsed": {
+              "info": {
+                "account": "6k78AbasGMFFrhG95Pj6jQbqkVt7FQMhVgemxJovWKR6",
+                "destination": "4Ss5JMkXAD9Z7cktFEdrqeMuT6jGMF1pVozTyPHZ6zT4",
+                "owner": "29d2S7vB453rNYFdR5Ycwt7y9haRT5fwVwL9zTmBhfV2"
+              },
+              "type": "closeAccount"
+            },
+            "program": "spl-token",
+            "programId": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+            "stackHeight": 1
+          },
+          {
+            "parsed": {
+              "info": {
+                "destination": "3JF3sEqM796hk5WFqA6EtmEwJQ9quALszsfJyvXNQKy3",
+                "lamports": 1000000000,
+                "source": "29d2S7vB453rNYFdR5Ycwt7y9haRT5fwVwL9zTmBhfV2"
+              },
+              "type": "transfer"
+            },
+            "program": "system",
+            "programId": "11111111111111111111111111111111",
+            "stackHeight": 1
+          }
+        ],
+        "recentBlockhash": "BGfvkmnYtL9SCm29JQafE4Jx78ybNfMdw2Jjrmp4Ze2T"
+      },
+      "signatures": [
+        "4Pk2kHbW4epUZS6HTLBv2JpcXJvo1uNbGv5wEHqyAKfd8HKa9Mqrchj1QD3R7g37vgi5eNSUtN9KTKSzxKyh9r9v"
+      ]
+    },
+    "transactionIndex": 6,
+    "version": "legacy"
+  },
+  "id": 1
+}

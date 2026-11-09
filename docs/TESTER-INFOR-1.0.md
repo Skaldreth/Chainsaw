@@ -1290,6 +1290,18 @@ som redan har det), så att grafen har ett kluster och några okända adresser.
 - [ ] `/verify` är grönt, och journalen har en rad per uppbrytning.
 
 **Annan kedja (K)**
+- Välj en adress som tagit emot pengar (helst en swap) och tryck K: Ethereum är valt, och alla kedjor i listan går att
+  välja (Solana sedan omgång 8c). Klistra in en Ethereum-tx (`0x` och 64 hex): en grön bock visas i fältet. Klistra in 64 hex utan
+  `0x`: ingen bock (det kan vara båda kedjorna); välj TRON så kommer bocken och rubriken blir *TRON-tx*. Med TRON valt
+  och en tx med `0x` byts kedjan till Ethereum av sig själv.
+- Kom flera mynt in till adressen listas de (största först) och ett måste väljas.
+- Tryck Enter (skälet är frivilligt): en lila streckad linje går till en lila nod med kedjans namn under hörnet. Myntet erbjuds
+  inte igen i formuläret.
+- Fokus: efter Enter eller Esc går tangentbordet tillbaka till grafen, så att E, F, L, U och K fungerar direkt.
+- Enter efter att ha klickat på en rad, en sort eller en källa sparar formuläret (klickar inte på raden igen).
+- Sorten *Sanktionerad* finns inte i rutnätet (den kommer bara ur en importerad lista). Med sorten *Offer* är *Sprid
+  inte* tonad: ett offer sprids aldrig.
+
 - [ ] Välj en adress som tagit emot pengar (helst en swap) och tryck K: Ethereum är valt, Litecoin och Solana är tonade
       med *Inte byggt än*. Klistra in en Ethereum-tx (`0x` och 64 hex): en grön bock visas i fältet. Klistra in 64 hex
       utan `0x`: ingen bock (det kan vara båda kedjorna); välj TRON så kommer bocken och rubriken blir *TRON-tx*. Med
@@ -3166,3 +3178,29 @@ Inga riktiga adresser står här; ta dem ur en beställning, litecoinspace.org e
 - [ ] Guiden: *Litecoin* och *BSC* under *Fler kedjor* stämmer med det som syns.
 - [ ] Bevaka en Ethereum-adress för *Alla*: ETH, WETH, USDT, USDC, DAI och WBTC ger träffar, en annan token gör det
       inte (nytt sedan omgång 8b). På BSC ger BNB, WBNB, USDT och USDC träffar.
+
+## Solana (omgång 8c, 2026-11-09)
+
+Inga riktiga adresser står här; ta dem ur en beställning eller en blockutforskare (Solscan, Solana Explorer).
+
+- [ ] Ctrl+, → *Källor*: Solana är inte längre tonat; *Solana (publik)* (`https://api.mainnet-beta.solana.com/`) har
+      lägena, och *Prova alla nu* visar den i fas med en slot (höjd) och första blockets hash.
+- [ ] Nytt ärende: klistra in en Solana-adress (32–44 tecken Base58): raden får märket `S` och hämtar saldo i SOL och
+      tokens (USDT och USDC först), antal tx, aktivitet och slot. `sol:` och `solana:` före värdet gör samma sak; en
+      signatur (upp till 88 tecken) blir en tx-rad.
+- [ ] Skapa ärendet och expandera: linjerna har SOL, ₮ (USDT på Solana) och $ (USDC). En adress där USDT eller USDC
+      ligger kvar får snöflingan *Kan frysas* med Tether respektive Circle. Expansionen tar tid: varje tx hämtas för
+      sig, ungefär en i sekunden mot den publika noden; *Väntar på källan* visar `S`.
+- [ ] En tx med flera avsändare och mottagare av samma tillgång: inspektören säger att den inte kunde paras, och inga
+      linjer gissas fram.
+- [ ] En swap (till exempel USDC mot SOL hos en pool): pillret $ → SOL visar swappen, och priset prövas mot Bitstamp.
+- [ ] Alt + klick på en Solana-nod: baksidan visar SOL och tokens i kronor; ett fryst tokenkonto sägs.
+- [ ] Bevaka en Solana-nod (högerklick): tillgångarna är *Alla*, SOL, ₮ USDT och USDC. En ny överföring ger en träff
+      inom en minut, också med Chainsaw stängt.
+- [ ] Importera OFAC:s lista: en `SOL`-adress blir *Sanktionerad* på Solana.
+- [ ] Kurser: SOL visas i kronor (Bitstamp *SOL/EUR* och Riksbanken); före hösten 2022 saknas kurs och det sägs.
+- [ ] Annan kedja (K): Solana går att välja, och en signatur i fältet ger bocken; en länk från en Solana-linje läses
+      tillbaka efter att ärendet öppnats igen.
+- [ ] `chainsaw:solana/<adress>` öppnar Chainsaw med adressen på Solana.
+- [ ] Guiden: *Solana* under *Fler kedjor* stämmer med det som syns.
+- [ ] `/verify` är grönt efter allt ovan, och journalens rader nämner Solana.
