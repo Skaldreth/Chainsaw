@@ -9,8 +9,6 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
   stället räknas fram på nytt ur svaret av källan (en tolk per sort av svar), så att det aldrig tas emot utifrån.
 - **Ethereum efter etapp 23b** (grafen, inspektören, startpunkterna, swap-pillret och kurserna för USDT och USDC är
   byggda). Kvar:
-  - **Swappen i testärendet** (SW1a, 2026-11-08): `/testdata` har ingen Ethereum-källa, så spåret genom en swap syns
-    inte där.
   - **Swappens pris och val** (SW1a, femte och sjätte granskningen): `StopAtSwap` läser hela ärendets Ethereum-del
     för att se att swappen finns, inte bara tx:ens svar; och exponeringen (EP1b) drar inte av den del som stannar i
     poolen när det som kom ut var värt mindre, och inte heller andelen när det var värt mer (spåret gör båda;
@@ -209,6 +207,35 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
 - **Privacy coins:** metoderna är beslutade (CLAUDE.md, *Spåret tar slut*) och byggs som förslag i omgång 9.
 - **Cross-chain automatiskt:** hitta fortsättningen på den andra kedjan själv (belopp och tid hos swap-tjänster, bryggornas
   egna händelser). Kanten finns i modellen från början.
+- **Direkt mot kedjan, resten** (Bitcoin Core och electrs som egen nod är byggt, 2026-11-09): Electrum-protokollet
+  (Fulcrum, `blockchain.scripthash.get_history` över TLS) kräver en ny väg i `ILocalHttp` för rå TLS och en egen
+  adressform (scripthash) bakom `IBitcoinSource`; Litecoin Core (samma RPC, registreras för Litecoin); den egna nodens
+  eget Merkle-bevis (`gettxoutproof`, ett partiellt merkleträd) i stället för källans; Reth eller Erigon för Ethereum;
+  java-tron för TRON.
+- **Cross-chain, efter `cross-chain v1`** (byggt 2026-11-09, DEV-LOG): förslagen väger det grafen har på andra kedjor
+  och mottagaren som ett memo i THORChains form namnger. Kvar:
+  - **Bryggornas händelser på Ethereum:** bara `Transfer`-händelser läses ur loggarna, så en bryggas eget mål-id eller
+    mottagare (till exempel THORChain-routerns memo i anropets data, eller en bryggas `Deposit`-händelse) syns inte.
+    Kräver att källan läser loggarna eller anropets data.
+  - **Tjänstens utbetalningsadresser på den andra kedjan:** en swap-tjänst med samma etikett på båda kedjorna kunde
+    slås upp i tidsfönstret (deras historik är lång och dyr att läsa); i dag vägs bara det grafen redan har.
+  - **Uppslag per tidsintervall:** ingen av källorna kan svara på *alla betalningar mellan två tider*; med egen nod och
+    eget index går det.
+  - **Bara mottagarens senaste sida** läses (Bitcoin 25 tx, Ethereum och TRON en sida per historik), så en gammal swap
+    till en livlig adress kan saknas.
+  - **Spåret slutar på en tx-etikett** (*Swap eller brygga* på en tx, inte en adress): sådana betalningar vägs inte än.
+  - **Bryggorna till L2-kedjorna** (Arbitrum, OP Mainnet, Base, Polygon) leder till kedjor Chainsaw inte har.
+  - **En betalning in på Litecoin** föreslås inte än: en länk från ett mynt är ett Bitcoin-myntes i Tracing
+    (`CrossChainLink.FromChain`), så Litecoin behöver en kedja på myntet först. Betalningar *ut* på Litecoin vägs.
+  - **En utbetalning i flera delar:** bara en kandidat kan godkännas (en betalning knyts till en tx åt gången), och
+    delar som tillsammans är värdet föreslås inte.
+  - **En THORName** i memot (ett namn i stället för en adress) slås inte upp; det sägs i *Varför?*.
+  - **THORChains router och valv** står inte på listan över kända kontrakt: de läggs till när adresserna har lästs ur
+    THORChains egen källa med datum (listan tar aldrig in en adress som inte är kontrollerad). Till dess räknas en
+    utbetalning som från en brygga bara genom en etikett *Swap eller brygga* eller grafens noder.
+  - **Kontrakt eller nyckel:** källorna ger ingen bytekod, så en adress räknas som ett kontrakt bara när listan,
+    en etikett eller en intern utbetalning säger det; ett kontrakt som inget av det känner kan ge *samma nyckel*.
+  - **Ett godkänt förslag vars betalning in sedan knyts om för hand** står kvar som godkänt i panelen tills nästa körning.
 - **Direkt mot kedjan:** egen nod och eget index (Bitcoin Core med `txindex`, Fulcrum eller electrs eller ett eget index;
   Reth eller Erigon för Ethereum; java-tron för TRON). Kräver en server. Esplora går att köra själv, så Bitcoin blir bara en
   annan adress i datalagret.
@@ -255,11 +282,11 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
   internet, ingen paus för en egen nod), inte källornas publicerade gränser. Takten står bara i `sources.json`
   (`IntervalMilliseconds`, aldrig snabbare än förvalet för en endpoint på internet); sidan Källor har inget val för den.
   Skissas om det behövs.
-- **Den egna noden provas inte utan utgång** (etapp 25, granskningen M1): ett prov där utgången vägrar sparas inte, också
-  när den egna noden svarade, och provet vid start väntar på en ansluten utgång (eller Windows). Uppslagen går ändå till
-  noden, men den kan inte bli *i fas* för bevakningen förrän ett prov med utgång gjorts. Lämnat i omgång 3: prövas den
-  egna noden för sig blir den sin egen högsta höjd och därmed *i fas* också när den ligger efter kedjan, så bevakningen
-  skulle kunna missa block utan att det syns. Ett beslut (lita på den egna noden som facit, eller inte) behövs först.
+- **Den egna noden som facit** (etapp 25, M1; provet utan utgång byggt 2026-11-09): den egna noden provas nu också
+  när utgången är stängd och behålls, men *ojämförd* (`EndpointProbe.Unreferenced`), så att bevakningen inte använder
+  den förrän ett prov genom utgången visat att den är i fas. Ett beslut återstår: ska den egna noden få vara facit för
+  bevakningen utan utgång? Bitcoin Core vet själv om den är i fas (`getblockchaininfo`: `blocks` mot `headers` och
+  `initialblockdownload`), vilket kunde vara underlaget.
 - **Ett behållet prov åldras** (granskningen av etapp 25, omgång 5, M; lämnat i omgång 3 som ett avvägningsbeslut, det
   försiktiga valet står kvar): ett prov som behålls när endpointen bara väntade
   mäts mot den nya omgångens höjd, så block som kommit sedan räknas mot den. På Ethereum (block var tolfte sekund) blir
@@ -318,8 +345,6 @@ tidsmönster (`active-hours`) och tjänster ur beteende (`service-behaviour`). K
   inte (förslag: känna igen en trolig mixer ur beteende); när flera delar går in i nästa mixer tillsammans följs bara
   en av dem, och stegets belopp är den delen; kedjan grenar sig inte när två utgångar går till olika mixers.
 - **Tornado Cash och andra zk-mixers:** under *Kedjor och data*.
-- **Byte av kedja och token** (bryggor, swap-tjänster utan konto, DEX): kända kontrakt och tjänster känns igen som
-  *Fortsätter på annan kedja*; förslag på fortsättningen ur belopp och tid (under Spårning).
 - **Nästlade tjänster** (en tjänst som har konto hos en börs): beteende som insättningar och uttag i mönster.
 - **Privacy coins och skyddade pooler** (Monero, Zcash, Litecoin MWEB): slut på spåret; förslag på uttag ur poolen ur
   belopp och tid.
@@ -385,8 +410,6 @@ tidsmönster (`active-hours`) och tjänster ur beteende (`service-behaviour`). K
 - **Grafens prestanda, efter omgång 7:** när en drag släpps räknas hela layouten om (cirka 100 ms i hoppkolumnerna
   och 20 ms på den fria ytan vid 3 000 aktörer, `GraphScaleTests`), på UI-tråden. Den kunde räknas utanför UI-tråden
   och bytas in när den är klar. Under draget står de belopp som inte tillhör de dragna linjerna kvar där de stod.
-- **Hitta fortsättningen på en annan kedja själv** (CLAUDE.md, *Cross-chain*): belopp och tid hos swap-tjänster,
-  bryggornas egna händelser. I v1 knyts den för hand.
 
 ### Ledtrådsnoden, valvyn och samlingsnoden (EX1, EX2, EX2b, omgjorda 2026-11-08)
 
@@ -417,9 +440,8 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
   redan står i kö (till exempel en ändring som väntar på disken) väntas inte in, eftersom den återkommer på UI-tråden.
 
 ## Attribution
-- **Efter fjärde granskningen av omgång 5 (2026-11-09, M):** testärendet visar inte längre *Tidigare sanktionerad*
-  (steget på Blandaren gick genom `Add`, som nu vägrar sorten); låt den påhittade listan eller ett förseglat steg ge
-  den igen [direkt]. `StartPointPreview.IsPossiblySanctioned` läses ur tipsets text; bär `IsUncertain` som data.
+- **Efter fjärde granskningen av omgång 5 (2026-11-09, M):** `StartPointPreview.IsPossiblySanctioned` läses ur
+  tipsets text; bär `IsUncertain` som data.
 - **Vyn Etiketter (ET1a), det som återstår:**
   - *Sprid inte* som slås på i efterhand tar etiketten ur biblioteket och hindrar att den ges vidare, men kopior som
     redan gått till andra ärenden ligger kvar där (toasten säger det).
@@ -700,17 +722,9 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
 
 ## Testärendet (/testdata)
 
-- **Ethereum i testärendet:** sedan omgång 8 fortsätter swappen på TRON (en påhittad TronGrid-källa i Debug, med USDT
-  och snöflingan); Ethereum har ännu ingen påhittad källa (Blockscout går inte lika lätt att fejka: tx, kvitton med
-  Transfer-loggar, tokenuppgifter).
-
-- **Tidigare sanktionerad syns inte i testärendet** sedan omgång 5: en sanktion, en möjlig och en tidigare kommer
-  bara ur en lista (aldrig ur en etikett i formuläret), och den påhittade listan har inga borttagna poster. En
-  påhittad lista med borttagna poster (som Tornado Cash i Chainsaws kontraktlista) fyller luckan [direkt].
-
-- **Omgång 5 syns inte i testärendet än:** en träff på EU:s lista, en *Rapporterad* adress ur Ransomwhere och en
-  etikett på en tx (en swap som avslutar spåret) behöver påhittade listor på samma sätt som
-  `TestDataSanctionLists` och ett steg i berättelsen (`TestStory`) som sätter etiketten på tx:en [direkt].
+- **Ethereum i testärendet, det som saknas:** bara bedragarens adress är expanderad; offret, ett bytt block och en
+  borta tx på Ethereum, en brygga och USDC finns inte i den påhittade Ethereum-delen (`TestEthereumChain`). Swappen
+  går genom Uniswaps router med USDT till routern själv, som den påhittade källan inte skiljer från paret.
 - **Kollegans etiketter** (Garantitorget, Nordbörsen) ligger kvar i etikettbiblioteket på datorn efter `/testdata`. De
   gäller bara påhittade adresser och kan aldrig träffa en riktig, men biblioteket saknar ännu ett sätt att rensa dem.
 - **Valvyn i testärendet:** Navet (66 tx, många motparter) och gruvbelöningens OP_RETURN finns i testärendet; en
@@ -721,8 +735,11 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
   tydligare.
 - **Högar** i testärendet: grafens samlingsnod kommer först när användaren expanderar Navet, och startvyns högar
   (GR8a) sparas på datorn och läses bara när startvyn visas, så `/testdata` lägger inga ärenden i en hög.
-- **Bara Bitcoin** i det bytta blocket och i kurserna: en tx på Ethereum som bytt block väntar på att Ethereums svar
-  jämförs (TODO, *Bytt block på Ethereum*).
+- **Bara Bitcoin** i det bytta blocket: en tx på Ethereum som bytt block väntar på att Ethereums svar jämförs (TODO,
+  *Bytt block på Ethereum*).
+- **Adressförgiftningens par** är framsökt: fröna till Sydbörsens insättning och förgiftarens adress
+  (`sydborsen-insattning-1849900` och `forgiftaren-754626`) hittades genom att pröva miljontals frön tills de fyra
+  första och sista tecknen var lika. Byts adresstyp eller prefix i `TestAddress` måste paret sökas om.
 
 ## Övrigt
 - **Guiden:** avsnitten skrivs medan funktionerna byggs i `docs/guide/` och byggs in i programmet. Ett nytt avsnitt

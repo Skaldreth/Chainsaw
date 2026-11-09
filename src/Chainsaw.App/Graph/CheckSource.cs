@@ -1,4 +1,5 @@
 using Chainsaw.Modules.Cases.Contracts;
+using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Checks.Contracts;
 using Chainsaw.Modules.Tracing.Contracts;
 
@@ -52,11 +53,62 @@ public interface ICheckSource
 
 /// <summary>The graph's way into the Checks module (<see cref="ICheckSource"/>).</summary>
 /// <param name="checks">The checks and own areas.</param>
-public sealed class CheckSource(ICheckService checks) : ICheckSource
+/// <param name="crossChain">
+/// The cross-chain search, which fetches through the exit what the cross-chain analysis needs of the other chains
+/// before the checks run; <see langword="null"/> when it is not registered.
+/// </param>
+public sealed class CheckSource(ICheckService checks, ICrossChainLookup? crossChain = null) : ICheckSource
 {
     /// <inheritdoc/>
     public Task<CheckRun> RunAsync(ICase @case, TraceGraph graph, CancellationToken cancellationToken) =>
-        Task.Run(() => checks.Run(@case, graph), cancellationToken);
+        Task.Run(
+            async () =>
+            {
+                var unreached = await FetchAcrossChainsAsync(@case, graph, cancellationToken).ConfigureAwait(false);
+                var run = checks.Run(@case, graph);
+                return unreached.Count == 0 ? run : run with { Problems = [.. run.Problems, .. unreached] };
+            },
+            cancellationToken);
+
+    /// <summary>
+    /// Fetches through the exit what the cross-chain analysis needs (a recipient a memo names, the rates), so that the
+    /// run reads it from the case; only the address and the rate's time are sent (principle 4). What could not be
+    /// reached is said, never hidden (principle 9).
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="graph">The graph.</param>
+    /// <param name="cancellationToken">Stops the work.</param>
+    /// <returns>What could not be reached, in Swedish; empty when everything was.</returns>
+    private async Task<IReadOnlyList<string>> FetchAcrossChainsAsync(
+        ICase @case, TraceGraph graph, CancellationToken cancellationToken)
+    {
+        if (crossChain is null)
+        {
+            return [];
+        }
+
+        try
+        {
+            var found = await crossChain.FindAsync(@case, graph, LookupMode.AsNeeded, cancellationToken)
+                .ConfigureAwait(false);
+            return
+            [
+                .. found.Targets
+                    .Where(target => target.State == CrossChainTargetState.Unreachable)
+                    .Select(target => $"Fortsättningen på {target.Address.Chain} kunde inte slås upp: "
+                        + target.Problem),
+            ];
+        }
+        catch (Exception exception) when (exception is not (OperationCanceledException or OutOfMemoryException))
+        {
+            // The checks still run on what the case has; the search is tried again with the next run.
+            return [CrossChainFailedText];
+        }
+    }
+
+    /// <summary>What the panel says when the cross-chain search failed.</summary>
+    public const string CrossChainFailedText =
+        "Fortsättningen på andra kedjor kunde inte slås upp nu; förslagen bygger på det som finns i ärendet.";
 
     /// <inheritdoc/>
     public Task<IReadOnlyList<CheckDecision>> DecideAsync(ICase @case, IReadOnlyList<DecisionRequest> requests) =>

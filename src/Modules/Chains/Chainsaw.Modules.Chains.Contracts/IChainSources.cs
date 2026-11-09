@@ -119,8 +119,10 @@ public interface IChainSources
     Task MoveAsync(Chain chain, Guid id, int steps);
 
     /// <summary>
-    /// Tries every endpoint of the chain that is on, through the exit, by asking only for the chain's height. Nothing
-    /// is sent when the chain is off, when the vault is locked or when the exit does not allow lookups now.
+    /// Tries every endpoint of the chain that is on, through the exit, by asking only for the chain's height; the
+    /// user's own node is tried straight in the own network. Nothing is sent when the chain is off or the vault is
+    /// locked. When the exit does not allow lookups now, only the own nodes are tried and kept, unmeasured against the
+    /// chain (<see cref="ProbeRun.OwnNodesOnly"/>, <see cref="EndpointProbe.Unreferenced"/>).
     /// </summary>
     /// <param name="chain">The chain.</param>
     /// <param name="cancellationToken">Stops the round; its results are then not kept.</param>

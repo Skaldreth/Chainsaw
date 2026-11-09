@@ -312,7 +312,8 @@ public sealed partial class GraphCanvas
     /// The keys of the checks and areas, before the graph's own: Esc closes the area form, the menu and the panel in
     /// that order; with a suggestion shown J puts it later in the queue, K steps back, Enter approves and X dismisses,
     /// and in the overview Enter starts going through the queue (sketch KF2b); Z draws an own area around the chosen
-    /// actors (sketch KF1b). The question mark comes as text (<see cref="OnTextInput"/>); Ctrl+Z is the page's.
+    /// actors (sketch KF1b). While an approved wallet's take-back waits in the graph (sketch PL1b), Enter confirms it
+    /// and Esc leaves it. The question mark comes as text (<see cref="OnTextInput"/>); Ctrl+Z is the page's.
     /// </summary>
     /// <param name="key">The key.</param>
     /// <returns><see langword="true"/> when it was the checks' key.</returns>
@@ -322,6 +323,12 @@ public sealed partial class GraphCanvas
         var checks = model.Checks;
         switch (key)
         {
+            case Key.Enter when checks.IsConfirmingInGraph:
+                _ = checks.ConfirmWalletUndoAsync();
+                return true;
+            case Key.Escape when checks.IsConfirmingInGraph:
+                checks.CancelWalletUndo();
+                return true;
             case Key.Escape when checks.IsFormOpen:
                 checks.CancelForm();
                 return true;

@@ -132,7 +132,8 @@ internal sealed class SourcesFile(string? directory)
     /// Makes an endpoint of a saved one, or nothing when it cannot be used. An address on the computer or a private
     /// network is kept only for an endpoint marked local, and a local one only without an IP address outside the user's
     /// own network; a pace that is missing is the default of its kind, and one outside the limits is brought within
-    /// them, never faster than <see cref="SourcePace.Public"/> for an endpoint on the internet.
+    /// them, never faster than <see cref="SourcePace.Public"/> for an endpoint on the internet. A sort spoken only by
+    /// the own node (<see cref="SourceApiInfo.LocalOnly"/>) is kept only for an endpoint marked local.
     /// </summary>
     /// <param name="saved">The saved endpoint.</param>
     /// <param name="chain">The chain it is saved under.</param>
@@ -142,8 +143,8 @@ internal sealed class SourcesFile(string? directory)
         EndpointDto? saved, Chain chain, IReadOnlyDictionary<(Chain Chain, string Code), ISourceApi> apis)
     {
         if (saved is null || saved.Id == Guid.Empty
-            || saved.Api is null || !apis.ContainsKey((chain, saved.Api))
-
+            || saved.Api is null || !apis.TryGetValue((chain, saved.Api), out var api)
+            || (api.Info.LocalOnly && !saved.Local)
             || !SourceAddress.TryRead(saved.Address, saved.Local, out var address, out _))
         {
             return null;

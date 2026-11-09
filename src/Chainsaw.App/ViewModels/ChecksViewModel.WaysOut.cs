@@ -31,13 +31,15 @@ public sealed partial class ChecksViewModel
 
                 foreach (var candidate in check.Finding.Candidates)
                 {
-                    if (check.DecisionFor(candidate.Key)?.Verdict == CheckVerdict.Approved)
+                    // A continuation on another chain is drawn by its link, not as a payout on Bitcoin.
+                    if (check.DecisionFor(candidate.Key)?.Verdict == CheckVerdict.Approved
+                        && candidate is { Address: { } address, Txid: { } txid, Arrival: null })
                     {
                         approved.Add(new ApprovedPayout(
                             from.Key,
-                            graph.NodeOf(candidate.Address)?.Key,
-                            candidate.Address.Value,
-                            candidate.Txid.Value,
+                            graph.NodeOf(address)?.Key,
+                            address.Value,
+                            txid.Value,
                             check.Analysis.ToString()));
                     }
                 }

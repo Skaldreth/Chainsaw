@@ -130,9 +130,6 @@ Inget sedan etapp 1 är provat på Windows. Användaren provar efter `docs/TESTE
   - **Ethereum** [etapp]: GR9a ritar en borta Ethereum-tx, men kontomodellens spårning räknar fortfarande med den.
   - **En obekräftad tx som aldrig låg i ett block** och försvinner ur mempool räknas inte som borta, eftersom
     regeln (`BlockChangeRule`) jämför med det första svaret i ett block [etapp].
-  - **Testärendet** (`/testdata`) har ingen tx som försvinner med en ersättare: testkedjan behöver svara `404` på
-    tx:en och `/tx/:txid/outspends` på tx:erna mynten kom ur [direkt].
-- **Ångra en godkänd plånbok** (PL1b, vald): Ctrl+Z och *Ångra* i KF2b-panelen bekräftas i grafen.
 - **Sökningen:** en etikett från ett annat ärende kan inte säga vilket, eftersom ursprunget saknar ärendenumret
   [etapp].
 - **Begäran:** kontaktvägar till börserna (katalogen är tom tills en väg kan kontrolleras mot sin källa, med källa
@@ -205,15 +202,19 @@ byggt ur BACKLOG; det som skriver i ärendet granskas oberoende.
      *Väntar på källan* visar `T` för TRON; en egen ton och ett eget märke skissas om det behövs.
    - [skiss] **TRX:s avgift i inspektören:** TRON bränner TRX för energi och bandbredd (ofta noll med låst TRX);
      inspektören visar avgiften som på Ethereum, men skillnaden mellan energi och bandbredd syns inte.
-9. **Egen nod och eget index**, hitta fortsättningen på en annan kedja själv, och mönsterigenkänning som analys
-   (utan språkmodell, princip 5).
+9. **Egen nod och eget index** och mönsterigenkänning som analys (utan språkmodell, princip 5). Att hitta
+   fortsättningen på en annan kedja själv är byggt som `cross-chain v1` (2026-11-09, DEV-LOG); resterna i BACKLOG under
+   *Cross-chain, efter `cross-chain v1`*. Ytor som väntar:
+   - [skiss] **Fortsättningen på annan kedja i grafen:** en betalning in till en brygga ritar inte sitt förslags
+     kandidater på den andra kedjan (de finns bara i KF2b-panelen), och ett förslag vars betalning in är på Ethereum
+     eller TRON har inget område i grafen, eftersom områdena bara ritas kring Bitcoin-adresser. Hur kandidaterna på
+     den andra kedjan visas vid den lila noden (streckade linjer till noder som inte finns i grafen än) skissas först.
+   - [skiss] **Flödesbilden i KF2b för två tillgångar:** bilden visar banden och beloppen, men ingen avgift i procent
+     (värdet jämförs med kurserna, och skälet säger avgiften); en bild med båda tillgångarna och kronorna skissas.
 
 **Ur omgång 4, ytorna KV1a, HB1a, BU1a, DM1a, HP1a och TJ1b** (byggda 2026-11-08, rester):
-- **Testärendet** (`/testdata`) visar inte de nya kontrollerna och ytorna än [direkt]: damm, en adressförgiftning
-  (en look-alike till Sydbörsen), ett svep till Sydbörsens hot wallet (för *Som etikett …*), en rad med många hopp
-  (fem hopp med en in och en ut, med ett uppehåll på några dygn), en uppdelning med delar som möts och en möjlig
-  PayJoin behöver läggas in i berättelsen (`TestStoryChain`) med stegen som hämtar dem. En slutsats som hålls tillbaka
-  kräver en obekräftad tx som ersätts, som testkedjan inte kan visa än.
+- **Testärendet** (`/testdata`): en slutsats som hålls tillbaka (HB1a) kräver en obekräftad tx som ersätts; testkedjan
+  har en ersatt tx (RBF) men bara bekräftade, så HB1a syns inte där än [direkt].
 - **Förhandsvisningen av ett tillbakadragande** (KV1a) räknar på det som är sparat: det v1 slår ihop i tx som v1
   aldrig kört syns först efter nästa körning. Raden längst ner säger när, men inte vem (det står i journalen).
 - **Dammets linjer** (DM1a) är inte hårfina och prickade och har kvar beloppet; noderna tonas ned och förgiftningens
@@ -230,9 +231,13 @@ byggt ur BACKLOG; det som skriver i ärendet granskas oberoende.
 - **En träff som bytt block** (omorganisation, `WatchHit.MovedFrom`, journalraden `monitoring.hit.moved`): träffen
   vilar nu på sitt nya block, men listan i Bevakning och vaktlinjen säger det inte. Förslag: GR9a:s runda märke med
   förut och nu.
-- **Kontrollerad mot blocket** (`IBitcoinSource.VerifyInBlockAsync`, `BitcoinTransaction.InBlock`: *bara källans svar* eller *bekräftad av en annan endpoint*): beviset
+- **Kontrollerad mot blocket** (`IBitcoinSource.VerifyInBlockAsync`, `BitcoinTransaction.InBlock`: *bara källans svar*, *bekräftad av en annan endpoint* eller *bekräftad av den egna noden*): beviset
   finns men inget anropar det; var det visas i inspektören (som *kontrollerad mot bytes*) och om det körs när tx:en
   visas eller i bakgrunden skissas.
+- **Den egna Bitcoin Core i sidan Källor** (2026-11-09): användarnamnet och lösenordet är i dag en nyckel i valvet
+  skriven `användare:lösenord`, vald i *Lägg till endpoint …* som andra nycklar; ett eget fält för nodens uppgifter (och
+  kakfilen) skissas om det behövs. En egen nod som provats utan utgång (`EndpointProbe.Unreferenced`) syns bara i
+  pricken och dess verktygstips; en egen markering (*inte jämförd med kedjan*) skissas.
 - **Pengar ut ur en CoinJoin som *högst …*** (BACKLOG, *Bevakning*): markeringen och den streckade formen i listan.
 
 **Ur omgång 5 (attribution och kurser), väntar på en yta** [skiss]:

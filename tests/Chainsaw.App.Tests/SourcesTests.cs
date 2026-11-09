@@ -334,6 +334,66 @@ public sealed class SourcesTests
     }
 
     [Fact]
+    public void Before_the_exit_allows_lookups_the_own_nodes_are_tried_once_and_the_whole_round_follows()
+    {
+        _sources.Endpoints[1] = _sources.Endpoints[1] with { Local = true };
+        _sources.Run = ProbeRun.OwnNodesOnly;
+        Create();
+
+        _vault.Set(VaultState.Unlocked);
+        Assert.Equal(1, _sources.Rounds);
+
+        // Not again while the exit stays closed: the own node is tried at the start, as the others.
+        _exit.Set(ExitStatus.NotConnected);
+        Assert.Equal(1, _sources.Rounds);
+
+        _sources.Run = ProbeRun.Probed;
+        _exit.Set(new ExitStatus(ExitState.Connected, Guid.NewGuid(), null));
+        Assert.Equal(2, _sources.Rounds);
+
+        _exit.Set(ExitStatus.NotConnected);
+        _exit.Set(new ExitStatus(ExitState.Connected, Guid.NewGuid(), null));
+        Assert.Equal(2, _sources.Rounds);
+    }
+
+    [Fact]
+    public async Task Prova_alla_nu_says_when_only_the_own_nodes_could_be_tried()
+    {
+        var page = Create();
+        _sources.Run = ProbeRun.OwnNodesOnly;
+
+        await page.ProbeAllAsync();
+
+        Assert.Equal(SourcesViewModel.OwnNodesOnlyText, page.ProbeText);
+    }
+
+    [Fact]
+    public async Task Bitcoin_core_can_be_tried_and_added_only_with_lokal()
+    {
+        _sources.ExtraApis.Add(new SourceApiInfo("bitcoin-core", "Bitcoin Core (egen nod)", Chain.Bitcoin)
+        {
+            LocalOnly = true,
+        });
+        var page = Create();
+        page.ToggleAdd();
+        page.NewAddress = "https://bitcoind.lan/";
+        page.ChooseApi(page.ApiChoices.Single(choice => (string)choice.Value == "bitcoin-core"));
+
+        Assert.Equal(SourcesViewModel.OwnNodeOnlyText, page.AddressProblem);
+        Assert.False(page.CanAdd);
+        Assert.False(page.CanTry);
+        await page.AddAsync();
+        Assert.Empty(_sources.Added);
+
+        page.ToggleLocal();
+
+        Assert.Empty(page.AddressProblem);
+        Assert.True(page.CanAdd);
+        await page.AddAsync();
+        Assert.Equal(("bitcoin-core", true), (_sources.Added[0].Api, _sources.Added[0].Local));
+    }
+
+    [Fact]
     public async Task Lokal_lets_an_address_on_a_private_network_be_added_and_tried_as_the_own_node()
     {
         var page = Create();
@@ -480,8 +540,10 @@ public sealed class SourcesTests
 
         public event EventHandler<Chain>? Changed;
 
+        public List<SourceApiInfo> ExtraApis { get; } = [];
+
         public IReadOnlyList<SourceApiInfo> Apis(Chain chain) =>
-            chain == Chain.Bitcoin ? [new SourceApiInfo("esplora", "Esplora", Chain.Bitcoin)] : [];
+            chain == Chain.Bitcoin ? [new SourceApiInfo("esplora", "Esplora", Chain.Bitcoin), .. ExtraApis] : [];
 
         public ChainSourcesView Get(Chain chain)
         {

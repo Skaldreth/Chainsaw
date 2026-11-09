@@ -151,7 +151,8 @@ internal sealed class SourceHarness : IDisposable
             rows.Add(new RawRow(
                 row.GetInt64(0), row.GetString(1), row.GetString(2), row.GetString(3), row.GetString(4),
                 row.GetString(5), row.GetInt64(6), row.IsDBNull(7) ? null : row.GetString(7), row.GetString(8),
-                row.GetString(9), row.GetString(10), row.GetString(11), row.GetString(12), row.GetString(13),
+                row.GetString(9), row.GetString(10), row.GetString(11),
+                row.IsDBNull(12) ? string.Empty : row.GetString(12), row.GetString(13),
                 row.GetFieldValue<byte[]>(14), row.GetFieldValue<byte[]>(15), row.GetFieldValue<byte[]>(16)));
         }
 

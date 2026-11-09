@@ -9,8 +9,9 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 namespace Chainsaw.Modules.Chains;
 
 /// <summary>
-/// Registers the module Chains: one contract per kind of chain, and the sources behind it (Esplora for Bitcoin and
-/// Litecoin, Blockscout for Ethereum and BSC, TronGrid for TRON, Solana's JSON-RPC for Solana).
+/// Registers the module Chains: one contract per kind of chain, and the sources behind it (Esplora, and the user's own
+/// Bitcoin Core, for Bitcoin, Esplora for Litecoin, Blockscout for Ethereum and BSC, TronGrid for TRON, Solana's
+/// JSON-RPC for Solana).
 /// </summary>
 /// <remarks>
 /// The module needs the Network module's <c>IExitHttp</c> (its only way out to the sources), and its
@@ -69,6 +70,7 @@ public static class ChainsModule
 
         // Each sort of API is registered here, once per chain it is spoken for; another chain only adds its own.
         services.AddSingleton<ISourceApi>(new EsploraApi(settings));
+        services.AddSingleton<ISourceApi>(new BitcoinCoreApi(settings));
         services.AddSingleton<ISourceApi>(new BlockscoutApi(ethereumSettings));
         services.AddSingleton<ISourceApi>(new TronGridApi(tronSettings));
         services.AddSingleton<ISourceApi>(new EsploraApi(litecoinSettings));

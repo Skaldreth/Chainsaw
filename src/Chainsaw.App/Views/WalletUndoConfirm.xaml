@@ -1,0 +1,100 @@
+<UserControl x:Class="Chainsaw.App.Views.WalletUndoConfirm"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:Chainsaw.App.ViewModels"
+             xmlns:controls="clr-namespace:Chainsaw.App.Controls"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             d:DataContext="{d:DesignInstance Type=vm:ChecksViewModel}"
+             mc:Ignorable="d">
+
+    <!--
+      Taking back an approved wallet, confirmed in the graph (sketch PL1b): the cluster opened as a card with its
+      addresses, dashed as the user's judgement, and a small box under it as the forms by a node (sketch IN1b), with
+      Avbryt · Esc and Ångra · Enter and an optional reason. Only wiring; ChecksViewModel holds what happens.
+    -->
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="Visible" />
+    </UserControl.Resources>
+    <UserControl.InputBindings>
+        <KeyBinding Key="Escape" Command="{Binding CancelWalletUndoCommand}" />
+        <KeyBinding Key="Enter" Command="{Binding ConfirmWalletUndoCommand}" />
+    </UserControl.InputBindings>
+
+    <StackPanel Width="300">
+        <!-- The cluster opened as a card: the wallet's icon, how many addresses, and the addresses. -->
+        <Grid>
+            <Border CornerRadius="12" Background="{StaticResource Brush.Floating}">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="32" ShadowDepth="12" Direction="270" Opacity="0.45" Color="Black" />
+                </Border.Effect>
+            </Border>
+            <Rectangle RadiusX="12" RadiusY="12" StrokeThickness="1.5" StrokeDashArray="3 2.5"
+                       Stroke="{StaticResource Brush.TextDim}" IsHitTestVisible="False" />
+            <StackPanel Margin="14,12,14,12">
+                <DockPanel>
+                    <controls:GridIcon DockPanel.Dock="Left" Size="16" Data="{StaticResource Icon.Kind.Wallet}"
+                                       Foreground="{StaticResource Brush.Text}" VerticalAlignment="Center" />
+                    <TextBlock DockPanel.Dock="Right" Text="{Binding PendingWalletUndo.CountText}" FontSize="12"
+                               Foreground="{StaticResource Brush.TextMuted}" VerticalAlignment="Center" />
+                    <TextBlock Text="Godkänd plånbok" FontSize="13.5" FontWeight="SemiBold" Margin="8,0,0,0"
+                               VerticalAlignment="Center" />
+                </DockPanel>
+                <ScrollViewer MaxHeight="168" VerticalScrollBarVisibility="Auto" Focusable="False" Margin="0,8,0,0">
+                    <ItemsControl ItemsSource="{Binding PendingWalletUndo.Addresses}" Focusable="False">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:WalletUndoAddress}">
+                                <TextBlock Text="{Binding Short}" ToolTip="{Binding Full}" FontFamily="{StaticResource Font.Mono}"
+                                           FontSize="12" Foreground="{StaticResource Brush.TextMuted}" Margin="24,3,0,3"
+                                           TextTrimming="CharacterEllipsis" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </StackPanel>
+        </Grid>
+
+        <!-- The small box under the card, with its arrow pointing up at it. -->
+        <Grid Margin="0,12,0,0">
+            <Border CornerRadius="12" Background="{StaticResource Brush.Floating}" IsHitTestVisible="False">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="32" ShadowDepth="12" Direction="270" Opacity="0.45" Color="Black" />
+                </Border.Effect>
+            </Border>
+            <Border Padding="14,14,14,12" CornerRadius="12" BorderThickness="1.5"
+                    BorderBrush="{StaticResource Brush.BorderStrong}" Background="{StaticResource Brush.Floating}">
+                <StackPanel>
+                    <DockPanel>
+                        <controls:GridIcon Size="16" Data="{StaticResource Icon.Undo}" Foreground="{StaticResource Brush.Accent}"
+                                           Margin="0,0,8,0" VerticalAlignment="Center" />
+                        <TextBlock Text="Ångra godkännandet" FontSize="13.5" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    </DockPanel>
+                    <TextBlock Text="{x:Static vm:ChecksViewModel.WalletUndoText}" FontSize="12.5"
+                               Foreground="{StaticResource Brush.TextMuted}" TextWrapping="Wrap" LineHeight="18"
+                               Margin="0,10,0,0" />
+                    <Button Style="{StaticResource Button.Link}" Content="+ Skäl, frivilligt" FontSize="12" Margin="0,10,0,0"
+                            HorizontalAlignment="Left" Foreground="{StaticResource Brush.TextDim}" Focusable="False"
+                            ToolTip="Skälet är frivilligt och sparas med beslutet" Command="{Binding ToggleUndoReasonCommand}" />
+                    <TextBox Style="{StaticResource TextBox.Field}" Text="{Binding UndoReason, UpdateSourceTrigger=PropertyChanged}"
+                             Margin="0,8,0,0" Height="30" FontSize="13" Tag="Skäl, frivilligt" AutomationProperties.Name="Skäl, frivilligt"
+                             Visibility="{Binding IsUndoReasonOpen, Converter={StaticResource Visible}}" />
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
+                        <Button Style="{StaticResource Button.Secondary}" Height="30" Padding="12,0" FontSize="12.5"
+                                Margin="0,0,8,0" Content="Avbryt · Esc" Command="{Binding CancelWalletUndoCommand}"
+                                ToolTip="Plånboken står kvar som godkänd (Esc)" />
+                        <Button x:Name="Confirm" Style="{StaticResource Button.Primary}" Height="30" Padding="14,0"
+                                FontSize="12.5" Content="Ångra · Enter" Command="{Binding ConfirmWalletUndoCommand}"
+                                ToolTip="Sparas som ett nytt förseglat beslut i ärendet (Enter)" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+            <Border Width="12" Height="12" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="24,-6,0,0"
+                    Background="{StaticResource Brush.Floating}" BorderBrush="{StaticResource Brush.BorderStrong}"
+                    BorderThickness="1.5,1.5,0,0" RenderTransformOrigin="0.5,0.5" IsHitTestVisible="False">
+                <Border.RenderTransform>
+                    <RotateTransform Angle="45" />
+                </Border.RenderTransform>
+            </Border>
+        </Grid>
+    </StackPanel>
+</UserControl>

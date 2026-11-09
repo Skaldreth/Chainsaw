@@ -67,4 +67,21 @@ internal interface ISourceApi
     /// <param name="secret">The key.</param>
     /// <returns>The header.</returns>
     ExitCredential Credential(string secret);
+
+    /// <summary>
+    /// Gets whether the sort answers a lookup's path (in the Esplora form the chain's source asks in). A sort that
+    /// answers only some, as the user's own Bitcoin Core does, is passed over for the others, which are asked of the
+    /// chain's other endpoints; every other sort answers all.
+    /// </summary>
+    /// <param name="path">The path under the endpoint's address.</param>
+    /// <returns><see langword="true"/> when it can be asked.</returns>
+    bool Answers(string path) => true;
+
+    /// <summary>
+    /// Reads what a response says beyond its HTTP status, before the lookup reads it as an answer: a JSON-RPC error
+    /// that means the source does not know what was asked, or why it cannot be used, in Swedish.
+    /// </summary>
+    /// <param name="response">The response.</param>
+    /// <returns>The verdict, or <see langword="null"/> to read the response by its status as every source is.</returns>
+    SourceVerdict? Judge(ExitResponse response) => null;
 }

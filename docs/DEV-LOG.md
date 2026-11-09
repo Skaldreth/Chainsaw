@@ -5100,6 +5100,98 @@ offline), App 6 i `ChainStateTests` (rutans rad och fot, länken, en fråga per 
   resten vid nästa uppslag*.
 - **M-3:** det instabila App-testet gick inte att framkalla (App.Tests tre gånger i rad, alla gröna); lämnat.
 - **M-4:** raderna i `ersatt-tx.md` är brutna.
+
+## Fortsättningen på annan kedja själv: `cross-chain v1` (backloggens punkt 9, 2026-11-09)
+
+En analys i Checks som föreslår var pengar som nått en brygga eller swap fortsätter på en annan kedja, som kandidater
+i KF2b-panelen, och ett godkännande som knyter fortsättningen i samma transaktion som beslutet.
+
+- **Analysen `cross-chain v1`** (`CrossChainCheck`): för varje betalning in till en aktör där spåret slutar med
+  *Fortsätter på annan kedja* (etiketten *Swap eller brygga* eller en känd brygga) och som inte är knuten för hand väger
+  den betalningar på de andra kedjorna: grafens egna och de som sökningen läst in i ärendet. Värdet jämförs med
+  ärendets kurser vid de två blocktiderna (avgift −3 % till 20 %, full poäng 0,2–6 %), tiden inom 72 h (full inom 2 h,
+  10 min tidigare tillåts för klockorna) och adressen (samma 20 byte på Ethereum och TRON 0,9, utbetalning från en
+  brygga eller swap 0,8, annars 0,5). Poängen är värde 0,5, tid 0,25, adress 0,25, och kandidater under 0,45 tas bort.
+  Utan kurs, eller när värdet inte passar, blir betalningen ingen kandidat.
+- **Avsändarens memo först** (se granskningens I-4 nedan): ett `OP_RETURN`-memo i THORChains form (`SWAP`, `s` eller `=`, `KEDJA.TILLGÅNG`
+  eller `b`/`e`, mottagaren; `SwapMemo`) i betalningens Bitcoin-tx namnger mottagaren på den andra kedjan. En betalning
+  till den är kandidat också utan kurs, med 0,7 i grund plus värde och tid, och står alltid först.
+- **Sökningen** (`ICrossChainLookup`, `CrossChainLookup`): slår upp memots mottagare (bara adressen, första sidan; på
+  Ethereum och TRON transaktioner och tokens) genom källan och utgången, högst 8 mottagare, och värderar betalningarna
+  in och de på andra kedjor i fönstret med ärendets kurser (högst 200, de närmaste först; högst 24 kurser frågas av
+  källan). `CheckSource` kör den med `AsNeeded` före varje körning av kontrollerna; `CheckService.Run` läser den med
+  `CaseOnly`, så att körningen själv aldrig skickar något. Det som inte nåddes (utgången, kedjan av, ingen källa) står i
+  körningens problem och i förslagets *Varför?*.
+- **Kontrakten:** `ChainMovement` (en betalning på vilken kedja som helst, med block och hash), `CheckFinding.Departure`
+  och `CheckCandidate.Arrival`; `CheckCandidate.Address`, `Txid` och `Amount` är nu valfria (en kandidat på en annan
+  kedja har ingen Bitcoin-adress). Det som sparas skrivs som förut när de nya delarna saknas, så andra fynd får samma
+  fingeravtryck.
+- **Godkännandet** (`CheckService.FollowAcrossChains`): knyter betalningen in till kandidatens tx med
+  `ICrossChainLinks.Link` i samma transaktion som beslutet, med det frivilliga skälet och ursprunget
+  `CrossChainOrigin` (analysen med version och beslutets nummer), som förseglas i den nya kolumnen `origin` i
+  `tracing_cross_chain` och står i journalraden. Att ångra beslutet tar tillbaka länken i samma transaktion, och att ta
+  tillbaka länken i *Historik* ångrar beslutet (`ICheckService.TakeBackLink`, `GraphEditor.UnlinkAsync`), så att panelen
+  och grafen säger samma sak. En länk görs aldrig av sig själv.
+- **Tracing:** reglerna för en länk (annan kedja, en länk per mynt eller rörelse, skälets längd) ligger nu på ett ställe,
+  `CrossChainLinks`, som både länkarna för hand och de godkända använder.
+- **Panelen:** kandidatraden visar mottagaren och beloppet med sin tillgång, tiden efter betalningen in, brickorna för
+  analysen och *Varför?* i Guidens avsnitt *Fortsättningen på en annan kedja*. Ingen ny yta.
+- **Tester:** facit i `CrossChainTests` (rätt kandidat först, inget förslag när värdet inte passar, flera som passar,
+  samma kedja och utanför fönstret, memots mottagare först och utan kurs, samma nyckel Ethereum–TRON, knutet för hand,
+  godkänna och ångra, en vägrad länk sparar inget beslut, ta tillbaka från historiken, läst som förseglat, memon),
+  `CrossChainLookupTests` (bara mottagaren frågas och i rätt läge, offline sägs, bara ärendet) och `LinkOriginTests` i
+  Tracing. Den gyllene filen i Tracing har den nya kolumnen.
+
+**Egna beslut och avsteg:**
+- Analysens `Scope` är Bitcoins, eftersom kontrollerna bara kör analyser för Bitcoin; den väger ändå betalningar in på
+  alla kedjor grafen har.
+- Värdet jämförs bara med kurser; två tokens med samma symbol på olika kedjor (USDT) jämförs aldrig på symbolen.
+- Ett förslag vars betalning in är på Ethereum eller TRON har inget område och inga linjer i grafen (områdena ritas
+  kring Bitcoin-adresser); det står i panelen. Ytan skissas först (TODO, punkt 9).
+- Ett andra godkännande för samma betalning vägras av Tracing (en länk per betalning); BACKLOG.
+
+**Granskningens rättelser (0 C, 6 I, 10 M), efter sammanslagningen med Litecoin och BSC:**
+- **I-1:** sökningen läser också kontots interna transaktioner (`EthereumHistory.Internal`), där THORChains router
+  betalar ut ether (`transferOut`). Test med en utbetalning från routern.
+- **I-2:** varje mottagare läses först ur ärendet, och källan frågas bara när svaret saknas eller är äldre än en kvart
+  (`CrossChainLookup.MinimumInterval`, ur det förseglade svarets tid). En körning för en äldre graf avbryts när en ny
+  kommer (`ChecksViewModel`).
+- **I-3:** när en kandidat är godkänd erbjuds inte *Godkänn* för `cross-chain` (`SuggestionWords.OneApproval`,
+  `CheckRowViewModel.CanApprove`), bara *Avfärda resten*.
+- **I-4:** memot är **avsändarens instruktion** till tjänsten, inte tjänstens uppgift; *Varför?*, `SwapMemo` och
+  brickan *Avsändarens memo* säger det, och att utbetalningen bara syns på den andra kedjan och att THORChain kan betala
+  tillbaka.
+- **I-5:** memots mottagare kommer först bara när en brygga eller swap på den andra kedjan betalade den
+  (`Sign.NamedFromBridge`). Annars vägs den med värdet (adressen 0,85), och utan kurs står den kvar under 0,5 med
+  *beloppet är inte prövat*.
+- **I-6:** en betalning utan tecken i adressen (inget memo, ingen samma nyckel, ingen brygga) hålls under 0,6
+  (`PlainCeiling`). Betalningar som själva går in i en brygga, och till eller från en startpunkt eller ett offer
+  (`CheckInput.ProtectedAccounts`), vägs inte.
+- **M-1** bara frågor till källan räknas mot de åtta mottagarna, **M-2** *Varför?* säger att bara första sidan läses,
+  **M-3** ett memo som pekar på avsändarens egen kedja ger ingen mottagare, **M-4** memot är högst 250 byte och citeras
+  bara i början, **M-5** korta namn i båda skiftlägena (`b`, `e`, `l`, `s`) och *ett namn (THORName)*, **M-6** *Varför?*
+  nämner bara den här insättningens mottagare, **M-7** linjens *Varför?* nämner `cross-chain v1` och beslutet och inget
+  tomt skäl, och spårets slut säger *för hand* eller förslaget, **M-8** `TracingService.UnlinkCrossChain` vägrar en
+  länk från ett godkänt förslag (den tas tillbaka med godkännandet), **M-9** TESTER-INFOR säger att gamla testärenden
+  måste skapas på nytt, **M-10** bara betalningar som kan vägas värderas (fönstret kring en insättning med känt värde,
+  eller till memots mottagare).
+- **Litecoin och BSC:** memots `LTC.` och `BSC.` (och `l`, `s`) vägs, BSC och Litecoin slås upp med sina källor, och
+  Litecoins mynt är betalningar i LTC. En betalning *in* på Litecoin föreslås inte än (BACKLOG).
+
+**Andra granskningens rättelser (0 C, 2 I, 4 M):**
+- **I-A:** en Litecoin-mottagare läses med `BitcoinAddress.TryParse(chain, …)`, och ett fel hos en mottagare stoppar
+  bara den (`Unreachable` med ett skäl). Tester med en Litecoin-källa, ett fel och en saknad källa.
+- **I-B:** bara offrens adresser utesluts (`CheckInput.ProtectedAccounts`); en startpunkt vägs som andra och skälet
+  säger det (*Startpunkten är neutral*).
+- **M-a:** en brygga eller swap känns igen också ur etiketter och listan över kända kontrakt
+  (`CheckInput.BridgeAccounts`), inte bara ur grafens noder.
+- **M-b:** poängen är ordningen: memots mottagare som en brygga betalade får 0,8–1, alla andra högst 0,8.
+- **M-c:** *samma nyckel* gäller inte en adress som är ett känt kontrakt (listan, en brygga, eller en som betalat ut
+  ether inne i en tx); källorna ger ingen bytekod (BACKLOG).
+- **M-d:** journalen och `CrossChainLink.FromText` nämner kedjan för en rörelse (`Bsc token:0x…#3`).
+
+**Återstår:** BACKLOG, *Cross-chain, efter `cross-chain v1`*, och ytorna i TODO, punkt 9.
+
 ## Omgång 8b: Litecoin och BSC (backloggen, 2026-11-09)
 
 - **Byggt:**
@@ -5247,3 +5339,140 @@ offline), App 6 i `ChainStateTests` (rutans rad och fot, länken, en fråga per 
   och swap på Solana), Attribution (OFAC:s `SOL`), Pricing (`soleur`, USDT och USDC), Monitoring (källan registrerad),
   App (prefix, bevakningens kedja, startpunkten, *Annan kedja*).
 
+## Egen nod: Bitcoin Core, electrs och bekräftelse mot den egna noden (backloggen, 2026-11-09)
+
+- **Byggt:**
+  - **Bitcoin Core som källa** (`BitcoinCoreApi`, kod `bitcoin-core`, *Bitcoin Core (egen nod)*): JSON-RPC 1.0 som POST
+    till endpointens adress, bara för en endpoint märkt *Lokal* (`SourceApiInfo.LocalOnly`: kan inte läggas till,
+    provas eller läsas ur `sources.json` utan *Lokal*, och `ChainSources.SendAsync` vägrar att skicka den genom
+    utgången). Den svarar på uppslagen vars svar är kedjans egna värden, med Esploras sökvägar som nycklar
+    (`ISourceApi.Answers`): `getblockcount`, `getbestblockhash`, `getblockhash`, `getblockheader … false` och
+    `getrawtransaction … false`. Allt annat (adresser, tx:ens beskrivning med föregående utgångar, `outspends`,
+    merkle-beviset, blocket som JSON) frågas av kedjans Esplora-endpoints, så `IBitcoinSource` och allt ovanför är
+    oförändrat (princip 8). Anropets `id` är metoden och dess värden, och Bitcoin Core ger tillbaka det i svaret, så att
+    det förseglade råsvaret självt säger vad som frågades (princip 1); svaret förseglas rått med endpointen och
+    `exit_route` = `local` som förut för en egen nod, och packas upp på ett ställe (`SourceLookups.Readable`) både
+    när det är nytt och när det läses ur ärendet.
+  - **Nodens fel sägs ärligt** (`ISourceApi.Judge`): `-5` utan `txindex` och medan indexet byggs blir det nya utfallet
+    `Outcome.CannotAnswer` (de andra frågas, och noden pausas inte), `-5` annars är *känner inte till*, `-8` (höjden
+    utanför) *har inte kommit så långt*, `-28` *startar*, `-32601` *saknar anropet*, 401 fel lösenord och 403
+    `rpcwhitelist`; en 404 utan JSON-RPC-fel är vägen framför noden, aldrig ett svar om kedjan.
+  - **Användare och lösenord** är en nyckel i valvet skriven `användare:lösenord` (eller kakfilens `__cookie__:…`),
+    skickad som HTTP Basic (`Authorization`), aldrig i ärendet; en nyckel utan kolon skickas inte.
+  - **Adresshistoriken:** genom en egen electrs med Esplora-API, märkt *Lokal* (fanns redan); den lämnar aldrig det
+    egna nätet.
+  - **Bekräftad av den egna noden** (`InBlockCheck.ConfirmedByOwnNode`): `VerifyInBlockAsync` frågar först en egen
+    nod som är på (Bitcoin Core eller electrs, `FetchAsync(ownNodeOnly: true)`) om blockets hash på höjden. Samma hash
+    ger *bekräftad av den egna noden*; ett annat block säger det, och blocket vilar då bara på en källas svar; kan
+    noden inte svara frågas en annan endpoint i fas som förut, med nodens skäl i noten.
+  - **Provet utan utgång** (`ProbeRun.OwnNodesOnly`, `EndpointProbe.Unreferenced`, `EndpointProbe.IsInStep`): varje
+    endpoint i en provomgång provas för sig, så att utgångens vägran bara stoppar dem som går genom den. Utan utgång
+    behålls de egna nodernas prov (de andras tidigare står kvar), mätta mot den högsta höjd de tidigare proven genom
+    utgången kände (efter när den ligger lägre), men alltid *ojämförda*: de svarar på vanliga uppslag men är aldrig
+    *i fas*, så bevakningen (också `WatcherLoop`, som nu läser samma regel) räknar aldrig från nodens ord ensamt.
+    Provet vid start provar kedjor med en egen nod en gång innan utgången är ansluten, och hela omgången görs när den
+    ansluts; *Prova alla nu* säger *Bara egna noder provades …*.
+  - **Sidan Källor:** *Bitcoin Core (egen nod)* står bland API:erna i *Lägg till endpoint …*; utan *Lokal* säger fältet
+    *Bitcoin Core frågas bara som din egen nod: slå på Lokal.* och *Prova* och *Lägg till* tonas (bara text i befintliga
+    ytor). Pricken för en ojämförd nod har ett eget verktygstips.
+  - **Guiden:** nytt avsnitt *Egen nod* (`docs/guide/egen-nod.md`) under *Säkerhet och utgångar*, länkat från *Källor*.
+- **Egna beslut och avsteg:**
+  - **Esplora/electrs i stället för Electrum-protokollet** för adresserna: Electrum talas över rå TCP/TLS, inte https,
+    och skulle kräva en ny väg förbi `ILocalHttp` (och dess kontroll att adressen är i det egna nätet och fästa
+    certifikat) och en egen form (scripthash) bakom källan. electrs har samma Esplora-API som redan finns, så den egna
+    noden blir bara en annan adress, som CLAUDE.md säger. Fulcrum står kvar i BACKLOG.
+  - **Merkle-beviset kommer från källan** (Esplora), inte från nodens `gettxoutproof`: beviset kontrolleras mot huvudet,
+    och huvudets hash bekräftas av den egna noden på höjden, så beviset behöver inte litas på. Nodens eget bevis står i
+    BACKLOG.
+  - **Bitcoin Core talar bara https** genom en TLS-proxy framför noden (Bitcoin Core har inte haft TLS för RPC sedan
+    0.12); certifikatet fästs med KL3b. JSON-RPC 1.0 som i Bitcoin Cores egna exempel, eftersom ett fel då kommer med
+    HTTP 500 och felobjektet, som `Judge` läser.
+  - **Bara Bitcoin:** Litecoin Core har samma RPC men registreras inte nu (en annan agent arbetar i Litecoin).
+  - **Den egna noden som facit utan utgång** är fortfarande ett beslut för användaren (BACKLOG); det försiktiga valet
+    (aldrig *i fas* utan ett prov genom utgången) gäller.
+  - Bakgrundens bevakning har inget valv, så en Bitcoin Core med nyckel frågas inte därifrån (nyckeln saknas och de
+    andra endpointarna används), som för andra endpoints med nyckel.
+- **Skriver i ärendet:** Bitcoin Cores råsvar förseglas i `chains.raw_responses` med `source` = `bitcoin-core`,
+  endpointen och vägen `local`, som andra svar; inget nytt schema.
+- **Tester:** `BitcoinCoreTests` (anropen, kroppen, Basic, felen, bara lokal också ur filen, höjden och bytesen från
+  noden förseglade och lästa ur ärendet, utan txindex, adresserna aldrig till noden, provet), tre i `MerkleProofTests`
+  (bekräftad, annat block, noden efter) och tre i `EndpointPhaseAndLocalTests` (provet utan utgång), och tre i
+  `SourcesTests`. Syntetiska svar i formen ur Bitcoin Cores RPC-dokumentation; aldrig nätet.
+- **Efter säkerhetsgranskningen** (inga C eller I; tre M rättade):
+  - **M1:** ett nytt JSON-RPC-svar måste ge tillbaka `id` för anropet som skickades (`BitcoinCoreApi.ResultFor`,
+    provets höjd och hash likaså); ett svar på ett annat anrop förseglas men används inte. Ett svar som läses ur
+    ärendet kontrollerades så när det hämtades (bara då indexeras det som svar).
+  - **M2:** nodens nyckel i valvet har identifieraren `bitcoin-core` (`ChainSources.IsNodeKey`). En sådan nyckel
+    skickas aldrig till en annan sorts källa (alltså aldrig som bearer genom utgången, också med en redigerad
+    `sources.json`), och Bitcoin Core tar bara en sådan nyckel.
+  - **M3:** bara en Bitcoin Core ger *bekräftad av den egna noden*; en annan lokal endpoint (electrs) ger
+    `ConfirmedElsewhere` med *bekräftades av en lokal endpoint, namn*.
+- **Återstår:** provet på Windows (`docs/TESTER-INFOR-1.0.md`), ytorna i TODO.
+
+## Testärendet fylls på och TESTER-INFOR städas (2026-11-09)
+
+**Byggt** (`src/Chainsaw.App/TestData/`, berättelsen version 4, allt påhittat och inget går ut):
+- **Förvirringen i berättelsen** (`TestStoryChain`): damm (600 satoshi till tolv adresser i grafen), en
+  adressförgiftning (en look-alike till Sydbörsens insättning skickar 1 000 satoshi till mixerns troliga utgång), fem
+  hopp med en in och en ut efter en Whirlpool-utgång med drygt tre dygns uppehåll, en uppdelning i sex lika delar där
+  tre möts igen (en efter ett eget hopp), en möjlig PayJoin med de starka tecknen, och Sydbörsens tio kunder vars
+  insättningar sveps två gånger till en het plånbok utan etikett (för *Som etikett …*, TJ1b). `Tip` är nu fem dygn
+  efter start, så att uppehållet ryms.
+- **En borta tx med ersättare** (GR9a, RBF): testkedjan har ersatta tx (`TestChain.AddReplaced`, `TestDraft.Replaced`)
+  som bara besvaras medan de visas i ett avknoppat block, och kan ligga ett block efter (`TestChain.Behind`).
+  `LagStep` först och `ReplacedStep` efter omorganisationen: tx:en expanderas ur det avknoppade blocket, källan svarar
+  `404` en gång före och en gång efter det nyaste blocket, och `/tx/:txid/outspends` på tx:en mynten kom ur ger
+  ersättaren.
+- **Omgång 5:** en möjlig sanktion ur en påhittad lista i EU:s form (Torgväxlaren, `IsUncertain`), en *Rapporterad*
+  adress ur en påhittad öppen källa i Ransomwheres form (`TestDataOpenSources`, bedragarens andra adress) och en
+  etikett på tx:en där delarna möts (`TransactionLabelStep`).
+- **En påhittad Ethereum-källa** (`TestEthereumChain`, `TestEthereumHttp`, `TestDataEthereumRouter` och
+  `Chains/TestData/TestDataEthereum`): Blockscouts svar i form, som TRON:s. Ett annat offer betalar bedragaren USDT,
+  bedragaren byter till ether genom Uniswaps V2-router (SW1a med priskontroll, DX1b:s routermarkering) och betalar
+  Tornado Cash 1 ETH, som `KnownContractsStep` märker som mixer och *Tidigare sanktionerad*; bedragaren har *Kan
+  frysas*. TRON-stegen heter nu `AccountStartPointStep`, `AccountExpandStep` och `AccountLabelStep`
+  (`TestAccountSteps.cs`) och gäller båda kontokedjorna.
+- **Tester** (`tests/Chainsaw.App.TestData.Tests`, 32): kontrollerna och tjänsten ur beteende, den ersatta tx:en,
+  möjlig sanktion, Rapporterad och etiketten på tx:en, Ethereum-delen, och att varje påhittad tx spenderar mynt ur ett
+  tidigare block. *Tidigare sanktionerad* är tillbaka bland markeringarna som grafen ska visa.
+
+**Egna beslut:**
+- Adressförgiftningens par söktes fram med ett skript (cirka fem miljoner frön) tills de fyra första tecknen efter
+  `bc1q` och de fyra sista var lika; fröna står i `TestActors` och i BACKLOG.
+- Hoppen och delarna utgår från en Whirlpool-utgång, inte från växeln: från växeln hamnade navets hög utan plats för
+  sitt belopp i layouttestet. Gaspengarna på Ethereum togs bort av samma skäl (beloppet fick ingen plats).
+- Swappen på Ethereum skickar USDT till routern själv (inte till ett par), eftersom bara historiken hämtas; Tornado
+  Cash, routern och USDT:s kontrakt är de riktiga adresserna ur Chainsaws egna listor, allt annat är påhittat.
+- TESTER-INFOR-1.0: de tillagda dubbletterna efter ihopslagningarna är borta (de flesta stod två gånger, ordagrant
+  eller i en äldre form), det som ersatts är struket (BV2a:s formulär, statusraden, rosa, *inte byggt än* för TRON,
+  Tidslinje och Flöde), och de nya avsnitten är fördelade på sina områden i ordningen genom programmet. Varje punkt är
+  en ruta att bocka av (`- [ ]`).
+
+**Kvar:** BACKLOG, *Testärendet* (det som saknas i Ethereum-delen, valvyn, högar) och TODO (HB1a i testärendet).
+
+## Ångra en godkänd plånbok bekräftas i grafen, PL1b (2026-11-09)
+
+**Byggt:**
+- Ctrl+Z, toastens *Ångra* och *Ångra* i loggen *Avgjort* tar inte längre tillbaka ett godkännande av en plånbok
+  direkt. `ChecksViewModel` (`ChecksViewModel.WalletUndo.cs`) håller ångrandet som väntande (`PendingWalletUndo`) och
+  ber grafen visa klustret (`WalletUndoWanted`); panelen säger *Bekräfta i grafen*, och Enter och X i panelen väntar.
+- I grafen väljs plånbokens nod och visas (`GraphViewModel.WalletUndo.cs`), och bredvid den står kortet
+  `WalletUndoConfirm`: *Godkänd plånbok · N adresser*, streckat som en bedömning, med adresserna, och under det en liten
+  ruta som formulären i IN1b med *+ Skäl, frivilligt*, *Avbryt · Esc* och *Ångra · Enter*. Står ingen av adresserna i
+  grafen står kortet under grafens hörn.
+- Enter sparar ångrandet som förut: ett nytt förseglat beslut `Withdrawn` med `Undoes` (nu med det frivilliga skälet),
+  och Checks drar tillbaka sammanslagningen som godkännandet gjorde (`user v1`, `UndoMerges`), med journal och
+  hashkedja. Inget tas bort; godkännandet står kvar överstruket i Historik.
+- Esc, ett klick på en annan nod eller tom yta, eller ett annat ärende låter plånboken stå.
+- Tester: `tests/Chainsaw.App.Tests/WalletUndoTests.cs` (9). Guiden *Kontroller och förslag* har ett stycke om det.
+
+**Egna beslut:**
+- Modulen ändrades inte: ångrandet av ett godkännande drog redan tillbaka sammanslagningen, och skälet följer med
+  `DecisionRequest.TakeBack(...) with { Reason = ... }` som `TakeBackMerges` redan gör.
+- Bara ångrandet från panelen (Ctrl+Z, toasten och loggen) bekräftas i grafen. *Ångra* på *Sammanslagen av användaren*
+  i Historik har redan sin egen bekräftelse vid noden (AN1b) och är oförändrad.
+- Ett godkännande som inte gäller en plånbok (mixerns kandidater och de andra förslagen) tas tillbaka direkt som förut.
+- Klick på en av plånbokens andra noder (när den är uppbruten i flera) låter frågan stå; allt annat avbryter.
+- Testärendet har redan en godkänd plånbok (`DecideStep`), så inget nytt steg behövdes.
+
+**Kvar:** provet på Windows (TESTER-INFOR, *Godkänna en plånbok*).

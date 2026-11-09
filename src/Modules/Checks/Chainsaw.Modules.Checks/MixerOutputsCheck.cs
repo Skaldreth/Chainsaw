@@ -170,7 +170,7 @@ internal sealed class MixerOutputsCheck : ICheckAnalysis
             "Troliga utgångar ur mixern",
             $"{amount} in · belopp minus avgift, tid och adresstyp",
             why,
-            [deposit.Output.Address!, .. best.Select(item => item.Candidate.Address).Distinct()],
+            [deposit.Output.Address!, .. best.Select(item => item.Candidate.Address).OfType<BitcoinAddress>().Distinct()],
             [],
             [
                 CheckBasis.Of(deposit.Transaction),
