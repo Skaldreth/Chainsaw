@@ -352,6 +352,58 @@ public sealed class HeldBackAndPreviewTests : IDisposable
     }
 
     [Fact]
+    public void Setting_aside_a_disagreeing_result_never_strengthens_another_so_the_transaction_waits()
+    {
+        using var harness = new CaseHarness(services =>
+        {
+            services.AddSingleton<IClusteringHeuristic>(new DisagreeingChange(citing: true));
+            services.AddSingleton<IClusteringHeuristic>(new DisagreeingChange(citing: false));
+        });
+        var basis = Tx("probe-basis", 800_000).In(Wpkh("elsewhere"), 1_000).Out(Wpkh("bulk"), 900).Build();
+        var payment = Tx("two-ways", 900_000).In(Wpkh("two-ways-in"), 5_000_000)
+            .Out(Wpkh("two-ways-0"), 1_234_567).Out(Wpkh("two-ways-1"), 3_700_000).Build();
+
+        var run = harness.Service.Analyse(harness.Case, [basis, payment], [basis.Txid]);
+
+        Assert.Contains(payment.Txid, run.NotDrawn);
+        Assert.DoesNotContain(
+            harness.Service.GetConclusions(harness.Case, payment.Txid).Evidence,
+            evidence => evidence.Strength == EvidenceStrength.Merge);
+
+        harness.Analyse(basis, payment);
+
+        var peel = Assert.Single(
+            harness.Service.GetConclusions(harness.Case, payment.Txid).Evidence,
+            evidence => evidence.Heuristic.Name == "peel-like");
+        Assert.Equal(EvidenceStrength.Suggestion, peel.Strength);
+    }
+
+    [Fact]
+    public void A_nothing_that_cites_a_gone_transaction_where_its_analysis_has_a_merge_lets_the_transaction_wait()
+    {
+        var turning = new TurningProbe();
+        using var harness = new CaseHarness(services => services.AddSingleton<IClusteringHeuristic>(turning));
+        var basis = Tx("probe-basis", 800_000).In(Wpkh("elsewhere"), 1_000).Out(Wpkh("bulk"), 900).Build();
+        var probed = Tx("turned", 900_000).In(Wpkh("turn-a"), 1_000).In(Wpkh("turn-b"), 2_000)
+            .Out(Wpkh("turn-out"), 2_900).Build();
+        harness.Analyse(basis, probed);
+        var merge = Assert.Single(
+            harness.Service.GetConclusions(harness.Case, probed.Txid).Evidence,
+            evidence => evidence.Heuristic.Name == "turning");
+        var stored = harness.Count("clustering_evidence");
+
+        turning.Turned = true;
+        var run = harness.Service.Analyse(harness.Case, [basis, probed], [basis.Txid]);
+
+        // Neither replaced on the word of a gone transaction nor left standing alone: the transaction waits.
+        Assert.Contains(probed.Txid, run.NotDrawn);
+        Assert.Equal(stored, harness.Count("clustering_evidence"));
+        Assert.Contains(
+            harness.Service.GetConclusions(harness.Case, probed.Txid).Evidence,
+            evidence => evidence.Sequence == merge.Sequence);
+    }
+
+    [Fact]
     public void What_was_not_drawn_is_journalled_once_when_it_changes_also_when_nothing_else_is_stored()
     {
         var (seen, payment) = Disagreement();
@@ -370,6 +422,11 @@ public sealed class HeldBackAndPreviewTests : IDisposable
 
         Assert.Equal(0, onlyNotDrawn.NewResults);
         Assert.Contains("notDrawn", onlyNotDrawn.Journal!.Details!, StringComparison.Ordinal);
+
+        // Back: the set empties, and the line that says so has the empty set, so that it explains itself.
+        var back = fresh.Service.Analyse(fresh.Case, [seen, payment], []);
+
+        Assert.Contains("\"notDrawn\":[]", back.Journal!.Details!, StringComparison.Ordinal);
     }
 
     [Fact]

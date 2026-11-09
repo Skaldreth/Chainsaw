@@ -89,12 +89,14 @@ internal sealed class ClusteringService : IClusteringService
             transactions, transactions.Where(found => goneTxids.Contains(found.Txid)));
         var running = Running(@case.Read(EvidenceStore.ReadWithdrawals));
         var failed = new List<Txid>();
-        var raw = new List<(Txid Txid, List<HeuristicResult> Results)>();
+        // Weighed outside the case's lock, so that reading the case is never held up by it (principle 6).
+        var raw = new List<WeighedTransaction>();
         foreach (var transaction in known.All)
         {
-            if (AnalyseOne(running, transaction, known) is { } results)
+            if (AnalyseOne(running, transaction, known) is { } results
+                && WeighedTransaction.Of(transaction.Txid, results, goneTxids) is { } weighed)
             {
-                raw.Add((transaction.Txid, results));
+                raw.Add(weighed);
             }
             else
             {
@@ -119,26 +121,18 @@ internal sealed class ClusteringService : IClusteringService
             var restingTxids = resting.Select(entry => entry.Txid).ToHashSet();
             var notDrawn = new List<Txid>();
             var analysed = new List<(Txid Txid, List<(WeighedResult Result, string Fingerprint)> Results)>();
-            foreach (var (txid, results) in raw.Where(entry => !restingTxids.Contains(entry.Txid)))
+            var countingNames = latest.Keys.Select(key => (key.Txid, key.Heuristic.Name)).ToHashSet();
+            foreach (var weighed in raw.Where(entry => !restingTxids.Contains(entry.Txid)))
             {
-                var (drawn, withheld) = WithoutGone(txid, results, goneTxids, latest);
+                var (drawn, withheld) = weighed.Drawn(countingNames);
                 if (withheld)
                 {
-                    notDrawn.Add(txid);
+                    notDrawn.Add(weighed.Txid);
                 }
 
-                if (drawn is null)
+                if (drawn is not null)
                 {
-                    continue;
-                }
-
-                if (Fingerprinted(drawn) is { } fingerprinted)
-                {
-                    analysed.Add((txid, fingerprinted));
-                }
-                else
-                {
-                    failed.Add(txid);
+                    analysed.Add((weighed.Txid, drawn));
                 }
             }
 
@@ -184,7 +178,8 @@ internal sealed class ClusteringService : IClusteringService
                     heldBack = heldBack.Select(txid => txid.Value),
                     // Only when something was left out, so that a run told of nothing writes what it always did.
                     leftOut = leftOut.Count > 0 ? leftOut.Select(txid => txid.Value) : null,
-                    notDrawn = notDrawn.Count > 0 ? notDrawn.Select(txid => txid.Value) : null,
+                    // Whenever the set changed, also to empty, so that the line says why it was written.
+                    notDrawn = notDrawnChanged ? notDrawn.Select(txid => txid.Value) : null,
                 },
                 SkipNull)));
             foreach (var (result, fingerprint) in changed)
@@ -1008,50 +1003,6 @@ internal sealed class ClusteringService : IClusteringService
     }
 
     /// <summary>
-    /// Leaves out of a transaction's results those that rest on a transaction the source no longer knows (sketch
-    /// HB1a), so that nothing new is concluded from what the chain no longer has. A result that concludes nothing
-    /// (no proposal, finding or veto) is only left out: it is no opinion. One that concludes something is not drawn;
-    /// when its analysis has no counting result stored for the transaction, the others are weighed without it, as if
-    /// it had no opinion, so that no sealed weighing names it; when its analysis has one, the whole transaction waits,
-    /// since replacing the rest would weigh them anew against a result that is not there.
-    /// </summary>
-    /// <param name="txid">The transaction.</param>
-    /// <param name="results">Its new results.</param>
-    /// <param name="gone">The transactions the source no longer knows.</param>
-    /// <param name="latest">What is stored and counts.</param>
-    /// <returns>
-    /// The results to weigh, or <see langword="null"/> when the transaction waits; and whether a conclusion was not
-    /// drawn.
-    /// </returns>
-    private static (List<HeuristicResult>? Drawn, bool Withheld) WithoutGone(
-        Txid txid,
-        List<HeuristicResult> results,
-        HashSet<Txid> gone,
-        Dictionary<(Txid Txid, HeuristicId Heuristic), StoredResult> latest)
-    {
-        var citing = results.Where(result => result.Basis.Any(gone.Contains)).ToList();
-        if (citing.Count == 0)
-        {
-            return (results, false);
-        }
-
-        var concluding = citing.Where(Concludes).ToList();
-        if (concluding.Any(result => latest.Keys.Any(key => key.Txid == txid
-                && key.Heuristic.Name == result.Heuristic.Name)))
-        {
-            return (null, true);
-        }
-
-        return ([.. results.Except(citing)], concluding.Count > 0);
-    }
-
-    /// <summary>Says whether a result concludes anything: a proposal, a finding or a veto.</summary>
-    /// <param name="result">The result.</param>
-    /// <returns><see langword="true"/> when it does.</returns>
-    private static bool Concludes(HeuristicResult result) =>
-        result.Proposals.Count > 0 || result.Findings.Count > 0 || result.Veto is not null;
-
-    /// <summary>
     /// Gives the gone transactions that still have counting stored conclusions, each with what is missing: the
     /// transaction itself, on which its own conclusions rest, and whatever else they rest on that the run does not
     /// know (sketch HB1a). A gone transaction with nothing counting (none concluded, or let go) is not held back.
@@ -1172,4 +1123,91 @@ internal sealed class ClusteringService : IClusteringService
             suggestions,
             stopped,
             coinJoins);
+
+    /// <summary>
+    /// A transaction's results weighed outside the case's lock: all of them, and, when some rest on a transaction the
+    /// source no longer knows (sketch HB1a), the others weighed without those, so that only a cheap choice is left
+    /// for inside the lock.
+    /// </summary>
+    /// <param name="Txid">The transaction.</param>
+    /// <param name="All">Every result, weighed together and fingerprinted.</param>
+    /// <param name="WithoutCiting">
+    /// The results that do not cite a gone transaction, weighed without the others, or <see langword="null"/> when none
+    /// cites one.
+    /// </param>
+    /// <param name="CitingNames">The analyses whose results cite a gone transaction.</param>
+    /// <param name="ConcludingCiting">Whether one of those results concludes something.</param>
+    /// <param name="SameForTheRest">
+    /// Whether the other results weigh the same with and without those, so that leaving them out changes nothing else.
+    /// </param>
+    private sealed record WeighedTransaction(
+        Txid Txid,
+        List<(WeighedResult Result, string Fingerprint)> All,
+        List<(WeighedResult Result, string Fingerprint)>? WithoutCiting,
+        IReadOnlySet<string> CitingNames,
+        bool ConcludingCiting,
+        bool SameForTheRest)
+    {
+        /// <summary>Weighs a transaction's results, and without those that cite a gone transaction.</summary>
+        /// <param name="txid">The transaction.</param>
+        /// <param name="results">Its results.</param>
+        /// <param name="gone">The transactions the source no longer knows.</param>
+        /// <returns>The weighed transaction, or <see langword="null"/> when its results cannot be stored.</returns>
+        public static WeighedTransaction? Of(Txid txid, List<HeuristicResult> results, HashSet<Txid> gone)
+        {
+            if (Fingerprinted(results) is not { } all)
+            {
+                return null;
+            }
+
+            var citing = results.Where(result => result.Basis.Any(gone.Contains)).ToList();
+            if (citing.Count == 0)
+            {
+                return new(txid, all, null, new HashSet<string>(), false, true);
+            }
+
+            if (Fingerprinted([.. results.Except(citing)]) is not { } without)
+            {
+                return null;
+            }
+
+            var together = all.ToDictionary(entry => entry.Result.Result.Heuristic, entry => entry.Fingerprint);
+            var same = without.All(entry => together[entry.Result.Result.Heuristic] == entry.Fingerprint);
+            return new(
+                txid, all, without, citing.Select(result => result.Heuristic.Name).ToHashSet(StringComparer.Ordinal),
+                citing.Any(Concludes), same);
+        }
+
+        /// <summary>
+        /// Chooses what is stored (sketch HB1a). With no result citing a gone transaction, all of them. Otherwise
+        /// nothing new is concluded from what the chain no longer has: a citing result is set aside, and the others
+        /// are stored only when they weigh the same without it (setting aside a disagreeing result must not make
+        /// another stronger) and its analysis has no counting result on the transaction (which it would otherwise
+        /// replace or leave standing alone, whether it concludes something or nothing). Else the whole transaction
+        /// waits until the gone transaction is back.
+        /// </summary>
+        /// <param name="countingNames">The analyses with a counting stored result, by transaction.</param>
+        /// <returns>The results to store, or <see langword="null"/>; and whether something was not drawn.</returns>
+        public (List<(WeighedResult Result, string Fingerprint)>? Drawn, bool Withheld) Drawn(
+            HashSet<(Txid Txid, string Name)> countingNames)
+        {
+            if (WithoutCiting is null)
+            {
+                return (All, false);
+            }
+
+            if (!SameForTheRest || CitingNames.Any(name => countingNames.Contains((Txid, name))))
+            {
+                return (null, true);
+            }
+
+            return (WithoutCiting, ConcludingCiting);
+        }
+
+        /// <summary>Says whether a result concludes anything: a proposal, a finding or a veto.</summary>
+        /// <param name="result">The result.</param>
+        /// <returns><see langword="true"/> when it does.</returns>
+        private static bool Concludes(HeuristicResult result) =>
+            result.Proposals.Count > 0 || result.Findings.Count > 0 || result.Veto is not null;
+    }
 }

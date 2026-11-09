@@ -63,10 +63,11 @@ Båda valen förseglas med vem och när, och kan tas tillbaka.
 
 Klustringen drar inte heller några **nya** slutsatser av att tx:en saknas. En adress som först syntes i den räknas
 fortfarande som sedd, eftersom den visades för världen där. En ny slutsats som skulle bygga på den borta tx:en dras
-inte; tx:ens andra slutsatser dras ändå och vägs som om den heuristiken inte hade någon åsikt. Har den heuristiken
-redan en slutsats om tx:en görs ingenting om, eftersom en tx:s slutsatser vägs ihop: det som står kvar står kvar, och
-när tx:en kommer tillbaka görs allt om. Journalen säger vilka slutsatser som inte drogs, när det ändras. Drar du
-tillbaka en version av en heuristik medan tx:en är borta görs inte heller det som byggde på den om.
+inte, och tx:ens andra slutsatser dras bara om de väger lika utan den, så att ingen annan slutsats blir starkare för
+att en som höll emot lades åt sidan. Annars, och när samma heuristik redan har en slutsats om tx:en, görs ingenting
+om: det som står kvar står kvar, och när tx:en kommer tillbaka görs allt om. Journalen säger vilka slutsatser som
+inte drogs, när det ändras. Drar du tillbaka en version av en heuristik medan tx:en är borta görs inte heller det som
+byggde på den om.
 
 Bara en tx som det är **bekräftat** att den är borta lämnas utanför, efter samma regel som avgör var spåret slutar. När
 spåret bara stannar, för att en enda värd sagt det medan ärendet har svar från fler eller för att svaren inte går ihop,

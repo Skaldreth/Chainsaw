@@ -165,3 +165,64 @@ internal sealed class NoOpinionCiting : IUtxoHeuristic
     public HeuristicResult Analyse(BitcoinTransaction transaction, IHeuristicContext context) =>
         HeuristicResult.Nothing(Id, transaction.Txid) with { Basis = [BasisProbe.Basis] };
 }
+
+/// <summary>
+/// Two analyses that disagree about the change of a transaction with two outputs (sketch HB1a): one takes output 0
+/// as change and rests on <see cref="BasisProbe.Basis"/>, the other takes output 1 with a merge. Together the
+/// disagreement lowers the merge to a suggestion.
+/// </summary>
+/// <param name="citing">Whether this is the one that rests on the probe's basis and takes output 0.</param>
+internal sealed class DisagreeingChange(bool citing) : IUtxoHeuristic
+{
+    public HeuristicId Id { get; } = new(citing ? "change-citing" : "peel-like", 1);
+
+    public ChainScope Scope { get; } = ChainScope.Only(Chain.Bitcoin);
+
+    public HeuristicResult Analyse(BitcoinTransaction transaction, IHeuristicContext context)
+    {
+        if (transaction.Outputs.Count != 2 || transaction.Inputs[0].Address is not { } input)
+        {
+            return HeuristicResult.Nothing(Id, transaction.Txid);
+        }
+
+        var change = citing ? 0 : 1;
+        var proposal = new OwnershipProposal(
+            [input, transaction.Outputs[change].Address!],
+            citing ? EvidenceStrength.Suggestion : EvidenceStrength.Merge,
+            "Prov.",
+            change);
+        return new HeuristicResult(Id, transaction.Txid, [proposal], [])
+        {
+            Basis = citing ? [BasisProbe.Basis] : [],
+        };
+    }
+}
+
+/// <summary>
+/// An analysis that first merges a transaction's first two inputs on nothing else, and, once told to, concludes
+/// nothing while citing <see cref="BasisProbe.Basis"/> (sketch HB1a).
+/// </summary>
+internal sealed class TurningProbe : IUtxoHeuristic
+{
+    public HeuristicId Id { get; } = new("turning", 1);
+
+    public ChainScope Scope { get; } = ChainScope.Only(Chain.Bitcoin);
+
+    /// <summary>Gets or sets whether it now concludes nothing and cites the probe's basis.</summary>
+    public bool Turned { get; set; }
+
+    public HeuristicResult Analyse(BitcoinTransaction transaction, IHeuristicContext context)
+    {
+        var addresses = transaction.Inputs.Select(input => input.Address).OfType<BitcoinAddress>().Distinct().ToList();
+        if (addresses.Count < 2)
+        {
+            return HeuristicResult.Nothing(Id, transaction.Txid);
+        }
+
+        return Turned
+            ? HeuristicResult.Nothing(Id, transaction.Txid) with { Basis = [BasisProbe.Basis] }
+            : new HeuristicResult(
+                Id, transaction.Txid, [new OwnershipProposal([.. addresses.Take(2)], EvidenceStrength.Merge, "Prov.")],
+                []);
+    }
+}

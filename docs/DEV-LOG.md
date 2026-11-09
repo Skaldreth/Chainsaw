@@ -5880,6 +5880,21 @@ varje senare körning, eftersom det som hålls tillbaka aldrig ersätts.
 - **Tester:** Clustering 3 (sammanslagningen förseglas och växeln inte, journalen bara när mängden ändras, ett resultat
   utan slutsats spärrar inget), App 1 (ett andra släpp).
 
+**Tredje omgranskningens rättelser (1 I, 3 M):**
+- **I:** att lägga ett resultat åt sidan kunde göra ett annat starkare (en växel som citerar den borta tx:en och
+  pekar på output 0 sänkte en peel-sammanslagning på output 1 till förslag; utan den förseglades sammanslagningen).
+  Nu vägs tx:ens resultat två gånger, alla och utan de citerande, och de andra lagras bara om deras vägda
+  fingeravtryck är lika båda gångerna; annars väntar hela tx:en (`notDrawn`).
+- **M1:** vägningen görs åter utanför ärendets lås (`WeighedTransaction.Of`); i låset görs bara valet, och om en
+  analys har ett räknande resultat slås upp i en mängd (tx, namn) som byggs en gång.
+- **M2:** när mängden ändras skrivs `notDrawn` alltid, också som `[]`, så att raden förklarar sig själv.
+- **M3:** ett resultat utan slutsats som citerar den borta tx:en, där samma analys har en räknande slutsats (till
+  exempel en gammal växelsammanslagning), låter nu hela tx:en vänta. Valt efter princip 2: en slutsats tas varken
+  tillbaka eller lämnas ensam kvar på ordet av en tx som kedjan inte längre har; när tx:en är tillbaka görs allt om.
+- **Tester:** Clustering 2 (två analyser som är oense om växeln, varav en citerar den borta tx:en: ingen
+  sammanslagning förseglas; en analys som vänder till ingen slutsats låter tx:en vänta), och journalens tomma
+  `notDrawn` när tx:en är tillbaka.
+
 **Kvar:** provet på Windows (TESTER-INFOR, *HB1a av sig själv*).
 
 ## Förvirring, omgång 5: efter granskningen (2026-11-09)
