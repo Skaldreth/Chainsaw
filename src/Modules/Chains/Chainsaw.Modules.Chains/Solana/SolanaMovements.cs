@@ -27,7 +27,9 @@ internal sealed record SolanaMoves(
 /// Reads a Solana transaction's movements from its balances. Per asset, each party's change is counted:
 /// <list type="bullet">
 /// <item>SOL by account (<c>preBalances</c>/<c>postBalances</c>), with the fee given back to the payer, since the fee
-/// is not a movement to anyone (it is given as the transaction's fee);</item>
+/// is not a movement to anyone (it is given as the transaction's fee); a wrapped-SOL token account's lamports are its
+/// owner's, as its token balance says, so that SOL paid out of an exchange's pool comes from the pool's owner, as the
+/// token it was swapped for goes to;</item>
 /// <item>each SPL token by the token accounts' owner (<c>preTokenBalances</c>/<c>postTokenBalances</c>), so that a
 /// token account is knit to its owner and the movement is between owners; an account missing before or after counts as
 /// zero (created or closed in the transaction). Wrapped SOL is not counted as a token, since its amount is the
@@ -82,11 +84,15 @@ internal static class SolanaMovements
     private static IEnumerable<(EthereumAddress From, EthereumAddress To, AssetAmount Amount)> Sol(
         SolanaTransactionRaw raw, List<string> problems)
     {
+        var wrapped = raw.PreTokens.Concat(raw.PostTokens)
+            .Where(balance => balance.Mint == KnownTokens.SolanaWrappedSolMint && balance.Owner is not null)
+            .GroupBy(balance => balance.AccountIndex)
+            .ToDictionary(group => group.Key, group => group.First().Owner!);
         var changes = new List<(EthereumAddress Party, BigInteger Change)>();
         for (var index = 0; index < raw.Accounts.Count; index++)
         {
             var change = raw.Post[index] - raw.Pre[index] + (index == 0 ? raw.Fee : BigInteger.Zero);
-            Add(changes, raw.Accounts[index], change);
+            Add(changes, wrapped.GetValueOrDefault(index) ?? raw.Accounts[index], change);
         }
 
         if (changes.Aggregate(BigInteger.Zero, (sum, each) => sum + each.Change) != BigInteger.Zero)

@@ -433,3 +433,11 @@ internal sealed class FakeBscSource : FakeEthereumSource, IBscSource
 
     public long PageStartOf(EthereumBlockReference block) => block.Height;
 }
+
+/// <summary>Solana's source, as Ethereum's fake on Solana: its pages go back by slot.</summary>
+internal sealed class FakeSolanaSource : FakeEthereumSource, ISolanaSource
+{
+    public Chain Chain => Chain.Solana;
+
+    public long PageStartOf(EthereumBlockReference block) => block.Height;
+}

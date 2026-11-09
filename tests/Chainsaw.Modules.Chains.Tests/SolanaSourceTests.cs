@@ -118,6 +118,31 @@ public sealed class SolanaSourceTests
     }
 
     [Fact]
+    public async Task WrappedSolOutOfAPoolComesFromThePoolsOwner()
+    {
+        using var harness = new SolanaHarness();
+        var swap = SolanaHarness.Signature(0xA6);
+        harness.Answer(SolanaRpcApi.TransactionCall(swap), "tx-s6.json");
+        harness.Answer(SolanaRpcApi.BlockCall(SolanaHarness.Slot + 50), "block.json");
+
+        var tx = (await harness.Source.GetTransactionAsync(harness.Case, swap)).Value!;
+
+        Assert.True(tx.IsComplete);
+        Assert.Collection(
+            tx.Transfers,
+            sol =>
+            {
+                Assert.Equal((SolanaHarness.Pool, SolanaHarness.A), (sol.From, sol.To));
+                Assert.Equal(new AssetAmount(Asset.Sol, 500_000_000), sol.Amount);
+            },
+            usdc =>
+            {
+                Assert.Equal((SolanaHarness.A, SolanaHarness.Pool), (usdc.From, usdc.To));
+                Assert.Equal(new AssetAmount(KnownTokens.SolanaUsdc, 100_000_000), usdc.Amount);
+            });
+    }
+
+    [Fact]
     public async Task AFinalizedTransactionIsNeverAskedForAgain()
     {
         using var harness = new SolanaHarness();
@@ -261,7 +286,6 @@ public sealed class SolanaSourceTests
         harness.Answer(SolanaRpcApi.BalanceCall(a), "balance.json");
         harness.Answer(
             SolanaRpcApi.TokenAccountsCall(a, "programId", SolanaRpcSource.TokenProgram), "token-accounts.json");
-
 
         var balance = (await harness.Source.GetBalanceAsync(harness.Case, a)).Value!;
 

@@ -290,7 +290,6 @@ public sealed record ChainStartPoint(Chain? Chain, StartPointKind Kind, string V
     }
 
     /// <summary>Tells whether every character is a hex digit.</summary>
-
     /// <param name="text">The characters.</param>
     /// <returns><see langword="true"/> when they all are and there is at least one.</returns>
     private static bool IsHex(ReadOnlySpan<char> text) => !text.IsEmpty && !text.ContainsAnyExcept(HexDigits);

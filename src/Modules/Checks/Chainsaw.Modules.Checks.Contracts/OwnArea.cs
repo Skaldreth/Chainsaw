@@ -115,8 +115,8 @@ public static class CheckRules
     /// <summary>
     /// Reads the address an address member stands for: a Bitcoin address, an Ethereum address (<c>0x</c> and 40 hex
     /// digits), a BSC address (<see cref="BscMember"/> and the same), a TRON address in its <c>T…</c> form (Base58Check
-    /// with TRON's version byte, which no Bitcoin address has), or a Litecoin address (<c>L…</c>, <c>M…</c>,
-    /// <c>ltc1…</c>, which no Bitcoin address is).
+    /// with TRON's version byte, which no Bitcoin address has), a Solana address (32 bytes in Base58), or a Litecoin
+    /// address (<c>L…</c>, <c>M…</c>, <c>ltc1…</c>, which no Bitcoin address is).
     /// </summary>
     /// <param name="member">The member.</param>
     /// <returns>The address with its chain, or <see langword="null"/> when the member is not an address.</returns>
@@ -143,6 +143,12 @@ public static class CheckRules
         if (Chains.Contracts.EthereumAddress.TryParseTron(text, out var tron, out _) && tron.Value == text)
         {
             return tron.ToChainAddress();
+        }
+
+        // A Solana address is 32 bytes in plain Base58, which no Bitcoin, Litecoin or TRON address decodes to.
+        if (Chains.Contracts.EthereumAddress.TryParseSolana(text, out var solana, out _))
+        {
+            return solana.ToChainAddress();
         }
 
         if (Chains.Contracts.BitcoinAddress.TryParse(text, out var address))

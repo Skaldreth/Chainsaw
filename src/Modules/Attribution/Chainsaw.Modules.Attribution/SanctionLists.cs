@@ -219,6 +219,10 @@ internal sealed class SanctionLists(AttributionOptions options, IClock clock) : 
                 list.Bitcoin.GetValueOrDefault(litecoin),
             Chain.Bsc when EthereumAddress.TryParse(Chain.Bsc, address.Value.ToLowerInvariant(), out var bsc) =>
                 list.Ethereum.GetValueOrDefault(bsc),
+
+            // A Solana address is kept as written (Base58 is case sensitive), as OfacSdnParser.EthereumKey keys it.
+            Chain.Solana when EthereumAddress.TryParseSolana(address.Value, out var solana, out _) =>
+                list.Ethereum.GetValueOrDefault(solana),
             _ => null,
         };
 

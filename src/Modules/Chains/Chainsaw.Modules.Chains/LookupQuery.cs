@@ -37,5 +37,4 @@ internal sealed record LookupQuery<T>(
     Func<T, T, string?>? Changed = null,
     Func<ICaseReader, (T Value, StoredResponse Response)?>? FindStored = null,
     string? Body = null)
-
     where T : class;

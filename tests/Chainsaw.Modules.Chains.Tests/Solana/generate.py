@@ -132,3 +132,16 @@ write("token-accounts.json", answer({"context": {"apiVersion": "4.4.0", "slot": 
         "type": "account"}, "space": 165}, "owner": TOKEN_PROGRAM, "executable": False, "space": 165}},
 ]}))
 write("token-accounts-none.json", answer({"context": {"apiVersion": "4.4.0", "slot": SLOT + 100}, "value": []}))
+
+# S6: A swaps 100 USDC for 0.5 SOL at a pool: the USDC goes into the pool owner's token account, and the SOL comes
+# out of the pool's wrapped-SOL token account, whose lamports are its owner's.
+USDC = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+WSOL = "So11111111111111111111111111111111111111112"
+TA_A_USDC, POOL_USDC, POOL_WSOL = (key(b) for b in (0x57, 0x45, 0x46))
+S6 = signature(0xA6)
+write("tx-s6.json", transaction(
+    S6, SLOT + 50, 7, [A, TA_A_USDC, POOL_USDC, POOL_WSOL, TOKEN_PROGRAM],
+    [SOL, 2_039_280, 2_039_280, 50 * SOL + 2_039_280, 1],
+    [SOL - FEE + SOL // 2, 2_039_280, 2_039_280, 50 * SOL - SOL // 2 + 2_039_280, 1],
+    [token(1, USDC, A, 100_000_000), token(2, USDC, POOL, 900_000_000), token(3, WSOL, POOL, 50 * SOL, 9)],
+    [token(1, USDC, A, 0), token(2, USDC, POOL, 1_000_000_000), token(3, WSOL, POOL, 50 * SOL - SOL // 2, 9)]))

@@ -46,7 +46,6 @@ internal static class ChainLimits
                 DateTimeOffset.FromUnixTimeSeconds(1584368940),
                 TimeSpan.FromSeconds(0.35)),
             [TronGridTronSource.ChainName] = (
-
                 "00000000000000001ebf88508a03865c71d452e25f4d51194196a1d22b6653dc",
                 new DateTimeOffset(2018, 6, 25, 0, 0, 0, TimeSpan.Zero),
                 TimeSpan.FromSeconds(2.8)),

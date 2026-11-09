@@ -9,8 +9,9 @@ namespace Chainsaw.Modules.Pricing;
 /// <summary>
 /// Bitstamp's public price history (<c>GET /api/v2/ohlc/{market}/</c>), open without an API key, with candles of a
 /// minute, an hour or a day back to 2011 for BTC/USD and BTC/EUR, and for ETH, TRX, LTC, BNB, USDT and USDC (on
-/// Ethereum, USDT on TRON, and both on BSC) in dollars and euro (markets read 2026-11-09: <c>ltceur</c> and
-/// <c>bnbeur</c> among them). One request asks for one candle: <c>step</c> is the length in seconds,
+/// Ethereum, USDT on TRON, both on BSC and both on Solana) in dollars and euro (markets read 2026-11-09: <c>ltceur</c>,
+/// <c>bnbeur</c> and <c>soleur</c> among them; <c>soleur</c> answers from 2022 on, nothing for May 2022 and a candle
+/// for September 2022). One request asks for one candle: <c>step</c> is the length in seconds,
 /// <c>limit=1</c> and <c>start</c> the candle's start as Unix time.
 /// </summary>
 /// <param name="baseUri">The API's base address, for example <c>https://www.bitstamp.net/api/v2/</c>.</param>
@@ -35,7 +36,8 @@ internal sealed class BitstampRateSource(Uri baseUri) : ICryptoRateSource
     /// chain it is issued on, so the same market prices it on Ethereum and on TRON. On BSC, USDT and USDC are
     /// Binance's bridged tokens, each backed one to one by the token it bridges; Bitstamp has no market of their own,
     /// so they are priced by the token they stand for, which the rate's source says (principle 2: a rate is a
-    /// judgement with its source).
+    /// judgement with its source). On Solana, USDT and USDC are Tether's and Circle's own tokens (their mints'
+    /// authorities are the issuers'), priced by the same markets.
     /// </summary>
     private static readonly Dictionary<Asset, string> Tokens = new()
     {
@@ -44,11 +46,14 @@ internal sealed class BitstampRateSource(Uri baseUri) : ICryptoRateSource
         [KnownTokens.TronUsdt] = "USDT",
         [KnownTokens.BscUsdt] = "USDT",
         [KnownTokens.BscUsdc] = "USDC",
+        [KnownTokens.SolanaUsdt] = "USDT",
+        [KnownTokens.SolanaUsdc] = "USDC",
     };
 
     /// <inheritdoc/>
     public bool Supports(Chain chain, FiatCurrency quote) =>
-        chain is Chain.Bitcoin or Chain.Ethereum or Chain.Tron or Chain.Litecoin or Chain.Bsc && HasQuote(quote);
+        chain is Chain.Bitcoin or Chain.Ethereum or Chain.Tron or Chain.Litecoin or Chain.Bsc or Chain.Solana
+        && HasQuote(quote);
 
 
     /// <inheritdoc/>

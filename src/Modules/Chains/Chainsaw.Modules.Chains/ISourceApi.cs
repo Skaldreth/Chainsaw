@@ -63,7 +63,6 @@ internal interface ISourceApi
     ExitRequest Post(Uri address, string path, string body) =>
         throw new NotSupportedException("The sort of API is only asked with GET.");
 
-
     /// <summary>Gives the header a key from the vault is sent in.</summary>
     /// <param name="secret">The key.</param>
     /// <returns>The header.</returns>

@@ -35,7 +35,8 @@ public static class MonitoringModule
             provider.GetRequiredService<IEthereumSource>(),
             provider.GetService<ITronSource>(),
             provider.GetService<ILitecoinSource>(),
-            provider.GetService<IBscSource>()));
+            provider.GetService<IBscSource>(),
+            provider.GetService<ISolanaSource>()));
         services.TryAddSingleton<IWatchFeeds, WatchFeeds>();
         services.AddSingleton<MonitoringService>();
         services.AddSingleton<IMonitoringService>(provider => provider.GetRequiredService<MonitoringService>());

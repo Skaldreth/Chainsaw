@@ -76,7 +76,6 @@ public sealed record EthereumTxHash
             case Chain.Solana when Base58.TryDecode(trimmed, SolanaSignatureBytes, out _):
                 hash = new EthereumTxHash(Chain.Solana, trimmed!);
                 return true;
-
             default:
                 return false;
         }

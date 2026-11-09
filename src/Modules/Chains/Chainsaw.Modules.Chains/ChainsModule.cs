@@ -127,7 +127,6 @@ public static class ChainsModule
             solanaSettings,
             TimeZoneInfo.Local,
             provider.GetRequiredService<ChainSources>()));
-
         return services;
     }
 }

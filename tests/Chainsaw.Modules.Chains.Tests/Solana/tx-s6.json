@@ -1,0 +1,136 @@
+{
+  "jsonrpc": "2.0",
+  "result": {
+    "blockTime": 1793872825,
+    "meta": {
+      "computeUnitsConsumed": 450,
+      "err": null,
+      "fee": 5000,
+      "innerInstructions": [],
+      "loadedAddresses": {
+        "readonly": [],
+        "writable": []
+      },
+      "logMessages": [],
+      "postBalances": [
+        1499995000,
+        2039280,
+        2039280,
+        49502039280,
+        1
+      ],
+      "postTokenBalances": [
+        {
+          "accountIndex": 1,
+          "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "owner": "29d2S7vB453rNYFdR5Ycwt7y9haRT5fwVwL9zTmBhfV2",
+          "programId": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+          "uiTokenAmount": {
+            "amount": "0",
+            "decimals": 6,
+            "uiAmount": 0.0,
+            "uiAmountString": "0.0"
+          }
+        },
+        {
+          "accountIndex": 2,
+          "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "owner": "5bV6jUfhDHCQVA1WfKBUnXUsboJgoKgkzkKcxr3joew5",
+          "programId": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+          "uiTokenAmount": {
+            "amount": "1000000000",
+            "decimals": 6,
+            "uiAmount": 1000.0,
+            "uiAmountString": "1000.0"
+          }
+        },
+        {
+          "accountIndex": 3,
+          "mint": "So11111111111111111111111111111111111111112",
+          "owner": "5bV6jUfhDHCQVA1WfKBUnXUsboJgoKgkzkKcxr3joew5",
+          "programId": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+          "uiTokenAmount": {
+            "amount": "49500000000",
+            "decimals": 9,
+            "uiAmount": 49.5,
+            "uiAmountString": "49.5"
+          }
+        }
+      ],
+      "preBalances": [
+        1000000000,
+        2039280,
+        2039280,
+        50002039280,
+        1
+      ],
+      "preTokenBalances": [
+        {
+          "accountIndex": 1,
+          "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "owner": "29d2S7vB453rNYFdR5Ycwt7y9haRT5fwVwL9zTmBhfV2",
+          "programId": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+          "uiTokenAmount": {
+            "amount": "100000000",
+            "decimals": 6,
+            "uiAmount": 100.0,
+            "uiAmountString": "100.0"
+          }
+        },
+        {
+          "accountIndex": 2,
+          "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "owner": "5bV6jUfhDHCQVA1WfKBUnXUsboJgoKgkzkKcxr3joew5",
+          "programId": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+          "uiTokenAmount": {
+            "amount": "900000000",
+            "decimals": 6,
+            "uiAmount": 900.0,
+            "uiAmountString": "900.0"
+          }
+        },
+        {
+          "accountIndex": 3,
+          "mint": "So11111111111111111111111111111111111111112",
+          "owner": "5bV6jUfhDHCQVA1WfKBUnXUsboJgoKgkzkKcxr3joew5",
+          "programId": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+          "uiTokenAmount": {
+            "amount": "50000000000",
+            "decimals": 9,
+            "uiAmount": 50.0,
+            "uiAmountString": "50.0"
+          }
+        }
+      ],
+      "rewards": [],
+      "status": {
+        "Ok": null
+      }
+    },
+    "slot": 400000050,
+    "transaction": {
+      "message": {
+        "accountKeys": [
+          "29d2S7vB453rNYFdR5Ycwt7y9haRT5fwVwL9zTmBhfV2",
+          "6swiTCWtSwqi8sm9wzNwKA9NEpJWbXjLcVz654u7zz4W",
+          "5fQPsn8hoaVddFG26cWQ5QFdqxWtUPNaZ9zH2E6LYzFn",
+          "5jKh25biPsnrmLWXXuqKNH2Q67j69T4Q7Zew5c8wJKaV",
+          "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        ],
+        "header": {
+          "numReadonlySignedAccounts": 0,
+          "numReadonlyUnsignedAccounts": 1,
+          "numRequiredSignatures": 1
+        },
+        "instructions": [],
+        "recentBlockhash": "BGfvkmnYtL9SCm29JQafE4Jx78ybNfMdw2Jjrmp4Ze2T"
+      },
+      "signatures": [
+        "4LFU7UyCPTrNvUjbhH6v7S4BXTXsh1egW21PNyhYpwNTuTKvqNAD1kS8boqMwbusjSGz56xaE3aZtFM3hcoRLg1s"
+      ]
+    },
+    "transactionIndex": 7,
+    "version": "legacy"
+  },
+  "id": 1
+}

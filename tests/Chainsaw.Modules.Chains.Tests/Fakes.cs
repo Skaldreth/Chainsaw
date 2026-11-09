@@ -192,7 +192,6 @@ internal sealed class FakeExitHttp(FakeClock clock) : IExitHttp
 
     /// <summary>Gives the key a POST of a body to an address is answered by.</summary>
     public static string PostKey(string url, string body) => url + "\n" + body;
-
 }
 
 /// <summary>

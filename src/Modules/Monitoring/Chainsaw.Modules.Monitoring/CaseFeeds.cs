@@ -323,9 +323,10 @@ internal sealed class EthereumCaseFeed(IAccountSource source, ICase @case) : IWa
                 // TRON it is waiting to place a transaction, which is said as waiting, not as something missed.
                 problems.AddRange(WaitingTexts(read, address, downTo));
 
-                // On TRON a movement the source could not place has no block yet, so it may lie anywhere on the page:
-                // the check stays where it was until the page can be read whole.
-                return source.Chain == Chain.Tron || lowest == long.MaxValue
+                // On TRON a movement the source could not place has no block yet, and on Solana a transaction that
+                // could not be had is not read at all, so it may lie anywhere on the page: the check stays where it
+                // was until the page can be read whole.
+                return source.Chain is Chain.Tron or Chain.Solana || lowest == long.MaxValue
                     ? (WatchFeedStatus.Partial, null)
                     : (WatchFeedStatus.Partial, lowest);
             }
