@@ -371,6 +371,14 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   sedan där användaren drar dem, åt alla håll. Växeln (två ikoner i grafens huvud) sorterar allt i kolumner per hopp, där
   aktörerna dras upp och ner och pengar som vänder ritas som bågar. Båda lägena kommer ihåg sina platser. GR4 är godkänd
   (användarens beslut 2026-11-07) och är förlagan när grafen byggs.
+- **Höger är ut, vänster är in** (användarens beslut 2026-11-09, en mycket viktig princip): en tx som går ut från en
+  nod lämnar den alltid genom porten på **höger** sida, och en tx som kommer in når den alltid genom porten på
+  **vänster** sida, hur noderna än står. Pengar som vänder bakåt, eller går mellan två noder i samma kolumn, går ut åt
+  höger, över noderna och in från vänster. Det gäller också bevakningens strålar och soptunnans stumpar.
+  **En liten pil på linjen** visar åt vilket håll pengarna flödar (användarens beslut 2026-11-09, byggd utan skiss
+  eftersom den är grundläggande): en öppen vinkel i linjens färg, alltid hel, mitt på linjen eller där den inte
+  krockar med beloppet eller swap-pillret, med vingar som når utanför linjen så att den syns också på en tjock linje.
+  En kort linje (under 80 enheter) har ingen pil.
 - **Bildspråket** (skiss GR3a, användarens beslut 2026-11-07: godkänt): formen säger vad det är (rund = aktör vi inte vet något om, fyrkantig = tjänst eller
   kluster), färgen vad det betyder (accent = offrens pengar, blått = börs, rött = spåret tar slut eller risk, lila = annan
   kedja), en ikon per sort (spelsajt och casino är **två spelkort** som hålls i
@@ -645,7 +653,10 @@ Samma arbetssätt som Gawk (användarens beslut 2026-11-06):
 - **Heuristiker testas mot ett facit:** syntetiska tx-mönster (peel chain, CoinJoin, konsolidering, börsens sweep) som
   testdata, så att varje heuristik har tester som visar vad den slår ihop och vad den låter bli.
 - **Testärendet `/testdata`** (bara Debug) fylls på när något nytt byggs, så att allt går att se i det
-  (`src/Chainsaw.App/TestData/TestStory.cs`).
+  (`src/Chainsaw.App/TestData/TestStory.cs`). **`/testdata -1` … `-8` bygger små varianter** som visar en sak var
+  (användarens önskemål 2026-11-09, `TestScenarios.cs`): grunden, till börsen, mixern, bevakning, förvirring, andra
+  kedjor, eget arbete och block som byts, på samma påhittade kedja så att resten kan expanderas för hand. En ny
+  förmåga får en variant när den inte syns tydligt i någon av dem.
 - **.NET i molnmiljön:** `apt-get update && apt-get install -y dotnet-sdk-10.0`. Bygg och testa med `dotnet build` och `dotnet test` i roten.
 
 ## Dokumentation

@@ -52,6 +52,9 @@ Jämför med skisserna ID8f, LS1b och FS1a på canvasen, gärna i 1440 × 900 oc
       *Nytt ärende* exakt där den står i grafens startsida. Sedan tonar sidan bort och skalet syns, med den riktiga
       noden precis under den ritade (inget hopp). Står skalet på en annan vy, eller med ett ärende öppet, krymper
       rektangeln mot mitten och sidan tonar bort.
+- [ ] Samma sak **med ärenden** (ringen med de senaste ärendena runt *Nytt ärende*): rektangeln landar på noden i
+      ringens mitt, inte ovanför den (2026-11-09: listan med ärenden kommer in efter upplåsningen, och animeringen
+      följer nu noden dit). Prova också **utan ärenden**, där den ska landa som förut.
 - [ ] *?* nere till vänster, på hovring eller med Tab: en ruta med vad huvudnyckeln är, utgången (*Utgången ansluts
       efter upplåsning …*), *Låses automatiskt efter 15 minuter utan aktivitet.*, och när en bevakning har slagit till
       också *En bevakning har slagit till. Den visas efter upplåsning.* Ingen prick någonstans.
@@ -213,6 +216,13 @@ Verktyget `tools/Chainsaw.Recovery` körs på Windows (fingeravtrycket i appen p
       Sanktionerad är ett renare rött med sin markering. Kontrollera att risken går att skilja från accenten (offrens
       pengar) i grafen, på ljusheten.
 - [ ] Aktörer med negativ etikett i det som hölls tillbaka och i högen har riskfärgen, inte felfärgen.
+
+### Kommandoraden arbetar (2026-11-09)
+
+- [ ] Skriv `/testdata` och tryck Enter: förstoringsglaset blir en snurra och under fältet står *Arbetar med /testdata …*
+      tills ärendet är öppet; fältet går inte att skriva i under tiden. Med animeringar avstängda i Windows står
+      snurran stilla.
+- [ ] Ett kommando som misslyckas byter texten mot felet i felfärgen, och snurran blir förstoringsglaset igen.
 
 ### Kommandoraden som Spotlight (polering 2026-11-07)
 
@@ -1116,6 +1126,17 @@ ansluten utgång.
       prick, *Offline …*, och ramen blir grå; startpunkten går ändå att lägga till.
 - [ ] Längst ner: *Så spårar man i Chainsaw* öppnar Guiden bredvid ytan (avsnittet med de fem stegen), och bara offline
       står *Offline* med sin prick bredvid.
+
+### Höger är ut, vänster är in (2026-11-09)
+
+- [ ] Varje linje lämnar sin avsändare på höger sida och når mottagaren på vänster sida, också när mottagaren står
+      till vänster om avsändaren (linjen går ut åt höger, över noderna och in från vänster).
+- [ ] Två noder i samma hoppkolumn: linjen går ut till höger från den ena, över toppen och in från vänster i den andra,
+      aldrig genom en nod.
+- [ ] Pengar fram och tillbaka mellan två noder: de två linjerna ligger isär och båda beloppen går att läsa.
+- [ ] Varje linje har en liten pil som pekar mot mottagaren, också på bågarna som vänder; den ligger inte på beloppet
+      eller swap-pillret, syns på en tjock linje och är hel på en streckad linje.
+- [ ] En kort linje mellan två noder som står nära varandra har ingen pil.
 
 ### Grafen (etapp 12, GR4, GR3a och GR3c)
 
@@ -3375,6 +3396,21 @@ Inga riktiga adresser står här; ta dem ur en beställning eller en blockutfors
 - [ ] Guiden: *Solana* under *Fler kedjor* stämmer med det som syns.
 - [ ] `/verify` är grönt efter allt ovan, och journalens rader nämner Solana.
 
+
+### Testärendets varianter (2026-11-09)
+
+- [ ] `/testdata ` och Tab fyller i `-1`, `-2` …; `/testdata -9` svarar att varianten inte finns och listar dem.
+- [ ] `/testdata -1` (grunden): bara offrets betalning som startpunkt med etiketten Offret; expandera själv.
+- [ ] `/testdata -2` (till börsen): peel chain fram till Nordbörsen; vyn Begäran har uttaget.
+- [ ] `/testdata -3` (mixern): pengarna in i Blandaren och *Förslag · N* i grafens huvud med troliga utgångar.
+- [ ] `/testdata -4` (bevakning): vyn Bevakning har *Bedragarens andra plånbok* med en ny träff.
+- [ ] `/testdata -5` (förvirring): damm, den liknande adressen, hoppen med paus och delarna som möts, med förslag.
+- [ ] `/testdata -6` (andra kedjor): bara TRON och Ethereum, med USDT, swap-pillret och Tornado Cash.
+- [ ] `/testdata -7` (eget arbete): etiketten från kollegans ärende, uppbrytningen, den egna ytan, lappen med
+      historik och två saker i soptunnan.
+- [ ] `/testdata -8` (block som byts): märket *bytte block* på uttaget, en tx som är borta och en slutsats som hålls
+      tillbaka.
+- [ ] Ärendets titel säger vilken variant det är, och `/testdata` utan växel bygger hela berättelsen som förut.
 ### Soptunnans vy (SO2a)
 
 - [ ] Öppna soptunnan (klick på ikonen nere till vänster) med några slängningar i `/testdata`: ett kort per slängning,

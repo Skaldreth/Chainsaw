@@ -1,3 +1,4 @@
+using System.Globalization;
 using Chainsaw.App.Commands;
 using Chainsaw.App.Links;
 using Chainsaw.App.Navigation;
@@ -19,6 +20,9 @@ public sealed partial class ShellViewModel : ObservableObject
 {
     /// <summary>What the title bar says while no case is open.</summary>
     public const string NoCaseText = "Inget ärende öppet";
+
+    /// <summary>What the command bar says while a command works, so that Enter is seen to have been taken.</summary>
+    public const string RunningText = "Arbetar med {0} …";
 
     /// <summary>What the title bar says while no exit is connected.</summary>
     public const string NoExitText = "Ingen utgång";
@@ -608,6 +612,9 @@ public sealed partial class ShellViewModel : ObservableObject
         }
 
         IsRunning = true;
+        IsAnswerError = false;
+        IsAnswerWarning = false;
+        CommandAnswer = string.Format(CultureInfo.CurrentCulture, RunningText, text.Trim());
         var round = _round;
         CommandReply reply;
         try
@@ -622,6 +629,7 @@ public sealed partial class ShellViewModel : ObservableObject
         if (round != _round)
         {
             // Chainsaw locked while the command ran: its answer belongs to before the lock and is not shown after it.
+            CommandAnswer = string.Empty;
             return;
         }
 

@@ -119,7 +119,7 @@ public static class TestStory
     /// <param name="actors">The actors.</param>
     /// <param name="request">The list's second line, which the edit changes so that the comment has a history.</param>
     /// <returns>The Markdown.</returns>
-    private static string CommentText(TestActors actors, string request) => string.Join(
+    internal static string CommentText(TestActors actors, string request) => string.Join(
         '\n',
         "## Uttag via Nordbörsen?",
         "Påhittad kommentar ur /testdata: pengarna från **offret** ser ut att nå *Nordbörsen*.",
@@ -134,7 +134,7 @@ public static class TestStory
     /// </summary>
     /// <param name="actors">The actors.</param>
     /// <returns>The steps.</returns>
-    private static IEnumerable<ITestStep> Labels(TestActors actors) =>
+    internal static IEnumerable<ITestStep> Labels(TestActors actors) =>
     [
         new LabelStep(actors.Victim, LabelKind.Victim, "Offret") { Own = true },
         new LabelStep(actors.Scammer, LabelKind.Unknown, "Bedragarens plånbok") { OnCluster = true, Own = true },
@@ -172,7 +172,7 @@ public static class TestStory
     /// that USDT reaches Sydbörsen's deposit on TRON with its snowflake (Tether can freeze it there).
     /// </summary>
     /// <returns>The steps.</returns>
-    private static IEnumerable<ITestStep> OnTron() =>
+    internal static IEnumerable<ITestStep> OnTron() =>
     [
         new AccountLabelStep(TestTronChain.Swap, LabelKind.SwapBridge, "Bytaren (TRON)"),
         new AccountLabelStep(TestTronChain.Exchange, LabelKind.Exchange, "Sydbörsen (TRON)"),
@@ -188,7 +188,7 @@ public static class TestStory
     /// sanction, and the scammer's USDT left over has its snowflake.
     /// </summary>
     /// <returns>The steps.</returns>
-    private static IEnumerable<ITestStep> OnEthereum() =>
+    internal static IEnumerable<ITestStep> OnEthereum() =>
     [
         new AccountStartPointStep(TestEthereumChain.Scammer),
         new AccountExpandStep(TestEthereumChain.Scammer),
@@ -202,7 +202,7 @@ public static class TestStory
     /// day later, which is expanded too, so that <c>shielded-pool v1</c> suggests it as the way out.
     /// </summary>
     /// <returns>The steps.</returns>
-    private static IEnumerable<ITestStep> OnOtherChains() =>
+    internal static IEnumerable<ITestStep> OnOtherChains() =>
     [
         new LabelStep(TestLitecoinChain.Exchange, LabelKind.Exchange, "Sydbörsen (Litecoin)"),
         new TransactionStartPointStep(TestLitecoinChain.TxidOf(TestLitecoinChain.VictimPayment)),
@@ -258,7 +258,7 @@ public static class TestStory
     /// </summary>
     /// <param name="actors">The actors.</param>
     /// <returns>The steps.</returns>
-    private static IEnumerable<ITestStep> ObfuscationExpansions(TestActors actors) =>
+    internal static IEnumerable<ITestStep> ObfuscationExpansions(TestActors actors) =>
     [
         new AddressExpandStep(actors.Pool),
         new ExpandStep(TestStoryChain.ChainDeposit),

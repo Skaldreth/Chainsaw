@@ -213,6 +213,13 @@ public sealed class BandMotion
         _current = null;
     }
 
+    /// <summary>
+    /// Moves the node the band is on its way to without starting the way again: the shell can lay the node out anew
+    /// while the band moves, as when the latest cases come in after the unlock and the node moves into their ring.
+    /// </summary>
+    /// <param name="node">Where the node stands on the page now.</param>
+    public void MoveNode(NodeTarget node) => _node = node;
+
     /// <summary>Gives how red the band is after a wrong key, from 0 to nearly 1.</summary>
     /// <returns>The share of the red pulse.</returns>
     public double Tint() =>

@@ -40,6 +40,12 @@ public partial class GateView : UserControl
     /// <summary>What to do once the way to the shell is over, while it runs.</summary>
     private Action? _whenOpen;
 
+    /// <summary>Finds the node Nytt ärende on the shell while the band is on its way to it; null otherwise.</summary>
+    private Func<FrameworkElement?>? _findNode;
+
+    /// <summary>Where the node Nytt ärende stood when the band was last told, on the figure.</summary>
+    private Rect _nodeBounds;
+
     /// <summary>The mode shown last, to tell an unlock from the lock screen from the end of the setup.</summary>
     private GateMode _shown;
 
@@ -277,10 +283,12 @@ public partial class GateView : UserControl
         }
 
         _whenOpen = whenOpen;
+        _findNode = node;
         IsHitTestVisible = false;
         LockPage.Visibility = Visibility.Visible;
         Figure.Stepped += OnUnlockStep;
-        Figure.Right(NodeBounds(node()));
+        _nodeBounds = NodeBounds(node());
+        Figure.Right(_nodeBounds);
         return true;
     }
 
@@ -289,13 +297,39 @@ public partial class GateView : UserControl
     /// <returns>Its bounds on the figure.</returns>
     private Rect NodeBounds(FrameworkElement? node)
     {
-        if (node is { IsVisible: true, ActualWidth: > 0 } && PresentationSource.FromVisual(node) is not null)
+        if (LaidOut(node) is { } shown)
         {
-            return node.TransformToVisual(Figure).TransformBounds(new Rect(node.RenderSize));
+            return shown.TransformToVisual(Figure).TransformBounds(new Rect(shown.RenderSize));
         }
 
         return new Rect(
             (Figure.ActualWidth - NodeSize.Width) / 2, (Figure.ActualHeight - NodeSize.Height) / 2, NodeSize.Width, NodeSize.Height);
+    }
+
+    /// <summary>Gives the node when it is shown and laid out on the screen, so that it can be measured.</summary>
+    /// <param name="node">The node, or null.</param>
+    /// <returns>The node, or null when it cannot be measured.</returns>
+    private static FrameworkElement? LaidOut(FrameworkElement? node) =>
+        node is { IsVisible: true, ActualWidth: > 0 } && PresentationSource.FromVisual(node) is not null ? node : null;
+
+    /// <summary>
+    /// Lets the band follow the node Nytt ärende while it is on its way: the latest cases are listed off the UI thread
+    /// after the unlock, and when they come in the node moves from the first time's place (higher up, over the texts)
+    /// into the middle of their ring. Measured once, the band would land where the node no longer stands.
+    /// </summary>
+    private void FollowNode()
+    {
+        if (_findNode is null)
+        {
+            return;
+        }
+
+        // Only a node that is laid out is followed: a ring just built has none yet, and the page's middle is no place.
+        if (LaidOut(_findNode()) is { } node && NodeBounds(node) is var bounds && bounds != _nodeBounds)
+        {
+            _nodeBounds = bounds;
+            Figure.MoveNode(bounds);
+        }
     }
 
     /// <summary>Fades the form and then the page with the figure's way, and lets the page go once it is over.</summary>
@@ -304,6 +338,7 @@ public partial class GateView : UserControl
     private void OnUnlockStep(object? sender, EventArgs e)
     {
         var motion = Figure.Motion;
+        FollowNode();
         LockForm.Opacity = 1 - motion.FormGone();
         Opacity = 1 - motion.PageGone();
         if (!motion.IsUnlocked)
@@ -312,6 +347,7 @@ public partial class GateView : UserControl
         }
 
         Figure.Stepped -= OnUnlockStep;
+        _findNode = null;
         var whenOpen = _whenOpen;
         _whenOpen = null;
         whenOpen?.Invoke();
