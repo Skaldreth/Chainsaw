@@ -99,8 +99,7 @@
     <SolidColorBrush x:Key="Brush.Freeze.Text" Color="#D6E8EF" />
     <!-- The swap's pill on a line (sketch TK1a). -->
     <SolidColorBrush x:Key="Brush.Graph.SwapPill" Color="#2A2433" />
-    <!-- The time line (sketch TL1a): the dotted bands between the days, and the whole line at a chosen time. -->
-    <Color x:Key="Color.Graph.TimeBand">#575B5F</Color>
+    <!-- The whole line at a time chosen in the strip (sketch TL1a). -->
     <Color x:Key="Color.Graph.TimeLine">#DCD7D0</Color>
     <!-- The start point's flag (sketch GR5, variant A): a light disc, the same form as the marks, in the other corner. -->
     <SolidColorBrush x:Key="Brush.Mark.Start" Color="#E6E6E6" />
@@ -111,7 +110,7 @@
     <!--
       The card's back (sketch IN4a): each asset's own quiet ring (bitcoin sand, ether steel, the stablecoins' green), the rules
       between its rows and its foot; and the small marks of sketch GR9a: an amber edge for the wait for a source, the
-      dark ink on an amber disc, the hours' dotted lines in a zoomed band and the held-back strokes in the strip's lens.
+      dark ink on an amber disc and the held-back strokes in the strip's lens.
     -->
     <SolidColorBrush x:Key="Brush.Asset.Bitcoin" Color="#D9CBB8" />
     <SolidColorBrush x:Key="Brush.Asset.Ether" Color="#B6BFD0" />
@@ -119,7 +118,6 @@
     <SolidColorBrush x:Key="Brush.Card.Rule" Color="#3B3E42" />
     <SolidColorBrush x:Key="Brush.Pending.Edge" Color="#5C523F" />
     <SolidColorBrush x:Key="Brush.Mark.OnPending" Color="#2A2110" />
-    <Color x:Key="Color.Graph.HourLine">#55585C</Color>
     <SolidColorBrush x:Key="Brush.Strip.HeldBack" Color="#6A6D71" />
     <!-- The areas behind the actors (sketch KF1b): drawn faint as fill and a little stronger as edge. -->
     <SolidColorBrush x:Key="Brush.Area.Red" Color="#FF5A4E" />

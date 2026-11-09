@@ -174,50 +174,6 @@ public static class TimeBands
     }
 
     /// <summary>
-    /// Gives where a band's day name stands: in the middle between the lines on either side of it, at a height; the
-    /// first band reaches back to the leftmost actor and the last one on to the rightmost.
-    /// </summary>
-    /// <param name="left">The line on the band's left, or <see langword="null"/> for the first band.</param>
-    /// <param name="right">The line on the band's right, or <see langword="null"/> for the last band.</param>
-    /// <param name="y">The height the name stands at.</param>
-    /// <param name="actors">The actors.</param>
-    /// <returns>The band's left edge and right edge at that height.</returns>
-    public static (double Left, double Right) BandAt(
-        TimeBandLine? left, TimeBandLine? right, double y, IReadOnlyList<TimedFrame> actors)
-    {
-        ArgumentNullException.ThrowIfNull(actors);
-        var from = left?.XAt(y) ?? actors.Min(actor => actor.Frame.X);
-        var to = right?.XAt(y) ?? actors.Max(actor => actor.Frame.Right);
-        return (from, to);
-    }
-
-    /// <summary>
-    /// Keeps the day lines that stand far enough apart on screen, in time order, so that a long case zoomed out gets
-    /// bands of several days and never a wall of lines (principle 7).
-    /// </summary>
-    /// <param name="places">Each line's time and its natural place on screen, in time order.</param>
-    /// <param name="leastGap">The least distance on screen between two lines kept.</param>
-    /// <returns>The times of the lines kept, in order.</returns>
-    public static IReadOnlyList<double> Thin(IReadOnlyList<(double Hours, double ScreenX)> places, double leastGap)
-    {
-        ArgumentNullException.ThrowIfNull(places);
-        var kept = new List<double>();
-        double? lastX = null;
-        foreach (var (hours, x) in places)
-        {
-            if (lastX is { } previous && Math.Abs(x - previous) < leastGap)
-            {
-                continue;
-            }
-
-            kept.Add(hours);
-            lastX = x;
-        }
-
-        return kept;
-    }
-
-    /// <summary>
     /// Gives where, among the actors sorted left to right, a line at a time is best put: the split that leaves the
     /// fewest actors on the wrong side, and of those the widest gap.
     /// </summary>

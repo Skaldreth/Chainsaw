@@ -1691,24 +1691,28 @@ platser och en vy).
 - [ ] En adress med en obekräftad tx: tillgångens rad har en liten gul klocka; hovra raden för det som väntar i mempool.
 - [ ] Med utgången ansluten men kurskällan nere: foten säger *Ingen ny kurs · kurs …*, inte *Offline*.
 - [ ] Listen slutar prickad vid senaste blocket, en kub med höjden under; hovra kuben för höjden och tiden.
-- [ ] Zooma in i grafen tills ett dygn är brett: prickade timlinjer vid 06, 12 och 18 med timmen överst.
+
+### Nya noder läggs rent (2026-11-09)
+
+- [ ] Expandera en nod på den fria ytan: mottagarna står till höger om den och avsändarna till vänster, som en solfjäder
+      centrerad på noden, i tidsordning uppifrån.
+- [ ] Dra noden någon annanstans och expandera igen: de nya hamnar vid noden, inte i hoppkolumnens plats.
+- [ ] Expandera i en tät graf: de nya landar aldrig på en nod som står, och flyttar hellre upp, ner eller en kolumn ut
+      än att korsa andra linjer. Inget som stod innan flyttas.
+- [ ] En stor expansion (50 tx) går lika fort som förut.
 
 ### Tidslinjen under grafen (TL1a)
 
 Förberedelse: ett ärende med en graf som har bekräftade tx över flera dygn (`/testdata` i Debug, eller expandera
 några steg).
 
-- [ ] Mellan dygnen står tunna prickade linjer över hela grafen, som tonar in upptill och ut nertill. Överst i varje
-      band står dagen (*3 mars*). Dra en aktör till ett annat dygns band på den fria ytan: linjen böjer sig runt den i
-      stället för att flytta den. I hoppkolumnerna står linjerna i stort sett raka.
-- [ ] Zooma ut i ett ärende med många dygn: dygnen slås ihop till band med flera dagar (*3 mars – 5 mars*) i stället för
-      en vägg av linjer. Ett dagnamn som inte får plats i sitt band visas inte.
+- [ ] Grafen har inga prickade dygnsband, dagnamn eller timlinjer (borttagna 2026-11-09).
 - [ ] Längst ner står en tunn list som tonar in och ut i ändarna, hel fram till den sista tx:en och prickad efter, med
-      ett streck per tx och dagarna under. Utan en enda bekräftad tx visas varken listen eller banden.
+      ett streck per tx och dagarna under. Utan en enda bekräftad tx visas inte listen.
 - [ ] Hovra över ett streck: det blir ljust och högre, ett kort ovanför säger tiden och vad som flyttades (*bc1q…x0wl →
-      Börs A · 0,6 BTC*), och en svag prickad linje visar var tiden går genom grafen.
+      Börs A · 0,6 BTC*), men ingen linje ritas i grafen.
 - [ ] Klicka på ett streck (eller mellan två): en hel ljus linje står vid tiden med tiden i ett piller överst, och det
-      som kom senare (aktörer, linjer, belopp, dagnamn och streck) bleknar. Huvudet säger *Grafen vid 5 mars 12:00 · det
+      som kom senare (aktörer, linjer, belopp och streck) bleknar. Huvudet säger *Grafen vid 5 mars 12:00 · det
       som kom senare är blekt*. I listen står en prick med en sonar som vidgas och tonar ut.
 - [ ] *Till nu* bredvid listen (bara när en tid är vald) och Esc går tillbaka till grafen som den är nu.
 - [ ] Stäng av animeringar i Windows (Hjälpmedel › Visuella effekter): sonaren står still som en svag ring.

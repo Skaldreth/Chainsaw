@@ -379,6 +379,10 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   eftersom den är grundläggande): en öppen vinkel i linjens färg, alltid hel, mitt på linjen eller där den inte
   krockar med beloppet eller swap-pillret, med vingar som når utanför linjen så att den syns också på en tjock linje.
   En kort linje (under 80 enheter) har ingen pil.
+  **Nya noder läggs så rent som möjligt** (användarens önskemål 2026-11-09): vid en expansion hamnar de som skickat
+  pengar bakom noden (till vänster) och de som tagit emot framför (till höger), ordnade efter höjden på det de hänger
+  ihop med, och flyttas upp, ner eller en kolumn längre ut dit deras linjer korsar minst andra linjer och går genom
+  minst noder (`ExpansionPlacement`). Det som redan står flyttas aldrig.
 - **Bildspråket** (skiss GR3a, användarens beslut 2026-11-07: godkänt): formen säger vad det är (rund = aktör vi inte vet något om, fyrkantig = tjänst eller
   kluster), färgen vad det betyder (accent = offrens pengar, blått = börs, rött = spåret tar slut eller risk, lila = annan
   kedja), en ikon per sort (spelsajt och casino är **två spelkort** som hålls i
@@ -389,10 +393,10 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   ordnad efter vad färgen betyder, en rad per färg (Offrens pengar, Uttag, Spenderas, Risk och slut, Annan kedja, Okänt)
   med sorterna som små noder i rätt form och färg, under en tunn linje Form, Markering och Linje som tre luftiga
   kolumner, och längst ner en rad med regeln som byter till förklaringen för det man hovrar, och *Guiden F1*.
-- **Tidslinjen under grafen är TL1a** (användarens beslut 2026-11-07): tunna prickade tidsband mellan dygnen över hela
-  ytan, som tonar in och ut i ändarna och böjer sig runt aktörer som dragits ur sitt dygn (raka i hoppkolumnerna och den
-  automatiska layouten), och en list längst ner med ett streck per tx. Ett klick ger en hel linje vid tiden med en
-  sonarprick i listen, och det som kom senare bleknar; *Till nu* går tillbaka.
+- **Tidslinjen under grafen är TL1a** (användarens beslut 2026-11-07): en list längst ner med ett streck per tx. Ett
+  klick ger en hel linje vid tiden genom grafen, som böjer sig runt aktörer som dragits ur sitt dygn, med en sonarprick
+  i listen, och det som kom senare bleknar; *Till nu* går tillbaka. **De prickade dygnsbanden i grafen är borttagna**
+  (användarens beslut 2026-11-09: de fungerade inte bra), med dagarnas namn och timlinjerna.
 - **Det som hölls tillbaka** vid en expansion (fler än 50 tx) är en streckad ledtrådsnod `+243 tx`. Ett klick skickar
   grafen ut i en cirkulär stöt och fäller ut tx:erna runt adressen, där användaren väljer vilka som plockas ut
   (användarens beslut 2026-11-07: **EX1a och EX1b båda**, som två lägen i samma vy, spiralen och tidsbågen). Här är bruset
@@ -547,7 +551,7 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
 - **Valt för 1.0** (användarens val 2026-11-08, sidan *Mot 1.0* på canvasen):
   - **IN4a:** Alt + klick vänder noden på plats och baksidan växer till en rad per tillgång; flera kort kan stå vända.
   - **TL2a:** tidslisten är en rad där valvyns fönster förstoras som under en lins (dygn och timmar) och resten trycks
-    ihop; inzoomade dygnsband får prickade timlinjer; listen slutar prickad vid senaste blocket.
+    ihop; listen slutar prickad vid senaste blocket.
   - **GR9a:** en tx som bytt block får ett runt märke i beloppets hörn, med förut och nu (höjd och hash) i rutan;
     *Väntar på källan* är en bricka i grafens huvud med nedräkning, och en väntande nod får ett timglas.
   - **ET1a:** vyn Etiketter är en tät lista med källorna som filter, sanktionsträffarna i grafen samlade överst och

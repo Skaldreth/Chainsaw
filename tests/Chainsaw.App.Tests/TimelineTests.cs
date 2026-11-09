@@ -98,24 +98,12 @@ public sealed class TimelineTests
         Assert.Empty(line.Within(30, 40));
     }
 
-    /// <summary>Days that would stand too close on screen share a band.</summary>
+    /// <summary>The lines run from above the top actor to below the bottom one, and not at all without actors.</summary>
     [Fact]
-    public void CloseDaysShareABand()
-    {
-        var kept = TimeBands.Thin([(24, 100), (48, 110), (72, 150), (96, 200)], 36);
-
-        Assert.Equal([24.0, 72.0, 96.0], kept);
-    }
-
-    /// <summary>The first band reaches back to the leftmost actor and the last on to the rightmost.</summary>
-    [Fact]
-    public void OuterBandsReachTheOuterActors()
+    public void ExtentReachesPastTheActors()
     {
         TimedFrame[] actors = [Actor(-40, 0, 1), Actor(300, 0, 47)];
-        var line = new TimeBandLine(24, [new GraphPoint(200, 0), new GraphPoint(200, 10)]);
 
-        Assert.Equal((-40, 200), TimeBands.BandAt(null, line, 5, actors));
-        Assert.Equal((200, 300 + GraphSizes.NodeWidth), TimeBands.BandAt(line, null, 5, actors));
         Assert.Null(TimeBands.Extent([]));
         Assert.Equal((-TimeBands.EndMargin, GraphSizes.NodeHeight + TimeBands.EndMargin), TimeBands.Extent(actors));
     }

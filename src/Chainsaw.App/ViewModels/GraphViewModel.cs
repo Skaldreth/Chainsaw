@@ -1302,23 +1302,54 @@ public sealed partial class GraphViewModel : ObservableObject
 
     /// <summary>
     /// Remembers the free place of each node that appears for the first time and that the case has no place for, so
-    /// that a later expansion, which moves the hop columns, does not move it on the free surface. A node goes to its
-    /// column place unless a node already stands there (dragged, kept or stored in the case); then below them all.
+    /// that a later expansion, which moves the hop columns, does not move it on the free surface. When nothing stands
+    /// yet, every node goes to its column place. Otherwise the new nodes are placed as cleanly as can be found next to
+    /// the nodes they have lines to, senders behind and receivers in front (<see cref="ExpansionPlacement"/>, the
+    /// user's wish 2026-11-09); a node tied to nothing standing goes to its column place unless a node already stands
+    /// there, then below them all.
     /// </summary>
     /// <param name="scene">The scene.</param>
     private void KeepFirstFreePlaces(GraphScene scene)
     {
         var nodes = scene.LayoutNodes;
-        var standing = nodes
-            .Select(node => FreePlaceOf(node))
-            .OfType<GraphPoint>()
-            .ToList();
-        foreach (var node in nodes.Where(node => FreePlaceOf(node) is null))
+        var standing = new Dictionary<string, GraphPoint>(StringComparer.Ordinal);
+        foreach (var node in nodes)
         {
-            var column = scene.Columns[node.Key];
-            var place = BelowStanding(column, standing);
-            _firstFree[node.Key] = place;
-            standing.Add(place);
+            if (FreePlaceOf(node) is { } place)
+            {
+                standing[node.Key] = place;
+            }
+        }
+
+        var fresh = nodes.Where(node => !standing.ContainsKey(node.Key)).Select(node => node.Key).ToList();
+        if (fresh.Count == 0)
+        {
+            return;
+        }
+
+        if (standing.Count == 0)
+        {
+            var taken = new List<GraphPoint>();
+            foreach (var key in fresh)
+            {
+                var place = BelowStanding(scene.Columns[key], taken);
+                _firstFree[key] = place;
+                taken.Add(place);
+            }
+
+            return;
+        }
+
+        var links = scene.Edges.Select(edge => (edge.Edge.From, edge.Edge.To));
+        var placed = ExpansionPlacement.Place(
+            fresh,
+            standing,
+            links,
+            scene.WidthOf,
+            (key, taken) => BelowStanding(scene.Columns[key], [.. taken.Values]));
+        foreach (var (key, place) in placed)
+        {
+            _firstFree[key] = place;
         }
     }
 

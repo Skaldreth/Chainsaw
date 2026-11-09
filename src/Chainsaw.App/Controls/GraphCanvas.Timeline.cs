@@ -2,14 +2,13 @@ using System.Windows;
 using System.Windows.Media;
 using Chainsaw.App.Graph;
 using Chainsaw.App.ViewModels;
-using static Chainsaw.App.Controls.Freezing;
 
 namespace Chainsaw.App.Controls;
 
 /// <summary>
-/// The time bands over the graph (sketch TL1a): a thin dotted line between the days over the whole surface, fading in
-/// and out at its ends and bending round actors dragged out of their day; the day's name at the top of each band; and,
-/// at a time chosen in the strip, a whole line with the time over it while what came later is drawn faint.
+/// The chosen time over the graph (sketch TL1a): at a time chosen in the strip, a whole line with the time over it,
+/// bending round actors dragged out of their day, while what came later is drawn faint. The dotted bands between the
+/// days and the days' names are not drawn in the graph (the user's decision 2026-11-09: they did not read well).
 /// </summary>
 public sealed partial class GraphCanvas
 {
@@ -22,17 +21,8 @@ public sealed partial class GraphCanvas
     /// <summary>How faint a line's amount is when the line came after the chosen time (sketch TL1a).</summary>
     private const double LaterTextOpacity = 0.25;
 
-    /// <summary>The bands' width on screen, in pixels.</summary>
-    private const double BandPixels = 1.5;
-
     /// <summary>The chosen time's line's width on screen, in pixels.</summary>
     private const double ChosenPixels = 1.25;
-
-    /// <summary>The least distance on screen between two day lines; closer days share a band (principle 7).</summary>
-    private const double LeastBandGap = 36;
-
-    /// <summary>Where the days' names stand on screen, from the top: under the trace's line.</summary>
-    private const double BandNameTop = 62;
 
     /// <summary>Where the chosen time's pill stands on screen, from the top, at its middle.</summary>
     private const double FrontMiddle = 96;
@@ -43,17 +33,8 @@ public sealed partial class GraphCanvas
     /// <summary>The space inside the pill, left and right.</summary>
     private const double FrontPadding = 9;
 
-    /// <summary>The space a day's name needs at least on either side within its band.</summary>
-    private const double NameRoom = 12;
-
     /// <summary>The most lines kept from one graph, so that hovering along the strip does not fill the memory.</summary>
     private const int MostCachedLines = 64;
-
-    /// <summary>
-    /// The dots of a band, in multiples of its width as WPF counts dashes: a dot every five pixels on screen (the
-    /// sketch's <c>0.01 5</c> with round caps).
-    /// </summary>
-    private static readonly DashStyle BandDots = Frozen(new DashStyle([0.01 / BandPixels, 5 / BandPixels], 0));
 
     /// <summary>The lines worked out for the graph drawn, so that a pan or a zoom does not work them out again.</summary>
     private TimeBandCache? _bands;
@@ -68,106 +49,34 @@ public sealed partial class GraphCanvas
     /// <returns>The opacity.</returns>
     private double LaterFoldedOpacity(string nodeKey) => _model!.Timeline.IsLaterNode(nodeKey) ? LaterNodeOpacity : 1;
 
-    /// <summary>
-    /// Draws the bands between the days, the faint front at the time under the pointer in the strip and the whole line
-    /// at the chosen time, on the surface under everything else; only what is on screen (principle 6).
-    /// </summary>
+    /// <summary>Draws the whole line at the chosen time, on the surface under everything else.</summary>
     /// <param name="dc">Where to draw, in the surface's units.</param>
     /// <param name="visible">The visible part of the surface.</param>
     private void DrawTimeBands(DrawingContext dc, GraphRect visible)
     {
         var timeline = _model!.Timeline;
-        if (!timeline.IsShown || Bands() is not { } bands)
+        if (!timeline.IsShown || timeline.Chosen is not { } chosen || Bands() is not { } bands
+            || bands.Line(timeline.Axis.Hours(chosen)) is not { } whole)
         {
             return;
         }
 
-        var band = ResourceColor("Color.Graph.TimeBand");
-        foreach (var line in KeptLines(bands))
-        {
-            DrawBandLine(dc, bands, line, visible, band, BandPixels, BandDots);
-        }
-
-        DrawHourLines(dc, bands, visible);
-
-        if (timeline.Hovered is { } hovered && bands.Line(timeline.Axis.Hours(hovered)) is { } front)
-        {
-            DrawBandLine(dc, bands, front, visible, BrushColor("Brush.TextDim"), BandPixels, BandDots);
-        }
-
-        if (timeline.Chosen is { } chosen && bands.Line(timeline.Axis.Hours(chosen)) is { } whole)
-        {
-            DrawBandLine(dc, bands, whole, visible, ResourceColor("Color.Graph.TimeLine"), ChosenPixels, null);
-        }
+        DrawBandLine(dc, bands, whole, visible, ResourceColor("Color.Graph.TimeLine"), ChosenPixels);
     }
 
-    /// <summary>
-    /// Draws the days' names at the top of their bands and the chosen time in a pill over its line, in screen units;
-    /// a name that does not fit its band on screen is left out.
-    /// </summary>
+    /// <summary>Draws the chosen time in a pill over its line, in screen units.</summary>
     /// <param name="dc">Where to draw, in screen units.</param>
     private void DrawTimeNames(DrawingContext dc)
     {
         var timeline = _model!.Timeline;
-        if (!timeline.IsShown || GraphHidden || Bands() is not { } bands)
+        if (!timeline.IsShown || GraphHidden || timeline.Chosen is not { } chosen || Bands() is not { } bands
+            || bands.Line(timeline.Axis.Hours(chosen)) is not { } line)
         {
             return;
         }
 
-        var y = _viewport.ToSurface(new GraphPoint(0, BandNameTop)).Y;
-        var kept = KeptLines(bands);
-        for (var index = 0; index <= kept.Count; index++)
-        {
-            var left = index > 0 ? kept[index - 1] : null;
-            var right = index < kept.Count ? kept[index] : null;
-            DrawBandName(dc, bands, left, right, y);
-        }
-
-        DrawHourNames(dc, bands);
-
-        if (timeline.Chosen is { } chosen && bands.Line(timeline.Axis.Hours(chosen)) is { } line)
-        {
-            var x = _viewport.ToScreen(new GraphPoint(line.XAt(_viewport.ToSurface(new GraphPoint(0, FrontMiddle)).Y), 0)).X;
-            DrawFront(dc, timeline.Axis.TimeName(chosen), x);
-        }
-    }
-
-    /// <summary>
-    /// Writes a band's day, or its days when the band holds several, centred between its lines; faint when the band
-    /// begins after the chosen time.
-    /// </summary>
-    /// <param name="dc">Where to draw, in screen units.</param>
-    /// <param name="bands">The lines of the graph drawn.</param>
-    /// <param name="left">The line on the band's left, or <see langword="null"/> for the first band.</param>
-    /// <param name="right">The line on the band's right, or <see langword="null"/> for the last band.</param>
-    /// <param name="y">The height of the names on the surface.</param>
-    private void DrawBandName(
-        DrawingContext dc, TimeBandCache bands, TimeBandLine? left, TimeBandLine? right, double y)
-    {
-        var timeline = _model!.Timeline;
-        var axis = timeline.Axis;
-        var from = left?.Hours ?? bands.First;
-        var first = axis.DayOf(from);
-        var last = right is null ? axis.DayOf(bands.Last) : axis.DayOf(right.Hours).AddDays(-1);
-        var name = first >= last ? TimeAxis.DayName(first) : $"{TimeAxis.DayName(first)} – {TimeAxis.DayName(last)}";
-        var later = timeline.Chosen is { } chosen && from > axis.Hours(chosen);
-        var text = Text(name, 11.5, Ink(later ? "Brush.BorderStrong" : "Brush.TextDim"),
-            FontWeights.Normal);
-        var (edgeLeft, edgeRight) = TimeBands.BandAt(left, right, y, bands.Actors);
-        var screenLeft = _viewport.ToScreen(new GraphPoint(edgeLeft, y)).X;
-        var screenRight = _viewport.ToScreen(new GraphPoint(edgeRight, y)).X;
-        if (screenRight - screenLeft < text.Width + (2 * NameRoom))
-        {
-            return;
-        }
-
-        var middle = (screenLeft + screenRight) / 2;
-        if (middle + text.Width < 0 || middle - text.Width > ActualWidth)
-        {
-            return;
-        }
-
-        dc.DrawText(text, new Point(middle - (text.Width / 2), BandNameTop));
+        var x = _viewport.ToScreen(new GraphPoint(line.XAt(_viewport.ToSurface(new GraphPoint(0, FrontMiddle)).Y), 0)).X;
+        DrawFront(dc, timeline.Axis.TimeName(chosen), x);
     }
 
     /// <summary>Draws the chosen time in its pill over the whole line (sketch TL1a).</summary>
@@ -199,10 +108,8 @@ public sealed partial class GraphCanvas
     /// <param name="visible">The visible part of the surface.</param>
     /// <param name="ink">Its colour.</param>
     /// <param name="pixels">Its width on screen.</param>
-    /// <param name="dots">Its dots, or <see langword="null"/> for a whole line.</param>
     private void DrawBandLine(
-        DrawingContext dc, TimeBandCache bands, TimeBandLine line, GraphRect visible, Color ink, double pixels,
-        DashStyle? dots)
+        DrawingContext dc, TimeBandCache bands, TimeBandLine line, GraphRect visible, Color ink, double pixels)
     {
         var points = line.Within(visible.Y, visible.Bottom);
         if (points.Count < 2 || points.All(point => point.X < visible.X || point.X > visible.Right))
@@ -220,8 +127,6 @@ public sealed partial class GraphCanvas
         geometry.Freeze();
         var pen = new Pen(Faded(ink, bands.Top, bands.Bottom), pixels / _viewport.Zoom)
         {
-            DashStyle = dots ?? DashStyles.Solid,
-            DashCap = PenLineCap.Round,
             StartLineCap = PenLineCap.Round,
             EndLineCap = PenLineCap.Round,
         };
@@ -255,18 +160,6 @@ public sealed partial class GraphCanvas
     }
 
     /// <summary>
-    /// Gives the day lines kept at this zoom: one between each two days, or between groups of days when they would
-    /// stand closer on screen than <see cref="LeastBandGap"/>.
-    /// </summary>
-    /// <param name="bands">The lines of the graph drawn.</param>
-    /// <returns>The lines, in time order.</returns>
-    private List<TimeBandLine> KeptLines(TimeBandCache bands)
-    {
-        var places = bands.Days.Select(day => (day.Hours, day.BaseX * _viewport.Zoom)).ToList();
-        return [.. TimeBands.Thin(places, LeastBandGap).Select(bands.Line).OfType<TimeBandLine>()];
-    }
-
-    /// <summary>
     /// Gives the lines of the graph drawn, worked out again only when the places or the times changed; none when no
     /// actor has a time.
     /// </summary>
@@ -286,7 +179,7 @@ public sealed partial class GraphCanvas
             .Select(pair => new TimedFrame(model.FrameAt(pair.Key, pair.Value), axis.Hours(times.NodeTimes[pair.Key])))
             .ToList();
         _bands = TimeBands.Extent(actors) is { } extent
-            ? new TimeBandCache(model.Places, times, actors, extent.Top, extent.Bottom, axis)
+            ? new TimeBandCache(model.Places, times, actors, extent.Top, extent.Bottom)
             : null;
         return _bands;
     }
@@ -296,15 +189,9 @@ public sealed partial class GraphCanvas
     /// <returns>The colour.</returns>
     private Color ResourceColor(string key) => TryFindResource(key) is Color color ? color : Colors.Gray;
 
-    /// <summary>Gives the colour of a brush of the theme.</summary>
-    /// <param name="key">The brush's resource key.</param>
-    /// <returns>The colour, or a neutral grey when the brush is not a plain colour.</returns>
-    private Color BrushColor(string key) =>
-        Ink(key) is SolidColorBrush brush ? brush.Color : Colors.Gray;
-
     /// <summary>
-    /// The time lines worked out for one arrangement of the graph: the actors with their times, the day lines' natural
-    /// places and every line asked for so far, by its time.
+    /// The time lines worked out for one arrangement of the graph: the actors with their times and every line asked
+    /// for so far, by its time.
     /// </summary>
     private sealed class TimeBandCache
     {
@@ -317,32 +204,24 @@ public sealed partial class GraphCanvas
         /// <summary>The lines asked for so far, by time; <see langword="null"/> where every actor is on one side.</summary>
         private readonly Dictionary<double, TimeBandLine?> _lines = [];
 
-        /// <summary>Works out the day lines' natural places for an arrangement.</summary>
+        /// <summary>Keeps an arrangement's actors, for its lines to be worked out.</summary>
         /// <param name="places">The places.</param>
         /// <param name="times">The times.</param>
         /// <param name="actors">The actors with a time.</param>
         /// <param name="top">The lines' top.</param>
         /// <param name="bottom">The lines' bottom.</param>
-        /// <param name="axis">The time axis.</param>
         public TimeBandCache(
             IReadOnlyDictionary<string, GraphPoint> places,
             GraphTimeline times,
             IReadOnlyList<TimedFrame> actors,
             double top,
-            double bottom,
-            TimeAxis axis)
+            double bottom)
         {
             _places = places;
             _times = times;
             Actors = actors;
             Top = top;
             Bottom = bottom;
-            First = actors.Min(actor => actor.Hours);
-            Last = actors.Max(actor => actor.Hours);
-            Days = [.. axis.DayStarts(First, Last)
-                .Select(day => (day.Hours, BaseX: TimeBands.BaseX(actors, day.Hours)))
-                .Where(day => day.BaseX is not null)
-                .Select(day => (day.Hours, day.BaseX!.Value))];
         }
 
         /// <summary>Gets the actors with a time.</summary>
@@ -353,15 +232,6 @@ public sealed partial class GraphCanvas
 
         /// <summary>Gets the lines' bottom on the surface.</summary>
         public double Bottom { get; }
-
-        /// <summary>Gets the first actor's time, in hours.</summary>
-        public double First { get; }
-
-        /// <summary>Gets the last actor's time, in hours.</summary>
-        public double Last { get; }
-
-        /// <summary>Gets each day's start between the first and the last actor, with its line's natural place.</summary>
-        public IReadOnlyList<(double Hours, double BaseX)> Days { get; }
 
         /// <summary>Says whether the lines were worked out for these places and times.</summary>
         /// <param name="places">The places.</param>
