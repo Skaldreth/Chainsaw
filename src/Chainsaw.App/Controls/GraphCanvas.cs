@@ -133,7 +133,8 @@ public sealed partial class GraphCanvas : FrameworkElement
         ArgumentNullException.ThrowIfNull(model);
         _model = model;
         model.Redraw += (_, _) => Redraw();
-        model.Moved += (_, moved) => Loosen(moved);
+        model.Moved += (_, moved) => Touch(moved.Nodes, GraphChange.Lines | GraphChange.OverNodes);
+        model.Hovered += (_, hovered) => Touch(hovered.Nodes, hovered.EdgeChanged ? GraphChange.Lines : default);
         model.PropertyChanged += OnModelChanged;
         AttachComments(model);
         AttachReach(model);
@@ -735,10 +736,13 @@ public sealed partial class GraphCanvas : FrameworkElement
         var ink = isGone ? Ink("Brush.TextDim") : InkOf(edge.Ink);
         var dash = LineDash(isUncertain ? EdgeDash.Uncertain : edge.Dash, edge.Width);
         var opacity = LineOpacity(edge, near) * (isUncertain ? GoneTrailLineOpacity : 1);
+        var pen = PenOf(ink, edge.Width, dash, PenLineCap.Round, PenLineCap.Round, PenLineJoin.Miter);
 
-        // A line is one stroke, so its faintness is in its brush rather than a layer of its own: the same pixels.
-        var pen = PenOf(InkAt(ink, opacity), edge.Width, dash, PenLineCap.Round, PenLineCap.Round, PenLineJoin.Miter);
+        // The faintness stays a layer of its own, as it was drawn: a faint brush would round the colour once instead
+        // of twice and differ by a shade.
+        var faded = PushFade(dc, opacity);
         dc.DrawGeometry(null, pen, CurveGeometry(curve));
+        PopFade(dc, faded);
     }
 
     /// <summary>Gives how faint a line is: faint away from what is chosen, a little faint without traced money.</summary>

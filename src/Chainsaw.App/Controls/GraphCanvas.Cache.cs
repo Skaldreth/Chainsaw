@@ -28,17 +28,20 @@ public sealed partial class GraphCanvas
     /// <summary>The culture the texts are measured in.</summary>
     private static readonly CultureInfo Swedish = CultureInfo.GetCultureInfo("sv-SE");
 
+    /// <summary>
+    /// How many pens are kept before the cache starts over: a zoom makes a pen for each icon's colour at every step's
+    /// width, and the lines' pens must survive it.
+    /// </summary>
+    private const int PenCapacity = 16384;
+
     /// <summary>The pens made so far, frozen.</summary>
-    private readonly DrawCache<PenKey, Pen> _pens = new();
+    private readonly DrawCache<PenKey, Pen> _pens = new(PenCapacity);
 
     /// <summary>The texts made so far, measured at the screen's scale.</summary>
     private readonly DrawCache<TextKey, FormattedText> _texts = new(TextCapacity);
 
     /// <summary>The brushes looked up so far, by resource key, frozen.</summary>
     private readonly Dictionary<string, Brush> _inks = new(StringComparer.Ordinal);
-
-    /// <summary>The brushes made fainter so far, by brush and opacity, frozen.</summary>
-    private readonly Dictionary<(Brush Brush, double Opacity), Brush> _fadedInks = [];
 
     /// <summary>The icons of the 24 grid looked up so far, by resource key, or <see langword="null"/> when missing.</summary>
     private readonly Dictionary<string, Geometry?> _glyphs = new(StringComparer.Ordinal);
@@ -83,32 +86,6 @@ public sealed partial class GraphCanvas
         }
 
         return brush;
-    }
-
-    /// <summary>
-    /// Gives a brush at an opacity, made once and frozen: for a single stroke or shape it draws the same pixels as the
-    /// brush under <see cref="DrawingContext.PushOpacity(double)"/>, without the layer that costs.
-    /// </summary>
-    /// <param name="brush">The brush.</param>
-    /// <param name="opacity">The opacity, from 0 to 1.</param>
-    /// <returns>The brush itself at 1, otherwise a frozen copy at the opacity.</returns>
-    private Brush InkAt(Brush brush, double opacity)
-    {
-        if (opacity >= 1)
-        {
-            return brush;
-        }
-
-        if (!_fadedInks.TryGetValue((brush, opacity), out var faded))
-        {
-            var copy = brush.Clone();
-            copy.Opacity = brush.Opacity * opacity;
-            copy.Freeze();
-            faded = copy;
-            _fadedInks[(brush, opacity)] = faded;
-        }
-
-        return faded;
     }
 
     /// <summary>

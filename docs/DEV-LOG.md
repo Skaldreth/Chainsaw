@@ -4403,3 +4403,21 @@ Användarens krav: optimeringarna får inte minska kvaliteten alls.
 - **Ikonerna förblir vektorer:** en bitmapp blir suddig vid zoom, och att göra stråkarna till färdiga ytor ger små
   avrundningsskillnader. Geometrin, pennorna och penslarna görs redan en gång.
 
+### Varje nod en egen visual, rutnätet och granskningen (2026-11-09)
+
+- **Som en spelmotor:** varje nod är en egen visual i nodlagret, i ritordningen. Ett drag, en hovring eller ett
+  timglas som andas ritar om bara sina noder, som behåller sin plats i ordningen. Det lösa lagret och kontrollen
+  av överlapp behövs inte längre, och bilden är exakt densamma som en hel ritning.
+- **Hovring:** vymodellen skickar `Hovered` (noden som lämnades, noden som nåddes och om linjen bytte) i stället för
+  `Redraw`. En ny nod under pekaren ritar om två noder, och en ny linje ritar om linjernas lager. Hovring på ett
+  kort ritar bara lagret över noderna, och på ett blockmärke bara överlagret.
+- **Rutnätet `GraphIndex`:** noderna och linjerna ligger i celler om 512 enheter, och vad som syns och vad som
+  ligger under pekaren slås upp bara i de celler som berörs. Svaren är exakt desamma som den linjära genomgångens,
+  i samma ordning, vilket ett test visar med 1200 slumpade prov. Långa linjer läggs åt sidan och prövas alltid.
+  Indexet görs om när scen, platser eller kurvor byts.
+- **Granskningen av draglagret** (inga C eller I): en linjes opacitet ligger åter i ett eget lager, eftersom en
+  blekt pensel kan skilja en nyans (1/255) mot förut. Zoomen ritar utan marginal, och pennornas cache rymmer 16 384,
+  så att zoomens pennor inte tömmer den.
+- **Medvetet inte gjort:** LOD (förenklad ritning vid utzoomning), strömning i rutor och bitmappsikoner, eftersom
+  de ändrar bilden. LOD kan bli ett val om användaren vill.
+

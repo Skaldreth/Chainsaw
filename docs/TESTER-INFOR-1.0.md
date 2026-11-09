@@ -1222,6 +1222,8 @@ noder).
 - [ ] Efter en panorering: hovring och klick på belopp, blockmärken och områdenas brickor träffar rätt.
 - [ ] En bevakning med träff (animerade ringar), en nod som väntar på källan (timglaset) och sökningens ring: de rör
   sig som förut, och panorering under tiden är jämn.
+- [ ] För musen fort över en stor graf: noderna och linjerna lyser upp direkt under pekaren, och tipsen kommer som
+  förut.
 - [ ] Tidsbandens namn, ikonlisten vid den valda noden och kommentarslapparna följer med i varje bildruta.
 - [ ] Ledtrådsnodens valvy och den utfällda högen fungerar som förut.
 

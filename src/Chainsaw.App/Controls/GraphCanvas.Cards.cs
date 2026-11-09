@@ -542,7 +542,7 @@ public sealed partial class GraphCanvas
         if (card != _hoveredCard || onBack != _onTurnBack)
         {
             (_hoveredCard, _onTurnBack) = (card, onBack);
-            Redraw();
+            Request(GraphChange.OverNodes);
         }
     }
 

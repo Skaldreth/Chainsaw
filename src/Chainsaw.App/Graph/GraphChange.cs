@@ -25,8 +25,10 @@ public enum GraphChange
     /// </summary>
     Lines = 8,
 
-    /// <summary>The loose nodes changed (dragged nodes, or an hourglass that breathes): only they are drawn again.</summary>
-    Loose = 16,
+    /// <summary>
+    /// Some nodes changed alone (dragged, hovered, or an hourglass that breathes): only their visuals are drawn again.
+    /// </summary>
+    Nodes = 16,
 
     /// <summary>
     /// What stands over the nodes changed (a card's shimmer, the search's ring, the guide's sonar): only that is drawn
@@ -34,8 +36,8 @@ public enum GraphChange
     /// </summary>
     OverNodes = 32,
 
-    /// <summary>What a drag changes: the lines, the dragged nodes and what stands over the nodes.</summary>
-    Drag = Lines | Loose | OverNodes,
+    /// <summary>The scene's layers that can be drawn again on their own: the lines, some nodes and what is over them.</summary>
+    Layers = Lines | Nodes | OverNodes,
 }
 
 /// <summary>

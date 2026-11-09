@@ -245,6 +245,12 @@ public sealed partial class GraphViewModel : ObservableObject
     public event EventHandler<GraphMoved>? Moved;
 
     /// <summary>
+    /// Raised instead of <see cref="Redraw"/> when the pointer comes onto another node or line, with the nodes whose
+    /// look changed and whether a line's did, so that the view draws only them again.
+    /// </summary>
+    public event EventHandler<GraphHovered>? Hovered;
+
+    /// <summary>
     /// Raised when <em>Varför?</em>, the <em>?</em> or the method asks for the Guide (sketch GD1b); a request about
     /// what is chosen carries its <see cref="GuideRequest.Subject"/>.
     /// </summary>
@@ -761,8 +767,9 @@ public sealed partial class GraphViewModel : ObservableObject
             return (node, edge);
         }
 
+        var hovered = GraphHovered.Between(HoveredNode, node, HoveredEdge, edge);
         (HoveredNode, HoveredEdge) = (node, edge);
-        Redraw?.Invoke(this, EventArgs.Empty);
+        Hovered?.Invoke(this, hovered);
         return (node, edge);
     }
 
@@ -771,7 +778,34 @@ public sealed partial class GraphViewModel : ObservableObject
     /// <param name="tolerance">How close to a line counts, in the surface's units.</param>
     /// <returns>The node's or the line's key; both <see langword="null"/> over empty surface.</returns>
     public (string? Node, string? Edge) HitTest(GraphPoint point, double tolerance) =>
-        Scene is { } scene ? GraphHitTest.At(scene, Places, Curves, point, tolerance) : (null, null);
+        Index?.At(point, tolerance) ?? (null, null);
+
+    /// <summary>
+    /// Gets the nodes and lines in a grid of cells, so that the view finds what is on screen or under the pointer
+    /// without going through the whole graph; made again whenever the scene, the places or the curves change, so that
+    /// it always answers for the graph shown; null without a graph.
+    /// </summary>
+    public GraphIndex? Index
+    {
+        get
+        {
+            if (Scene is not { } scene)
+            {
+                return null;
+            }
+
+            if (_index is not { } index || !index.IsFor(scene, Places, Curves))
+            {
+                index = new GraphIndex(scene, Places, Curves);
+                _index = index;
+            }
+
+            return index;
+        }
+    }
+
+    /// <summary>The index made last, kept while it is for the graph shown.</summary>
+    private GraphIndex? _index;
 
     /// <summary>
     /// Moves a node while it is dragged: anywhere on the free surface, up and down in its column. A picked node takes

@@ -208,7 +208,7 @@ public sealed partial class GraphCanvas
         if (mark != _hoveredMark)
         {
             _hoveredMark = mark;
-            Redraw();
+            Request(GraphChange.Overlay);
         }
     }
 

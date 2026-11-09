@@ -5,13 +5,14 @@ using Chainsaw.App.Graph;
 namespace Chainsaw.App.Controls;
 
 /// <summary>
-/// The scene and what stands over it, as layers of their own (principle 6). The scene is drawn on the surface's units
-/// in four layers, in the order it was always drawn: the lines' layer (the hop columns, the time bands, the chains'
-/// headings, the areas, the notes' threads, the lines with their pills, amounts and watches), the nodes' layer, the
-/// loose layer (the nodes being dragged) and the layer over the nodes (the cards, the trash's warning, the candidates,
-/// the areas' chips, the start guide, the fan and the found node's ring). Their drawing is kept while only their
-/// transform follows a pan or a glide (<see cref="SceneWindow"/>); what stands on the screen over them (the days'
-/// names, the box, the block mark's box and the selection view) is drawn again in every frame.
+/// The scene and what stands over it, as layers of their own, as a game engine keeps its world (principle 6). The
+/// scene is drawn on the surface's units in three layers, in the order it was always drawn: the lines' layer (the hop
+/// columns, the time bands, the chains' headings, the areas, the notes' threads, the lines with their pills, amounts
+/// and watches), the nodes' layer, where each node is a visual of its own in the drawing order, and the layer over the
+/// nodes (the cards, the trash's warning, the candidates, the areas' chips, the start guide, the fan and the found
+/// node's ring). Their drawing is kept while only their transform follows a pan or a glide (<see cref="SceneWindow"/>);
+/// what stands on the screen over them (the days' names, the box, the block mark's box and the selection view) is
+/// drawn again in every frame.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -20,16 +21,15 @@ namespace Chainsaw.App.Controls;
 /// still be sent again in full. They lie under the comments' notes.
 /// </para>
 /// <para>
-/// While nodes are dragged (<see cref="ViewModels.GraphViewModel.Moved"/>), the nodes that stand still keep their drawing and
-/// only the lines' layer, the loose layer and the layer over the nodes are drawn again, which draws exactly what a
-/// whole drawing would: every layer keeps its place in the order, and when a dragged node overlaps a node drawn after
-/// it, the whole scene is drawn instead so that the still node stays on top.
+/// A change names the layers it touches (<see cref="GraphChange"/>), and a change of a few nodes names them: a drag
+/// (<see cref="ViewModels.GraphViewModel.Moved"/>), a hover or a breathing hourglass draws again only those nodes'
+/// visuals, which keep their place in the order, and every frame shows exactly what a whole drawing would.
 /// </para>
 /// </remarks>
 public sealed partial class GraphCanvas
 {
-    /// <summary>How many layers stand under the notes: the scene's four and the one over them.</summary>
-    private const int SceneLayers = 5;
+    /// <summary>How many layers stand under the notes: the scene's three and the one over them.</summary>
+    private const int SceneLayers = 4;
 
     /// <summary>Decides when the scene's drawing can be moved instead of made again.</summary>
     private readonly SceneWindow _sceneWindow = new();
@@ -37,11 +37,8 @@ public sealed partial class GraphCanvas
     /// <summary>The lines' layer: the hop columns, the time bands, the areas, the lines, their amounts and watches.</summary>
     private readonly LayerVisual _linesLayer = new();
 
-    /// <summary>The nodes' layer: the nodes that stand still.</summary>
-    private readonly LayerVisual _nodesLayer = new();
-
-    /// <summary>The loose layer: the nodes being dragged, over the others.</summary>
-    private readonly LayerVisual _looseLayer = new();
+    /// <summary>The nodes' layer: a visual for each node on the part drawn, in the drawing order.</summary>
+    private readonly NodesVisual _nodesLayer = new();
 
     /// <summary>The layer over the nodes: the cards, the candidates, the chips, the guide, the fan and the found ring.</summary>
     private readonly LayerVisual _overNodesLayer = new();
@@ -52,8 +49,17 @@ public sealed partial class GraphCanvas
     /// <summary>Moves the scene's layers onto the screen: changed in place, so that a pan sends only it.</summary>
     private readonly MatrixTransform _sceneTransform = new();
 
-    /// <summary>The nodes being dragged since the scene was last drawn whole, drawn in the loose layer.</summary>
-    private readonly HashSet<string> _loose = new(StringComparer.Ordinal);
+    /// <summary>The nodes asked to be drawn again alone since the last frame (dragged, hovered, breathing).</summary>
+    private readonly HashSet<string> _touchedNodes = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// The nodes whose hourglass breathes on screen, gathered since the scene was last drawn whole, so that a breath
+    /// draws only them.
+    /// </summary>
+    private readonly HashSet<string> _breathing = new(StringComparer.Ordinal);
+
+    /// <summary>Each drawn node's visual, by the node's key.</summary>
+    private Dictionary<string, LayerVisual> _nodeVisuals = new(StringComparer.Ordinal);
 
     /// <summary>The part of the surface on screen when the scene was last drawn, without the margin.</summary>
     private GraphRect _screenNow;
@@ -66,15 +72,6 @@ public sealed partial class GraphCanvas
 
     /// <summary>Whether the scene's layers hold a drawing, so that they are emptied only once.</summary>
     private bool _sceneMade;
-
-    /// <summary>Whether the loose nodes changed since the nodes' layer was drawn, so that it leaves them out anew.</summary>
-    private bool _looseGrew;
-
-    /// <summary>
-    /// The nodes whose hourglass breathes on screen, gathered since the scene was last drawn whole; while nothing else
-    /// moves they are loose, so that a breath draws only them.
-    /// </summary>
-    private readonly HashSet<string> _breathing = new(StringComparer.Ordinal);
 
     /// <summary>
     /// Says whether nothing on the surface moves by itself in a way the scene's drawing cannot follow: no blast of
@@ -89,13 +86,10 @@ public sealed partial class GraphCanvas
     private bool SceneMovesByItself =>
         !SceneIsStill || _frames.IsRunning(GraphMotion.Rings) || _frames.IsRunning(GraphMotion.Cards);
 
-    /// <summary>Gets the scene's layers, in the order they are drawn.</summary>
-    private IEnumerable<LayerVisual> SceneLayersInOrder => [_linesLayer, _nodesLayer, _looseLayer, _overNodesLayer];
-
     /// <summary>Puts the scene's layers and the one over them on the surface, under the notes.</summary>
     private void HostScene()
     {
-        foreach (var layer in SceneLayersInOrder)
+        foreach (var layer in new ContainerVisual[] { _linesLayer, _nodesLayer, _overNodesLayer })
         {
             layer.Transform = _sceneTransform;
             AddVisualChild(layer);
@@ -111,8 +105,7 @@ public sealed partial class GraphCanvas
     {
         0 => _linesLayer,
         1 => _nodesLayer,
-        2 => _looseLayer,
-        3 => _overNodesLayer,
+        2 => _overNodesLayer,
         _ => _overlayVisual,
     };
 
@@ -154,14 +147,13 @@ public sealed partial class GraphCanvas
     private void ForgetScene()
     {
         _sceneWindow.Forget();
-        _loose.Clear();
+        _touchedNodes.Clear();
         if (_sceneMade)
         {
-            foreach (var layer in SceneLayersInOrder)
-            {
-                layer.RenderOpen().Close();
-            }
-
+            DrawLayer(_linesLayer, null);
+            _nodesLayer.Children.Clear();
+            _nodeVisuals = new Dictionary<string, LayerVisual>(StringComparer.Ordinal);
+            DrawLayer(_overNodesLayer, null);
             _sceneMade = false;
         }
     }
@@ -176,17 +168,16 @@ public sealed partial class GraphCanvas
         var visible = _viewport.Visible(ActualWidth, ActualHeight);
         if (!SceneIsStill || !_sceneWindow.Covers(visible, _viewport.Zoom))
         {
-            var margin = _sceneChanged || SceneMovesByItself ? 0 : SceneWindow.Margin;
+            // While a zoom is under way every frame draws the scene anyway, so no more than the screen is drawn.
+            var margin = _sceneChanged || IsZooming || SceneMovesByItself ? 0 : SceneWindow.Margin;
             var region = _sceneWindow.Take(visible, _viewport.Zoom, margin);
             _screenNow = visible;
             _sceneChanged = false;
-            _loose.Clear();
-            _looseGrew = false;
+            _touchedNodes.Clear();
             _breathing.Clear();
             var near = _model!.Near;
             DrawLayer(_linesLayer, dc => DrawLines(dc, scene, region, near.Edges));
-            DrawLayer(_nodesLayer, dc => DrawNodes(dc, scene, region, near.Nodes, still: true));
-            DrawLayer(_looseLayer, null);
+            DrawNodes(scene, region, near.Nodes);
             DrawLayer(_overNodesLayer, dc => DrawOverNodes(dc, region, near.Nodes));
             _sceneMade = true;
             KeepMarkCentres();
@@ -201,11 +192,12 @@ public sealed partial class GraphCanvas
     }
 
     /// <summary>
-    /// Takes nodes that a drag moved as loose, and asks for a frame that draws them; anything a drag cannot follow
-    /// draws the whole scene instead.
+    /// Asks for the given nodes to be drawn again alone in the next frame, with the layers named; anything that cannot
+    /// be followed so draws the whole scene instead.
     /// </summary>
-    /// <param name="moved">What the drag moved.</param>
-    private void Loosen(GraphMoved moved)
+    /// <param name="nodes">The nodes.</param>
+    /// <param name="layers">The other layers that changed with them.</param>
+    private void Touch(IEnumerable<string> nodes, GraphChange layers)
     {
         if (!_sceneMade || !SceneIsStill)
         {
@@ -213,51 +205,50 @@ public sealed partial class GraphCanvas
             return;
         }
 
-        foreach (var key in moved.Nodes)
-        {
-            _looseGrew |= _loose.Add(key);
-        }
-
-        Request(GraphChange.Drag);
+        _touchedNodes.UnionWith(nodes);
+        Request(layers | GraphChange.Nodes);
     }
 
     /// <summary>
-    /// Draws again only the layers that changed (a drag, a step of the rings, a breath, a shimmer), and the nodes'
-    /// layer only when it must leave out a node that was not loose before; the nodes that stand still keep their
-    /// drawing.
+    /// Draws again only the layers that changed (a drag, a hover, a step of the rings, a breath, a shimmer), and of the
+    /// nodes only those touched; every other node keeps its drawing and its place in the order.
     /// </summary>
-    /// <param name="layers">The layers that changed: <see cref="GraphChange.Lines"/>, <see cref="GraphChange.Loose"/>
-    /// and <see cref="GraphChange.OverNodes"/>.</param>
+    /// <param name="layers">
+    /// The layers that changed: <see cref="GraphChange.Lines"/>, <see cref="GraphChange.Nodes"/> and
+    /// <see cref="GraphChange.OverNodes"/>.
+    /// </param>
     /// <returns>
     /// <see langword="true"/> when the frame was drawn so; <see langword="false"/> when the whole scene must be
-    /// drawn instead (it does not cover the screen, or a loose node overlaps a still node drawn after it).
+    /// drawn instead (it does not cover the screen, or a touched node has no visual yet, as one dragged in from the
+    /// edge).
     /// </returns>
     private bool DrawAroundStillNodes(GraphChange layers)
     {
         if (!CanKeepScene(out var scene) || _sceneWindow.Region is not { } region
-            || (_loose.Count > 0 && LooseUnderStill(scene)))
+            || (layers.HasFlag(GraphChange.Nodes) && !TouchedAreDrawn(scene, region)))
         {
             return false;
         }
 
-        // What is near what is chosen is worked out once for the frame; a drag or a breath never changes it.
+        // What is near what is chosen is worked out once for the frame; a drag, a hover or a breath never changes it.
         var near = _model!.Near;
-        if (_looseGrew)
-        {
-            DrawLayer(_nodesLayer, dc => DrawNodes(dc, scene, region, near.Nodes, still: true));
-            _looseGrew = false;
-            layers |= GraphChange.Loose;
-        }
-
         if (layers.HasFlag(GraphChange.Lines))
         {
             DrawLayer(_linesLayer, dc => DrawLines(dc, scene, region, near.Edges));
             KeepMarkCentres();
         }
 
-        if (layers.HasFlag(GraphChange.Loose))
+        if (layers.HasFlag(GraphChange.Nodes))
         {
-            DrawLayer(_looseLayer, dc => DrawNodes(dc, scene, region, near.Nodes, still: false));
+            foreach (var key in _touchedNodes)
+            {
+                if (_nodeVisuals.TryGetValue(key, out var visual) && scene.Node(key) is { } node)
+                {
+                    DrawLayer(visual, dc => DrawOneNode(dc, node, near.Nodes));
+                }
+            }
+
+            _touchedNodes.Clear();
         }
 
         if (layers.HasFlag(GraphChange.OverNodes))
@@ -270,9 +261,30 @@ public sealed partial class GraphCanvas
     }
 
     /// <summary>
+    /// Says whether every touched node that reaches into the part drawn has a visual, so that drawing them alone shows
+    /// all of them; a node that came into the part (dragged in from the edge) needs its place in the order made.
+    /// </summary>
+    /// <param name="scene">The scene.</param>
+    /// <param name="region">The part of the surface drawn.</param>
+    /// <returns><see langword="true"/> when they all have one.</returns>
+    private bool TouchedAreDrawn(GraphScene scene, GraphRect region)
+    {
+        var places = _model!.Places;
+        foreach (var key in _touchedNodes)
+        {
+            if (!_nodeVisuals.ContainsKey(key) && places.TryGetValue(key, out var place)
+                && scene.FrameOf(key, place).Inflate(GraphSizes.MarkReach).Intersects(region))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
     /// Moves the cards and the hourglasses one step: a card that turns changes the nodes too, so it draws the whole
-    /// scene; a card's shimmer draws only what stands over the nodes, and a breath only the breathing nodes, made
-    /// loose for it.
+    /// scene; a card's shimmer draws only what stands over the nodes, and a breath only the breathing nodes.
     /// </summary>
     /// <param name="seconds">The time since the last step; the motions follow the clock.</param>
     /// <returns>What changed.</returns>
@@ -286,46 +298,11 @@ public sealed partial class GraphCanvas
         var change = _cardsMove ? GraphChange.OverNodes : GraphChange.None;
         if (_breathing.Count > 0)
         {
-            foreach (var key in _breathing)
-            {
-                _looseGrew |= _loose.Add(key);
-            }
-
-            change |= GraphChange.Loose;
+            _touchedNodes.UnionWith(_breathing);
+            change |= GraphChange.Nodes;
         }
 
         return change;
-    }
-
-    /// <summary>
-    /// Says whether a loose node overlaps a still node that comes after it in the drawing order, which the loose layer
-    /// would cover though the still node lies on top of it in the whole drawing.
-    /// </summary>
-    /// <param name="scene">The scene.</param>
-    /// <returns><see langword="true"/> when one does.</returns>
-    private bool LooseUnderStill(GraphScene scene)
-    {
-        var places = _model!.Places;
-        var looseFrames = new List<GraphRect>();
-        foreach (var node in scene.Nodes)
-        {
-            if (!places.TryGetValue(node.Key, out var place))
-            {
-                continue;
-            }
-
-            var frame = scene.FrameOf(node.Key, place).Inflate(GraphSizes.MarkReach);
-            if (_loose.Contains(node.Key))
-            {
-                looseFrames.Add(frame);
-            }
-            else if (looseFrames.Exists(loose => loose.Intersects(frame)))
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     /// <summary>Draws a layer anew, or empties it.</summary>
@@ -371,7 +348,7 @@ public sealed partial class GraphCanvas
         DrawChainHeadings(dc, scene, visible);
         DrawAreas(dc, visible);
         DrawCommentThreads(dc, visible);
-        var edges = GraphHitTest.VisibleEdges(scene, model.Curves, visible).ToList();
+        var edges = model.Index?.VisibleEdges(visible) ?? [];
         DrawWatchGlows(dc, visible);
         DrawTrashStubs(dc, visible);
         foreach (var edge in edges)
@@ -398,25 +375,40 @@ public sealed partial class GraphCanvas
         dc.Pop();
     }
 
-    /// <summary>Draws the nodes that stand still, or the loose ones, in the drawing order.</summary>
-    /// <param name="dc">Where to draw.</param>
+    /// <summary>
+    /// Draws every node on the part of the surface into a visual of its own, in the drawing order, so that a node that
+    /// changes alone (hovered, dragged, breathing) is drawn again alone.
+    /// </summary>
     /// <param name="scene">The scene.</param>
     /// <param name="visible">The part of the surface to draw: the screen and the margin around it.</param>
     /// <param name="nearNodes">The nodes near what is chosen.</param>
-    /// <param name="still">Whether to draw the nodes that stand still rather than the loose ones.</param>
-    private void DrawNodes(
-        DrawingContext dc, GraphScene scene, GraphRect visible, IReadOnlySet<string> nearNodes, bool still)
+    private void DrawNodes(GraphScene scene, GraphRect visible, IReadOnlySet<string> nearNodes)
     {
         var model = _model!;
         var nodes = _blast == BlastPhase.None
-            ? GraphHitTest.VisibleNodes(scene, model.Places, visible)
+            ? model.Index?.VisibleNodes(visible) ?? []
             : scene.Nodes.Where(node => model.Places.ContainsKey(node.Key));
-        dc.PushTransform(FanPush());
-        foreach (var node in nodes.Where(node => _loose.Contains(node.Key) != still))
+        var kept = new Dictionary<string, LayerVisual>(StringComparer.Ordinal);
+        _nodesLayer.Children.Clear();
+        foreach (var node in nodes)
         {
-            DrawFlying(dc, node, model.Places[node.Key], nearNodes);
+            var visual = _nodeVisuals.GetValueOrDefault(node.Key) ?? new LayerVisual();
+            DrawLayer(visual, dc => DrawOneNode(dc, node, nearNodes));
+            _nodesLayer.Children.Add(visual);
+            kept[node.Key] = visual;
         }
 
+        _nodeVisuals = kept;
+    }
+
+    /// <summary>Draws a node, as the whole drawing places it, into the visual it was given.</summary>
+    /// <param name="dc">Where to draw.</param>
+    /// <param name="node">The node.</param>
+    /// <param name="nearNodes">The nodes near what is chosen.</param>
+    private void DrawOneNode(DrawingContext dc, NodeView node, IReadOnlySet<string> nearNodes)
+    {
+        dc.PushTransform(FanPush());
+        DrawFlying(dc, node, _model!.Places[node.Key], nearNodes);
         dc.Pop();
     }
 
@@ -472,6 +464,23 @@ public sealed partial class GraphCanvas
 internal sealed class LayerVisual : DrawingVisual
 {
     /// <summary>Takes no point, so that the surface's own ground under the layer takes it.</summary>
+    /// <param name="hitTestParameters">The point.</param>
+    /// <returns>Nothing.</returns>
+    protected override HitTestResult? HitTestCore(PointHitTestParameters hitTestParameters) => null;
+
+    /// <summary>Takes no geometry, for the same reason.</summary>
+    /// <param name="hitTestParameters">The geometry.</param>
+    /// <returns>Nothing.</returns>
+    protected override GeometryHitTestResult? HitTestCore(GeometryHitTestParameters hitTestParameters) => null;
+}
+
+/// <summary>
+/// The nodes' layer: a visual of its own for each node, in the drawing order, that the pointer passes through like
+/// the other layers (<see cref="LayerVisual"/>).
+/// </summary>
+internal sealed class NodesVisual : ContainerVisual
+{
+    /// <summary>Takes no point; the surface finds what is under the pointer from the view model.</summary>
     /// <param name="hitTestParameters">The point.</param>
     /// <returns>Nothing.</returns>
     protected override HitTestResult? HitTestCore(PointHitTestParameters hitTestParameters) => null;

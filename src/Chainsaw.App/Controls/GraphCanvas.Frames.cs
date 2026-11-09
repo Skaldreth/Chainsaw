@@ -141,7 +141,7 @@ public sealed partial class GraphCanvas
     /// <param name="change">What changed in the frame.</param>
     private void Apply(GraphChange change)
     {
-        var layers = change & GraphChange.Drag;
+        var layers = change & GraphChange.Layers;
         if (layers != GraphChange.None && !change.HasFlag(GraphChange.Scene) && !DrawAroundStillNodes(layers))
         {
             change |= GraphChange.Scene;
