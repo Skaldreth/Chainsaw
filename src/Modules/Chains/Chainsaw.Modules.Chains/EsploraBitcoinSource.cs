@@ -12,7 +12,7 @@ namespace Chainsaw.Modules.Chains;
 /// through <see cref="IExitHttp"/>. Every response is sealed in the case before it is used; an answer that cannot
 /// have changed is taken from the case without asking; without an exit the case answers and says what is missing.
 /// </summary>
-internal sealed class EsploraBitcoinSource : IBitcoinSource
+internal class EsploraBitcoinSource : IBitcoinSource
 {
     /// <summary>
     /// How old the newest known height may be before a lookup that depends on depth asks for a new one.
@@ -84,13 +84,18 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
         }
 
         _lookups = new SourceLookups(
-            Chain.Bitcoin, "Bitcoin", operators, sources, _store, options.SafeConfirmations,
+            options.Network.ChainOf(), options.Network.ChainOf().ToString(), operators, sources, _store,
+            options.SafeConfirmations,
             async (_, @case, cancellationToken) => await RefreshHeightAsync(@case, cancellationToken)
                 .ConfigureAwait(false));
     }
 
     /// <inheritdoc/>
     public BitcoinNetwork Network => _options.Network;
+
+    /// <summary>What is said of a Litecoin block's header, whose work Chainsaw does not compute.</summary>
+    public const string LitecoinWorkText =
+        "Blockhuvudet hashar till blocket; dess arbete kontrolleras inte på Litecoin (scrypt).";
 
     /// <summary>A transaction's size that could pass for an inner node of the merkle tree (two hashes).</summary>
     private const int InnerNodeSize = 64;
@@ -113,7 +118,7 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
         if (address.Network != Network)
         {
             return Task.FromResult(SourceLookups.Refused<BitcoinAddressPage>(
-                "Adressen hör till ett annat Bitcoin-nät än källan. Inget skickades."));
+                "Adressen hör till en annan kedja eller ett annat nät än källan. Inget skickades."));
         }
 
         var segment = Uri.EscapeDataString(address.Value);
@@ -262,14 +267,20 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
         if (other.Value == block.Hash.Value && confirmedBy is not null)
         {
             return (InBlockCheck.ConfirmedElsewhere, other.Origins,
-                $"Blockets hash vid höjden bekräftades av en annan endpoint, {confirmedBy.Endpoint}.");
+                WithWork($"Blockets hash vid höjden bekräftades av en annan endpoint, {confirmedBy.Endpoint}."));
         }
 
         var note = other.Value is null
             ? "Blocket vilar bara på en källas svar: ingen annan endpoint i fas kunde bekräfta det."
             : "En annan endpoint i fas har ett annat block på samma höjd, så blocket vilar bara på en källas svar.";
-        return (InBlockCheck.SourceOnly, other.Origins, note);
+        return (InBlockCheck.SourceOnly, other.Origins, WithWork(note));
     }
+
+    /// <summary>Adds to what is said of a block, on Litecoin, that its header's work is not checked.</summary>
+    /// <param name="note">What is said.</param>
+    /// <returns>The note, on Litecoin with <see cref="LitecoinWorkText"/> after it.</returns>
+    private string WithWork(string note) =>
+        Network == BitcoinNetwork.Litecoin ? note + " " + LitecoinWorkText : note;
 
     /// <summary>Gives a transaction's size without its witness data, the bytes its txid is the hash of.</summary>
     /// <param name="transaction">The transaction.</param>
@@ -309,7 +320,7 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
         if (address.Network != Network)
         {
             return Task.FromResult(SourceLookups.Refused<BitcoinAddressSummary>(
-                "Adressen hör till ett annat Bitcoin-nät än källan. Inget skickades."));
+                "Adressen hör till en annan kedja eller ett annat nät än källan. Inget skickades."));
         }
 
         var query = new LookupQuery<BitcoinAddressSummary>(
@@ -723,7 +734,7 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
 
         if (change.Kind != BlockChangeKind.Gone)
         {
-            return new BlockChange(txid, change.Kind, change.Before, change.Now);
+            return new BlockChange(txid, change.Kind, change.Before, change.Now) { Chain = Network.ChainOf() };
         }
 
         // The hosts that said it is gone since the case last saw it in a block, and every host the case has heard
@@ -732,6 +743,7 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
         var single = _store.AnsweringHosts(reader).Count <= 1;
         return new BlockChange(txid, change.Kind, change.Before, change.Now)
         {
+            Chain = Network.ChainOf(),
             GoneHosts = goneHosts,
             IsSingleSource = single,
             IsCorroborated = goneHosts.Count >= 2 || single,
@@ -809,7 +821,8 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
         ResponseKinds.BlockHeader,
         hash.Value,
         $"block/{hash.Value}/header",
-        body => BlockHeaderReader.ParseHex(body, hash, WorkLimit),
+        body => BlockHeaderReader.ParseHex(
+            body, hash, WorkLimit, workIsDoubleSha256: _options.Network != BitcoinNetwork.Litecoin),
         _ => ResponseIndex.None,
         _ => null,
         NeverChanges: true);

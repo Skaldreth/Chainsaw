@@ -452,7 +452,8 @@ internal sealed class PriceService : IPriceService
                     candle = null;
                     problem = noHistory
                         ? NoCryptoHistory(query)
-                        : $"Källan har ingen avslutad kurs för perioden {query.Period}.";
+                        : $"{_crypto.DisplayName} har ingen avslutad {query.Asset.Symbol}-kurs för perioden "
+                            + $"{query.Period}.";
                 }
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
@@ -822,12 +823,15 @@ internal sealed class PriceService : IPriceService
     /// <returns><see langword="true"/> for a 2xx status.</returns>
     private static bool Succeeded(RateOrigin origin) => origin.StatusCode is >= 200 and <= 299;
 
-    /// <summary>Says that a crypto period lies before the source's history, as the sealed answer shows.</summary>
+    /// <summary>
+    /// Says that a crypto period lies before the source's history, as the sealed answer shows, naming the source and
+    /// the asset (for example <em>Bitstamp har ingen BNB-kurs</em>), so that a missing rate is never left unexplained.
+    /// </summary>
     /// <param name="query">The period.</param>
     /// <returns>Why there is no rate, in Swedish.</returns>
-    private static string NoCryptoHistory(CandleQuery query) =>
-        $"Källan har ingen kurs för perioden {query.Period}, som var avslutad när den frågades: perioden ligger " +
-        "före källans historik. Svaret är sparat i ärendet och frågas inte igen.";
+    private string NoCryptoHistory(CandleQuery query) =>
+        $"{_crypto.DisplayName} har ingen {query.Asset.Symbol}-kurs för perioden {query.Period}, som var avslutad när "
+        + "den frågades: perioden ligger före källans historik. Svaret är sparat i ärendet och frågas inte igen.";
 
     /// <summary>
     /// Answers from what the case holds: its rate, or that the source has no rate for the time, with the sealed

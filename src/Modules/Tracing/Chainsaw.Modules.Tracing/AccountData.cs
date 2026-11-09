@@ -296,13 +296,14 @@ internal sealed record AccountData(
     }
 
     /// <summary>
-    /// Says whether Chainsaw knows what an asset is worth: ether, wrapped ether, or a token it knows by its contract
+    /// Says whether Chainsaw knows what an asset is worth: a chain's coin, the coin wrapped (WETH, WBNB), or a token it
+    /// knows by its contract
     /// (<see cref="KnownTokens"/>), never by its symbol.
     /// </summary>
     /// <param name="asset">The asset.</param>
     /// <returns><see langword="true"/> when it does.</returns>
     private static bool HasKnownValue(Asset asset) =>
-        asset.Kind == AssetKind.Native || asset == KnownTokens.EthereumWeth || KnownTokens.IssuerOf(asset) is not null;
+        asset.Kind == AssetKind.Native || KnownTokens.IsWrappedNative(asset) || KnownTokens.IsKnown(asset);
 
     /// <summary>
     /// Says why a swap is no swap after all: a counterparty is a known bridge or mixer, or one the trail must reach by
@@ -368,7 +369,7 @@ internal sealed record AccountData(
         }
 
         var carries = boughtAsset.Kind == AssetKind.Native
-            ? new HashSet<Asset> { boughtAsset, KnownTokens.EthereumWeth }
+            ? new HashSet<Asset> { boughtAsset, KnownTokens.WrappedNative(boughtAsset.Chain) ?? boughtAsset }
             : [boughtAsset];
         for (var grew = true; grew;)
         {

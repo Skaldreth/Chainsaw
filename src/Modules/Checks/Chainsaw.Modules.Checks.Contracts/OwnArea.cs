@@ -94,22 +94,29 @@ public static class CheckRules
     }
 
     /// <summary>
+    /// What a member's address on BSC begins with after <see cref="AddressMember"/>: BSC writes its addresses as
+    /// Ethereum does, so the member names the chain, and a member without it stays Ethereum's as it always was.
+    /// </summary>
+    public const string BscMember = "bsc:";
+
+    /// <summary>
     /// Gives the member that stands for an address on any chain: <c>address:</c> and the address as its chain writes
     /// it (an Ethereum address in lower case), so that a Bitcoin address gives the same member as
-    /// <see cref="MemberOf(Chains.Contracts.BitcoinAddress)"/>.
+    /// <see cref="MemberOf(Chains.Contracts.BitcoinAddress)"/>; on BSC with <see cref="BscMember"/> before it.
     /// </summary>
     /// <param name="address">The address with its chain.</param>
-    /// <returns>For example <c>address:0x…</c>.</returns>
+    /// <returns>For example <c>address:0x…</c>, or <c>address:bsc:0x…</c> on BSC.</returns>
     public static string MemberOf(SharedKernel.ChainAddress address)
     {
         ArgumentNullException.ThrowIfNull(address);
-        return AddressMember + address.Value;
+        return AddressMember + (address.Chain == SharedKernel.Chain.Bsc ? BscMember : string.Empty) + address.Value;
     }
 
     /// <summary>
     /// Reads the address an address member stands for: a Bitcoin address, an Ethereum address (<c>0x</c> and 40 hex
-    /// digits), or a TRON address in its <c>T…</c> form (Base58Check with TRON's version byte, which no Bitcoin address
-    /// has).
+    /// digits), a BSC address (<see cref="BscMember"/> and the same), a TRON address in its <c>T…</c> form (Base58Check
+    /// with TRON's version byte, which no Bitcoin address has), or a Litecoin address (<c>L…</c>, <c>M…</c>,
+    /// <c>ltc1…</c>, which no Bitcoin address is).
     /// </summary>
     /// <param name="member">The member.</param>
     /// <returns>The address with its chain, or <see langword="null"/> when the member is not an address.</returns>
@@ -122,6 +129,12 @@ public static class CheckRules
         }
 
         var text = member[AddressMember.Length..];
+        if (text.StartsWith(BscMember, StringComparison.Ordinal))
+        {
+            return Chains.Contracts.EthereumAddress.TryParse(
+                SharedKernel.Chain.Bsc, text[BscMember.Length..], out var bsc) ? bsc.ToChainAddress() : null;
+        }
+
         if (Chains.Contracts.EthereumAddress.TryParse(text, out var account))
         {
             return account.ToChainAddress();
@@ -132,8 +145,15 @@ public static class CheckRules
             return tron.ToChainAddress();
         }
 
-        return Chains.Contracts.BitcoinAddress.TryParse(text, out var address) ? address.ToChainAddress() : null;
+        if (Chains.Contracts.BitcoinAddress.TryParse(text, out var address))
+        {
+            return address.ToChainAddress();
+        }
 
+        return Chains.Contracts.BitcoinAddress.TryParse(SharedKernel.Chain.Litecoin, text, out var litecoin)
+            && litecoin.Value == text
+                ? litecoin.ToChainAddress()
+                : null;
     }
 
     /// <summary>Gives the member that stands for a transaction that is an actor of its own.</summary>

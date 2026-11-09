@@ -5100,3 +5100,81 @@ offline), App 6 i `ChainStateTests` (rutans rad och fot, länken, en fråga per 
   resten vid nästa uppslag*.
 - **M-3:** det instabila App-testet gick inte att framkalla (App.Tests tre gånger i rad, alla gröna); lämnat.
 - **M-4:** raderna i `ersatt-tx.md` är brutna.
+## Omgång 8b: Litecoin och BSC (backloggen, 2026-11-09)
+
+- **Byggt:**
+  - **Litecoin** som UTXO-kedja på Bitcoins kod: `BitcoinNetwork.Litecoin` med versionerna `0x30` (`L…`), `0x32`
+    (`M…`) och prefixet `ltc`, och den äldre P2SH-formen `3…` läst som `M…` när kedjan är Litecoin. Adressen bär sin
+    kedja (`BitcoinAddress.Chain`), och `BitcoinAddress.TryParse(text)` tar som förut bara Bitcoins adresser; Litecoins
+    läses med `TryParse(Chain.Litecoin, …)`, så att inget som väntar sig Bitcoin får en Litecoin-adress.
+    `ILitecoinSource` (Esplora, `EsploraLitecoinSource`) hos litecoinspace.org, förseglat som `litecoin-mainnet`,
+    slutligt efter 12 block. Genesis och takt i `ChainLimits`; högsta belopp 84 miljoner LTC i tolken.
+  - **MWEB:** peg-in (vittnesversion 9, `ltc1f…`) och HogAddr (version 8, `ltc1g…`) som egna skripttyper, lästa ur
+    skriptet. `MwebTrailEnds` (`mweb v1`) gör båda till *Spåret tar slut* med orsaken privacy coin (skyddad pool).
+  - **BSC** i kontomodellen på Ethereums kod: adresser och tx bär `Chain.Bsc` (`EthereumAddress.OnChain`), Blockscouts
+    källa är gemensam för EVM-kedjorna (`BlockscoutSource`, med `BlockscoutEthereumSource` och `BlockscoutBscSource`),
+    BNB som egen tillgång i wei, BEP-20 USDT och USDC kända på kontrakt, förseglat som `bsc-mainnet`, slutligt efter 50
+    block. Grafen, spårningen, länkar till andra kedjor (`token:bsc:0x…` i länkens kolumn), saldot på kortets baksida.
+  - **Källor:** en sorts API nycklas på kedja och kod, så att Esplora och Blockscout talas för två kedjor var.
+    Litecoin och BSC står på sidan *Källor*; BSC har ingen endpoint från början.
+  - **NC2a:** Litecoin hämtas i förväg genom sin källa (saldo, tx, aktivitet och höjd i LTC), BSC som Ethereum;
+    `litecoin:`/`ltc:` och `bsc:`/`bnb:` före ett värde och i `chainsaw:`-länkar.
+  - **Sanktioner:** OFAC:s `LTC` på Litecoin och `BSC` på BSC; en träff räknas bara under den egna kedjans koder
+    (`SanctionCurrency.On`). Etiketter på Litecoin- och BSC-adresser (BSC lagras som `bsc:0x…`).
+  - **Kurser:** Bitstamps `ltceur` (historik bakåt till åtminstone 2018) och `bnbeur`, BEP-20 USDT och USDC till
+    marknaden för den token de står för. `bnbeur` och `bnbusd` har **ingen historik före 2026** och handlas mycket
+    tunt (dagar med volym 0, prövat 2026-11-09), så en BNB-kurs saknas ofta; det sägs då med källan och tillgången
+    (*Bitstamp har ingen BNB-kurs för perioden …*), och en swap mot BNB/WBNB står som *priset inte prövat* med den
+    sida som saknar kurs utskriven.
+  - **Bevakning:** kedjornas källor samlade i `WatchSources`, Litecoin genom Esplora i LTC och BSC som Ethereum, också
+    i bakgrunden (höjden frågas genom `IWatchFeeds.GetHeightAsync`, så `WatcherParts` bär inga källor längre).
+  - Guiden: *Litecoin* och *BSC* under *Fler kedjor*.
+- **Undersökt (2026-11-09):**
+  - **litecoinspace.org** är mempool.space 3.3.1 på en Esplora för Litecoin Core 0.21.2.2, öppen utan nyckel:
+    `blocks/tip/height`, `block-height/0` ger Litecoins genesis, P2SH skrivs `M…`. Peg-ins syns som outputs av typen
+    `unknown` med vittnesversion 9, och HogEx är blockets sista tx med HogAddr (version 8) in och ut, peg-ins in och
+    peg-outs ut. MWEB:s adresser skrivs med **Bech32**, inte Bech32m (räknat ur ett riktigt svar), så `Bech32` väljer
+    kontrollsumman efter prefix och version.
+  - **BSC:** ingen öppen Blockscout (Blockscouts lista saknar kedja 56), BscScans API är nedlagt till förmån för
+    Etherscans v2, som för kedja 56 kräver en betald nyckel, Routescan saknar kedjan, och de öppna JSON-RPC-noderna
+    ger block och tx men ingen historik per adress. Genesis lästes ur `bsc-dataseed.bnbchain.org`.
+  - **Tokens:** CoinGecko anger BSC:s USDT (`0x55d3…7955`) och USDC (`0x8ac7…580d`) som *Binance Bridged*, 18
+    decimaler; Tethers egen post saknar BSC.
+  - **OFAC SDN** (2026-11-09): 14 `LTC`, 1 `BSC`, 1 `BNB` (en `bnb1…`-adress).
+- **Egna beslut:**
+  - **Litecoin spåras inte i grafen än.** Grafens UTXO-del räknar i bitcoin och lagrar txid utan kedja, och ett annat
+    arbete pågår i Tracing; en Litecoin-startpunkt är *känd och hämtad* (`ChainStartPoint.CanFetch`) men inte
+    *spårbar* (`IsSupported`), och det sägs ärligt. Bevakning, sanktioner och kurser fungerar ändå. TODO, punkt 8.
+  - **BSC utan förvald källa** (TODO, *Väntar på dig* 20) och **USDT/USDC på BSC utan *Kan frysas*** (21).
+  - **Två adresser med samma hex:** grafens expansioner hittas på kedja och adress, så att samma `0x…` på Ethereum och
+    BSC aldrig blir en expanderad nod (felet fanns redan men syntes inte förrän två kedjor skrev adresser lika).
+  - **Grenen byggdes på TRON-grenen** och slogs sedan ihop med huvudgrenen (SW1a, omgång 3, 5 och 7, DX1b):
+    sanktionerna går genom `FindMany` med kedjornas egna koder (`SanctionCurrency.On`), höjden för bevakningen genom
+    `WatchSchedule.HeightAsync` (i fas, `InStep`) för en UTXO- eller kontokälla, och `CaseHeights` känner Litecoin och
+    BSC. På Litecoin prövas inte ett blockhuvuds arbete (scrypt, inte dubbel SHA-256), bara att det hashar till
+    blocket.
+- **Återstår:** TODO punkt 8 (Litecoin i grafen, MWEB:s kandidater, ytorna som skissas, testärendet) och BACKLOG,
+  *Litecoin och BSC efter omgång 8b*. Oberoende granskning återstår.
+- **Granskningen (inga C, 5 I, ett antal M; alla I rättade):**
+  - **I1:** grafen läser BSC:s bytta block bredvid de andra kedjornas (TRON fanns redan).
+  - **I2:** en egen yta lagrar en BSC-medlem som `address:bsc:0x…` och läser en utan kedja som Ethereums, som förut;
+    Litecoins medlemmar läses också tillbaka. Test.
+  - **I3:** en bevakning på varje kontokedja räknar myntet och de tokens Chainsaw känner på kontraktet, aldrig en
+    främlings (en token som kallar sig USDT på BSC). Test.
+  - **I4:** BNB-kursens luckor sägs med källa och tillgång, och swappens *Varför?* säger vilken sida som saknar kurs;
+    pillret är redan märkt när priset inte är prövat. En annan kurskälla för BNB står i BACKLOG.
+  - **I5:** `CaseHeights` känner TRON, så bakgrundens starter och träffar på TRON förs in; den rimliga höjden räknas i
+    ticks, så att BSC:s takt under en sekund inte blir en division med noll (felet fanns i huvudgrenens kod och
+    syntes först med BSC). Test på TRON, BSC och Litecoin.
+  - **M:** på Litecoin säger kontrollen mot blocket att huvudet hashar till blocket men att arbetet (scrypt) inte
+    prövas; en tx med MWEB-data (flaggan 08, HogEx) sägs inte gå att kontrollera mot bytes i stället för att läsas
+    fel; en MWEB-adress (`ltcmweb1…`) är en startpunkt på Litecoin där spåret tar slut; begäran och rapporten skriver
+    kedjans namn (`Chain.DisplayName`: TRON, BSC); småsakerna rättade. Kända kontrakt på BSC står i BACKLOG.
+- **Omgranskningen (en ny I, tre M; alla rättade):**
+  - **I:** en bevakning på *Alla* räknar också det inslagna myntet (WETH, WBNB) igen. Kända tokens på Ethereum är nu
+    också DAI (18 decimaler) och WBTC (8), lästa ur kedjeutforskaren Blockscout 2026-11-09, utan *Kan frysas*. En
+    bevakning på *Alla* på Ethereum ger därmed ETH, WETH och de kända tokens (USDT, USDC, DAI, WBTC), inte längre
+    vilken token som helst. Test för WETH och WBNB.
+  - **M:** MWEB-raden i Nytt ärende och journalraden ger MWEB-skälet; `RecogniseMweb` säger att bara formen prövas;
+    flaggan 08 nämner inte Litecoin, eftersom samma läsare används för Bitcoin.
+

@@ -261,13 +261,14 @@ internal static class Responses
         Assert.Equal(expected.Counterparties, actual.Counterparties);
     }
 
-    public static SealedResponse Make(long sequence, string body, DateTimeOffset? received = null)
+    public static SealedResponse Make(
+        long sequence, string body, DateTimeOffset? received = null, string chain = "bitcoin-mainnet")
     {
         var bytes = Encoding.UTF8.GetBytes(body);
         var at = (received ?? new DateTimeOffset(2026, 11, 7, 3, 0, 0, TimeSpan.Zero))
             .ToString("O", CultureInfo.InvariantCulture);
         return new SealedResponse(
-            sequence, "bitcoin-mainnet", "esplora", Guid.Parse("0b9e1e4a-5c39-4a8e-9a55-3f1f6a1c0009"),
+            sequence, chain, "esplora", Guid.Parse("0b9e1e4a-5c39-4a8e-9a55-3f1f6a1c0009"),
             "esplora.test", "https://esplora.test/api/address/x/txs", "address-transactions", "x", 200,
             "application/json", at, at, at, "UTC", null, "windows", JsonSerializer.Serialize(BackgroundNames.Fetcher),
             Convert.ToHexStringLower(SHA256.HashData(bytes)), bytes);

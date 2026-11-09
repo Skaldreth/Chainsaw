@@ -1,4 +1,5 @@
 using Chainsaw.Modules.Cases.Contracts;
+using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Monitoring.Contracts;
 using Chainsaw.SharedKernel;
 
@@ -207,6 +208,34 @@ public sealed class BackgroundImportTests : IDisposable
         Assert.Contains("i bakgrunden", line.Summary, StringComparison.Ordinal);
         Assert.Equal(900_010, _harness.Service.GetChecked(_harness.Case)[watch.Id].Height);
         Assert.True(_harness.Verify().IsIntact);
+    }
+
+    [Theory]
+    [InlineData(Chain.Tron, "tron-mainnet", 80_000_010)]
+    [InlineData(Chain.Bsc, "bsc-mainnet", 130_000_010)]
+    [InlineData(Chain.Litecoin, "litecoin-mainnet", 3_000_010)]
+    public void A_start_from_the_background_comes_in_on_tron_bsc_and_litecoin(Chain chain, string name, long height)
+    {
+        var anchor = chain switch
+        {
+            Chain.Tron => EthereumAddress.Parse(Chain.Tron, "41" + new string('a', 40)).ToChainAddress(),
+            Chain.Bsc => EthereumAddress.Parse(Chain.Bsc, "0x" + new string('a', 40)).ToChainAddress(),
+            _ => BitcoinAddress.FromWitness(
+                0, Enumerable.Repeat((byte)0x33, 20).ToArray(), BitcoinNetwork.Litecoin).ToChainAddress(),
+        };
+        var watch = _harness.Service.Add(
+            _harness.Case,
+            new WatchSubject(WatchSubjectKind.Address, anchor, "Bevakad"),
+            new WatchFilter(chain, WatchDirection.Both, [], [], null, null));
+
+        // The case has seen the chain this far in its own sealed answers, so the background's start can be taken.
+        _harness.Case.Write(transaction => _harness.Get<IResponseTransfer>().Seal(
+            transaction, Responses.Make(1, "height", chain: name), new SealedResponseIndex(height, [])));
+        Queue.Add(Started(watch, height));
+
+        Assert.Equal(1, Background.Import(_harness.Case).Entries);
+        Assert.Equal(height, Assert.Single(_harness.Service.GetWatches(_harness.Case)).StartHeight);
+        Assert.Empty(Queue.List(CaseId));
     }
 
     [Fact]

@@ -5,10 +5,11 @@ using Chainsaw.SharedKernel;
 namespace Chainsaw.Modules.Chains.Contracts;
 
 /// <summary>
-/// An address in the account model: 20 bytes, on Ethereum or on TRON, whose virtual machine is Ethereum's and whose
+/// An address in the account model: 20 bytes, on Ethereum, on BSC (BNB Smart Chain, which runs Ethereum's virtual
+/// machine and writes its addresses as Ethereum does) or on TRON, whose virtual machine is Ethereum's and whose
 /// addresses are the same 20 bytes behind the version byte <c>0x41</c>. The type keeps Ethereum's name from when that
 /// was the only account chain (BACKLOG: renamed when no other stage touches Chains); <see cref="Chain"/> says which
-/// chain it is on, so that the same 20 bytes on the two chains are never taken for one actor.
+/// chain it is on, so that the same 20 bytes on two chains are never taken for one actor.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -37,11 +38,12 @@ public sealed record EthereumAddress
     /// <summary>The hex digits in both cases.</summary>
     private static readonly SearchValues<char> HexDigits = SearchValues.Create("0123456789abcdefABCDEF");
 
-    /// <summary>Creates an Ethereum address from its checked lower-case form.</summary>
+    /// <summary>Creates an address on Ethereum or BSC from its checked lower-case form.</summary>
+    /// <param name="chain">The chain: Ethereum or BSC, which write their addresses alike.</param>
     /// <param name="lower">The address in lower case with <c>0x</c>.</param>
-    private EthereumAddress(string lower)
+    private EthereumAddress(Chain chain, string lower)
     {
-        (Chain, Value, Hex) = (Chain.Ethereum, lower, lower);
+        (Chain, Value, Hex) = (chain, lower, lower);
         Checksummed = Checksum(lower);
     }
 
@@ -51,17 +53,20 @@ public sealed record EthereumAddress
     private EthereumAddress(string base58, string hex) =>
         (Chain, Value, Checksummed, Hex) = (Chain.Tron, base58, base58, hex);
 
-    /// <summary>Gets the chain the address is on: <see cref="Chain.Ethereum"/> or <see cref="Chain.Tron"/>.</summary>
+    /// <summary>
+    /// Gets the chain the address is on: <see cref="Chain.Ethereum"/>, <see cref="Chain.Bsc"/> or
+    /// <see cref="Chain.Tron"/>.
+    /// </summary>
     public Chain Chain { get; }
 
     /// <summary>
-    /// Gets the address as the chain compares it: on Ethereum in lower case (<c>0x5aae…</c>), on TRON in Base58Check
-    /// (<c>T…</c>).
+    /// Gets the address as the chain compares it: on Ethereum and BSC in lower case (<c>0x5aae…</c>), on TRON in
+    /// Base58Check (<c>T…</c>).
     /// </summary>
     public string Value { get; }
 
     /// <summary>
-    /// Gets the address as it is shown: on Ethereum with its EIP-55 checksum in the letters' case, on TRON in
+    /// Gets the address as it is shown: on Ethereum and BSC with its EIP-55 checksum in the letters' case, on TRON in
     /// Base58Check.
     /// </summary>
     public string Checksummed { get; }
@@ -116,8 +121,26 @@ public sealed record EthereumAddress
         }
 
         problem = null;
-        address = new EthereumAddress(lower);
+        address = new EthereumAddress(Chain.Ethereum, lower);
         return true;
+    }
+
+    /// <summary>
+    /// Gives the same 20 bytes on another chain that writes its addresses as Ethereum does (BSC), as a source for that
+    /// chain reads them with Ethereum's form; the chain makes it another actor than the same bytes on Ethereum.
+    /// </summary>
+    /// <param name="chain">The chain: Ethereum or BSC.</param>
+    /// <returns>The address on that chain.</returns>
+    /// <exception cref="ArgumentException">The address is on TRON, or the chain does not write addresses as Ethereum
+    /// does.</exception>
+    public EthereumAddress OnChain(Chain chain)
+    {
+        if (!chain.IsEvm() || !Chain.IsEvm())
+        {
+            throw new ArgumentException("Only an address on Ethereum or BSC moves between them.", nameof(chain));
+        }
+
+        return chain == Chain ? this : new EthereumAddress(chain, Value);
     }
 
     /// <summary>Reads an Ethereum address that must be one, as a source's answer gives it.</summary>
@@ -128,7 +151,7 @@ public sealed record EthereumAddress
         TryParse(text, out var address, out var problem) ? address : throw new FormatException(problem);
 
     /// <summary>Reads an address on an account chain.</summary>
-    /// <param name="chain">The chain: Ethereum or TRON.</param>
+    /// <param name="chain">The chain: Ethereum, BSC or TRON.</param>
     /// <param name="text">The text; white space around it is ignored.</param>
     /// <param name="address">The address, or <see langword="null"/>.</param>
     /// <returns><see langword="true"/> when the text is an address on the chain.</returns>
@@ -139,13 +162,26 @@ public sealed record EthereumAddress
         return chain switch
         {
             Chain.Ethereum => TryParse(text, out address),
+            Chain.Bsc => TryParseOn(Chain.Bsc, text, out address),
             Chain.Tron => TryParseTron(text, out address, out _),
             _ => false,
         };
     }
 
+    /// <summary>Reads an address in Ethereum's form on a chain that writes its addresses so (BSC).</summary>
+    /// <param name="chain">The chain.</param>
+    /// <param name="text">The text; white space around it is ignored.</param>
+    /// <param name="address">The address, or <see langword="null"/>.</param>
+    /// <returns><see langword="true"/> when the text is an address in Ethereum's form.</returns>
+    private static bool TryParseOn(
+        Chain chain, [NotNullWhen(true)] string? text, [NotNullWhen(true)] out EthereumAddress? address)
+    {
+        address = TryParse(text, out var parsed) ? parsed.OnChain(chain) : null;
+        return address is not null;
+    }
+
     /// <summary>Reads an address on an account chain that must be one, as the case or a source's answer gives it.</summary>
-    /// <param name="chain">The chain: Ethereum or TRON.</param>
+    /// <param name="chain">The chain: Ethereum, BSC or TRON.</param>
     /// <param name="text">The text.</param>
     /// <returns>The address.</returns>
     /// <exception cref="FormatException">The text is not an address on the chain.</exception>
@@ -225,7 +261,7 @@ public sealed record EthereumAddress
         return true;
     }
 
-    /// <summary>Writes the address as it is shown: EIP-55 on Ethereum, Base58Check on TRON.</summary>
+    /// <summary>Writes the address as it is shown: EIP-55 on Ethereum and BSC, Base58Check on TRON.</summary>
     /// <returns>The address.</returns>
     public override string ToString() => Checksummed;
 

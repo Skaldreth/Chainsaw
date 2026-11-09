@@ -22,3 +22,8 @@ internal sealed class FakeTronSource : FakeAccountSource, ITronSource
     /// <inheritdoc/>
     protected override string BlockHashOf(long height) => HashOf(height)[2..];
 }
+
+/// <summary>BSC's fake source: the same synthetic chain as Ethereum's, written as Ethereum writes it.</summary>
+internal sealed class FakeBscSource : FakeAccountSource, IBscSource
+{
+}

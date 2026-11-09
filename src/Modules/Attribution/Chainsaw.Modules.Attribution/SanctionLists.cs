@@ -214,6 +214,11 @@ internal sealed class SanctionLists(AttributionOptions options, IClock clock) : 
             // A TRON address is kept on the list as written (OfacSdnParser.EthereumKey), its checksum part of it.
             Chain.Tron when EthereumAddress.TryParseTron(address.Value, out var tron, out _) =>
                 list.Ethereum.GetValueOrDefault(tron),
+            // Litecoin's and BSC's addresses are keyed on their own chain (OfacSdnParser.BitcoinKey, EthereumKey).
+            Chain.Litecoin when BitcoinAddress.TryParse(Chain.Litecoin, address.Value, out var litecoin) =>
+                list.Bitcoin.GetValueOrDefault(litecoin),
+            Chain.Bsc when EthereumAddress.TryParse(Chain.Bsc, address.Value.ToLowerInvariant(), out var bsc) =>
+                list.Ethereum.GetValueOrDefault(bsc),
             _ => null,
         };
 

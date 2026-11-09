@@ -34,9 +34,10 @@ internal sealed class SourcesFile(string? directory)
     public string? FilePath => directory is null ? null : Path.Combine(directory, ChainSourcesOptions.FileName);
 
     /// <summary>Reads the chains the file has, keeping only what can be used.</summary>
-    /// <param name="apis">The sorts of API Chainsaw speaks, by code.</param>
+    /// <param name="apis">The sorts of API Chainsaw speaks, by chain and code.</param>
     /// <returns>The chains' modes and endpoints; empty when there is no file or it cannot be read.</returns>
-    public IReadOnlyDictionary<Chain, SavedChain> Load(IReadOnlyDictionary<string, ISourceApi> apis)
+    public IReadOnlyDictionary<Chain, SavedChain> Load(
+        IReadOnlyDictionary<(Chain Chain, string Code), ISourceApi> apis)
     {
         var result = new Dictionary<Chain, SavedChain>();
         if (FilePath is not { } path || !File.Exists(path))
@@ -138,10 +139,11 @@ internal sealed class SourcesFile(string? directory)
     /// <param name="apis">The sorts of API Chainsaw speaks.</param>
     /// <returns>The endpoint, or <see langword="null"/>.</returns>
     private static SourceEndpoint? Known(
-        EndpointDto? saved, Chain chain, IReadOnlyDictionary<string, ISourceApi> apis)
+        EndpointDto? saved, Chain chain, IReadOnlyDictionary<(Chain Chain, string Code), ISourceApi> apis)
     {
         if (saved is null || saved.Id == Guid.Empty
-            || saved.Api is null || !apis.TryGetValue(saved.Api, out var api) || api.Info.Chain != chain
+            || saved.Api is null || !apis.ContainsKey((chain, saved.Api))
+
             || !SourceAddress.TryRead(saved.Address, saved.Local, out var address, out _))
         {
             return null;
@@ -156,7 +158,7 @@ internal sealed class SourcesFile(string? directory)
                 milliseconds, slowest.TotalMilliseconds, SourcePace.Maximum.TotalMilliseconds))
             : DefaultPace(saved.Local);
         return new SourceEndpoint(
-            saved.Id, chain, name[..Math.Min(name.Length, SourceAddress.MaximumNameLength)], address!, api.Info.Code,
+            saved.Id, chain, name[..Math.Min(name.Length, SourceAddress.MaximumNameLength)], address!, saved.Api,
             key, saved.Enabled)
         {
             Local = saved.Local,

@@ -154,17 +154,18 @@ internal static class BlockscoutParser
     /// skipped. USDT and USDC are recognised by their contract, never by their symbol.
     /// </summary>
     /// <param name="body">The body.</param>
+    /// <param name="chain">The chain the address is on: Ethereum, or BSC whose source answers alike.</param>
     /// <returns>The tokens.</returns>
     /// <exception cref="FormatException">An entry does not add up, or the source did not answer.</exception>
-    public static TokenBalances ParseTokenBalances(byte[] body) => Read(body, root =>
+    public static TokenBalances ParseTokenBalances(byte[] body, Chain chain = Chain.Ethereum) => Read(body, root =>
     {
         var (items, incomplete) = List(root);
         var tokens = new List<AssetAmount>();
         var skipped = 0;
         foreach (var item in items)
         {
-            var asset = OptionalString(item, "type") == "ERC-20"
-                ? Token(Address(String(item, "contractAddress")), OptionalString(item, "symbol"),
+            var asset = OptionalString(item, "type") is "ERC-20" or "BEP-20"
+                ? Token(Address(String(item, "contractAddress"), chain), OptionalString(item, "symbol"),
                     OptionalString(item, "decimals"))
                 : null;
             if (asset is null)
@@ -187,7 +188,7 @@ internal static class BlockscoutParser
 
         return new TokenBalances(
             [
-                .. tokens.OrderBy(token => KnownTokens.IssuerOf(token.Asset) is null)
+                .. tokens.OrderBy(token => !KnownTokens.IsKnown(token.Asset))
                     .ThenBy(token => token.Asset.Symbol, StringComparer.Ordinal)
                     .ThenBy(token => token.Asset.Contract, StringComparer.Ordinal),
             ],
@@ -240,7 +241,7 @@ internal static class BlockscoutParser
         {
             foreach (var log in logs.EnumerateArray())
             {
-                var (transfer, unreadable) = TransferOf(log);
+                var (transfer, unreadable) = TransferOf(log, hash.Chain);
                 unread += unreadable ? 1 : 0;
                 if (transfer is not null)
                 {
@@ -249,14 +250,15 @@ internal static class BlockscoutParser
             }
         }
 
-        var to = OptionalAddress(result, "to");
+        var to = OptionalAddress(result, "to", hash.Chain);
         return new TransactionInfo(
             hash,
             height,
             height is null ? null : Time(result),
-            Address(String(result, "from")),
+            Address(String(result, "from"), hash.Chain),
             to,
-            to ?? OptionalAddress(result, "contractAddress") ?? OptionalAddress(result, "created_contract"),
+            to ?? OptionalAddress(result, "contractAddress", hash.Chain)
+                ?? OptionalAddress(result, "created_contract", hash.Chain),
             Whole(result, "value"),
             outcome == EthereumOutcome.Pending ? BigInteger.Zero : Whole(result, "gasUsed") * Whole(result, "gasPrice"),
             outcome,
@@ -290,7 +292,8 @@ internal static class BlockscoutParser
                 continue;
             }
 
-            calls.Add(new InternalCall(Address(String(item, "from")), Receiver(item), Whole(item, "value"),
+            calls.Add(new InternalCall(Address(String(item, "from"), hash.Chain), Receiver(item, hash.Chain),
+                Whole(item, "value"),
                 PositionOf(item, i)));
         }
 
@@ -305,7 +308,7 @@ internal static class BlockscoutParser
     public static TokenInfo ParseToken(byte[] body, EthereumAddress contract) => Read(body, root =>
     {
         var result = Result(root);
-        if (Address(String(result, "contractAddress")) != contract)
+        if (Address(String(result, "contractAddress"), contract.Chain) != contract)
         {
             throw new FormatException("The answer is about another token.");
         }
@@ -334,7 +337,7 @@ internal static class BlockscoutParser
             var unread = 0;
             foreach (var item in items)
             {
-                var hash = EthereumTxHash.Parse(TransactionOf(item));
+                var hash = EthereumTxHash.Parse(address.Chain, TransactionOf(item));
                 var block = BlockOf(item);
                 if (block is not null)
                 {
@@ -351,8 +354,8 @@ internal static class BlockscoutParser
                     continue;
                 }
 
-                var from = Address(String(item, "from"));
-                var to = OptionalReceiver(item);
+                var from = Address(String(item, "from"), address.Chain);
+                var to = OptionalReceiver(item, address.Chain);
                 if (to is null && history == EthereumHistory.Transactions && from == address
                     && (!Succeeded(item) || Whole(item, "value").IsZero))
                 {
@@ -425,7 +428,7 @@ internal static class BlockscoutParser
                 if (succeeded && !value.IsZero)
                 {
                     transfers.Add(new EthereumTransfer(hash, EthereumTransferKind.Native, from, to,
-                        new AssetAmount(Asset.Ether, value), 0, block));
+                        new AssetAmount(address.Chain.NativeAsset(), value), 0, block));
                 }
 
                 if (from == address)
@@ -438,15 +441,16 @@ internal static class BlockscoutParser
                 if (MovesEther(item))
                 {
                     transfers.Add(new EthereumTransfer(hash, EthereumTransferKind.Internal, from, to,
-                        new AssetAmount(Asset.Ether, Whole(item, "value")), PositionOf(item, ordinal), block));
+                        new AssetAmount(address.Chain.NativeAsset(), Whole(item, "value")), PositionOf(item, ordinal),
+                        block));
                 }
 
                 return true;
             default:
                 // An NFT, a token whose decimals Chainsaw cannot count in (anyone can make a contract say 255) and a
                 // transfer of zero (address poisoning) are not counted, and never make the page unreadable.
-                var token = Token(Address(String(item, "contractAddress")), OptionalString(item, "tokenSymbol"),
-                    OptionalString(item, "tokenDecimal"));
+                var token = Token(Address(String(item, "contractAddress"), address.Chain),
+                    OptionalString(item, "tokenSymbol"), OptionalString(item, "tokenDecimal"));
                 if (token is null || !BigInteger.TryParse(OptionalString(item, "value"), NumberStyles.None,
                     CultureInfo.InvariantCulture, out var units) || units.IsZero)
                 {
@@ -467,8 +471,9 @@ internal static class BlockscoutParser
     /// unreadable.
     /// </summary>
     /// <param name="log">The log.</param>
+    /// <param name="chain">The chain the transaction is on.</param>
     /// <returns>The transfer or <see langword="null"/>, and whether it is a Transfer that could not be read.</returns>
-    private static (TokenLog? Transfer, bool Unread) TransferOf(JsonElement log)
+    private static (TokenLog? Transfer, bool Unread) TransferOf(JsonElement log, Chain chain)
     {
         if (!log.TryGetProperty("topics", out var topicsElement) || topicsElement.ValueKind != JsonValueKind.Array)
         {
@@ -484,11 +489,11 @@ internal static class BlockscoutParser
         }
 
         var data = OptionalString(log, "data") ?? string.Empty;
-        var contract = OptionalAddress(log, "address");
+        var contract = OptionalAddress(log, "address", chain);
         if (topics.Count != 3 || data.Length != 66 || contract is null
             || !long.TryParse(OptionalString(log, "index"), NumberStyles.None, CultureInfo.InvariantCulture,
                 out var index)
-            || Word(topics[1]) is not { } from || Word(topics[2]) is not { } to
+            || Word(topics[1], chain) is not { } from || Word(topics[2], chain) is not { } to
             || !TryQuantity(data, out var units))
         {
             return (null, true);
@@ -499,10 +504,11 @@ internal static class BlockscoutParser
 
     /// <summary>Reads an address from a 32-byte topic, which must be zero above its 20 bytes.</summary>
     /// <param name="topic">The topic, <c>0x</c> and 64 hex digits.</param>
+    /// <param name="chain">The chain the log is on.</param>
     /// <returns>The address, or <see langword="null"/> when it is not one padded with zeros.</returns>
-    private static EthereumAddress? Word(string topic) =>
+    private static EthereumAddress? Word(string topic, Chain chain) =>
         EthereumTxHash.IsHash(topic) && topic.AsSpan(2, 24).IndexOfAnyExcept('0') < 0
-            && EthereumAddress.TryParse("0x" + topic[26..], out var address)
+            && EthereumAddress.TryParse(chain, "0x" + topic[26..], out var address)
             ? address
             : null;
 
@@ -521,7 +527,7 @@ internal static class BlockscoutParser
         }
 
         var shown = string.IsNullOrWhiteSpace(symbol) ? "token" : symbol.Trim();
-        return KnownTokens.Canonical(Asset.Token(Chain.Ethereum, contract.Value, shown, places));
+        return KnownTokens.Canonical(Asset.Token(contract.Chain, contract.Value, shown, places));
     }
 
     /// <summary>
@@ -625,16 +631,18 @@ internal static class BlockscoutParser
 
     /// <summary>Gives an entry's receiver: <c>to</c>, or the contract it created.</summary>
     /// <param name="item">The entry.</param>
+    /// <param name="chain">The chain the entry is on.</param>
     /// <returns>The receiver.</returns>
     /// <exception cref="FormatException">There is none.</exception>
-    private static EthereumAddress Receiver(JsonElement item) =>
-        OptionalReceiver(item) ?? throw new FormatException("The entry has no receiver.");
+    private static EthereumAddress Receiver(JsonElement item, Chain chain) =>
+        OptionalReceiver(item, chain) ?? throw new FormatException("The entry has no receiver.");
 
     /// <summary>Gives an entry's receiver, or <see langword="null"/> when it has none.</summary>
     /// <param name="item">The entry.</param>
+    /// <param name="chain">The chain the entry is on.</param>
     /// <returns>The receiver, or <see langword="null"/>.</returns>
-    private static EthereumAddress? OptionalReceiver(JsonElement item) =>
-        OptionalAddress(item, "to") ?? OptionalAddress(item, "contractAddress");
+    private static EthereumAddress? OptionalReceiver(JsonElement item, Chain chain) =>
+        OptionalAddress(item, "to", chain) ?? OptionalAddress(item, "contractAddress", chain);
 
     /// <summary>
     /// Gives an entry's block, with its hash and the transaction's place in it (<c>transactionIndex</c>) when the
@@ -704,7 +712,8 @@ internal static class BlockscoutParser
         }
 
         var fee = Whole(item, "gasUsed") * Whole(item, "gasPrice");
-        fees.Add(new EthereumFee(hash, payer, new AssetAmount(Asset.Ether, fee), Succeeded(item), block));
+        fees.Add(new EthereumFee(
+            hash, payer, new AssetAmount(payer.Chain.NativeAsset(), fee), Succeeded(item), block));
     }
 
     /// <summary>Says whether an entry of an address's transactions succeeded: no error and no failed receipt.</summary>
@@ -814,20 +823,23 @@ internal static class BlockscoutParser
             ? value
             : throw new FormatException("A quantity is 0x and hex.");
 
-    /// <summary>Reads an address property.</summary>
+    /// <summary>Reads an address property, in Ethereum's form, on the chain the answer is about.</summary>
     /// <param name="text">The text.</param>
+    /// <param name="chain">The chain: Ethereum, or BSC whose addresses are written alike.</param>
     /// <returns>The address.</returns>
-    private static EthereumAddress Address(string text) => EthereumAddress.Parse(text);
+    private static EthereumAddress Address(string text, Chain chain) => EthereumAddress.Parse(text).OnChain(chain);
 
     /// <summary>Reads an address property that may be missing, null or empty.</summary>
     /// <param name="item">The entry.</param>
     /// <param name="name">The property.</param>
+    /// <param name="chain">The chain the answer is about.</param>
     /// <returns>The address, or <see langword="null"/>.</returns>
-    private static EthereumAddress? OptionalAddress(JsonElement item, string name)
+    private static EthereumAddress? OptionalAddress(JsonElement item, string name, Chain chain)
     {
         var text = OptionalString(item, name);
-        return string.IsNullOrEmpty(text) ? null : Address(text);
+        return string.IsNullOrEmpty(text) ? null : Address(text, chain);
     }
+
 
     /// <summary>Reads a string property that must be there.</summary>
     /// <param name="item">The entry.</param>

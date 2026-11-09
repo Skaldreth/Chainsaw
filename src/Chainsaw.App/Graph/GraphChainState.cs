@@ -103,8 +103,10 @@ public interface IGraphChainState
 /// <param name="ethereum">Ethereum's source.</param>
 /// <param name="prices">The rates.</param>
 /// <param name="tron">TRON's source, or <see langword="null"/> where it is not registered.</param>
+/// <param name="bsc">BSC's source, or <see langword="null"/> where it is not registered.</param>
 public sealed class GraphChainState(
-    IBitcoinSource bitcoin, IEthereumSource ethereum, IPriceService prices, ITronSource? tron = null)
+    IBitcoinSource bitcoin, IEthereumSource ethereum, IPriceService prices, ITronSource? tron = null,
+    IBscSource? bsc = null)
     : IGraphChainState
 {
     /// <summary>The most addresses of a cluster whose balance is asked for, so that a large one is not asked one by one.</summary>
@@ -127,6 +129,8 @@ public sealed class GraphChainState(
             Chain.Ethereum => await EthereumAsync(@case, ethereum, node.Accounts, cancellationToken)
                 .ConfigureAwait(false),
             Chain.Tron when tron is not null => await EthereumAsync(@case, tron, node.Accounts, cancellationToken)
+                .ConfigureAwait(false),
+            Chain.Bsc when bsc is not null => await EthereumAsync(@case, bsc, node.Accounts, cancellationToken)
                 .ConfigureAwait(false),
             _ => new NodeHoldings([], null, null, false, NoAddressText),
         };
@@ -159,8 +163,11 @@ public sealed class GraphChainState(
         IReadOnlyList<BlockChange> onTron = tron is null
             ? []
             : await tron.GetBlockChangesAsync(@case, cancellationToken).ConfigureAwait(false);
+        IReadOnlyList<BlockChange> onBsc = bsc is null
+            ? []
+            : await bsc.GetBlockChangesAsync(@case, cancellationToken).ConfigureAwait(false);
         var tip = await bitcoin.GetTipAsync(@case, LookupMode.CaseOnly, cancellationToken).ConfigureAwait(false);
-        return new ChainMarksReading([.. onBitcoin, .. onEthereum, .. onTron], tip.Value);
+        return new ChainMarksReading([.. onBitcoin, .. onEthereum, .. onTron, .. onBsc], tip.Value);
     }
 
     /// <inheritdoc/>

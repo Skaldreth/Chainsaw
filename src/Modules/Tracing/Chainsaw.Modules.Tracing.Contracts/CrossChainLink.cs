@@ -20,8 +20,9 @@ public sealed partial record ChainTransactionRef
         var normalised = id.Trim().ToLowerInvariant();
         var valid = chain switch
         {
-            Chain.Bitcoin or Chain.Tron => PlainHash().IsMatch(normalised),
-            Chain.Ethereum => PrefixedHash().IsMatch(normalised),
+            Chain.Bitcoin or Chain.Tron or Chain.Litecoin => PlainHash().IsMatch(normalised),
+            Chain.Ethereum or Chain.Bsc => PrefixedHash().IsMatch(normalised),
+
             _ => false,
         };
         if (!valid)

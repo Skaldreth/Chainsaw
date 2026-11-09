@@ -1000,10 +1000,13 @@ public sealed class GraphSource(
         return (fetched, asked);
     }
 
-    /// <summary>Gives the asset an amount is priced as: wrapped ether as ether, everything else as itself.</summary>
+    /// <summary>
+    /// Gives the asset an amount is priced as: a wrapped coin (WETH, WBNB) as the coin, everything else as itself.
+    /// </summary>
     /// <param name="asset">The asset.</param>
     /// <returns>The priced asset.</returns>
-    private static Asset PricedAs(Asset asset) => asset == KnownTokens.EthereumWeth ? Asset.Ether : asset;
+    private static Asset PricedAs(Asset asset) =>
+        KnownTokens.IsWrappedNative(asset) ? asset.Chain.NativeAsset() : asset;
 
     /// <summary>Values an amount at a time from the rates read, or gives none.</summary>
     /// <param name="rates">The rates by priced asset and time.</param>

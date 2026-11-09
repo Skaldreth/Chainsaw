@@ -1,0 +1,15 @@
+{
+ "id": "c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0",
+ "height": 3000000,
+ "version": 536870912,
+ "timestamp": 1793872800,
+ "tx_count": 40,
+ "size": 20000,
+ "weight": 60000,
+ "merkle_root": "5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f",
+ "previousblockhash": "bfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbf",
+ "mediantime": 1793872000,
+ "nonce": 1,
+ "bits": 422279990,
+ "difficulty": 1.0
+}

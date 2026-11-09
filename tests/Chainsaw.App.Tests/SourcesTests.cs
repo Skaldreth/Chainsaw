@@ -34,8 +34,8 @@ public sealed class SourcesTests
 
         Assert.Equal(SettingsPage.Sources, SettingsMenu.Groups[0].Entries[1].Page);
         Assert.Equal("Källor", SettingsMenu.For(SettingsPage.Sources).Name);
-        Assert.Equal(["Bitcoin", "Ethereum", "TRON", "Solana"], page.Chips.Select(c => c.Name));
-        Assert.Equal([true, false, false, false], page.Chips.Select(c => c.IsBuilt));
+        Assert.Equal(["Bitcoin", "Ethereum", "TRON", "Litecoin", "BSC", "Solana"], page.Chips.Select(c => c.Name));
+        Assert.Equal([true, false, false, false, false, false], page.Chips.Select(c => c.IsBuilt));
         Assert.True(page.Chips[0].IsSelected);
         Assert.Equal("Ethereum · Inte byggt än", page.Chips[1].Tip);
 

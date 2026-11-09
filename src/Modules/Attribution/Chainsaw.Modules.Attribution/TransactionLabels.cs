@@ -189,6 +189,8 @@ internal sealed class TransactionLabels : ITransactionLabels
     {
         Chain.Bitcoin when Txid.TryParse(id, out var txid) => txid.Value,
         Chain.Ethereum when EthereumTxHash.TryParse(id?.ToLowerInvariant(), out var hash) => hash.Value,
+        Chain.Litecoin when Txid.TryParse(id, out var litecoin) => litecoin.Value,
+        Chain.Bsc when EthereumTxHash.TryParse(Chain.Bsc, id?.ToLowerInvariant(), out var bsc) => bsc.Value,
         _ => null,
     };
 
