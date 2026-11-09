@@ -4411,7 +4411,9 @@ Användarens krav: allt som står på inspektörens plats ska ligga under arbete
   full höjd, och vyns övriga innehåll har kvar sin luft upptill och nedtill. Förslagspanelen (KF2b) står redan i
   grafens inspektör och har fått panelens ton och luften.
 
-**Egna beslut:** Nytt ärende (NC2a) och dialogerna mörkar resten och ligger över arbetet; de är oförändrade.
+**Egna beslut:** dialogerna mörkar resten och ligger över arbetet; de är oförändrade. Nytt ärende (NC2a) är också
+`UnderPanel` (användarens krav samma dag), och mörkningen över arbetet står kvar, eftersom panelen tar över arbetet
+tills den stängs.
 Begärans och Rapportens förhandsvisningar är dokument, inte inspektörer, och står kvar som kort.
 
 
