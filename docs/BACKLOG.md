@@ -263,6 +263,11 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
   analyseras igen; att analysera om de berörda tx:erna direkt vid tillbakadragandet kräver att Clustering läser tx:erna
   ur ärendet (*Klustringens underlag ur ärendet* ovan).
 
+- **Mönster: fickpengar** (granskningen av `pattern v1`, N3''): en förälder som för över samma udda belopp varje dag
+  till ett barn som sedan spenderar mynten tillsammans räknas som strukturering (samma mottagare, lika belopp,
+  mynten samlas). Förslag: kräva en större summa för följden, eller att mottagaren för pengarna vidare till en börs,
+  när kryptospåraren har sagt vilka belopp som brukar ligga under gränserna.
+
 ## Förvirringstekniker (användarens beslut 2026-11-07)
 Allt som används för att förvirra spårningen ska kännas igen och analyseras, med så mycket automatiska kontroller och
 förslag som möjligt (CLAUDE.md, *Förvirring analyseras*). Byggt 2026-11-08 (omgång 4): mixade mynt som slås ihop

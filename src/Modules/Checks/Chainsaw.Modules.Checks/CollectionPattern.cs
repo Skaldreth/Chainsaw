@@ -11,8 +11,10 @@ namespace Chainsaw.Modules.Checks;
 /// says something only when at least two collecting actors sweep to the <em>same</em> actor that nothing is known
 /// about (the same cluster or deposit address). A labelled exchange or service, or a hub, as the destination says
 /// nothing (it has many customers), and a payment that only forwards money the payer got in the graph (a deposit
-/// address sweeping to its hot wallet) is no payer of a collection. A merchant that empties its tills to its cold
-/// wallet has the same form, and the text says so.
+/// address sweeping to its hot wallet) is no payer of a collection. A recipient that only passes the sweeps on in
+/// larger, gathered amounts (<see cref="PassesOnInBulk"/>) says nothing either: it has the form of an exchange's hot
+/// wallet without a label, whose collectors are its customers' deposit addresses. A merchant that empties its tills
+/// to its cold wallet, or an exchange without a label, has the same form as what is left, and the text says so.
 /// </summary>
 internal static class CollectionPattern
 {
@@ -47,7 +49,30 @@ internal static class CollectionPattern
     /// <param name="actor">The actor.</param>
     /// <returns>Whether they do.</returns>
     private static bool MayReceive(GraphShape shape, ShapeActor actor) =>
-        actor.Sort == ActorSort.Unknown && !PatternActors.IsHub(shape, actor);
+        actor.Sort == ActorSort.Unknown && !PatternActors.IsHub(shape, actor) && !PassesOnInBulk(shape, actor);
+
+    /// <summary>
+    /// Whether an actor only passes on what it gets in larger, gathered amounts, as an exchange's hot wallet does with
+    /// its deposit addresses' sweeps: it pays on, every payment out is larger than every payment in, and what it paid
+    /// out is at least <see cref="SweepShare"/> of what it got.
+    /// </summary>
+    /// <param name="shape">The shape.</param>
+    /// <param name="actor">The actor.</param>
+    /// <returns>Whether it does.</returns>
+    private static bool PassesOnInBulk(GraphShape shape, ShapeActor actor)
+    {
+        var ins = shape.In(actor.Index).Select(index => shape.Flows[index]).Where(flow => !flow.IsShared).ToList();
+        var outs = shape.Out(actor.Index).Select(index => shape.Flows[index]).Where(flow => !flow.IsShared).ToList();
+        if (ins.Count == 0 || outs.Count == 0)
+        {
+            return false;
+        }
+
+        var gotIn = ins.Sum(flow => flow.Amount.Value);
+        var paidOut = outs.Sum(flow => flow.Amount.Value);
+        return outs.Min(flow => flow.Amount.Value) > ins.Max(flow => flow.Amount.Value)
+            && paidOut >= SweepShare * gotIn;
+    }
 
     /// <summary>
     /// Finds an actor's collections, all of them: its lines in time order with running totals of what came in since
@@ -135,7 +160,8 @@ internal static class CollectionPattern
             + $"och sedan sveps {CheckText.Percent(SweepShare)} till {CheckText.Percent(MostSweep)} av det insamlade "
             + "vidare i en tx som spenderar deras mynt. " + PatternText.Parts(parts) + " Det är formen hos "
             + "insamlingsadresser i ett bedrägeri som töms till samma plånbok, men det kan också vara en handlare som "
-            + "tömmer sina kassor till sin kalla plånbok. Insättningar som bara förs vidare från "
+            + "tömmer sina kassor till sin kalla plånbok, eller en börs utan etikett vars insättningsadresser töms till "
+            + "dess plånbok. Insättningar som bara förs vidare från "
             + "en annan adress i grafen räknas inte som avsändare, och en börs eller tjänst med etikett som mottagare "
             + "säger inget, eftersom den har många kunder.";
         var flows = group.SelectMany(collection => collection.Payments.Concat(collection.Sweep))

@@ -464,6 +464,51 @@ public sealed class PatternCheckTests
         Assert.Single(Analysis.Run(input), finding => finding.Key == "struct:" + Txid("scammer-0").Value);
     }
 
+    [Fact]
+    public void An_exchange_without_a_label_that_sweeps_its_deposit_addresses_on_in_bulk_is_no_collection()
+    {
+        // Probe X3: twenty clusters with five payers each are swept to a hot wallet, which pays on in large amounts.
+        var hot = Wpkh("unlabelled-hot");
+        var deposits = Enumerable.Range(0, 20)
+            .Select(i => Collection($"d{i}", Start + (i * 50), hot, payers: 5).ToList())
+            .ToList();
+        var sweeps = deposits.Select(cluster => cluster[^1]).ToList();
+        var half = sweeps.Count / 2;
+        var onward = new[]
+        {
+            sweeps.Take(half).Aggregate(Tx("hot-onward-1", Start + 2_000), (tx, sweep) => tx.Spend(sweep, 0))
+                .Out(Wpkh("cold-1"), sweeps.Take(half).Sum(sweep => sweep.Outputs[0].Amount.Value) - 5_000).Build(),
+            sweeps.Skip(half).Aggregate(Tx("hot-onward-2", Start + 2_010), (tx, sweep) => tx.Spend(sweep, 0))
+                .Out(Wpkh("cold-2"), sweeps.Skip(half).Sum(sweep => sweep.Outputs[0].Amount.Value) - 5_000).Build(),
+        };
+
+        Assert.Empty(Run([.. deposits.SelectMany(cluster => cluster), .. onward]));
+    }
+
+    [Fact]
+    public void A_scammer_who_pays_out_through_twelve_mules_is_no_hub_and_the_ways_are_found()
+    {
+        // Probe N4b: twelve victims pay a scammer, who passes each payment on to its own mule, who pays it in at the
+        // same deposit address.
+        var deposit = Wpkh("exchange-deposit-a");
+        var txs = new List<BitcoinTransaction>();
+        for (var i = 0; i < 12; i++)
+        {
+            var paid = Tx($"n4-paid-{i}", Start + (i * 20)).In(Wpkh($"n4-victim-{i}"), 20_000_000)
+                .Out(Wpkh("n4-scammer"), 10_000_000 + (i * 1_111)).Build();
+            var mule = Tx($"n4-mule-{i}", Start + (i * 20) + 3).Spend(paid, 0)
+                .Out(Wpkh($"n4-mule-{i}"), 9_900_000).Build();
+            var cashed = Tx($"n4-cashed-{i}", Start + (i * 20) + 6).Spend(mule, 0).Out(deposit, 9_800_000).Build();
+            txs.AddRange([paid, mule, cashed]);
+        }
+
+        var input = Input(txs) with { Services = [new KnownService([Exchange, deposit], true, "Börsen")] };
+
+        var finding = Single(Analysis.Run(input), "route:");
+
+        Assert.Equal($"Samma väg, {RoutePattern.MostWays} delar", finding.Title);
+    }
+
     // ---- The same deposit address, never just the same exchange (I-B) --------------------------------------
 
     [Fact]
@@ -642,15 +687,16 @@ public sealed class PatternCheckTests
 
     /// <summary>Six victims pay a collecting address, which sweeps their coins on in one transaction.</summary>
     private static IEnumerable<BitcoinTransaction> Collection(
-        string part, long height, BitcoinAddress to, BitcoinAddress? collector = null)
+        string part, long height, BitcoinAddress to, BitcoinAddress? collector = null, int payers = 6)
     {
-        var payments = Enumerable.Range(0, 6)
+        var payments = Enumerable.Range(0, payers)
             .Select(i => Tx($"{part}-pay-{i}", height + (i * 10)).In(Wpkh($"{part}-victim-{i}"), 3_000_000)
                 .Out(collector ?? Wpkh(part), 2_000_000 + (i * 1_000)).Out(Wpkh($"{part}-victim-{i}"), 990_000)
                 .Build())
             .ToList();
+        var collected = payments.Sum(paid => paid.Outputs[0].Amount.Value);
         var sweep = payments.Aggregate(Tx($"{part}-sweep", height + 100), (tx, paid) => tx.Spend(paid, 0))
-            .Out(to, 11_900_000).Build();
+            .Out(to, collected * 99 / 100).Build();
         return [.. payments, sweep];
     }
 

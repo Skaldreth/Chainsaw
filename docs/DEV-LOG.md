@@ -5205,3 +5205,16 @@ former, och en kontroll kan inte avfärdas; slumpgrafen saknade länkade mynt oc
   texten inte redan säger hashen; en ogiltig hash får analysen att misslyckas för sig.
 - **Falsklarm och fart:** inga larm i 300 slumpgrafer; 20 000 tx tar omkring 2 s med alla tester igång. 41 tester i
   `PatternCheckTests`.
+
+**Tredje granskningens rättelser (2 I, 3 M), 2026-11-09.**
+- **I-1:** en mottagare som bara för vidare i större, samlade belopp (varje betalning ut större än varje in, och minst
+  90 % förs vidare) ger ingen *Samma insamling*: det är formen hos en börs hot wallet utan etikett. Texten säger att
+  det också kan vara en börs utan etikett. Provet X3 (20 kluster med fem avsändare var, svepta till en adress som för
+  vidare i stora belopp) är ett negativt fall. Det kostar en sak: en tvättare som samlar in och för vidare allt i
+  större belopp missas också.
+- **I-2:** en mottagare som bara för vidare aktörens egna mynt (fick pengar bara från aktören, har betalat vidare och
+  spenderade bara mynt aktören betalat, alltså en mula) räknas inte mot knutpunkten, som betalare som bara samlar in
+  och tömmer redan inte gjorde. Provet N4b (tolv offer, en bedragare, tolv mulor till samma insättningsadress) ger nu
+  *Samma väg*.
+- **M-1 och M-2:** Guiden förklarar betalningsförmedlaren och sprickan i en mixer utan etikett.
+- **M-3:** fickpengarna (N3'') står i BACKLOG under *Mönster: fickpengar*.

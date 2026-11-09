@@ -34,12 +34,37 @@ internal static class PatternActors
         var paid = shape.Actors
             .Select(actor => shape.Out(actor.Index).Select(index => shape.Flows[index].To).ToHashSet())
             .ToArray();
+        var passesFor = shape.Actors.Select(actor => PassesOnFor(shape, actor.Index)).ToArray();
         return [.. shape.Actors.Select(actor => paid[actor.Index]
             .Concat(shape.In(actor.Index).Select(index => shape.Flows[index].From))
             .Distinct()
-            .Where(other => Counts(shape, paid, actor.Index, other))
+            .Where(other => passesFor[other] != actor.Index && Counts(shape, paid, actor.Index, other))
             .Take(HubCounterparties)
             .Count() >= HubCounterparties)];
+    }
+
+    /// <summary>
+    /// Gives the one actor whose coins an actor only passes on: it got money from that actor alone, has paid on, and
+    /// every coin it spent was paid to it by that actor (a mule). Such a recipient does not count towards making the
+    /// payer a hub, as a payer that only collects and empties does not count towards making its recipient one, so
+    /// that a scammer who pays out to many mules is no hub.
+    /// </summary>
+    /// <param name="shape">The shape.</param>
+    /// <param name="actor">The actor's index.</param>
+    /// <returns>The actor whose coins it passes on, or <c>-1</c>.</returns>
+    private static int PassesOnFor(GraphShape shape, int actor)
+    {
+        var sources = shape.In(actor).Select(index => shape.Flows[index].From).Distinct().Take(2).ToList();
+        var outs = shape.Out(actor).Select(index => shape.Flows[index]).ToList();
+        if (sources.Count != 1 || outs.Count == 0 || outs.Any(flow => flow.IsShared || flow.Spent.Count == 0))
+        {
+            return -1;
+        }
+
+        var source = sources[0];
+        var passes = outs.All(flow => flow.Spent.All(coin =>
+            shape.PayerOf(coin) is { } line && shape.Flows[line].From == source));
+        return passes ? source : -1;
     }
 
     /// <summary>
@@ -47,7 +72,7 @@ internal static class PatternActors
     /// does one that only collects and empties into the actor (a victim who paid it, or a collecting address that
     /// swept to it): it pays the actor, pays no one else, and the actor never pays it. Everything else counts: a
     /// labelled actor, and every actor the actor pays (an exchange pays out to many customers, a scam's collector
-    /// sweeps to few).
+    /// sweeps to few), except one that only passes on the actor's coins (<see cref="PassesOnFor"/>).
     /// </summary>
     /// <param name="shape">The shape.</param>
     /// <param name="paid">The actors each actor pays.</param>

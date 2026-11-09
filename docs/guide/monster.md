@@ -56,6 +56,14 @@ en egen aktör i mitten, eftersom ingen vet vems pengar som gick vart. Fyra regl
 - **Startpunkterna och offren räknas aldrig** som en del av ett mönsters affärer. Det skyddar offren, men om
   startpunkten är den misstänktes egen plånbok kan ett mönster som går genom den missas.
 - **Det som inte är hämtat syns inte:** en följd eller en väg kan fortsätta utanför grafen.
+- **En betalningsförmedlare** (en tjänst som tar emot betalningar åt många butiker och betalar ut till dem) har samma
+  form som en insamling och som samma väg: många betalar in, och pengarna förs vidare i större belopp. Saknar den
+  etikett kan den ge en träff; sätt en etikett på den, så räknas den som en tjänst.
+- **En börs utan etikett** vars insättningsadresser töms till dess plånbok liknar en insamling. En mottagare som bara
+  för vidare i större, samlade belopp räknas därför inte, men innan dess säger *Varför?* att det kan vara en börs.
+- **En mixer utan etikett** är en spricka: Chainsaw vet inte att mynten byts där, så samma väg och rundgången kan följa
+  mynten genom den som om de vore samma pengar, så länge den inte har så många motparter att den blir en knutpunkt.
+  Sätt en etikett på en mixer så snart den känns igen; då slutar vägen där.
 - **Mätt mot slumpen:** i 300 slumpade grafer med 1 500 betalningar var, där mynten följer varandra, gav reglerna
   inget larm, och de vardagliga formerna (jämna belopp, utbetalningar i batch, en börs hot wallet, CoinJoin, en tjänst
   med många utbetalningar, butiker som sveper till börser, insättning och uttag på en börs utan etikett) ger inget.
