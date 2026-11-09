@@ -1,5 +1,6 @@
 using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using Chainsaw.SharedKernel;
 
 namespace Chainsaw.Modules.Chains.Contracts;
@@ -85,4 +86,31 @@ public sealed record EthereumTxHash
 
     /// <inheritdoc/>
     public override string ToString() => Value;
+
+    /// <summary>
+    /// Gives the hash shortened for a text the user reads, its first eight characters and an ellipsis (<c>0x</c>
+    /// counts on Ethereum), so that a waiting text stays a sentence.
+    /// </summary>
+    /// <returns>The short hash.</returns>
+    public string Brief() => Value[..BriefLength] + "…";
+
+    /// <summary>
+    /// Gives a list of hashes shortened for a text: the first few <see cref="Brief"/>, and how many more there are, for
+    /// example <c>a1b2c3d4…, e5f6a7b8… och 4 till</c>.
+    /// </summary>
+    /// <param name="hashes">The hashes.</param>
+    /// <returns>The text.</returns>
+    public static string BriefList(IReadOnlyCollection<EthereumTxHash> hashes)
+    {
+        ArgumentNullException.ThrowIfNull(hashes);
+        var shown = string.Join(", ", hashes.Take(BriefShown).Select(hash => hash.Brief()));
+        var more = hashes.Count - BriefShown;
+        return more > 0 ? string.Create(CultureInfo.InvariantCulture, $"{shown} och {more} till") : shown;
+    }
+
+    /// <summary>How many characters of a hash a short form keeps.</summary>
+    private const int BriefLength = 8;
+
+    /// <summary>How many hashes a short list names before it counts the rest.</summary>
+    private const int BriefShown = 3;
 }

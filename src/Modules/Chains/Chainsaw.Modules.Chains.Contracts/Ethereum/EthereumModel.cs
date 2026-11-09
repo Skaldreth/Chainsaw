@@ -203,7 +203,8 @@ public sealed record EthereumAddressPage(
     /// <summary>
     /// Gets how many of the <see cref="Skipped"/> entries are left out because their transaction's final answer holds
     /// no event they can be read from (TRON's token history, whose entries are placed by each transaction's info): a
-    /// token with a non-standard event, common among scam tokens. They never make the page incomplete.
+    /// token Chainsaw does not know, with a non-standard event, common among scam tokens. They never make the page
+    /// incomplete. A token Chainsaw knows is never left out this way: it waits (<see cref="Disputed"/>).
     /// </summary>
     public int Unplaced { get; init; }
 
@@ -213,7 +214,19 @@ public sealed record EthereumAddressPage(
     /// (<see cref="IsIncomplete"/>) and is read again; empty otherwise.
     /// </summary>
     public IReadOnlyList<EthereumTxHash> Waiting { get; init; } = [];
+
+    /// <summary>
+    /// Gets the <see cref="Waiting"/> transactions whose final answer lacked the event of a token Chainsaw knows (USDT
+    /// and the others in <see cref="KnownTokens"/>), with the endpoint that gave it. Such an answer is not believed: the
+    /// transaction is asked of another endpoint, and waits until one places the movement. Empty otherwise.
+    /// </summary>
+    public IReadOnlyList<EthereumDisputedAnswer> Disputed { get; init; } = [];
 }
+
+/// <summary>A transaction whose final answer lacked a known token's event, and the endpoint that gave it.</summary>
+/// <param name="Transaction">The transaction.</param>
+/// <param name="Endpoint">The endpoint's name, for example <c>api.trongrid.io</c>.</param>
+public sealed record EthereumDisputedAnswer(EthereumTxHash Transaction, string Endpoint);
 
 /// <summary>The height of Ethereum's newest block.</summary>
 /// <param name="Height">The block's number.</param>

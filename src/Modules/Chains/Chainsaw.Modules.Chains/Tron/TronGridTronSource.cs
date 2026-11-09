@@ -306,9 +306,11 @@ internal sealed class TronGridTronSource : ITronSource
     /// <item>A transfer whose info could not be had now (the source asked Chainsaw to wait, did not answer, or has not
     /// indexed it yet), or whose info lacks the event while its block is still shallow, waits: the page is incomplete,
     /// says which transactions it waits for, and is read again, so that a check never moves past it.</item>
-    /// <item>A transfer whose info is final but holds no event it can be matched with (a token with a non-standard
-    /// event, common among scam tokens) is left out for good: counted as skipped and as unplaced, and said, but it
-    /// never keeps the page incomplete, so that no stranger's token can hold a check back.</item>
+    /// <item>A transfer of a token Chainsaw does not know whose info is final but holds no event it can be matched with
+    /// (a non-standard event, common among scam tokens) is left out for good: counted as skipped and as unplaced, and
+    /// said, but it never keeps the page incomplete, so that no stranger's token can hold a check back. A known token's
+    /// transfer is never left out this way: the info is asked again of another endpoint, and it waits until placed
+    /// (<see cref="PlaceGroupAsync"/>).</item>
     /// </list>
     /// An entry without decimals, which the source will not give for that page, counts as unread.
     /// </summary>
@@ -336,69 +338,171 @@ internal sealed class TronGridTronSource : ITronSource
 
         var parts = new LookupParts(lookup.Status, lookup.Origins, lookup.Notes, lookup.Problem);
         var transfers = new List<EthereumTransfer>();
-        var waiting = new List<EthereumTxHash>();
-        var unplaced = 0;
+        var gaps = new TokenGaps();
         var needed = raw.Entries.Where(entry => notBefore is not { } oldest
-            || (entry.Time >= oldest && KnownTokens.IssuerOf(entry.Asset) is not null));
+            || (entry.Time >= oldest && IsKnown(entry)));
         foreach (var group in needed.GroupBy(entry => entry.Transaction))
         {
-            var info = await _lookups.LookupAsync(@case, InfoQuery(group.Key), mode, cancellationToken)
-                .ConfigureAwait(false);
-            parts.Take(info);
-            if (info.Value is not { } found)
-            {
-                waiting.Add(group.Key);
-                continue;
-            }
-
-            var placed = Place(group, found);
-            transfers.AddRange(placed);
-            var missing = group.Count() - placed.Count;
-            if (missing == 0)
-            {
-                continue;
-            }
-
-            if (await IsFinalAsync(@case, found.Height, cancellationToken).ConfigureAwait(false))
-            {
-                unplaced += missing;
-            }
-            else
-            {
-                waiting.Add(group.Key);
-            }
+            transfers.AddRange(
+                await PlaceGroupAsync(@case, [.. group], mode, parts, gaps, cancellationToken).ConfigureAwait(false));
         }
 
-        NoteGaps(parts, waiting, unplaced);
+        gaps.Note(parts);
+        var waiting = gaps.Waiting;
         var page = new EthereumAddressPage(
             address, EthereumHistory.Tokens, atOrBelow, transfers, [], raw.NextAtOrBelow, raw.IsCutShort,
             waiting.Count > 0)
         {
-            Skipped = raw.Skipped + unplaced,
+            Skipped = raw.Skipped + gaps.Unplaced,
             Unread = raw.Unread,
-            Unplaced = unplaced,
+            Unplaced = gaps.Unplaced,
             Waiting = waiting,
+            Disputed = gaps.Disputed,
         };
         return parts.Page(page);
     }
 
-    /// <summary>Says what a token page waits for and what it left out for good.</summary>
-    /// <param name="parts">The page's answer.</param>
-    /// <param name="waiting">The transactions whose info could not be had now or whose block is still shallow.</param>
-    /// <param name="unplaced">How many transfers have no readable event in their final info.</param>
-    private static void NoteGaps(LookupParts parts, IReadOnlyList<EthereumTxHash> waiting, int unplaced)
+    /// <summary>
+    /// Places one transaction's entries of a token page by its info. What cannot be placed waits while the block is
+    /// shallow. In a final block, an entry of a token Chainsaw does not know is left out for good (unplaced); an entry of
+    /// a known token never is: the answer that lacks its event is not believed, the info is asked again of another
+    /// endpoint than the one that gave it, and the transaction waits until an endpoint places the movement.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="entries">The transaction's entries on the page.</param>
+    /// <param name="mode">Whether the source may be asked.</param>
+    /// <param name="parts">The page's answer, which takes every response.</param>
+    /// <param name="gaps">What the page waits for and what it left out.</param>
+    /// <param name="cancellationToken">Stops the lookup.</param>
+    /// <returns>The transfers that could be placed.</returns>
+    private async Task<IReadOnlyList<EthereumTransfer>> PlaceGroupAsync(
+        ICase @case, IReadOnlyList<TronTokenEntry> entries, LookupMode mode, LookupParts parts, TokenGaps gaps,
+        CancellationToken cancellationToken)
     {
-        if (waiting.Count > 0)
+        var hash = entries[0].Transaction;
+        var info = await _lookups.LookupAsync(@case, InfoQuery(hash), mode, cancellationToken).ConfigureAwait(false);
+        parts.Take(info);
+        if (info.Value is not { } found)
         {
-            parts.Note("Väntar på källan för tx " + string.Join(", ", waiting.Select(hash => hash.Value))
-                + ": deras block och plats kunde inte hämtas än; överföringarna räknas när de kan hämtas.");
+            gaps.Wait(hash);
+            return [];
         }
 
-        if (unplaced > 0)
+        var (placed, left) = Place(entries, found);
+        if (left.Count == 0)
         {
-            parts.Note(string.Create(CultureInfo.InvariantCulture,
-                $"{unplaced} TRC-20-överföringar har ingen läsbar Transfer-händelse i sin slutliga tx (vanligt för ")
-                + "skräptokens); de räknas inte.");
+            return placed;
+        }
+
+        if (!await IsFinalAsync(@case, found.Height, cancellationToken).ConfigureAwait(false))
+        {
+            gaps.Wait(hash);
+            return placed;
+        }
+
+        if (!left.Any(IsKnown) || mode == LookupMode.CaseOnly)
+        {
+            gaps.Unplace(left.Count(entry => !IsKnown(entry)));
+            if (left.Any(IsKnown))
+            {
+                gaps.Wait(hash);
+            }
+
+            return placed;
+        }
+
+        // A final answer without a known token's event is more likely an endpoint's fault than the chain's: asked
+        // again of another endpoint, without the stored answer, and believed only when an endpoint places it.
+        var doubted = info.Origins.Count > 0 ? info.Origins[^1] : null;
+        var again = await _lookups.FetchAsync(
+                @case, InfoQuery(hash), null, cancellationToken, mode == LookupMode.InStep, except: doubted?.EndpointId)
+            .ConfigureAwait(false);
+        parts.Take(again);
+        if (again.Value is { } other && Place(entries, other) is var second
+            && second.Left.Count(IsKnown) < left.Count(IsKnown))
+        {
+            (placed, left) = second;
+        }
+
+        gaps.Unplace(left.Count(entry => !IsKnown(entry)));
+        if (left.Any(IsKnown))
+        {
+            gaps.Dispute(hash, doubted?.Endpoint ?? string.Empty);
+        }
+
+        return placed;
+    }
+
+    /// <summary>Says whether an entry's token is one Chainsaw knows by its contract (USDT and the others).</summary>
+    /// <param name="entry">The entry.</param>
+    /// <returns><see langword="true"/> for a known token.</returns>
+    private static bool IsKnown(TronTokenEntry entry) => KnownTokens.IssuerOf(entry.Asset) is not null;
+
+    /// <summary>What a token page waits for, which answers are not believed, and what it left out for good.</summary>
+    private sealed class TokenGaps
+    {
+        /// <summary>The transactions waited for, each once, in the page's order.</summary>
+        private readonly List<EthereumTxHash> _waiting = [];
+
+        /// <summary>The transactions whose final answer lacked a known token's event.</summary>
+        private readonly List<EthereumDisputedAnswer> _disputed = [];
+
+        /// <summary>Gets the transactions waited for.</summary>
+        public IReadOnlyList<EthereumTxHash> Waiting => _waiting;
+
+        /// <summary>Gets the transactions whose final answer lacked a known token's event.</summary>
+        public IReadOnlyList<EthereumDisputedAnswer> Disputed => _disputed;
+
+        /// <summary>Gets how many entries of unknown tokens have no readable event in their final info.</summary>
+        public int Unplaced { get; private set; }
+
+        /// <summary>Waits for a transaction.</summary>
+        /// <param name="hash">The transaction.</param>
+        public void Wait(EthereumTxHash hash)
+        {
+            if (!_waiting.Contains(hash))
+            {
+                _waiting.Add(hash);
+            }
+        }
+
+        /// <summary>Waits for a transaction whose final answer from an endpoint lacked a known token's event.</summary>
+        /// <param name="hash">The transaction.</param>
+        /// <param name="endpoint">The endpoint that gave the answer.</param>
+        public void Dispute(EthereumTxHash hash, string endpoint)
+        {
+            Wait(hash);
+            _disputed.Add(new EthereumDisputedAnswer(hash, endpoint));
+        }
+
+        /// <summary>Counts entries left out for good.</summary>
+        /// <param name="count">How many.</param>
+        public void Unplace(int count) => Unplaced += count;
+
+        /// <summary>Says what the page waits for and what it left out for good.</summary>
+        /// <param name="parts">The page's answer.</param>
+        public void Note(LookupParts parts)
+        {
+            foreach (var disputed in _disputed)
+            {
+                parts.Note($"Källan {disputed.Endpoint} gav ingen Transfer-händelse för en känd token i tx "
+                    + $"{disputed.Transaction.Brief()} fast blocket är slutligt; svaret tros inte, tx:en frågas hos en "
+                    + "annan källa och väntar tills överföringen kan placeras.");
+            }
+
+            var plain = _waiting.Where(hash => _disputed.All(disputed => disputed.Transaction != hash)).ToList();
+            if (plain.Count > 0)
+            {
+                parts.Note("Väntar på källan för tx " + EthereumTxHash.BriefList(plain)
+                    + ": deras block och plats kunde inte hämtas än; överföringarna räknas när de kan hämtas.");
+            }
+
+            if (Unplaced > 0)
+            {
+                parts.Note(string.Create(CultureInfo.InvariantCulture,
+                    $"{Unplaced} TRC-20-överföringar av okända tokens har ingen läsbar Transfer-händelse i sin ")
+                    + "slutliga tx (vanligt för skräptokens); de räknas inte.");
+            }
         }
     }
 
@@ -452,18 +556,21 @@ internal sealed class TronGridTronSource : ITronSource
     /// </summary>
     /// <param name="entries">The transaction's transfers on the page.</param>
     /// <param name="info">The transaction's info.</param>
-    /// <returns>The transfers that matched an event.</returns>
-    private static List<EthereumTransfer> Place(IEnumerable<TronTokenEntry> entries, TronTransactionInfo info)
+    /// <returns>The transfers that matched an event, and the entries that did not.</returns>
+    private static (List<EthereumTransfer> Placed, List<TronTokenEntry> Left) Place(
+        IEnumerable<TronTokenEntry> entries, TronTransactionInfo info)
     {
         var block = new EthereumBlockReference(info.Height, null, info.Time);
         var unused = info.Tokens.ToList();
         var placed = new List<EthereumTransfer>();
+        var left = new List<TronTokenEntry>();
         foreach (var entry in entries)
         {
             var log = unused.FirstOrDefault(log => log.Contract.Value == entry.Asset.Contract
                 && log.From == entry.From && log.To == entry.To && log.Units == entry.Units);
             if (log is null)
             {
+                left.Add(entry);
                 continue;
             }
 
@@ -472,7 +579,7 @@ internal sealed class TronGridTronSource : ITronSource
                 new AssetAmount(entry.Asset, entry.Units), log.Position, block));
         }
 
-        return placed;
+        return (placed, left);
     }
 
     /// <summary>

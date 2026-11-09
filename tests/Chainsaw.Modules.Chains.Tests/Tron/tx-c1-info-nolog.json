@@ -1,0 +1,16 @@
+{
+ "id": "c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1",
+ "fee": 345000,
+ "blockNumber": 900,
+ "blockTimeStamp": 1793872800000,
+ "contractResult": [
+  ""
+ ],
+ "contract_address": "415555555555555555555555555555555555555555",
+ "receipt": {
+  "energy_usage_total": 64285,
+  "net_fee": 345000,
+  "result": "SUCCESS"
+ },
+ "log": []
+}

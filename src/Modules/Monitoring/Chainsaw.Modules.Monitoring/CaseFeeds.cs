@@ -24,9 +24,18 @@ internal static class FeedTexts
     public const string Waiting =
         "Väntar på källan för tx {1} hos {0}; kontrollen står kvar vid block {2} och fortsätter när källan svarar.";
 
-    /// <summary>When a check left out a transfer whose final transaction holds no readable event.</summary>
+    /// <summary>
+    /// When an endpoint's final answer for a transaction lacked the event of a token Chainsaw knows: the answer is not
+    /// believed, the transaction is asked of another endpoint, and the check stays at its block until it is placed.
+    /// </summary>
+    public const string Disputed =
+        "Källan {2} gav ingen Transfer-händelse för en känd token i tx {1} hos {0}; tx:en frågas hos en annan källa "
+        + "och kontrollen står kvar vid block {3} tills överföringen kan placeras.";
+
+    /// <summary>When a check left out an unknown token's transfer whose final tx holds no readable event.</summary>
     public const string Unplaced =
-        "{1} TRC-20-överföringar till eller från {0} har ingen läsbar Transfer-händelse i sin tx och räknas inte.";
+        "{1} TRC-20-överföringar av okända tokens till eller från {0} har ingen läsbar Transfer-händelse i sin tx och "
+        + "räknas inte.";
 
     /// <summary>When an address on a watch is not one the chain knows.</summary>
     public const string NotAnAddress = "{0} är ingen adress på kedjan.";
@@ -300,10 +309,7 @@ internal sealed class EthereumCaseFeed(IAccountSource source, ICase @case) : IWa
             {
                 // The source has not finished reading the history: nothing below its newest page is trusted yet. On
                 // TRON it is waiting to place a transaction, which is said as waiting, not as something missed.
-                problems.Add(read.Waiting.Count > 0
-                    ? FeedTexts.Format(FeedTexts.Waiting, address.Value,
-                        string.Join(", ", read.Waiting.Select(hash => hash.Value)), downTo)
-                    : FeedTexts.Format(FeedTexts.Incomplete, address.Value, downTo + 1));
+                problems.AddRange(WaitingTexts(read, address, downTo));
 
                 // On TRON a movement the source could not place has no block yet, so it may lie anywhere on the page:
                 // the check stays where it was until the page can be read whole.
@@ -330,6 +336,36 @@ internal sealed class EthereumCaseFeed(IAccountSource source, ICase @case) : IWa
         var reached = lowest == long.MaxValue ? downTo : lowest;
         problems.Add(FeedTexts.Format(FeedTexts.CutShort, address.Value, WatchRules.MaximumPages, downTo + 1, reached));
         return (WatchFeedStatus.Partial, lowest == long.MaxValue ? null : lowest);
+    }
+
+    /// <summary>
+    /// Says what an incomplete page waits for: each transaction whose final answer lacked a known token's event with the
+    /// endpoint that gave it, the other transactions it waits for with their ids shortened, or that the history was
+    /// not given whole.
+    /// </summary>
+    /// <param name="read">The incomplete page.</param>
+    /// <param name="address">The address.</param>
+    /// <param name="downTo">The block the check stays at.</param>
+    /// <returns>The texts.</returns>
+    private static IEnumerable<string> WaitingTexts(EthereumAddressPage read, EthereumAddress address, long downTo)
+    {
+        if (read.Waiting.Count == 0)
+        {
+            yield return FeedTexts.Format(FeedTexts.Incomplete, address.Value, downTo + 1);
+            yield break;
+        }
+
+        foreach (var disputed in read.Disputed)
+        {
+            yield return FeedTexts.Format(
+                FeedTexts.Disputed, address.Value, disputed.Transaction.Brief(), disputed.Endpoint, downTo);
+        }
+
+        var plain = read.Waiting.Where(hash => read.Disputed.All(disputed => disputed.Transaction != hash)).ToList();
+        if (plain.Count > 0)
+        {
+            yield return FeedTexts.Format(FeedTexts.Waiting, address.Value, EthereumTxHash.BriefList(plain), downTo);
+        }
     }
 
     /// <summary>

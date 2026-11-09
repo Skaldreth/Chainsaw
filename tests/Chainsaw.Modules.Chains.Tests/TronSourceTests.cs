@@ -305,6 +305,87 @@ public sealed class TronSourceTests
             == TronHarness.InfoUrl(TronHarness.Hash("c8")));
     }
 
+    [Fact]
+    public async Task AFinalAnswerWithoutAUsdtEventIsAskedOfAnotherEndpointAndPlacedThere()
+    {
+        using var harness = new TronHarness();
+        await AddSecondAsync(harness);
+        harness.Answer(harness.HistoryUrl("transactions/trc20", TronHarness.A), "history-trc20.json");
+        harness.Answer(TronHarness.InfoUrl(TronHarness.C1), "tx-c1-info-nolog.json");
+        harness.Answer(SecondInfoUrl, "tx-c1-info.json");
+
+        var lookup = await harness.Source.GetAddressHistoryAsync(harness.Case, TronHarness.A, EthereumHistory.Tokens);
+
+        var page = lookup.Value!;
+        Assert.False(page.IsIncomplete);
+        Assert.Empty(page.Disputed);
+        Assert.Equal(0, page.Unplaced);
+        var usdt = Assert.Single(page.Transfers);
+        Assert.Equal((new BigInteger(52_000_000_000), 900L), (usdt.Amount.Units, usdt.Block!.Height));
+        Assert.Contains(harness.Http.Sent, request => request.Uri.AbsoluteUri == SecondInfoUrl);
+    }
+
+    [Fact]
+    public async Task AUsdtMovementAFinalAnswerLacksWaitsAndIsNeverLeftOut()
+    {
+        using var harness = new TronHarness();
+        await AddSecondAsync(harness);
+        harness.Answer(harness.HistoryUrl("transactions/trc20", TronHarness.A), "history-trc20.json");
+        harness.Answer(TronHarness.InfoUrl(TronHarness.C1), "tx-c1-info-nolog.json");
+        harness.Http.AnswerBusy(SecondInfoUrl, TimeSpan.FromMinutes(10));
+
+        var lookup = await harness.Source.GetAddressHistoryAsync(harness.Case, TronHarness.A, EthereumHistory.Tokens);
+
+        var page = lookup.Value!;
+        Assert.True(page.IsIncomplete);
+        Assert.Equal([TronHarness.C1], page.Waiting);
+        var disputed = Assert.Single(page.Disputed);
+        Assert.Equal(TronHarness.C1, disputed.Transaction);
+        Assert.Equal("trongrid.test", disputed.Endpoint);
+        Assert.Equal(0, page.Unplaced);
+        Assert.Empty(page.Transfers);
+        Assert.Contains(harness.Http.Sent, request => request.Uri.AbsoluteUri == SecondInfoUrl);
+        Assert.Contains(lookup.Notes, note => note.Contains("trongrid.test", StringComparison.Ordinal)
+            && note.Contains(TronHarness.C1.Brief(), StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task AnUnknownTokensMissingEventIsSkippedAndNeverAskedAgain()
+    {
+        using var harness = new TronHarness();
+        await AddSecondAsync(harness);
+        AnswerScam(harness);
+
+        var page = (await harness.Source.GetAddressHistoryAsync(
+            harness.Case, TronHarness.A, EthereumHistory.Tokens)).Value!;
+
+        Assert.False(page.IsIncomplete);
+        Assert.Equal(1, page.Unplaced);
+        Assert.Empty(page.Disputed);
+        Assert.DoesNotContain(harness.Http.Sent, request => request.Uri.Host == SecondHost);
+    }
+
+    /// <summary>The second endpoint's host in the tests that ask another endpoint.</summary>
+    private const string SecondHost = "trongrid2.test";
+
+    /// <summary>The second endpoint's address for C1's info.</summary>
+    private static string SecondInfoUrl =>
+        $"https://{SecondHost}/wallet/gettransactioninfobyid?value=" + TronHarness.C1.Value;
+
+    /// <summary>
+    /// Adds a second TronGrid endpoint after the first, in the user's order, and makes the newest block deep above
+    /// block 900, so that the fixtures' block is final.
+    /// </summary>
+    /// <param name="harness">The harness.</param>
+    private static async Task AddSecondAsync(TronHarness harness)
+    {
+        var (_, saved) = harness.Sources.Add(Chain.Tron, new Uri($"https://{SecondHost}/"), "trongrid", null);
+        await saved;
+        await harness.Sources.SetModeAsync(Chain.Tron, SourceMode.Priority);
+        harness.Answer(TronHarness.TipUrl, "tip.json");
+        await harness.Source.GetTipHeightAsync(harness.Case);
+    }
+
     /// <summary>Answers the page with the scam token and the real USDT, and both transactions' info.</summary>
     /// <param name="harness">The harness.</param>
     private static void AnswerScam(TronHarness harness)

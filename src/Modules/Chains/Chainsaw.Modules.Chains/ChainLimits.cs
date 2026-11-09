@@ -13,7 +13,8 @@ internal static class ChainLimits
     /// Each known chain by its name in the tables: its first block's hash as its sort of API writes it, when that
     /// block was made, and an average time between blocks far shorter than the chain has ever had (Bitcoin aims at ten
     /// minutes, Ethereum has at most one block per twelve seconds since 2022, TRON one per three seconds since its main
-    /// network began in June 2018).
+    /// network began in June 2018). TRON keeps its slots so closely, with only a few missed, that its bound is set just
+    /// under the slot (2.8 seconds): a tip three times too high is refused, while a true one never comes near.
     /// </summary>
     private static readonly Dictionary<string, (string Genesis, DateTimeOffset Made, TimeSpan Fastest)> Known =
         new(StringComparer.Ordinal)
@@ -29,7 +30,7 @@ internal static class ChainLimits
             [TronGridTronSource.ChainName] = (
                 "00000000000000001ebf88508a03865c71d452e25f4d51194196a1d22b6653dc",
                 new DateTimeOffset(2018, 6, 25, 0, 0, 0, TimeSpan.Zero),
-                TimeSpan.FromSeconds(1)),
+                TimeSpan.FromSeconds(2.8)),
         };
 
     /// <summary>Gives the hash of a chain's first block (height 0).</summary>

@@ -89,11 +89,13 @@ internal sealed record AccountData(
 
     /// <summary>
     /// Says whether a history's movement is taken: always for a transaction not read whole; for one read whole only
-    /// when that answer was incomplete and lacks a movement of the same kind at the history's place. On Ethereum only a
-    /// token's movement is taken so (its place is the log's index in both answers); on TRON also TRX sent by the
-    /// transaction or by a contract, since a whole transaction whose info could not be had lacks its internal TRX, and
-    /// both answers number the internal transactions in the same order. So a USDC, another token's or a contract's TRX
-    /// never vanishes from the graph and the trace once the transaction is expanded, and nothing is counted twice.
+    /// when that answer was incomplete and lacks the movement. A token's movement is lacking when the whole answer has
+    /// none of its kind at the history's place (the log's index in both answers). TRX on TRON, sent by the transaction
+    /// or by a contract, is lacking only when the whole answer has none of its kind between the same addresses and of
+    /// the same amount, never by place alone, since the two answers need not number internal transactions alike; a
+    /// whole transaction whose info could not be had lacks its internal TRX. So a USDC, another token's or a
+    /// contract's TRX never vanishes from the graph and the trace once the transaction is expanded, and nothing is
+    /// counted twice.
     /// </summary>
     /// <param name="transfer">The history's movement.</param>
     /// <param name="whole">The transactions read whole.</param>
@@ -106,11 +108,21 @@ internal sealed record AccountData(
             return true;
         }
 
-        var kindTaken = transfer.Kind == EthereumTransferKind.Token || transfer.Transaction.Chain == Chain.Tron;
-        return !transaction.IsComplete && kindTaken
-            && !transaction.Transfers.Any(own => own.Kind == transfer.Kind && own.Position == transfer.Position);
+        if (transaction.IsComplete)
+        {
+            return false;
+        }
 
+        if (transfer.Kind == EthereumTransferKind.Token)
+        {
+            return !transaction.Transfers.Any(own => own.Kind == transfer.Kind && own.Position == transfer.Position);
+        }
+
+        return transfer.Transaction.Chain == Chain.Tron
+            && !transaction.Transfers.Any(own => own.Kind == transfer.Kind && own.From == transfer.From
+                && own.To == transfer.To && own.Amount == transfer.Amount);
     }
+
 
     /// <summary>
     /// Joins the data of two account chains (Ethereum's and TRON's), which share no transaction, account or block:

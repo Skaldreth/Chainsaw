@@ -47,9 +47,31 @@ public sealed class TronWatchTests : IDisposable
         var run = await _harness.Service.CheckAsync(_harness.Case, Chain.Tron, 80_000_050);
 
         Assert.Contains(run.Outcomes.SelectMany(outcome => outcome.Problems), problem =>
-            problem.StartsWith("Väntar på källan för tx " + new string('e', 64), StringComparison.Ordinal));
+            problem.StartsWith("Väntar på källan för tx eeeeeeee… hos", StringComparison.Ordinal));
 
         // A movement the source could not place may lie anywhere on the page, also below the one it did place.
+        Assert.Equal(before.Height, _harness.Service.GetChecked(_harness.Case).Values.Single().Height);
+    }
+
+    [Fact]
+    public async Task A_usdt_movement_an_endpoint_left_out_names_the_endpoint_and_keeps_the_check_where_it_was()
+    {
+        await WatchAllAsync();
+        _harness.Tron.Incomplete = true;
+        _harness.Tron.DisputedBy = "api.trongrid.example";
+        _harness.Tron.BlockHashes[Block.Height] = Id(Block.Height);
+        var before = _harness.Service.GetChecked(_harness.Case).Values.Single();
+
+        var run = await _harness.Service.CheckAsync(_harness.Case, Chain.Tron, 80_000_050);
+
+        var said = string.Join(' ', run.Outcomes.SelectMany(outcome => outcome.Problems));
+        Assert.Contains(
+            "Källan api.trongrid.example gav ingen Transfer-händelse för en känd token i tx ffffffff…",
+            said,
+            StringComparison.Ordinal);
+        Assert.Contains("Väntar på källan för tx eeeeeeee… hos", said, StringComparison.Ordinal);
+        Assert.DoesNotContain("eeeeeeee…, ffffffff", said, StringComparison.Ordinal);
+        Assert.DoesNotContain(new string('e', 64), said, StringComparison.Ordinal);
         Assert.Equal(before.Height, _harness.Service.GetChecked(_harness.Case).Values.Single().Height);
     }
 

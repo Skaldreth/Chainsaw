@@ -4223,3 +4223,16 @@ topp.
     utan att räkna något två gånger. Test.
   - **M8:** *Varför?* nämner inte Ethereum på TRON; avgiftens slut säger nu *gas på Ethereum, energi och bandbredd på
     TRON*, och Guidens *ERC-20 och tokens* säger att TRC-20 är samma sak.
+- **Tredje granskningen (1 I, 2 M, alla rättade):**
+  - **I5:** en känd token (USDT och de andra i `KnownTokens`) blir aldrig *oplacerad*. Saknar ett slutligt svar dess
+    händelse tros det inte: infon frågas igen, utan det sparade svaret, hos en annan endpoint än den som svarade
+    (`SourceLookups.FetchAsync(..., except)`), och tx:en väntar tills någon placerar överföringen. Den står i
+    `EthereumAddressPage.Disputed` med endpointen, och bevakningen säger det med en egen text. *Oplacerad* gäller bara
+    okända tokens. TRON:s takt i `ChainLimits` är nu 2,8 s (strax under slotten på 3 s, med marginal för att verkliga
+    höjder ligger något under), så att en topp tre gånger för hög inte släpps igenom. Tester: USDT utan händelse i ett
+    slutligt block frågas hos den andra endpointen och placeras där, eller väntar med endpointen när den inte svarar;
+    en okänd token i samma läge hoppas över och frågas aldrig igen.
+  - **M14:** historikens TRX och interna TRX tas på TRON bara när den hela tx:en saknar en rörelse av samma sort mellan
+    samma adresser och med samma belopp, aldrig på platsen ensam. Test med samma och annan plats.
+  - **M15:** väntetexterna förkortar tx-id till åtta tecken och *…*, och efter tre står *och N till*
+    (`EthereumTxHash.Brief` och `BriefList`).

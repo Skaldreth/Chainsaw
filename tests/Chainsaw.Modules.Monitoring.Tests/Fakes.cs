@@ -228,10 +228,31 @@ internal sealed class FakeTronSource : ITronSource
     /// <summary>Gets or sets whether every page says the source could not read it whole (a lookup that failed).</summary>
     public bool Incomplete { get; set; }
 
+    /// <summary>
+    /// Gets or sets the endpoint whose final answer lacked a known token's event, for an incomplete page that also
+    /// waits for such a transaction; <see langword="null"/> for none.
+    /// </summary>
+    public string? DisputedBy { get; set; }
+
+    /// <summary>The transaction a disputed answer is about.</summary>
+    public static EthereumTxHash DisputedTransaction { get; } = EthereumTxHash.Parse(Chain.Tron, new string('f', 64));
+
     public void Holds(EthereumAddress address, EthereumHistory history, params EthereumTransfer[] transfers) =>
         Histories[(address.Value, history)] = [.. transfers];
 
     public long PageStartOf(EthereumBlockReference block) => block.Time.ToUnixTimeMilliseconds();
+
+    /// <summary>The transactions an incomplete page waits for.</summary>
+    private List<EthereumTxHash> Waiting()
+    {
+        List<EthereumTxHash> waiting = [EthereumTxHash.Parse(Chain.Tron, new string('e', 64))];
+        if (DisputedBy is not null)
+        {
+            waiting.Add(DisputedTransaction);
+        }
+
+        return waiting;
+    }
 
     public Task<BitcoinLookup<EthereumAddressPage>> GetAddressHistoryAsync(
         ICase @case, EthereumAddress address, EthereumHistory history, long? atOrBelow = null,
@@ -241,8 +262,12 @@ internal sealed class FakeTronSource : ITronSource
         var transfers = Histories.GetValueOrDefault((address.Value, history)) ?? [];
         var page = new EthereumAddressPage(address, history, atOrBelow, transfers, [], null, false, Incomplete)
         {
-            Waiting = Incomplete ? [EthereumTxHash.Parse(Chain.Tron, new string('e', 64))] : [],
+            Waiting = Incomplete ? Waiting() : [],
+            Disputed = Incomplete && DisputedBy is { } endpoint
+                ? [new EthereumDisputedAnswer(DisputedTransaction, endpoint)]
+                : [],
         };
+
         return Task.FromResult(new BitcoinLookup<EthereumAddressPage>(
             LookupStatus.Fetched, page, [FakeBitcoinSource.Origin(21)], null));
 

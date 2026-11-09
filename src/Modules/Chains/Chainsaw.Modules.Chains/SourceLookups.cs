@@ -68,6 +68,10 @@ internal sealed class SourceLookups
     /// <summary>What a lookup that needs an endpoint in step says when none is known to be.</summary>
     private readonly string _noneInStepText;
 
+    /// <summary>Why nothing was sent when only the endpoint passed over is on.</summary>
+    private readonly string _noOtherText;
+
+
     /// <summary>Creates the lookups of one chain.</summary>
     /// <param name="chain">The chain.</param>
     /// <param name="chainName">The chain's name in the texts for the user, for example <c>Bitcoin</c>.</param>
@@ -95,6 +99,7 @@ internal sealed class SourceLookups
         (_safeConfirmations, _refreshHeight) = (safeConfirmations, refreshHeight);
         _sourcesOffText = $"Källorna för {chainName} är avstängda i inställningarna (Av). Inget skickades.";
         _noneOnText = $"Ingen källa för {chainName} är påslagen i inställningarna. Inget skickades.";
+        _noOtherText = $"Ingen annan källa för {chainName} är påslagen att fråga. Inget skickades.";
         _noneInStepText = $"Ingen källa för {chainName} är känd i fas med kedjans högsta höjd; prova källorna. "
             + "Inget skickades.";
     }
@@ -161,10 +166,14 @@ internal sealed class SourceLookups
     /// <param name="preferInStep">
     /// Whether endpoints in step with the chain are asked when some are known to be, and the others only when none is.
     /// </param>
+    /// <param name="except">
+    /// An endpoint that is not asked, for an answer that endpoint gave and that is not believed (a final TRON answer
+    /// without a known token's event); <see langword="null"/> to ask any.
+    /// </param>
     /// <returns>The answer.</returns>
     public async Task<BitcoinLookup<T>> FetchAsync<T>(
         ICase @case, LookupQuery<T> query, (T Value, StoredResponse Response)? stored,
-        CancellationToken cancellationToken, bool inStep = false, bool preferInStep = false)
+        CancellationToken cancellationToken, bool inStep = false, bool preferInStep = false, Guid? except = null)
         where T : class
     {
         var fetchedBy = CurrentOperator(out var noOperator);
@@ -187,6 +196,15 @@ internal sealed class SourceLookups
         if (plan.Endpoints.Count == 0)
         {
             return Fallback(stored, LookupStatus.Failed, plan.NoneInStep ? _noneInStepText : _noneOnText);
+        }
+
+        if (except is { } passedOver)
+        {
+            plan = plan with { Endpoints = [.. plan.Endpoints.Where(planned => planned.Endpoint.Id != passedOver)] };
+            if (plan.Endpoints.Count == 0)
+            {
+                return Fallback(stored, LookupStatus.Failed, _noOtherText);
+            }
         }
 
         var failures = new List<ResponseOrigin>();

@@ -177,6 +177,41 @@ public sealed class TronGraphTests : IDisposable
         Assert.Single(movements, transfer => transfer.Kind == EthereumTransferKind.Internal);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task A_contracts_trx_is_matched_by_its_addresses_and_amount_never_by_its_place_alone(bool samePlace)
+    {
+        var contract = Address("contract");
+        var full = Tx("split", 160, Scammer, (EthereumTransferKind.Native, Scammer, contract, Trx(10)),
+            (EthereumTransferKind.Internal, contract, Mule, Trx(9)),
+            (EthereumTransferKind.Internal, contract, Exchange, Trx(1)));
+        _harness.Tron.Add(full);
+        var toMule = full.Transfers[1];
+        var toExchange = full.Transfers[2];
+
+        // Read whole, the transaction is incomplete and numbers its internal TRX otherwise than the history: the TRX to
+        // the exchange sits at the place the history gives the TRX to the mule, or at a place of its own.
+        _harness.Tron.Whole[full.Hash] = full with
+        {
+            Transfers = [full.Transfers[0], toExchange with { Position = samePlace ? toMule.Position : 99 }],
+            IsComplete = false,
+        };
+        _harness.Service.AddStartPoint(_harness.Case, TraceStartPoint.ForEthereumAddress(Mule));
+        await _harness.Service.ExpandAsync(_harness.Case, ExpansionRequest.ForEthereumAddress(Mule));
+        await _harness.Service.ExpandAsync(_harness.Case, ExpansionRequest.ForEthereumAddress(Scammer));
+        await _harness.Service.ExpandAsync(_harness.Case, ExpansionRequest.ForEthereumAddress(Exchange));
+
+        var graph = (await _harness.Service.ExpandAsync(
+            _harness.Case, ExpansionRequest.ForEthereumTransaction(full.Hash))).Graph;
+
+        var internals = graph.Account.Transfers
+            .Where(transfer => transfer.Transaction == full.Hash && transfer.Kind == EthereumTransferKind.Internal)
+            .ToList();
+        Assert.Single(internals, transfer => transfer.To == Mule && transfer.Amount == Trx(9));
+        Assert.Single(internals, transfer => transfer.To == Exchange && transfer.Amount == Trx(1));
+    }
+
     [Fact]
     public async Task A_link_from_a_tron_movement_leads_to_another_chain_only()
     {

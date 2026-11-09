@@ -115,6 +115,11 @@ write("tx-c1-info.json", {
          "callValueInfo": [{"callValue": 7}], "note": "63616c6c", "rejected": True},
         {"hash": "d3" * 32, "caller_address": X, "transferTo_address": B, "callValueInfo": [{}], "note": "63616c6c"},
     ]})
+# The same info from an endpoint that has not indexed the events: the block is there, the logs are not.
+write("tx-c1-info-nolog.json", {
+    "id": C1, "fee": 345000, "blockNumber": 900, "blockTimeStamp": TIME, "contractResult": [""],
+    "contract_address": X, "receipt": {"energy_usage_total": 64285, "net_fee": 345000, "result": "SUCCESS"},
+    "log": []})
 write("tx-c2.json", transaction(C2, "TransferContract", {"amount": 1_000_000, "owner_address": A, "to_address": B}))
 write("tx-c2-info.json", {"id": C2, "blockNumber": 900, "blockTimeStamp": TIME, "contractResult": [""],
                           "receipt": {"net_usage": 268}})
