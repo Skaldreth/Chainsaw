@@ -542,6 +542,9 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
 - **WireGuard-filens text** läses som fästa tecken som töms (`Exits/WireGuardFile`, etapp 17), men blir en `string`
   i anropet till `IExitStore.Add`, som tar en (samma sak som *Klartext i minnet*). Kräver ett kontrakt med tecken.
 - **En öppen filväljare** ligger kvar ovanpå låsskärmen om Chainsaw låses medan den är öppen; den visar bara filer.
+- **Instabilt test:** `LinkCaseTests.After_the_unlock_the_picker_folds_out_with_the_link_at_the_top` faller ungefär
+  två gånger av fem i molnmiljön (sett 2026-11-09, efter LN1a). Grafen rör det inte; troligen en kapplöpning mellan
+  upplåsningen och ärendeväljarens lista.
 
 ## Bevakning (etapp 26)
 - **Starten från en höjd i fas** (granskningen omgång 1, M5): starten är kedjans höjd från `GetTipHeightAsync`, som

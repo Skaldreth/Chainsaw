@@ -4420,4 +4420,9 @@ Användarens krav: optimeringarna får inte minska kvaliteten alls.
   så att zoomens pennor inte tömmer den.
 - **Medvetet inte gjort:** LOD (förenklad ritning vid utzoomning), strömning i rutor och bitmappsikoner, eftersom
   de ändrar bilden. LOD kan bli ett val om användaren vill.
+- **Andra granskningen av nodernas visuals och rutnätet:** ett kort som vändes tillbaka kunde lämna sin nod
+  osynlig (C), och hovring på en linje stoppade sökringen och sonaren (I). Kortens turer avgörs nu innan noderna
+  ritas, en tur som tagit slut ritar hela scenen, och ringarna noteras per lager. Rutnätet räknar celler i `long`,
+  tål NaN och absurda koordinater, slår upp en hårsmån förbi cellgränserna och följer ett drag genom att flytta bara
+  det som flyttats.
 
