@@ -24,6 +24,10 @@ provas grafen först på Windows med ett stort ärende. Räcker det inte är nä
 på grafikkortet** bakom samma `GraphCanvas`, så att inget annat ändras. Samma prov avgör om nodernas ritning ska
 göras på flera trådar. *Väntar på:* provet på Windows med prestanda-HUD:en (Ctrl+Shift+P, Debug).
 
+**Pilen på linjen** (användarens önskemål 2026-11-09): en liten pil på linjen som visar åt vilket håll pengarna
+flödar, så att riktningen syns också mitt ute i grafen, långt från noderna. *Väntar på:* en skiss på sidan Grafen
+(två varianter, till exempel en pil vid beloppet eller små pilar längs linjen).
+
 **Från bygget 2026-11-08**, så som det är byggt nu:
 1. **Kandidaternas linjer** i mixerns förslag ritas alltid. Förut ritades de bara när områdena var på. *Nu:* alltid.
 2. **SEK för det som ligger kvar i inspektören** räknas till den senaste kursen ärendet har för tillgången. Kortets

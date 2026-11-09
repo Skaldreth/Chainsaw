@@ -1117,6 +1117,14 @@ ansluten utgång.
 - [ ] Längst ner: *Så spårar man i Chainsaw* öppnar Guiden bredvid ytan (avsnittet med de fem stegen), och bara offline
       står *Offline* med sin prick bredvid.
 
+### Höger är ut, vänster är in (2026-11-09)
+
+- [ ] Varje linje lämnar sin avsändare på höger sida och når mottagaren på vänster sida, också när mottagaren står
+      till vänster om avsändaren (linjen går ut åt höger, över noderna och in från vänster).
+- [ ] Två noder i samma hoppkolumn: linjen går ut till höger från den ena, över toppen och in från vänster i den andra,
+      aldrig genom en nod.
+- [ ] Pengar fram och tillbaka mellan två noder: de två linjerna ligger isär och båda beloppen går att läsa.
+
 ### Grafen (etapp 12, GR4, GR3a och GR3c)
 
 Förberedelse: ett ärende med en Bitcoin-adress som startpunkt och en ansluten utgång (utan tunnel: prova det som går

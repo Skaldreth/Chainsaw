@@ -112,12 +112,9 @@ public sealed class AmountLayoutTests
 
         var there = curves[GraphSamples.KE];
         var back = curves[GraphSamples.EK];
-        Assert.NotEqual(there.Middle, back.Middle);
-        if (!hopColumns)
-        {
-            // On the free surface the two lines share their ends, so only the bend keeps them apart.
-            Assert.Equal(EdgeCurve.ParallelSpacing, Math.Abs(there.Middle.Y - back.Middle.Y), 6);
-        }
+        // There runs from the right side to the left, back over the top (right is outgoing, left is incoming).
+        Assert.True(Math.Abs(there.Middle.Y - back.Middle.Y) >= EdgeCurve.ParallelSpacing);
+        Assert.NotEqual(there.Start, back.Start);
     }
 
     /// <summary>Bending keeps the ends and moves the middle by the distance asked.</summary>

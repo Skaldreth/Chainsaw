@@ -370,6 +370,11 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   sedan där användaren drar dem, åt alla håll. Växeln (två ikoner i grafens huvud) sorterar allt i kolumner per hopp, där
   aktörerna dras upp och ner och pengar som vänder ritas som bågar. Båda lägena kommer ihåg sina platser. GR4 är godkänd
   (användarens beslut 2026-11-07) och är förlagan när grafen byggs.
+- **Höger är ut, vänster är in** (användarens beslut 2026-11-09, en mycket viktig princip): en tx som går ut från en
+  nod lämnar den alltid genom porten på **höger** sida, och en tx som kommer in når den alltid genom porten på
+  **vänster** sida, hur noderna än står. Pengar som vänder bakåt, eller går mellan två noder i samma kolumn, går ut åt
+  höger, över noderna och in från vänster. Det gäller också bevakningens strålar och soptunnans stumpar.
+  **En liten pil på linjen** som visar åt vilket håll pengarna flödar är önskad (2026-11-09) och skissas först.
 - **Bildspråket** (skiss GR3a, användarens beslut 2026-11-07: godkänt): formen säger vad det är (rund = aktör vi inte vet något om, fyrkantig = tjänst eller
   kluster), färgen vad det betyder (accent = offrens pengar, blått = börs, rött = spåret tar slut eller risk, lila = annan
   kedja), en ikon per sort (spelsajt och casino är **två spelkort** som hålls i
