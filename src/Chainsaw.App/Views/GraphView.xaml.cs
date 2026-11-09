@@ -78,6 +78,15 @@ public partial class GraphView : UserControl
     /// <summary>Whether the inspector is shown or on its way in, so that a glide out can tell it was overtaken.</summary>
     private bool _inspectorShown;
 
+    /// <summary>The inspector's full width while it glides: the column's width when it stands open.</summary>
+    private double _inspectorWidthOpen = InspectorWidth;
+
+    /// <summary>Whether the inspector is gliding in or out, which its column's width follows.</summary>
+    private bool _inspectorGliding;
+
+    /// <summary>Counts the glides, so that one overtaken by a newer glide does not end it.</summary>
+    private int _inspectorGlides;
+
     /// <summary>The width of the checks' panel where the inspector stands (sketch KF2b).</summary>
     private const double ChecksPanelWidth = 400;
 
@@ -419,7 +428,8 @@ public partial class GraphView : UserControl
 
     /// <summary>
     /// Shows the inspector, gliding in from the right edge, or glides it out and folds it away when there is nothing in
-    /// it; with Windows' animations off it just appears and goes.
+    /// it; with Windows' animations off it just appears and goes. The column glides with it, so that the sheet's edge
+    /// and the title bar follow the panel instead of jumping when it is gone.
     /// </summary>
     /// <param name="shown">Whether the inspector is shown.</param>
     private void ShowInspector(bool shown)
@@ -432,9 +442,8 @@ public partial class GraphView : UserControl
             if (!wasShown)
             {
                 // From where a glide out was overtaken, or from beyond the right edge.
-                var from = Inspector.RenderTransform is TranslateTransform { X: > 0 } halfway
-                    ? halfway.X
-                    : InspectorColumn.Width.Value;
+                var full = InspectorColumn.Width.Value;
+                var from = _inspectorGliding ? Math.Max(0, full - InspectorColumn.ActualWidth) : full;
                 GlideInspector(from, to: 0, then: null);
             }
 
@@ -447,7 +456,7 @@ public partial class GraphView : UserControl
             return;
         }
 
-        GlideInspector(from: 0, to: InspectorColumn.Width.Value, then: () =>
+        GlideInspector(from: 0, to: _inspectorWidthOpen, then: () =>
         {
             if (!_inspectorShown)
             {
@@ -465,6 +474,7 @@ public partial class GraphView : UserControl
         var checksOpen = DataContext is GraphViewModel { Checks.IsOpen: true };
         var width = checksOpen ? Math.Max(_inspectorWidth, ChecksPanelWidth) : _inspectorWidth;
         InspectorColumn.Width = new GridLength(width);
+        _inspectorWidthOpen = width;
         SetInspectorVisibility(Visibility.Visible);
     }
 
@@ -502,7 +512,19 @@ public partial class GraphView : UserControl
     public event EventHandler? InspectorReachChanged;
 
     /// <summary>Gets how far in from the right edge the inspector reaches, or 0 when it is closed.</summary>
-    public double InspectorReach => Inspector.Visibility == Visibility.Visible ? InspectorColumn.ActualWidth : 0;
+    /// <remarks>While it glides the column's set width is read, since the layout has not caught up yet.</remarks>
+    public double InspectorReach
+    {
+        get
+        {
+            if (Inspector.Visibility != Visibility.Visible)
+            {
+                return 0;
+            }
+
+            return _inspectorGliding ? InspectorColumn.Width.Value : InspectorColumn.ActualWidth;
+        }
+    }
 
     /// <summary>Tells the window the inspector's new width while its edge is dragged.</summary>
     /// <param name="sender">The inspector.</param>
@@ -510,33 +532,88 @@ public partial class GraphView : UserControl
     private void OnInspectorSized(object sender, SizeChangedEventArgs e) => InspectorReachChanged?.Invoke(this, EventArgs.Empty);
 
     /// <summary>
-    /// Slides the inspector sideways, easing out on the way in and in on the way out; without
-    /// animations it jumps to the end at once.
+    /// Slides the inspector sideways by narrowing or widening its column, easing out on the way in and in on the way
+    /// out; without animations it jumps to the end at once. The panel keeps its full width meanwhile and stands at the
+    /// column's left edge, so that it moves with the sheet's edge and is cut off by the window, never squeezed.
     /// </summary>
-    /// <param name="from">The offset to the right it starts at.</param>
-    /// <param name="to">The offset it ends at; 0 is in place.</param>
+    /// <param name="from">How far it starts out to the right; 0 is in place.</param>
+    /// <param name="to">How far out it ends; 0 is in place.</param>
     /// <param name="then">What is done when it has ended, or <see langword="null"/>.</param>
     private void GlideInspector(double from, double to, Action? then)
     {
-        var slide = new TranslateTransform();
-        Inspector.RenderTransform = slide;
+        BeginAnimation(InspectorOffsetProperty, null);
         if (!SystemParameters.ClientAreaAnimation)
         {
-            slide.X = to;
+            EndGlide();
             then?.Invoke();
             return;
         }
 
+        _inspectorGliding = true;
+        var turn = ++_inspectorGlides;
+        InspectorColumn.MinWidth = 0;
+        InspectorColumn.Width = new GridLength(Math.Max(0, _inspectorWidthOpen - from));
+        Inspector.Width = _inspectorWidthOpen;
+        Inspector.HorizontalAlignment = HorizontalAlignment.Left;
         var glide = new DoubleAnimation(from, to, new Duration(TimeSpan.FromMilliseconds(InspectorGlideMilliseconds)))
         {
             EasingFunction = new CubicEase { EasingMode = to == 0 ? EasingMode.EaseOut : EasingMode.EaseIn },
         };
-        if (then is not null)
+        glide.Completed += (_, _) =>
         {
-            glide.Completed += (_, _) => then();
+            // A glide that a newer one overtook ends with that one, not here.
+            if (turn != _inspectorGlides)
+            {
+                return;
+            }
+
+            EndGlide();
+            then?.Invoke();
+        };
+        BeginAnimation(InspectorOffsetProperty, glide);
+    }
+
+    /// <summary>Ends a glide: the panel follows its column again, so that dragging its edge resizes it.</summary>
+    private void EndGlide()
+    {
+        _inspectorGliding = false;
+        BeginAnimation(InspectorOffsetProperty, null);
+        Inspector.ClearValue(WidthProperty);
+        Inspector.ClearValue(HorizontalAlignmentProperty);
+        if (_inspectorShown)
+        {
+            InspectorColumn.MinWidth = NarrowestInspector;
+            InspectorColumn.Width = new GridLength(_inspectorWidthOpen);
+        }
+    }
+
+    /// <summary>Identifies how far out to the right the inspector stands while it glides.</summary>
+    private static readonly DependencyProperty InspectorOffsetProperty = DependencyProperty.Register(
+        nameof(InspectorOffset), typeof(double), typeof(GraphView), new PropertyMetadata(0d, OnInspectorOffset));
+
+    /// <summary>Gets or sets how far out to the right the inspector stands while it glides; 0 is in place.</summary>
+    private double InspectorOffset
+    {
+        get => (double)GetValue(InspectorOffsetProperty);
+        set => SetValue(InspectorOffsetProperty, value);
+    }
+
+    /// <summary>
+    /// Narrows or widens the inspector's column as the panel glides, and tells the title bar where it now starts.
+    /// </summary>
+    /// <param name="sender">The graph's view.</param>
+    /// <param name="e">The new offset.</param>
+    private static void OnInspectorOffset(DependencyObject sender, DependencyPropertyChangedEventArgs e)
+    {
+        var view = (GraphView)sender;
+        if (!view._inspectorGliding)
+        {
+            return;
         }
 
-        slide.BeginAnimation(TranslateTransform.XProperty, glide);
+        var width = Math.Max(0, view._inspectorWidthOpen - (double)e.NewValue);
+        view.InspectorColumn.Width = new GridLength(width);
+        view.InspectorReachChanged?.Invoke(view, EventArgs.Empty);
     }
 
     /// <summary>
@@ -561,6 +638,7 @@ public partial class GraphView : UserControl
     private void OnInspectorResized(object sender, System.Windows.Controls.Primitives.DragCompletedEventArgs e)
     {
         _inspectorWidth = InspectorColumn.ActualWidth;
+        _inspectorWidthOpen = _inspectorWidth;
         Canvas.InvalidateVisual();
     }
 
