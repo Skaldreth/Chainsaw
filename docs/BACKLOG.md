@@ -410,6 +410,12 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
   när kryptospåraren har sagt vilka belopp som brukar ligga under gränserna.
 
 ## Förvirringstekniker (användarens beslut 2026-11-07)
+- **`round-fiat v1` efter granskningen 2026-11-09 (M):** en tx utan kurs vägs tyst (säg *N tx vägdes inte, ingen
+  kurs i ärendet* i `Problems`); fyndet förseglas om när ärendet får en bättre kurs eller när `Price.Steps` formuleras
+  om (spara värdena, inte bara texten); det kombinerade steget till SEK saknas i `Rates`, och `RatesOf` förutsätter
+  stegens ordning; belopp strax under minimigränsen (99,70 SEK) räknas inte som jämna (pröva gränsen mot det jämna
+  talet); timkursen går före minutkursen; kommentaren på `Tolerance` säger andra siffror än Guiden; sex rader över
+  120 tecken; bara den första växelslutsatsen per tx nämns.
 Allt som används för att förvirra spårningen ska kännas igen och analyseras, med så mycket automatiska kontroller och
 förslag som möjligt (CLAUDE.md, *Förvirring analyseras*). Byggt 2026-11-08 (omgång 4): mixade mynt som slås ihop
 igen (`coinjoin-merge`), peel chain till börs (`peel-chain-area v2`), uppdelning och ihopslagning (`split-merge`),
