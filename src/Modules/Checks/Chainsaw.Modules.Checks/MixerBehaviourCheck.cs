@@ -20,6 +20,12 @@ internal sealed class MixerBehaviourCheck : ICheckAnalysis
     /// <summary>The analysis's name and version, as <c>mixer-chain</c> names it.</summary>
     public static readonly HeuristicId Identity = new(Name, 1);
 
+    /// <summary>The title when both the fee and the delay vary.</summary>
+    public const string MixerTitle = "Trolig mixer utan etikett";
+
+    /// <summary>The title when the fee or the delay is mostly steady, as a forwarding service's are.</summary>
+    public const string AmbiguousTitle = "Trolig mixer eller vidarebetalande tjänst";
+
     /// <inheritdoc/>
     public HeuristicId Id => Identity;
 
@@ -55,9 +61,8 @@ internal sealed class MixerBehaviourCheck : ICheckAnalysis
             + "emot en gång; varje utbetalning räknas för högst en insättning, och de flesta utbetalningarna förklaras "
             + "så. Med beloppen förskjutna, där bara slumpen kan träffa, förklaras "
             + $"{Average(mixer.Baseline)} i snitt. Så arbetar en central mixer: den tar en avgift och betalar tillbaka "
-            + "ur en gemensam pott, så att ingen tx knyter ihop in och ut. Håller du med, sätt etiketten Mixer med L, "
-            + "så väger mixerns förslag dess utgångar. Det är en bedömning, inte ett faktum: en växlare eller en "
-            + "tjänst som betalar tillbaka nästan samma belopp kan se likadan ut, och klustret kan ha fler ägare.";
+            + "ur en gemensam pott, så att ingen tx knyter ihop in och ut. " + Steadiness(mixer)
+            + "Det är en bedömning, inte ett faktum, och klustret kan ha fler ägare.";
         var addresses = mixer.Deposits.Select(deposit => deposit.Deposit.Output.Address!)
             .Concat(matched.SelectMany(deposit => deposit.Match!.Outputs)
                 .SelectMany(payout => payout.Transaction.InputAddresses()))
@@ -70,13 +75,38 @@ internal sealed class MixerBehaviourCheck : ICheckAnalysis
             "likely-mixer:" + mixer.Owner.Value,
             CheckKind.Check,
             AreaSort.Obfuscation,
-            "Trolig mixer utan etikett",
+            mixer.MayForward ? AmbiguousTitle : MixerTitle,
             $"{count} av {of} insättningar ut igen minus {median}, från {CheckText.Count(mixer.Senders)} avsändare",
             why,
             [.. addresses],
             [],
             [.. basis],
             []);
+    }
+
+    /// <summary>
+    /// Writes how steady the payouts are, and what that means: a mixer varies its fee and its delay, while a payment
+    /// service that forwards each payment to a fresh address keeps its rate or its schedule and looks just like it.
+    /// </summary>
+    /// <param name="mixer">The likely mixer.</param>
+    /// <returns>The sentences, with a space last.</returns>
+    private static string Steadiness(LikelyMixer mixer)
+    {
+        if (!mixer.MayForward)
+        {
+            return "Både avgiften och fördröjningen varierar, som när en mixer vill bryta kopplingen. Håller du med, "
+                + "sätt etiketten Mixer med L, så väger mixerns förslag dess utgångar. ";
+        }
+
+        var steady = (mixer.FeeIsSteady, mixer.DelayIsSteady) switch
+        {
+            (true, true) => "Både avgiften och fördröjningen är mest jämna",
+            (true, false) => "Avgiften är mest jämn (en procentsats och ett fast belopp för de flesta)",
+            _ => "Fördröjningen är mest jämn (de flesta kommer ut inom samma tre timmar)",
+        };
+        return $"{steady}, och så ser också en betaltjänst ut som skickar varje betalning vidare, minus sin avgift, "
+            + "till en ny adress hos handlaren: att skilja dem åt går inte ur kedjan. Sätt en etikett med L när du vet "
+            + "vilket det är, Mixer eller tjänsten. ";
     }
 
     /// <summary>Writes an average count with one decimal, the Swedish way.</summary>

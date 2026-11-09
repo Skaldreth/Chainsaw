@@ -28,11 +28,14 @@ namespace Chainsaw.Modules.Checks;
 /// can match, must explain clearly fewer on average: the difference must be at least <see cref="MinimumMatched"/> and
 /// <see cref="BaselineSigmas"/> times the square root of the baseline, a margin that grows with chance's own spread,
 /// so that a busy mixer passes and a busy exchange does not;</item>
-/// <item>a payment processor forwards on a steady schedule and keeps the same rate: when the fees fit a percentage plus
-/// a fixed amount (<see cref="ProcessorFeeSpread"/>) and the delays are steady (<see cref="ProcessorDelaySpread"/>), it
-/// is not a mixer. A mixer varies its fee and its delay to break the link; one that does neither is not told from a
-/// processor.</item>
 /// </list>
+/// <para>
+/// A payment service that forwards each payment, minus its fee, to a fresh address genuinely behaves like a central
+/// mixer, and no rule tells the two apart for certain (an exemption broke on rate tiers, outliers, a network fee that
+/// follows the market and waits for confirmations). So such an owner is read, and the reading says how steady the
+/// payouts are (<see cref="LikelyMixer.FeeIsSteady"/>, <see cref="LikelyMixer.DelayIsSteady"/>): a mixer varies its fee
+/// and its delay to break the link, a service keeps its rate and schedule. The check's title says which it may be.
+/// </para>
 /// </remarks>
 internal static class LikelyMixers
 {
@@ -57,17 +60,20 @@ internal static class LikelyMixers
     /// </summary>
     public const double BaselineSigmas = 2.5;
 
-    /// <summary>
-    /// The most a processor's fees differ from a fitted rate (a percentage plus a fixed amount), between the tenth and
-    /// ninetieth percentile of the residuals, as a share of the deposit: a quarter of a percentage point.
-    /// </summary>
-    public const double ProcessorFeeSpread = 0.0025;
+    /// <summary>The share of the matches that must agree for the fee or the delay to be called steady.</summary>
+    public const double SteadyShare = 0.75;
 
     /// <summary>
-    /// The most a processor's delays differ, between the tenth and ninetieth percentile: three hours, so that one that
-    /// settles every few hours is a processor too, while a mixer spreads its payouts over a day or more.
+    /// How far, as a share of the deposit, a fee may lie from one rate (a percentage plus a fixed amount) and still
+    /// agree with it: 0.15 percentage points.
     /// </summary>
-    public static readonly TimeSpan ProcessorDelaySpread = TimeSpan.FromHours(3);
+    public const double SteadyFeeTolerance = 0.0015;
+
+    /// <summary>How many matches the rates are tried from, so that the search stays quick.</summary>
+    public const int SteadyFeeTries = 60;
+
+    /// <summary>How wide a band of delays the steady share must fit in: three hours.</summary>
+    public static readonly TimeSpan SteadyDelayBand = TimeSpan.FromHours(3);
 
     /// <summary>How many outputs soonest after a deposit are tried as parts.</summary>
     public const int MostPartPool = 8;
@@ -216,8 +222,7 @@ internal static class LikelyMixers
             .ToList();
         var oneTime = explaining.Count(payout => received.GetValueOrDefault(payout.Address) == 1);
         var inWindows = InWindows(deposits, payouts);
-        if (explaining.Count < inWindows * MinimumExplained || oneTime < explaining.Count * MinimumOneTime
-            || IsProcessor(matched))
+        if (explaining.Count < inWindows * MinimumExplained || oneTime < explaining.Count * MinimumOneTime)
         {
             return null;
         }
@@ -226,6 +231,10 @@ internal static class LikelyMixers
             .Count(deposit => deposit.Match is not null));
         return count - baseline >= Math.Max(MinimumMatched, BaselineSigmas * Math.Sqrt(baseline))
             ? new LikelyMixer(owner, matched, senders, recipients, baseline)
+            {
+                FeeIsSteady = FeeIsSteady(matched),
+                DelayIsSteady = DelayIsSteady(matched),
+            }
             : null;
     }
 
@@ -249,52 +258,79 @@ internal static class LikelyMixers
     }
 
     /// <summary>
-    /// Says whether the matches look like a payment processor's: the fees fit a percentage of the deposit plus a fixed
-    /// amount (least squares in the fee's share against one over the amount, fitted again over the central eight
-    /// tenths), with the residuals within <see cref="ProcessorFeeSpread"/> of each other, and the delays
-    /// within <see cref="ProcessorDelaySpread"/>. Both between the tenth and ninetieth percentile, so that a few wrong
-    /// pairings do not hide a processor.
+    /// Says whether the fee is mostly steady: at least <see cref="SteadyShare"/> of the matches lie within
+    /// <see cref="SteadyFeeTolerance"/> of one rate, a percentage plus a fixed amount. The rates are tried through
+    /// each match alone (a percentage) and through each pair (a percentage and a fixed amount), among the first
+    /// <see cref="SteadyFeeTries"/>, so that tiers or a few outliers do not hide a rate most matches share.
     /// </summary>
     /// <param name="matched">The deposits with their matches.</param>
-    /// <returns><see langword="true"/> when they do.</returns>
-    private static bool IsProcessor(IReadOnlyList<LikelyDeposit> matched)
+    /// <returns><see langword="true"/> when it is.</returns>
+    private static bool FeeIsSteady(IReadOnlyList<LikelyDeposit> matched)
     {
-        var found = matched.Where(deposit => deposit.Match is not null).ToList();
         // The fee as a share is the rate plus the fixed part over the amount: a line in 1 / amount.
-        var inverse = found.Select(deposit => 1.0 / deposit.Deposit.Output.Amount.Value).ToList();
-        var shares = found.Select(deposit => deposit.Fee).ToList();
-        var residuals = Residuals(inverse, shares, Enumerable.Range(0, found.Count).ToList());
-        var ordered = residuals.Order().ToList();
-        var bounds = (Low: Percentile(ordered, 0.1), High: Percentile(ordered, 0.9));
-        var kept = Enumerable.Range(0, found.Count)
-            .Where(at => residuals[at] >= bounds.Low && residuals[at] <= bounds.High)
+        var points = matched.Where(deposit => deposit.Match is not null)
+            .Select(deposit => (X: 1.0 / deposit.Deposit.Output.Amount.Value, Y: deposit.Fee))
             .ToList();
-        residuals = Residuals(inverse, shares, kept);
-        var sorted = residuals.Order().ToList();
-        var delays = found.Select(deposit =>
-                (deposit.Match!.Outputs[^1].Transaction.Block!.Time - deposit.Deposit.Block.Time).TotalHours)
-            .Order()
-            .ToList();
-        return Percentile(sorted, 0.9) - Percentile(sorted, 0.1) <= ProcessorFeeSpread
-            && Percentile(delays, 0.9) - Percentile(delays, 0.1) <= ProcessorDelaySpread.TotalHours;
+        var needed = points.Count * SteadyShare;
+        var tries = points.Take(SteadyFeeTries).ToList();
+        for (var a = 0; a < tries.Count; a++)
+        {
+            if (Agreeing(points, 0, tries[a].Y) >= needed)
+            {
+                return true;
+            }
+
+            for (var b = a + 1; b < tries.Count; b++)
+            {
+                if (tries[a].X == tries[b].X)
+                {
+                    continue;
+                }
+
+                var slope = (tries[b].Y - tries[a].Y) / (tries[b].X - tries[a].X);
+                if (slope >= 0 && Agreeing(points, slope, tries[a].Y - (slope * tries[a].X)) >= needed)
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
+    /// <summary>Counts the points within <see cref="SteadyFeeTolerance"/> of a line.</summary>
+    /// <param name="points">The points: one over the amount, and the fee's share.</param>
+    /// <param name="slope">The line's fixed amount.</param>
+    /// <param name="intercept">The line's percentage.</param>
+    /// <returns>The count.</returns>
+    private static int Agreeing(IReadOnlyList<(double X, double Y)> points, double slope, double intercept) =>
+        points.Count(point => Math.Abs(point.Y - (slope * point.X) - intercept) <= SteadyFeeTolerance);
+
     /// <summary>
-    /// Fits y = a · x + b by least squares over some of the points, and gives every point's residual from the line: so
-    /// that a second fit over the central points is not pulled by a few wrong pairings.
+    /// Says whether the delay is mostly steady: at least <see cref="SteadyShare"/> of the matches come out within one
+    /// band of <see cref="SteadyDelayBand"/>.
     /// </summary>
-    /// <param name="x">The points' x.</param>
-    /// <param name="y">The points' y.</param>
-    /// <param name="over">The points the line is fitted over.</param>
-    /// <returns>Each point's residual, in the points' order.</returns>
-    private static List<double> Residuals(IReadOnlyList<double> x, IReadOnlyList<double> y, IReadOnlyList<int> over)
+    /// <param name="matched">The deposits with their matches.</param>
+    /// <returns><see langword="true"/> when it is.</returns>
+    private static bool DelayIsSteady(IReadOnlyList<LikelyDeposit> matched)
     {
-        var meanX = over.Average(at => x[at]);
-        var meanY = over.Average(at => y[at]);
-        var spread = over.Sum(at => (x[at] - meanX) * (x[at] - meanX));
-        var slope = spread == 0 ? 0 : over.Sum(at => (x[at] - meanX) * (y[at] - meanY)) / spread;
-        var intercept = meanY - (slope * meanX);
-        return [.. x.Select((value, at) => y[at] - (slope * value) - intercept)];
+        var delays = matched.Where(deposit => deposit.Match is not null)
+            .Select(deposit => deposit.Match!.Outputs[^1].Transaction.Block!.Time - deposit.Deposit.Block.Time)
+            .Order()
+            .ToList();
+        var most = 0;
+        var end = 0;
+        for (var start = 0; start < delays.Count; start++)
+        {
+            while (end < delays.Count && delays[end] - delays[start] <= SteadyDelayBand)
+            {
+                end++;
+            }
+
+            most = Math.Max(most, end - start);
+        }
+
+        return most >= delays.Count * SteadyShare;
     }
 
     /// <summary>Gives a percentile of sorted values, the nearest rank.</summary>
@@ -513,6 +549,17 @@ internal sealed record LikelyMixer(
 {
     /// <summary>Gets the deposits that come out again as the deposit minus a usual fee.</summary>
     public IEnumerable<LikelyDeposit> Matched => Deposits.Where(deposit => deposit.Match is not null);
+
+    /// <summary>Gets whether most matches share one rate, as a forwarding service's do.</summary>
+    public bool FeeIsSteady { get; init; }
+
+    /// <summary>Gets whether most matches come out within one band of delay, as a forwarding service's do.</summary>
+    public bool DelayIsSteady { get; init; }
+
+    /// <summary>
+    /// Gets whether the owner may as well be a service that forwards payments: its fee or its delay is mostly steady.
+    /// </summary>
+    public bool MayForward => FeeIsSteady || DelayIsSteady;
 
     /// <summary>Gets the chain's key for the mixer, so that a chain can say whether a step goes into it again.</summary>
     public string Key => "likely:" + Owner.Value;

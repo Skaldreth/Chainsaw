@@ -64,37 +64,85 @@ public sealed class RoundFiveReviewTests
     }
 
     [Theory]
-    [InlineData(0.01, 12)]
-    [InlineData(0.005, 40)]
-    [InlineData(0.02, 40)]
-    public void A_processor_forwarding_to_fresh_merchant_addresses_is_no_likely_mixer(double fee, int payments)
+    [InlineData(0.01, 12, 0L, 1, 3)]
+    [InlineData(0.005, 40, 0L, 1, 3)]
+    [InlineData(0.02, 40, 0L, 1, 3)]
+    [InlineData(0.01, 40, 3_000L, 1, 3)]
+    [InlineData(0.01, 40, 10_000L, 1, 3)]
+    [InlineData(0.01, 40, 0L, 6, 18)]
+    public void A_processor_forwarding_to_fresh_addresses_is_a_likely_mixer_or_forwarding_service(
+        double fee, int payments, long fixedFee, int soonest, int latest)
     {
-        var (txs, owners) = Behaviour.FreshProcessor(fee, payments);
+        var (txs, owners) = Behaviour.FreshProcessor(fee, payments, fixedFee, soonest, latest);
 
-        Assert.Empty(new MixerBehaviourCheck().Run(Behaviour.Input(txs, owners)));
-    }
+        var finding = Assert.Single(new MixerBehaviourCheck().Run(Behaviour.Input(txs, owners)));
 
-    [Theory]
-    [InlineData(0.01, 3_000, 1, 3)]
-    [InlineData(0.01, 10_000, 1, 3)]
-    [InlineData(0.01, 0, 6, 18)]
-    public void A_processor_with_a_network_fee_or_settling_in_hours_is_no_likely_mixer(
-        double fee, long fixedFee, int soonest, int latest)
-    {
-        var (txs, owners) = Behaviour.FreshProcessor(fee, 40, fixedFee, soonest, latest);
-
-        Assert.Empty(new MixerBehaviourCheck().Run(Behaviour.Input(txs, owners)));
+        Assert.Equal(MixerBehaviourCheck.AmbiguousTitle, finding.Title);
+        Assert.Contains("betaltjänst", finding.Why, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void A_mixer_with_varied_fees_and_delays_is_a_likely_mixer_but_a_steady_one_is_not()
+    public void A_mixer_with_varied_fees_and_delays_is_a_likely_mixer_and_a_steady_one_may_be_a_service()
     {
         var (varied, variedOwners) = Behaviour.CentralMixer("vm", users: 20);
         var (steady, steadyOwners) = Behaviour.SteadyMixer(20);
 
-        Assert.Single(new MixerBehaviourCheck().Run(Behaviour.Input(varied, variedOwners)));
-        // The documented gap (Guide and BACKLOG): a fixed fee paid back at once is a processor's behaviour.
-        Assert.Empty(new MixerBehaviourCheck().Run(Behaviour.Input(steady, steadyOwners)));
+        var mixer = Assert.Single(new MixerBehaviourCheck().Run(Behaviour.Input(varied, variedOwners)));
+        var service = Assert.Single(new MixerBehaviourCheck().Run(Behaviour.Input(steady, steadyOwners)));
+
+        Assert.Equal(MixerBehaviourCheck.MixerTitle, mixer.Title);
+        Assert.Contains("Både avgiften och fördröjningen varierar", mixer.Why, StringComparison.Ordinal);
+        Assert.Equal(MixerBehaviourCheck.AmbiguousTitle, service.Title);
+        Assert.Contains("Både avgiften och fördröjningen är mest jämna", service.Why, StringComparison.Ordinal);
+    }
+
+    /// <summary>The fourth review's variants: each service and mixer, and the title it must get.</summary>
+    public static TheoryData<string, bool> Variants { get; } = new()
+    {
+        { "proc-tiers-1-0.5", true },
+        { "proc-tiers-1-0.8", true },
+        { "proc-3-percent-outliers", true },
+        { "proc-market-network-fee", true },
+        { "proc-waits-6-confirmations", true },
+        { "mix-random-fee-steady-delay", true },
+        { "mix-steady-fee-random-delay", true },
+        { "mix-random-fee-random-delay", false },
+    };
+
+    [Theory]
+    [MemberData(nameof(Variants))]
+    public void Each_variant_gets_the_title_its_steadiness_says(string variant, bool mayForward)
+    {
+        for (var seed = 0; seed < 3; seed++)
+        {
+            var (txs, owners) = Behaviour.Forwarder(variant, seed, 40);
+
+            var finding = Assert.Single(new MixerBehaviourCheck().Run(Behaviour.Input(txs, owners)));
+
+            var title = mayForward ? MixerBehaviourCheck.AmbiguousTitle : MixerBehaviourCheck.MixerTitle;
+            Assert.Equal(title, finding.Title);
+        }
+    }
+
+    [Fact]
+    public void A_chain_through_a_mixer_or_forwarding_service_says_both_in_the_step()
+    {
+        var (background, owners) = Behaviour.SteadyMixer(20);
+        var pool = Pkh("sm-pool");
+        var first = Parting.Payout("fw-hop-1", Wpkh("fw-hop-1"), 14_625_000, 4);
+        var into = Tx("fw-into", Parting.Height + 10).Spend(first, 0).Out(Wpkh("sm-dep-x"), 14_600_000).Build();
+        owners[Wpkh("sm-dep-x")] = pool;
+        var outOf = Tx("fw-out", Parting.Height + 13).In(pool, 90_000_000, "fw-coin")
+            .Out(Wpkh("fw-hop-2"), 14_162_000).Out(pool, 10_000_000).Build();
+        var onward = Tx("fw-onward", Parting.Height + 30).Spend(outOf, 0).Out(Parting.OtherMixer, 14_150_000).Build();
+
+        var findings = new MixerChainCheck().Run(
+            Behaviour.Input([.. background, Parting.Deposit(), first, into, outOf, onward], owners, TwoMixers));
+
+        var chain = Assert.Single(findings, finding => finding.Basis.Any(basis => basis.Txid == Txid("fw-out")));
+        Assert.Contains("in i en trolig mixer eller vidarebetalande tjänst utan etikett", chain.Why,
+            StringComparison.Ordinal);
+        Assert.Contains("då är steget en vidarebetalning, inte en mixning", chain.Why, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -166,7 +214,7 @@ public sealed class RoundFiveReviewTests
     [Fact]
     public void A_chain_through_a_likely_mixer_takes_the_payout_the_mixer_reading_assigned()
     {
-        var (background, owners) = Behaviour.CentralMixer("sb", users: 8, start: Parting.Height - 200);
+        var (background, owners) = Behaviour.CentralMixer("sb", users: 8, start: Parting.Height - 400);
         var first = Parting.Payout("sbhop-1", Wpkh("sbhop-1"), 14_625_000, 4);
         var intoMid = Tx("sb-into", Parting.Height + 10).Spend(first, 0).Out(Wpkh("sb-deposit-x"), 14_600_000)
             .Build();

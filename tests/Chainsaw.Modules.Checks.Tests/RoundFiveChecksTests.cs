@@ -79,7 +79,7 @@ public sealed class RoundFiveChecksTests
     [Fact]
     public void A_chain_passes_through_a_likely_mixer_without_a_label()
     {
-        var (background, owners) = Behaviour.CentralMixer("mid", users: 8, start: Parting.Height - 200);
+        var (background, owners) = Behaviour.CentralMixer("mid", users: 8, start: Parting.Height - 400);
         var first = Parting.Payout("hop-1", Wpkh("hop-1"), 14_625_000, 4);
         var intoMid = Tx("into-mid", Parting.Height + 10).Spend(first, 0).Out(Wpkh("mid-deposit-x"), 14_600_000)
             .Build();

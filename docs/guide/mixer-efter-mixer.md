@@ -75,13 +75,15 @@ den beter sig:
   analysen i snitt förklara klart färre: skillnaden ska vara minst fem och minst **2,5 gånger roten ur** slumpens
   antal, en marginal som växer med slumpens egen spridning. En upptagen mixer med hundratals insättningar klarar det,
   en upptagen börs inte;
-- en **betaltjänst** skickar vidare efter ett jämnt schema och tar samma avgift varje gång: en procentsats och ofta en
-  fast nätverksavgift. Passar avgifterna en procentsats plus ett fast belopp (inom en kvarts procentenhet) och ligger
-  fördröjningarna inom tre timmar från varandra är det ingen mixer, också när handlarna får en ny adress varje gång.
-  En mixer som varken varierar avgiften eller fördröjningen går därför inte att skilja från en betaltjänst och känns
-  inte igen.
+- en **betaltjänst** som skickar varje betalning vidare, minus sin avgift, till en ny adress hos handlaren beter sig
+  verkligen som en central mixer, och kedjan kan inte skilja dem åt. Därför står den med, men titeln säger vad den
+  kan vara: är avgiften **nästan konstant** (minst tre av fyra träffar inom 0,15 procentenheter från en procentsats
+  plus ett fast belopp) eller fördröjningen **mest jämn** (minst tre av fyra inom samma tre timmar) heter den *Trolig
+  mixer eller vidarebetalande tjänst*, och *Varför?* säger vilket som var jämnt. Bara när både avgiften och
+  fördröjningen varierar heter den *Trolig mixer utan etikett*. Sätt en etikett med L när du vet vilket det är.
 
-*Varför?* säger avgiften i **median**.
+*Varför?* säger avgiften i **median**. En kedja genom en trolig mixer eller vidarebetalande tjänst säger det i steget,
+och att steget då kan vara en vidarebetalning och inte en mixning.
 
 En börs tar också emot från många och betalar många, och med tillräckligt många uttag hamnar några alltid nära en
 insättning minus några procent. Därför räcker det inte att belopp träffar: de flesta utbetalningarna måste förklaras,

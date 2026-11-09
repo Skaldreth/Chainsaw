@@ -15,8 +15,9 @@ internal static class Behaviour
     public const long Height = 900_000;
 
     /// <summary>
-    /// A central mixer: each user pays a deposit address of its own, and one to six hours later the pool pays a new
-    /// address the deposit minus one to four percent, from other coins. The deposit addresses and the pool are one owner.
+    /// A central mixer: each user pays a deposit address of its own, and one to twenty-five hours later the pool pays
+    /// a new address the deposit minus one to four percent, from other coins. The deposit addresses and the pool are
+    /// one owner.
     /// </summary>
     /// <param name="label">The mixer's label, for its addresses.</param>
     /// <param name="users">How many users.</param>
@@ -38,7 +39,7 @@ internal static class Behaviour
                 .In(Wpkh($"{label}-user-{i}"), amount + 30_000)
                 .Out(deposit, amount)
                 .Build());
-            txs.Add(Tx($"{label}-out-{i}", start + (i * 6) + 6 + random.Next(0, 30))
+            txs.Add(Tx($"{label}-out-{i}", start + (i * 6) + 6 + random.Next(0, 144))
                 .In(pool, 90_000_000, $"{label}-pool-coin-{i}")
                 .Out(Wpkh($"{label}-paid-{i}"), amount - (amount * (10 + random.Next(0, 30)) / 1_000))
                 .Out(pool, 10_000_000)
@@ -392,6 +393,60 @@ internal static class Behaviour
         }
 
         return (txs, owners);
+    }
+
+    /// <summary>
+    /// A service where each deposit comes out once, to a fresh address (the fourth review's variants): a payment
+    /// processor with rate tiers, outliers, a network fee that follows the market or waits for confirmations, or a
+    /// mixer whose fee or delay is steady or random.
+    /// </summary>
+    /// <param name="variant">The variant's name, as in the facit.</param>
+    /// <param name="seed">The seed.</param>
+    /// <param name="payments">How many deposits.</param>
+    /// <returns>The transactions and each address's owner.</returns>
+    public static (List<BitcoinTransaction> Txs, Dictionary<BitcoinAddress, BitcoinAddress> Owners) Forwarder(
+        string variant, int seed, int payments)
+    {
+        var random = new Random(seed + 17);
+        var pool = Pkh(variant + "-pool");
+        var owners = new Dictionary<BitcoinAddress, BitcoinAddress> { [pool] = pool };
+        var txs = new List<BitcoinTransaction>();
+        for (var i = 0; i < payments; i++)
+        {
+            var amount = LogUniform(random, 500_000, 50_000_000);
+            var deposit = Wpkh($"{variant}-d-{i}");
+            owners[deposit] = pool;
+            var height = Height + random.Next(0, 1008);
+            txs.Add(Tx($"{variant}-in-{i}", height).In(Wpkh($"{variant}-u-{i}"), amount + 5_000).Out(deposit, amount)
+                .Build());
+            var (fee, fixedFee, delay) = Terms(variant, random, i);
+            txs.Add(Tx($"{variant}-out-{i}", height + delay).In(pool, 9_000_000_000, $"{variant}-c-{i}")
+                .Out(Wpkh($"{variant}-p-{i}"), (long)(amount * (1 - fee)) - fixedFee).Out(pool, 8_000_000_000)
+                .Build());
+        }
+
+        return (txs, owners);
+    }
+
+    /// <summary>Gives a variant's rate, fixed fee and delay in blocks for one deposit.</summary>
+    /// <param name="variant">The variant's name.</param>
+    /// <param name="random">The random source.</param>
+    /// <param name="i">The deposit's number.</param>
+    /// <returns>The terms.</returns>
+    private static (double Fee, long FixedFee, int Delay) Terms(string variant, Random random, int i)
+    {
+        var soon = 1 + random.Next(0, 3);
+        return variant switch
+        {
+            "proc-tiers-1-0.5" => (i % 3 == 0 ? 0.005 : 0.01, 2_000, soon),
+            "proc-tiers-1-0.8" => (i % 3 == 0 ? 0.008 : 0.01, 2_000, soon),
+            "proc-3-percent-outliers" => (i % 6 == 0 ? 0.03 : 0.01, 2_000, soon),
+            "proc-market-network-fee" => (0.01, random.Next(1_000, 20_000), soon),
+            "proc-waits-6-confirmations" => (0.01, 2_000, i % 4 == 0 ? 24 + random.Next(0, 12) : soon),
+            "mix-random-fee-steady-delay" => (0.01 + (random.NextDouble() * 0.03), 0, 3 + random.Next(0, 3)),
+            "mix-steady-fee-random-delay" => (0.03, 0, 3 + random.Next(0, 288)),
+            _ => (0.01 + (random.NextDouble() * 0.03), 0, 6 + random.Next(0, 144)),
+        };
     }
 
     /// <summary>

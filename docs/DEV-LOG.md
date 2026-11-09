@@ -5756,3 +5756,21 @@ Den oberoende granskningen av omgång 5 fann 1 C och 5 I; alla är rättade, och
   mixer; de upptagna mixrarna och börserna ger samma utfall som förut.
 - **M1:** facit säger nu uttryckligen båda utfallen: `CentralMixer` (1–4 %, en till sex timmar) är en trolig mixer,
   och `SteadyMixer` (fast 3 %, tre block) är det inte, som Guiden och BACKLOG säger.
+
+## Förvirring, omgång 5: efter fjärde granskningen (2026-11-09)
+
+- **Undantaget för betaltjänster är borttaget.** Varje regel bröt på verkliga variationer (avgiftsnivåer, en avvikare
+  på 3 %, en nätverksavgift som följer marknaden, väntan på sex bekräftelser). En betaltjänst som skickar varje
+  betalning vidare till en ny adress beter sig som en central mixer (princip 2 och 3), så den står med, och titeln
+  säger vad den kan vara.
+- **Jämnheten:** avgiften är nästan konstant när minst 75 % av träffarna ligger inom 0,15 procentenheter från en
+  procentsats plus ett fast belopp (linjerna prövas genom varje träff och varje par bland de 60 första), och
+  fördröjningen är jämn när minst 75 % ligger inom samma tre timmar. Är någon jämn heter fyndet *Trolig mixer eller
+  vidarebetalande tjänst*, och *Varför?* säger vilken och ber om en etikett; annars *Trolig mixer utan etikett*.
+  Utseendet är oförändrat (rött); en [skiss]-rad i TODO frågar om det tvetydiga fallet ska se annorlunda ut.
+- **mixer-chain** passerar det tvetydiga fallet som en trolig mixer, och steget säger *en trolig mixer eller
+  vidarebetalande tjänst utan etikett* och att steget då kan vara en vidarebetalning.
+- **Facit:** betaltjänsterna och `SteadyMixer` har den tvetydiga titeln, `CentralMixer` (1–4 %, 1–25 timmar)
+  *Trolig mixer utan etikett*, och granskningens fem varianter och tre mixrar har var sin uttalade titel. Börserna och
+  de upptagna mixrarna ger samma utfall som förut.
+- Versionen är kvar på `mixer-behaviour v1`, eftersom omgång 5 inte är släppt.

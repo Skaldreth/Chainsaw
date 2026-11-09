@@ -159,6 +159,8 @@ byggt ur BACKLOG; det som skriver i ärendet granskas oberoende.
    *Attribution* och *Kurser*.
 6. **Säkerhet, ärenden och utgångar:** byggt 2026-11-08 (DEV-LOG, *Omgång 6*). Kvar, som behöver ritas först:
 7. **Vyerna och appen:** byggt 2026-11-08 (DEV-LOG, *Omgång 7*). Kvar, som behöver ritas först:
+   - [skiss] **Trolig mixer eller vidarebetalande tjänst** (`mixer-behaviour`, omgång 5): fyndet ritas i dag som en
+     mixer, rött, som betyder risk. Ska det tvetydiga fallet se annorlunda ut (en annan ton eller en egen ikon)?
    - [skiss] **Fråga om det som kan ha ändrats:** grafen visas bara ur ärendet, så ett mynt som låg kvar står som *kan
      ha flyttats* tills noden expanderas igen. En knapp eller ett kommando som frågar om alla sådana mynt på en gång.
    - [skiss] **En `chainsaw:`-länk i en lapp till något som inte finns i grafen** säger det bara; den kunde bli en

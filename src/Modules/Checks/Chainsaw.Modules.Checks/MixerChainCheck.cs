@@ -109,6 +109,11 @@ internal sealed class MixerChainCheck : ICheckAnalysis
             why.Append($"En trolig mixer utan etikett är {MixerBehaviourCheck.Identity}:s bedömning, och dess "
                 + "utgång är den utbetalning som analysen knöt till insättningen; sätt etiketten Mixer med L om du "
                 + "håller med, så får den egna förslag. ");
+            if (steps.Any(step => step.MayForward))
+            {
+                why.Append("En vidarebetalande tjänst (en betaltjänst) ser likadan ut som en mixer; då är steget en "
+                    + "vidarebetalning, inte en mixning. ");
+            }
         }
 
         if (isCut)
@@ -292,7 +297,12 @@ internal sealed class MixerChainCheck : ICheckAnalysis
             return "samma mixer igen";
         }
 
-        return steps[index].IsLikelyMixer ? "en trolig mixer utan etikett" : "en annan mixer";
+        return steps[index] switch
+        {
+            { IsLikelyMixer: true, MayForward: true } => "en trolig mixer eller vidarebetalande tjänst utan etikett",
+            { IsLikelyMixer: true } => "en trolig mixer utan etikett",
+            _ => "en annan mixer",
+        };
     }
 
     /// <summary>Gives the addresses the area is drawn around: each deposit's and each output's.</summary>
@@ -363,7 +373,10 @@ internal sealed class MixerChainCheck : ICheckAnalysis
             var index = Steps.Count;
             var best = branches.Count == 0 ? context.BestOut(deposit) : null;
             Steps.Add(new ChainStep(
-                deposit, context.MixerOf(deposit), context.IsLikely(deposit), parent, branches, best));
+                deposit, context.MixerOf(deposit), context.IsLikely(deposit), parent, branches, best)
+            {
+                MayForward = context.MayForward(deposit),
+            });
             foreach (var branch in branches)
             {
                 if (branch.Next is { } next)
@@ -388,6 +401,9 @@ internal sealed class MixerChainCheck : ICheckAnalysis
 
         /// <summary>Which mixer each deposit went into, by the deposit's key.</summary>
         private readonly Dictionary<string, string> _mixerOf = new(StringComparer.Ordinal);
+
+        /// <summary>The deposits into a likely mixer that may as well be a forwarding service, by key.</summary>
+        private readonly HashSet<string> _forwarding = new(StringComparer.Ordinal);
 
         /// <summary>The deposits into a likely mixer without a label, with their likely payouts, by key.</summary>
         private readonly Dictionary<string, LikelyDeposit> _likely = new(StringComparer.Ordinal);
@@ -437,6 +453,11 @@ internal sealed class MixerChainCheck : ICheckAnalysis
                 foreach (var likely in mixer.Deposits.Where(likely => _mixerOf.TryAdd(likely.Deposit.Key, mixer.Key)))
                 {
                     _likely[likely.Deposit.Key] = likely;
+                    if (mixer.MayForward)
+                    {
+                        _forwarding.Add(likely.Deposit.Key);
+                    }
+
                     deposits.Add(likely.Deposit);
                     _depositIn.TryAdd(likely.Deposit.Transaction.Txid, likely.Deposit);
                 }
@@ -469,6 +490,11 @@ internal sealed class MixerChainCheck : ICheckAnalysis
         /// <param name="deposit">The deposit.</param>
         /// <returns><see langword="true"/> when it did.</returns>
         public bool IsLikely(MixerDeposit deposit) => _likely.ContainsKey(deposit.Key);
+
+        /// <summary>Says whether a deposit went into a likely mixer that may as well be a forwarding service.</summary>
+        /// <param name="deposit">The deposit.</param>
+        /// <returns><see langword="true"/> when it did.</returns>
+        public bool MayForward(MixerDeposit deposit) => _forwarding.Contains(deposit.Key);
 
         /// <summary>
         /// Gives a deposit's ways onward into a mixer or a CoinJoin: every approved output that goes on, or else the
@@ -734,6 +760,9 @@ internal sealed record ChainStep(
     IReadOnlyList<ChainBranch> Branches,
     ChainLink? Best)
 {
+    /// <summary>Gets whether the likely mixer may as well be a service that forwards payments.</summary>
+    public bool MayForward { get; init; }
+
     /// <summary>Gets every output of the step the text names: the ways onward's, or the best one.</summary>
     public IReadOnlyList<ChainLink> Links =>
         Best is { } best ? [best] : [.. Branches.SelectMany(branch => branch.Links)];
