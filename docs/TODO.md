@@ -120,10 +120,6 @@ Inget sedan etapp 1 är provat på Windows. Användaren provar efter `docs/TESTE
 - **Ersatt av vilken tx** [etapp]: en tx som källan inte längre känner (`404`) visas som *Finns inte längre*; vilken
   tx som spenderar samma pengar i stället kräver uppslag på de spenderade utgångarna.
 - **Ångra en godkänd plånbok** (PL1b, vald): Ctrl+Z och *Ångra* i KF2b-panelen bekräftas i grafen.
-- **En DEX:s router i grafen** [skiss]: listan över kända kontrakt (omgång 2) har Uniswaps, 1inchs och 0x:s routrar,
-  men de får ingen etikett, eftersom ingen sort i bildspråket passar: *Swap eller brygga* avslutar spåret som
-  *Fortsätter på annan kedja*, och ett byte på samma kedja byter inte ägare. Namnet står i *Varför?* för swappen. En
-  egen sort, eller en markering i hörnet, skissas.
 - **Sökningen:** en etikett från ett annat ärende kan inte säga vilket, eftersom ursprunget saknar ärendenumret
   [etapp].
 - **Begäran:** kontaktvägar till börserna (katalogen är tom tills en väg kan kontrolleras mot sin källa, med källa

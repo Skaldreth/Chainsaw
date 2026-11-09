@@ -175,6 +175,11 @@ public sealed partial class GraphCanvas
             _swapChoice = null;
         }
 
+        if (DrawRouteBox(dc))
+        {
+            return;
+        }
+
         if (_hoveredSwap is not { } key || _model.OpenSwap == key || !_swapPills.TryGetValue(key, out var pill)
             || _model.Scene?.Edge(key) is not { } edge || SwapPill.Box(edge) is not { } box)
         {
@@ -234,6 +239,13 @@ public sealed partial class GraphCanvas
     {
         var model = _model!;
         var point = new Point(surface.X, surface.Y);
+        if (RouteAt(surface) is { } route)
+        {
+            _hoveredRoute = null;
+            model.OpenSwapRouteWhy(route);
+            return true;
+        }
+
         if (_swapChoice is { } choice && model.OpenSwap == choice.EdgeKey)
         {
             if (choice.Follows.Contains(point) || choice.Stops.Contains(point))
@@ -268,10 +280,13 @@ public sealed partial class GraphCanvas
     /// <param name="surface">The pointer on the surface.</param>
     private void HoverSwap(GraphPoint surface)
     {
-        var swap = SwapAt(surface);
-        if (swap != _hoveredSwap)
+        // The router's mark sits on the pill's corner and takes the hover from it (sketch DX1b).
+        var route = RouteAt(surface);
+        var swap = route is null ? SwapAt(surface) : null;
+        if (swap != _hoveredSwap || route != _hoveredRoute)
         {
             _hoveredSwap = swap;
+            _hoveredRoute = route;
             Request(GraphChange.Overlay);
         }
     }
@@ -284,6 +299,7 @@ public sealed partial class GraphCanvas
     {
         (_swapPills, _nextSwapPills) = (_nextSwapPills, _swapPills);
         _nextSwapPills.Clear();
+        KeepRouteMarks();
     }
 
     /// <summary>Says whether the pointer is over a pill or the unfolded choice, which take the hand.</summary>
@@ -292,7 +308,7 @@ public sealed partial class GraphCanvas
     private bool IsOverSwap(GraphPoint surface)
     {
         var point = new Point(surface.X, surface.Y);
-        return SwapAt(surface) is not null || (_swapChoice is { } choice && _model!.OpenSwap == choice.EdgeKey
+        return RouteAt(surface) is not null || SwapAt(surface) is not null || (_swapChoice is { } choice && _model!.OpenSwap == choice.EdgeKey
             && (choice.Follows.Contains(point) || choice.Stops.Contains(point) || choice.Guide.Contains(point)));
     }
 

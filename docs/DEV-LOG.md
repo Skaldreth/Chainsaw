@@ -4881,3 +4881,34 @@ eventstyrda slingan och cacharna. Mitt eget rutnät och diffningen av platser (`
     sanktionerad* står i BACKLOG, **M-3** en lista som saknas säger *saknas på datorn* (`Missing`), **M-4** *etc* och
     *base* är borttagna ur de svaga orden.
 >>>>>>> worktree-agent-a9532d92522604c5d
+
+## DX1b: en DEX:s router som markering i swap-pillret (2026-11-09)
+
+Byggt efter skissen DX1b (användarens val 2026-11-08). Bara visning i App; spåret genom swappen är oförändrat.
+
+- **`SwapRoute`** (`Graph/SwapRoute.cs`, utan WPF): läser vägen genom bytet ur tx:ens överföringar för en swap vars
+  `TokenSwap.Venue` är ett känt kontrakt (`KnownContracts`, DEX eller aggregator): den sålda tillgången först, sedan
+  varje ny tillgång i den ordning tx:en betalade ut den med adressen som betalade (poolen, med namnet ur listan om
+  kontraktet är känt, annars `pool 0x…`), och den köpta sist med allt som kom tillbaka. Ether och WETH räknas som en
+  tillgång, eftersom routern bara lindar om. Antalet byten är stegen minus ett. `EdgeView.SwapRoute` sätts för linjens
+  första swap, som pillrets ruta (SW1a).
+- **Markeringen** (`GraphCanvas.SwapRoutes.cs`): en liten grå rundad fyrkant i pillrets övre högra hörn med routerns
+  ikon (`Icon.Swap.Router`, ur skissen), eller antalet byten för en aggregator. Hovring visar rutan ovanför pillret:
+  routerns namn (*· aggregator*), *Känt kontrakt · byter token, inte ägare* eller *N byten i en tx*, vägen som
+  brickor med belopp och pool under, *Spåret går igenom* (eller *Spåret slutar i swappen*), *Klicka för Varför?* och
+  kontraktet och tx:en i Cascadia Mono. Ett klick öppnar *Varför?* i Guidens panel (`OpenSwapRouteWhy`) med fyra
+  rader: vad som skickades genom vilken router, vägen, regeln och listans källa och version, vid rubriken *En DEX:s
+  router* i avsnittet om swappar (ny text i `docs/guide/swappar.md`).
+
+**Egna beslut och avsteg från skissen:**
+- **Klicket ligger på markeringen, inte på pillret.** I skissen öppnar ett klick på pillret *Varför?*, men i SW1a
+  fäller samma klick ut valet *Följer* / *Följer inte*. Pillret behåller SW1a:s klick, och markeringen är en egen
+  träffyta med egen hovring; pillrets ruta och routerns ruta visas aldrig samtidigt.
+- **Poolernas namn** (skissens *Uniswap v3 · USDT/WETH 0,05 %*) finns inte i kedjans överföringar och inte i listan,
+  så poolen visas med adressen förkortad; inget hittas på.
+- **Vägen kan vara ofullständig:** är tx:en bara känd ur adressens historik (inte läst hel) säger rutan *vägen kan vara
+  ofullständig*, och *Varför?* ber användaren expandera tx:en.
+- När användaren valt *Följer inte* står personmarkeringen i pillrets **vänstra** hörn, eftersom routern tar det högra.
+- Markeringen byter inte färg vid hovring (den ritas i scenens linjelager, och hovringen ritar bara lagret över).
+
+**Återstår:** testärendet har ingen Ethereum-källa, så markeringen går inte att se i `/testdata` än.

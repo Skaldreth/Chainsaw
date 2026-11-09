@@ -45,6 +45,26 @@ Valet sparas i ärendet med vem och när, förseglat och journalfört. Det syns 
 där det kan tas tillbaka som andra egna beslut; det gamla står kvar överstruket. Att välja **Följer** i pillret gör
 samma sak.
 
+## En DEX:s router
+
+En DEX nås oftast genom en **router**, ett kontrakt som tar emot det adressen säljer, byter i en eller flera
+**pooler** och skickar det köpta tillbaka, allt i samma tx. En **aggregator** (1inch, 0x) är en router som delar upp
+bytet på flera pooler och kan byta i flera steg, till exempel USDT → USDC → WETH → ether.
+
+Routern får **ingen egen nod** i grafen: bytet byter token, inte ägare, så pengarna går igenom. När Chainsaw känner
+routern på dess adress (listan *Chainsaws kända kontrakt*, med källa och datum) får swappens piller en liten grå
+**fyrkant i hörnet**, med routerns ikon eller, för en aggregator, **antalet byten**.
+
+- **Hovra** över fyrkanten, så visas vägen genom bytet: varje tillgång med beloppet, och vem som betalade ut den,
+  poolen med adressen förkortad eller kontraktets namn. Vägen läses ur tx:ens överföringar, som är fakta; att
+  pengarna tog den vägen och att kontraktet är den router listan säger är bedömningar. Är tx:en inte läst hel står
+  *vägen kan vara ofullständig*: expandera tx:en så läses den.
+- **Klicka** på fyrkanten, så öppnas *Varför?* här i panelen, med routerns namn, källan, vägen och regeln att spåret
+  går igenom.
+
+Markeringen ändrar aldrig spåret. Den står också när du valt *Följer inte*, och säger då att spåret slutar i swappen;
+personen som visar ditt val flyttar till vänstra hörnet.
+
 ## Exponering och rapport
 
 [Exponering](exponering.md) följer samma regel: pengar som går in i en swap räknas vidare i den nya tillgången, värda

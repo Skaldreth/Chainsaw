@@ -366,6 +366,7 @@ public sealed partial class GraphCanvas : FrameworkElement
         _pendingHover = null;
         _model?.HoverAt(null, Tolerance);
         _hoveredSwap = null;
+        _hoveredRoute = null;
         CloseHoverTip();
     }
 
@@ -960,9 +961,12 @@ public sealed partial class GraphCanvas : FrameworkElement
 
         if (stopped)
         {
-            DrawSwapPersonMark(dc, new Point(pill.Right - 3, pill.Top + 1));
+            // The router's mark takes the right corner (sketch DX1b), so the person mark moves to the left one.
+            var corner = edge.SwapRoute is null ? pill.Right - 3 : pill.Left + 3;
+            DrawSwapPersonMark(dc, new Point(corner, pill.Top + 1));
         }
 
+        DrawRouteMark(dc, edge, pill);
         if (open)
         {
             DrawSwapChoice(dc, edge, pill, taken);
