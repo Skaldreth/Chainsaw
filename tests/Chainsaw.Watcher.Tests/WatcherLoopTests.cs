@@ -149,7 +149,8 @@ public sealed class WatcherLoopTests : IDisposable
 
         var merged = Queue.Read(_world.Case.Info.Id, Assert.Single(Queue.List(_world.Case.Info.Id)))!;
         Assert.Empty(merged.Matches);
-        Assert.Equal(first.Utc, merged.Utc);
+        Assert.Equal(first.Id, merged.Id);
+        Assert.True(merged.Utc > first.Utc);
         Assert.Equal(900_011, merged.Height);
         Assert.True(merged.Responses.Count > first.Responses.Count);
         Assert.All(first.Responses, response => Assert.Contains(merged.Responses, kept =>

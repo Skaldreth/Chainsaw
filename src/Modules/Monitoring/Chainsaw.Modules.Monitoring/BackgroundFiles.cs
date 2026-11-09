@@ -113,13 +113,20 @@ internal sealed class WatchQueue(BackgroundFolder folder) : IWatchQueue
         ArgumentNullException.ThrowIfNull(entry);
         var mark = entry.HasNewHits ? HitMark : string.Empty;
         var name = $"{entry.Utc.UtcTicks.ToString("D19", CultureInfo.InvariantCulture)}-{entry.Id:N}{mark}{Ending}";
-        folder.WriteProtected(Path.Combine(CaseFolder(entry.CaseId), name), BackgroundPurposes.Queue,
-            BackgroundCodec.Encode(entry));
+        var path = Path.Combine(CaseFolder(entry.CaseId), name);
+        folder.WriteProtected(path, BackgroundPurposes.Queue, BackgroundCodec.Encode(entry));
+
+        // An entry written again under the same id (a merged quiet entry) replaces the older file only after the new
+        // one is whole: a crash in between leaves both, and the newest is the one read and brought in.
+        foreach (var older in FilesOf(entry.CaseId, entry.Id).Where(each => each != path))
+        {
+            File.Delete(older);
+        }
     }
 
     /// <inheritdoc/>
     public IReadOnlyList<Guid> List(Guid caseId) =>
-        [.. Files(caseId).Select(IdOf).OfType<Guid>()];
+        [.. Files(caseId).Select(IdOf).OfType<Guid>().Distinct()];
 
     /// <inheritdoc/>
     public QueuedCheck? Read(Guid caseId, Guid id)
@@ -154,7 +161,7 @@ internal sealed class WatchQueue(BackgroundFolder folder) : IWatchQueue
     /// <inheritdoc/>
     public void Remove(Guid caseId, Guid id)
     {
-        if (Find(caseId, id) is { } path)
+        foreach (var path in FilesOf(caseId, id))
         {
             File.Delete(path);
         }
@@ -180,7 +187,7 @@ internal sealed class WatchQueue(BackgroundFolder folder) : IWatchQueue
     /// <param name="id">The entry.</param>
     public void SetAside(Guid caseId, Guid id)
     {
-        if (Find(caseId, id) is { } path)
+        foreach (var path in FilesOf(caseId, id))
         {
             File.Move(path, path + AsideEnding, overwrite: true);
         }
@@ -213,13 +220,23 @@ internal sealed class WatchQueue(BackgroundFolder folder) : IWatchQueue
     /// <param name="caseId">The case.</param>
     /// <param name="id">The entry.</param>
     /// <returns>The file, or <see langword="null"/>.</returns>
-    private string? Find(Guid caseId, Guid id)
+    private string? Find(Guid caseId, Guid id) => FilesOf(caseId, id).LastOrDefault();
+
+    /// <summary>
+    /// Finds an entry's files, oldest first: normally one, two only after a crash while a merged entry replaced its
+    /// older file, when the newest holds everything the older did.
+    /// </summary>
+    /// <param name="caseId">The case.</param>
+    /// <param name="id">The entry.</param>
+    /// <returns>The files.</returns>
+    private List<string> FilesOf(Guid caseId, Guid id)
     {
-        // The id is in the name: the folder is searched for it, not listed and sorted, so a long queue stays quick.
+        // The id is in the name: the folder is searched for it, not listed whole, so a long queue stays quick.
         var path = CaseFolder(caseId);
         return Directory.Exists(path)
-            ? Directory.EnumerateFiles(path, $"*-{id:N}*{Ending}").FirstOrDefault(each => IdOf(each) == id)
-            : null;
+            ? [.. Directory.EnumerateFiles(path, $"*-{id:N}*{Ending}").Where(each => IdOf(each) == id)
+                .Order(StringComparer.Ordinal)]
+            : [];
     }
 
     /// <summary>Reads an entry's id from its file's name.</summary>
