@@ -268,6 +268,7 @@ public sealed class SourcesKl2bTests
         Assert.Equal("S3cretKey", _keys.Saved[0].Secret);
         Assert.False(page.Keys.IsFormOpen);
         Assert.Single(page.Keys.Rows);
+        Assert.Contains("Etherscan", _sources.EnabledForKeys);
     }
 
     [Fact]
@@ -422,6 +423,14 @@ public sealed class SourcesKl2bTests
             var index = Endpoints.FindIndex(e => e.Id == id);
             Endpoints[index] = Endpoints[index] with { Enabled = enabled };
         });
+
+        public List<string> EnabledForKeys { get; } = [];
+
+        public Task EnableForKeyAsync(string service)
+        {
+            EnabledForKeys.Add(service);
+            return Task.CompletedTask;
+        }
 
         public Task MoveAsync(Chain chain, Guid id, int steps) => Change(() =>
         {

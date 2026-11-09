@@ -166,6 +166,24 @@ public sealed class EtherscanTests : IDisposable
         Assert.False(new EtherscanApi(new EthereumSourceOptions()).Answers(path));
 
     [Fact]
+    public async Task A_saved_key_switches_on_the_endpoint_that_needs_it()
+    {
+        var sources = new ChainSources(
+            [new EtherscanApi(new EthereumSourceOptions())], _http, _keys, new FakeVault(), _clock,
+            new ChainSourcesOptions { Directory = _directory }, new FakeLocalHttp(_clock), _clock.Delay);
+        Assert.False(Etherscan(sources).Enabled);
+
+        await sources.EnableForKeyAsync("Chainabuse");
+        Assert.False(Etherscan(sources).Enabled);
+        await sources.EnableForKeyAsync("etherscan");
+
+        Assert.True(Etherscan(sources).Enabled);
+    }
+
+    private static SourceEndpoint Etherscan(ChainSources sources) => sources.Get(Chain.Ethereum).Endpoints
+        .Select(view => view.Endpoint).Single(endpoint => endpoint.ApiKey == EtherscanApi.KeyService);
+
+    [Fact]
     public void An_Etherscan_endpoint_the_user_adds_keeps_the_free_key_s_pace()
     {
         var sources = new ChainSources(

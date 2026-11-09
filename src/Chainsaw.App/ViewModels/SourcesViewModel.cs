@@ -850,6 +850,12 @@ public sealed partial class SourcesViewModel : ObservableObject
         _startRunning = true;
         try
         {
+            // A key already in the vault switches on the endpoints that need it before they are tried.
+            foreach (var service in KeyServices())
+            {
+                await _sources.EnableForKeyAsync(service).ConfigureAwait(true);
+            }
+
             var runs = new List<ProbeRun>();
             foreach (var chain in _sources.Chains.Where(chain => live || HasOwnNode(chain)))
             {

@@ -141,6 +141,8 @@ public sealed partial class VaultKeysViewModel : ObservableObject
             }
 
             await Task.Run(() => _keys.Save(new ApiKey(service, string.Empty, secret))).ConfigureAwait(true);
+            // The endpoints that need the key start asking at once, so that no one has to look for them.
+            await _sources.EnableForKeyAsync(service).ConfigureAwait(true);
             IsFormOpen = false;
             await ShowAsync().ConfigureAwait(true);
         }

@@ -538,6 +538,25 @@ internal sealed class ChainSources : IChainSources
     });
 
     /// <inheritdoc/>
+    public Task EnableForKeyAsync(string service)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(service);
+        bool Needs(SourceEndpoint endpoint) => !endpoint.Enabled
+            && string.Equals(endpoint.ApiKey, service.Trim(), StringComparison.OrdinalIgnoreCase);
+        var chains = Chains.Where(chain => Get(chain).Endpoints.Any(view => Needs(view.Endpoint))).ToList();
+        return Task.WhenAll(chains.Select(chain => Change(chain, state =>
+        {
+            for (var index = 0; index < state.Endpoints.Count; index++)
+            {
+                if (Needs(state.Endpoints[index]))
+                {
+                    state.Endpoints[index] = state.Endpoints[index] with { Enabled = true };
+                }
+            }
+        })));
+    }
+
+    /// <inheritdoc/>
     public Task MoveAsync(Chain chain, Guid id, int steps) => Change(chain, state =>
     {
         var index = state.Endpoints.FindIndex(endpoint => endpoint.Id == id);

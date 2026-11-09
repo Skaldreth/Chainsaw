@@ -74,6 +74,15 @@ public interface IChainSources
     Task SetEnabledAsync(Chain chain, Guid id, bool enabled);
 
     /// <summary>
+    /// Switches on every endpoint that sends a key saved under a service, so that a key the user adds is used without
+    /// looking for the endpoint (the user's wish 2026-11-09: that is for technical people). An endpoint that is on, or
+    /// that sends another key, is left as it is.
+    /// </summary>
+    /// <param name="service">The key's service, as the vault names it (case is ignored).</param>
+    /// <returns>A task that completes when the change is written.</returns>
+    Task EnableForKeyAsync(string service) => Task.CompletedTask;
+
+    /// <summary>
     /// Reads the certificate an endpoint marked local shows, without trusting it and without sending a request, so
     /// that the user can compare it with what the node itself shows and pin it (sketch KL3b). The request goes
     /// straight to the node in the user's own network, never through the way out.
