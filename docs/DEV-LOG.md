@@ -6152,3 +6152,11 @@ insättning i en borta tx i Begäran, Flöde).
   *finns inte*, `Answers` speglar översättningen, ingen nyckel i adressen till den egna noden, `tag=latest` efter
   parametern och inte ordningen, förvalets adress kontrolleras. Resten i BACKLOG.
 
+## Bygget och bakgrunden (2026-11-09)
+
+- **Bygget stoppades av bakgrunden:** `Chainsaw.Watcher.exe` kör från `Chainsaw.App`s utmapp när en bevakning är
+  aktiv, också när Chainsaw är stängt, och håller modulernas DLL:er där, så att kopieringen i bygget föll med
+  MSB3027. Nu ber målet `StopBackgroundWatcher` i `Chainsaw.App.csproj` processen att stoppa genom dess namngivna
+  händelse innan bygget på Windows (`build/StopWatcher.ps1`, väntar högst 10 s, stoppar aldrig bygget). Run-nyckeln
+  rörs inte; Chainsaw startar bakgrunden igen när den körs med en aktiv bevakning. Brytaren *Bevaka när Chainsaw är
+  stängt* under Låsning fanns redan.
