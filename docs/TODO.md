@@ -175,6 +175,8 @@ byggt ur BACKLOG; det som skriver i ärendet granskas oberoende.
    - [skiss] **Delarna som liknar varandra:** ett mönster bygger på flera delar av ärendet (två insamlingar, två vägar),
      men området ritas som ett. Att visa delarna var för sig i KF2b-bilden och i grafen (en ton per del, eller *1 av 2*
      som stegar mellan delarna) skissas.
+   - [skiss] **Avfärda en kontroll:** en kontroll (*Gjort av sig självt*) har inget beslut, så en falsk träff ur
+     `pattern` står kvar. Att kunna avfärda en kontroll (som ett förslag, med skäl) skissas i KF2b.
    - [skiss] **Mönstret i rapporten och i Begäran:** om *samma insamling* och *samma väg* ska kunna tas med i
      rapporten (RP1b) som en egen del.
    - **Testärendet** (`/testdata`) visar inget mönster än [direkt]: två offers pengar som går samma väg genom en mixer

@@ -14,11 +14,23 @@ namespace Chainsaw.Modules.Checks.Contracts;
 /// this computer only and must never reach out or send anything of the case anywhere (principle 4). What it finds is
 /// a judgement, never a fact (principle 2), and its <see cref="CheckFinding.Why"/> says exactly which actors and lines
 /// it rests on (principle 3). An analysis that would drive the investigation by itself is not let in.
+/// <para>
+/// A model's identity is its name, its version and its weights: a local model gives the SHA-256 of its weights in
+/// <see cref="WeightsSha256"/>, raises <see cref="ICheckAnalysis.Id"/>'s version whenever the weights change (so that
+/// what an earlier version found is never silently changed, and a dismissal holds for its version only), and says
+/// the hash in every finding's <see cref="CheckFinding.Why"/>.
+/// </para>
 /// </remarks>
 public interface IGraphShapeAnalysis : ICheckAnalysis
 {
     /// <summary>Gets the chains the analysis covers; the shape is read from Bitcoin today.</summary>
     ChainScope ICheckAnalysis.Scope => ChainScope.Only(Chain.Bitcoin);
+
+    /// <summary>
+    /// Gets the SHA-256 of a model's weights, in lower-case hex; <see langword="null"/> for rules written in code, whose
+    /// version alone is their identity.
+    /// </summary>
+    string? WeightsSha256 => null;
 
     /// <summary>Runs the analysis over the graph's shape.</summary>
     /// <param name="shape">The shape, read from what the case holds.</param>

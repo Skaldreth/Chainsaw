@@ -13,10 +13,18 @@ internal static class PatternText
     public const string Judgement = "Det är en bedömning, inte ett faktum: mönstret bygger på klustringens ägare och "
         + "etiketternas sorter, som också är bedömningar, och samma form kan ha en vardaglig förklaring.";
 
-    /// <summary>Names an actor: its label's name, or its key address shortened.</summary>
+    /// <summary>Names an actor: its label's name, its transaction, or its key address shortened.</summary>
     /// <param name="actor">The actor.</param>
     /// <returns>For example <c>bc1qxy2k…x0wl</c>.</returns>
-    public static string Actor(ShapeActor actor) => actor.Name ?? CheckText.Short(actor.Key);
+    public static string Actor(ShapeActor actor)
+    {
+        if (actor.Name is { } name)
+        {
+            return name;
+        }
+
+        return actor.Transaction is { } txid ? "tx " + CheckText.Short(txid) : actor.Key[..8] + "…" + actor.Key[^4..];
+    }
 
     /// <summary>Names a sort the way the texts say it, in Swedish.</summary>
     /// <param name="sort">The sort.</param>

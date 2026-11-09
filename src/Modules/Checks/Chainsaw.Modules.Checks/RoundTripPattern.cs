@@ -3,12 +3,14 @@ using Chainsaw.Modules.Checks.Contracts;
 namespace Chainsaw.Modules.Checks;
 
 /// <summary>
-/// The rule <em>rundgång</em> of <see cref="PatternCheck"/>: money that leaves an actor nothing is known about and
-/// comes back to it through at least two others, as when an amount is sent round to look like it came from elsewhere.
+/// The rule <em>rundgång</em> of <see cref="PatternCheck"/>: coins that leave an actor nothing is known about and
+/// come back to it through at least two others, as when an amount is sent round to look like it came from elsewhere.
 /// The way round is a walk (<see cref="PatternWalk"/>) of <see cref="MinimumLines"/> to <see cref="MaxLines"/> lines
-/// that never passes an exchange or another service (a deposit and a withdrawal is everyday), where each line carries
-/// from <see cref="Carry"/>'s least to all of the line before, and at least <see cref="LeastBack"/> of what left comes
-/// back: the same money, less the fees and a cut on the way.
+/// within <see cref="PatternWalk.Window"/>, where every line spends a coin the line before paid and carries from
+/// <see cref="Carry"/>'s least to all of it, and at least <see cref="LeastBack"/> of what left comes back: the same
+/// money, less the fees and a cut on the way. It passes only actors nothing is known about and no hub (a deposit at an
+/// exchange and a withdrawal is everyday), and at least one of them does more than pass the money on, since coins
+/// that only go round one's own addresses are housekeeping.
 /// </summary>
 internal static class RoundTripPattern
 {
@@ -30,16 +32,17 @@ internal static class RoundTripPattern
     /// <returns>A check per round trip, each set of transactions once.</returns>
     public static IEnumerable<CheckFinding> Find(GraphShape shape, ICheckAnalysis analysis)
     {
+        var rules = new PatternWalk.Rules(MaxLines, actor => MayPass(shape, actor), _ => false, MayReturn: true, Carry);
         var seen = new HashSet<string>(StringComparer.Ordinal);
         foreach (var start in shape.Flows)
         {
-            if (start.IsShared || shape.Actors[start.From].Sort != ActorSort.Unknown || !MayPass(shape.Actors[start.To]))
+            if (!MayPass(shape, shape.Actors[start.From]))
             {
                 continue;
             }
 
-            var round = PatternWalk.From(shape, start, MaxLines, MayPass, mayReturn: true, Carry)
-                .FirstOrDefault(walk => walk.Length >= MinimumLines && Returns(shape, walk));
+            var round = PatternWalk.From(shape, start, rules)
+                .FirstOrDefault(walk => walk.Length >= MinimumLines && Returns(shape, walk) && Busy(shape, walk));
             if (round is not null && seen.Add(SetOf(shape, round)))
             {
                 yield return Describe(shape, round, analysis);
@@ -47,12 +50,26 @@ internal static class RoundTripPattern
         }
     }
 
-    /// <summary>Whether a way round may pass an actor: not an exchange or another service.</summary>
+    /// <summary>Whether a way round may start at or pass an actor: one nothing is known about, and not a hub.</summary>
+    /// <param name="shape">The shape.</param>
     /// <param name="actor">The actor.</param>
     /// <returns>Whether it may.</returns>
-    private static bool MayPass(ShapeActor actor) => actor.Sort is not (ActorSort.Exchange or ActorSort.Service);
+    private static bool MayPass(GraphShape shape, ShapeActor actor) =>
+        actor.Sort == ActorSort.Unknown && !PatternActors.IsHub(shape, actor);
 
-    /// <summary>Whether a walk comes back to its first actor with at least <see cref="LeastBack"/> of what left.</summary>
+    /// <summary>Whether at least one actor on the way round does more than pass the money on.</summary>
+    /// <param name="shape">The shape.</param>
+    /// <param name="walk">The way round.</param>
+    /// <returns>Whether one does.</returns>
+    private static bool Busy(GraphShape shape, int[] walk)
+    {
+        var lines = walk.ToHashSet();
+        return walk[..^1].Any(index => PatternActors.HasOtherBusiness(shape, shape.Flows[index].To, lines));
+    }
+
+    /// <summary>
+    /// Whether a walk comes back to its first actor with at least <see cref="LeastBack"/> of what left.
+    /// </summary>
     /// <param name="shape">The shape.</param>
     /// <param name="walk">The walk.</param>
     /// <returns>Whether it is a round trip.</returns>
@@ -85,12 +102,13 @@ internal static class RoundTripPattern
             + $"{PatternText.Actor(home)} och {CheckText.Btc(lines[^1].Amount)} BTC "
             + $"({CheckText.Percent(PatternText.Share(lines[^1].Amount, lines[0].Amount))}) komma tillbaka efter "
             + $"{PatternText.Between(lines[0], lines[^1])}, genom {CheckText.Count(lines.Count - 1)} andra aktörer: "
-            + $"{PatternText.Actor(home)} → {way} (tx {txids}). Varje steg kommer efter det förra och bär "
-            + $"{CheckText.Percent(Carry.Least)} till hela dess belopp, och vägen går inte genom någon börs eller "
-            + "tjänst. Pengar som skickas runt och tillbaka kan vara ett sätt att få dem att se ut att komma "
-            + "någon annanstans ifrån.";
+            + $"{PatternText.Actor(home)} → {way} (tx {txids}), bland de hämtade tx:erna. Varje steg spenderar mynt "
+            + $"ur det förra och bär {CheckText.Percent(Carry.Least)} till hela dess belopp, inom "
+            + $"{CheckText.Span(PatternWalk.Window)}, och vägen går bara genom aktörer som inget är känt om och som "
+            + "inte är knutpunkter för många, minst en av dem med fler affärer än den här. Pengar som skickas runt och "
+            + "tillbaka kan vara ett sätt att få dem att se ut att komma någon annanstans ifrån.";
         return PatternText.Check(
-            "round:" + lines[0].Txid.Value,
+            "round:" + lines[0].Txid.Value + ":" + lines[^1].Txid.Value,
             $"Rundgång, {CheckText.Count(lines.Count)} steg",
             $"Tillbaka till {PatternText.Actor(home)} efter {PatternText.Between(lines[0], lines[^1])}",
             why,

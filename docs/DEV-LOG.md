@@ -5149,3 +5149,39 @@ nytt schema.
 - Ingen regel läser `ShapeFlow.Conclusions` än; de finns i formen för en senare analys.
 
 **Återstår** (TODO, punkt 9): mönstrets utseende, delarna var för sig, mönstret i rapporten och testärendet.
+
+**Granskningens rättelser (1 C, 7 I, 6 M), 2026-11-09.** Kärnan var att alla fyra reglerna slog till på vardagliga
+former, och en kontroll kan inte avfärdas; slumpgrafen saknade länkade mynt och fångade det inte.
+- **I7, dörren:** `ShapeFlow` har mynten (`Spent`, `Paid` som `ShapeCoin`, `txid:index`; på kontokedjor den överföring
+  som finansierade linjen så långt den går att läsa), `ChangeBack`, och formen har `SpentBy`, `PayerOf` och
+  `GraphShape.Spends`, så att regler och en framtida modell följer mynten.
+- **C1, samma väg:** följer mynten (nästa linje spenderar ett mynt ur den förra), inom 30 dygn, slutar vid den första
+  aktören med etikett och följs aldrig igenom en mixer; minst tre steg, bara genom okända aktörer som inte är
+  knutpunkter (minst tio motparter, `PatternActors.IsHub`). Lika betyder samma slutaktör och lika många steg.
+- **I1, rundgång:** följer mynten, inom 30 dygn, inga knutpunkter, och minst en aktör på vägen har fler affärer.
+- **I2, strukturering:** samma mottagare, jämna belopp (högst två siffror) räknas inte, högst 50 i en följd, en annan
+  aktör nämns bara med samma mottagare, och texten säger *bland de hämtade tx:erna*. *Ett flöde till samma mottagare
+  som bildar en summa* (det andra alternativet) är inte byggt; samma mottagare krävs.
+- **I3, insamling:** bara samma okända aktör som mottagare, aldrig samma sort; en börs med etikett eller en knutpunkt
+  som mottagare säger inget. Dessutom räknas en insättning som bara förs vidare (inte startpunkt, ingen växel, alla
+  mynt betalda i grafen) inte som avsändare, så att en börs hot wallet inte ser ut som en insamling.
+- **I4:** en tx med flera betalare är en egen aktör (`ActorSort.Transaction`) med en linje per betalare och en per
+  mottagare; listorna delas. Delade linjer ligger inte i `SpentBy`, så de räknas inte mot taket på 256.
+- **I5:** insamlingen läses i en genomgång i tidsordning med löpande summor; svepet måste spendera avsändarnas mynt.
+- **I6 och M4:** nycklarna är `collect:<adressen som tog emot det första svepet>`, `struct:<den första betalningens
+  txid>` (följderna räknas per mottagare, så andra betalningar flyttar dem inte), `round:<första>:<sista txid>` och
+  `route:<slutadressen>><steg>`.
+- **M1:** `IGraphShapeAnalysis.WeightsSha256` och kontraktet: en modell anger hashen av sina vikter, höjer versionen
+  när de ändras och säger hashen i *Varför?*.
+- **M2:** inom ett block kommer en tx efter den vars utgång den spenderar (källan ger inte platsen i blocket), sedan
+  txid.
+- **M3:** Guiden säger att startpunkter och offer aldrig räknas, och att det kan dölja ett mönster när startpunkten är
+  den misstänktes.
+- **M5:** granskningens prov är negativa fall i facit: jämna belopp, utbetalningar i batch, hot wallet med
+  insättningsadresser, hot till kall, CoinJoin, en mixer utan etikett med många utbetalningar, butiker som sveper till
+  samma eller olika börser, insättning och uttag på en börs utan etikett (med samma och med andra mynt).
+- **M6:** alla insamlingar per aktör läses, inte bara den första.
+- **Falsklarm:** slumpgrafen följer nu mynten (varje tx spenderar ett mynt betalaren fått i grafen, med växel; minst
+  två linjer av fem är länkade, vilket testet kräver): inga larm i 300 grafer med 1 500 tx. 33 tester i
+  `PatternCheckTests`. 20 000 tx tar omkring 1,7 s i molnmiljön.
+- **Kvar:** en kontroll kan inte avfärdas; TODO, [skiss] *Avfärda en kontroll*.
