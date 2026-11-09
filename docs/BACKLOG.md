@@ -283,14 +283,11 @@ tidsmönster (`active-hours`) och tjänster ur beteende (`service-behaviour`). K
 - **LIFO och poison** (etapp 7): kontraktet `ITracingMethod` tar emot fler metoder, men LIFO behöver en definition
   (inom en tx är ordningen redan FIFO:s; LIFO handlar om en adress saldo över tid), och poison ger inga belopp som går
   jämnt ut, så den behöver visas som *berört* i stället för ett belopp. Se `docs/KRYPTOSPARAREN.md`, fråga 1.
-- **Fråga om det som kan ha ändrats** (etapp 7): grafen visas bara ur ärendet (`LookupMode.CaseOnly`). Ett mynt som
-  låg kvar visas som *kan ha flyttats* tills noden expanderas igen. En knapp eller ett kommando som frågar om alla
-  sådana mynt på en gång, och bevakningen som gör det i bakgrunden, behövs.
 - **Tidsfönster för en adress historik** (etapp 7): expansionen tar de nyaste tx upp till gränsen (50 som förval).
   För en adress med lång historik behövs ett tidsfönster runt händelsen i stället.
-- **Grafens prestanda vid tusentals noder** (etapp 12): ytan ritar bara det som syns, men varje drag räknar om alla
-  kurvor och varje hovring prövar alla linjer. Ett rutnät (spatial index) och att bara räkna om linjerna till den
-  dragna noden behövs om graferna blir mycket stora.
+- **Grafens prestanda, efter omgång 7:** när en drag släpps räknas hela layouten om (cirka 100 ms i hoppkolumnerna
+  och 20 ms på den fria ytan vid 3 000 aktörer, `GraphScaleTests`), på UI-tråden. Den kunde räknas utanför UI-tråden
+  och bytas in när den är klar. Under draget står de belopp som inte tillhör de dragna linjerna kvar där de stod.
 - **Hitta fortsättningen på en annan kedja själv** (CLAUDE.md, *Cross-chain*): belopp och tid hos swap-tjänster,
   bryggornas egna händelser. I v1 knyts den för hand.
 
@@ -305,7 +302,6 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
   och beloppen cachas (`DrawCache`) och beloppens krocktest ligger i ett rutnät (`RoomGrid`), bevakade adresser och
   bevakningarnas motparter viks aldrig in i en hög, ledtrådens linje är `GraphEdgeKind.HeldBack`, och högens och
   ledtrådens nycklar följer var de senast flyttades i stället för ankarets representant. Kvar av det:
-  - Valvyns streckade guide och rombens hörnmärke byggs som ny geometri per bildruta; de kan cachas per vy.
   - En bevakad aktör i en hög är kvar som medlem i Tracings hög och ritas bara för sig. Om en sådan ska räknas i
     högens *N mottagare* i modellen (till exempel i en begäran) avgörs när det behövs.
 - **Valvyn finns bara för en Bitcoin-adress:** en tx-expansions mottagare och en Ethereum-adress hämtar fortfarande
@@ -320,13 +316,6 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
 
 ## Kommentarsnoden (KN1a, byggd 2026-11-08)
 
-- **Länkar:** `chainsaw:` till något som inte finns i grafen säger det bara; kanske ska det kunna bli en startpunkt.
-- **Kvar efter granskningen av KN1a 2026-11-08** (tråden och soptunnan står i `docs/TODO.md`): när en hög
-  eller valvy är utfälld döljs lagret med `Opacity=0` men fokus kan ligga kvar i en dold redigerare;
-  `PlaceComments` gör en ny `MatrixTransform` per omritning och `DropShadowEffect` per lapp kostar vid panorering
-  med många lappar.
-- **Fler noder med storlekshandtag** (användarens önskemål 2026-11-07): kommentarsnoden har det; vilka fler som får
-  det (samlingsnoden EX2b, egna ytor) avgörs när de skissas.
 - **En skrivning i kö när ärendet stängs:** lappen som skrivs i förseglas innan ärendet släpps, men en skrivning som
   redan står i kö (till exempel en ändring som väntar på disken) väntas inte in, eftersom den återkommer på UI-tråden.
 
@@ -484,12 +473,6 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
 
 ## Exponering (EP1b)
 
-- **Kontokedjan och länkade insättningar** (omgranskningen 2026-11-08, M): `AccountExposureRun.Ledger` tar bort en
-  länkad insättning helt, så dess del av plånbokens utbetalningar står som *Kom före historiken* eller *Inte
-  expanderat* i stället för *Fortsätter på annan kedja* (`ExposureRest.OtherChain`), som Bitcoin säger. Beloppen stämmer.
-- **Pengar i cirkel i *Fått från*** (M, fanns före): `ReadIn` skriver `_units[coin]` för varje ingång, så ett
-  startmynt som också är ingång i en tx som läses bakåt tappar sitt belopp och analysen vägras. Test saknas.
-
 - **M4 från granskningen:** Ethereums gasavgifter finns inte som poster i grafens linjer, så plånboksläsningen räknar
   dem inte; pengar som betalade gas står som kvar hos aktören.
 - *Fått från* kör metoden en gång per inbetalning hos varje aktör på vägen; en aktör med tusentals överföringar kan
@@ -502,31 +485,20 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
 - **En fil som inte gick att skriva klart** tas bort (M5), men det finns inget test som framkallar ett skrivfel.
 
 ## Rapport (RP1b)
-- **Godkända förslag i slutsatserna:** en godkänd trolig utgång ur en mixer (KF2b) kommer inte med som slutsats med
-  analysens namn och version; rapporten tar kluster, etiketter och spårningsmetoden.
-- **Tillbaka till rapporten från grafen:** skissen har en knapp *← Rapport Esc* i grafen när man kommit dit med
-  *Ändra i grafen*; nu tar Ctrl+8 tillbaka.
-- **Visa i mappen** i toasten efter exporten (skissen) finns inte; filen står under förhandsvisningen med sökväg och
-  SHA-256 i verktygstipset.
 - **Markeringen** är grafens val med Ctrl+klick eller en ruta, inte Shift-klick som skissen säger, eftersom Shift redan
   används i högen.
 
 ## Undermenyer i pillret (etapp 11b)
-- **Nytt → Etikett** är tonad som inte byggd (en etikett sätts sedan etapp 16 i inspektören med L); ändra
-  `SubmenuNeed` i `Navigation/SubmenuTable.cs` till `OpenCase` och koppla raden i `ShellViewModel` när vyn Etiketter
-  finns. Begäran är kopplad sedan BG1b.
-- **Startpunkt med ett ärende** lägger bara markören i kommandoraden; ett eget fält (som i Nytt ärende) kan skissas.
 - **Sanktionslistan och det öppna ärendet:** en import kontrollerar inte ärendets adresser
-  (`IAttributionService.CheckSanctions`); det görs när grafen byggs.
+  (`IAttributionService.CheckSanctions`, som i dag bara körs för startpunkterna när ärendet skapas); att köra den för
+  grafens adresser efter en import skriver i ärendet och hör till Attribution (omgång 7 lät den vara).
 
 ## Låsskärmen och förstagångsinställningen (etapp 10)
-- **Inställningarna, Utseende:** fältets scen och rörelse (skissens val; nu Drift och stilla kätting) är tonade med
-  *Inte byggt än* i ST1a.
+- **Inställningarna, Utseende:** raden *Kättingen* (*Rör sig* eller *Står still*) är tonad med *Inte byggt än* i
+  ST1a; figuren står still bara när Windows har animeringar avstängda.
 - **Låsning mitt i inställningen** avslutar den: efter upplåsning visas skalet, och utgången och första ärendet erbjuds
   inte igen. En krasch mellan valvet och profilen ger ett valv utan profil, så att ärenden inte går att skapa.
   Inställningen kunde återupptas tills den är klar (granskningen, M).
-- **Fältets loop** stannar tyst om en bildruta kastar ett fel; kunde loggas och startas om. Hela bildrutan kopieras på
-  UI-tråden varje ruta (cirka 33 MB per ruta i 4K); kunde sänka takten på stora ytor (granskningen, M).
 - **WireGuard-filens text** läses som fästa tecken som töms (`Exits/WireGuardFile`, etapp 17), men blir en `string`
   i anropet till `IExitStore.Add`, som tar en (samma sak som *Klartext i minnet*). Kräver ett kontrakt med tecken.
 - **En öppen filväljare** ligger kvar ovanpå låsskärmen om Chainsaw låses medan den är öppen; den visar bara filer.
@@ -581,8 +553,6 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
 - **Hämtad i historiken:** en adress visar *Först in* med blocket men inte när den hämtades, eftersom
   `IBitcoinSource.GetAddressTransactionsAsync` inte kan läsa ur ärendet utan att fråga källan. Ett läge bara ur ärendet
   (som för tx) skulle ge raden *Hämtad · block · källa*.
-- **Ta tillbaka en egen yta** (KF1b, Z) när ytorna finns (etapp 22): samma rad och samma formulär i historiken.
-- **Äldre ärenden** (före etapp 21) har en journalrad per uppbrytning och visar en rad per länk.
 - **Test saknas** för en omläsning av grafen medan en ångring sparas (granskningen omgång 3, M4).
 - En adressnod visar inte en klusteretikett som sitter på en annan adress i ett kluster den inte är en del av i grafen
   (granskningen omgång 1, M5).
@@ -616,27 +586,22 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
 - **Tidslinje och Flöde, efter bygget 2026-11-08:** flödet läser aktörerna som plånböcker; på Bitcoin kan det följa
   mynten som spåret i grafen gör, så att siffrorna aldrig skiljer sig. LIFO och poison läggs i metodens val när
   Tracing har dem (fråga 1 till kryptospåraren). Avgifterna kan bli en egen grå tråd *Avgift* som i skissen. Tidslinjen
-  kan gruppera banorna när grafen har hundratals aktörer, och ett klick på en bana kan välja aktören. Exponeringens
-  `MakeRoom` anropas inte när Guidens panel öppnas (Tidslinje och Flöde gör det).
+  kan gruppera banorna när grafen har hundratals aktörer, och ett klick på en bana kan välja aktören.
 - **Plånböcker, efter granskningen 2026-11-08:** en avfärdad plånbok dras inte av som en godkänd, så en ny adress i
   samma grupp föreslås aldrig (`WalletCheck.KeyOf`); ett godkänt fynd utan tx i grafen har tomt underlag (prova på
   Windows); `PreviewUndoMerges` visar inte heuristiklänkar som slutar slå ihop efter en senare uppbrytning.
 - **Soptunnan för lappar och högar, efter granskningen 2026-11-08:** en lapp som töms precis före Ctrl+W slängs inte
   (`SealBeforeClose` väntar inte på köade skrivningar); en lapp som redan slängts från ett annat fönster läser inte om
-  soptunnan; en slängd hög kommer tillbaka till hälften när ett av dess ärenden sparas igen (`ForgetRewritten`); en
-  lapp som tappar musgreppet lämnar soptunnan förstorad (`LostMouseCapture`); historiken säger *en nod utanför
-  grafen* för en nod i soptunnan; `IGraphCommentService.RemoveComment` saknar anropare.
+  soptunnan; en slängd hög kommer tillbaka till hälften när ett av dess ärenden sparas igen (`ForgetRewritten`);
+  historiken säger *en nod utanför grafen* för en nod i soptunnan; `IGraphCommentService.RemoveComment` saknar anropare.
 - **Etiketter, efter omgranskningen 2026-11-08:** skäl och anteckning följer med kopior, så en mening vid fältet
   Anteckning borde varna för att skriva offrets namn där; `HeldBack` gäller bara på den egna datorn (en kollegas
-  bibliotek kan sprida en kopia tills ursprungsärendet öppnats där); *Visa i grafen* på en sanktionsträff i en hög
-  hittar inte högen (`GraphViewModel.ShowNode`); vyn räknar *nära ett offer* på aktören, biblioteket på hela klustret.
+  bibliotek kan sprida en kopia tills ursprungsärendet öppnats där); vyn räknar *nära ett offer* på aktören, biblioteket på hela klustret.
 - **Grafens kort och markeringar, efter omgranskningen 2026-11-08:** en grund tx hämtas inte om när den endpoint
   som är i fas väntar eller fallerar, och *i fas* bygger bara på provet vid start; schemasteg 1 ändrades på plats
   (`block_hash`, `chains_not_found`), så äldre testärenden ska slängas.
-- **Rapporten, efter omgranskningen 2026-11-08:** med delen Kontroll avslagen bär utkastet en gammal kontroll, så
-  exporten provar om i onödan (sätt `Ledger = null`); provet mellan kontroll och försegling ser bara journalen; ett
-  slut som nås genom en CoinJoin utan markerad avsändare blir *Börs A → Börs A*; `(decimal)` i `ReportTrails` kan
-  kasta för mycket stora tokenbelopp.
+- **Rapporten, efter omgranskningen 2026-11-08:** provet mellan kontroll och försegling ser bara journalen; ett
+  slut som nås genom en CoinJoin utan markerad avsändare blir *Börs A → Börs A*.
 - **Ärendets kuvert, efter omgranskningen 2026-11-08:** kraschar Chainsaw mellan att grenen öppnats och att
   grenraden skrivits blir `/verify` röd för grenen (skriv raden under ett tillfälligt namn först); en ovanlig dubbel
   felväg i `OpenSettingAsideWorkingCopy` kan lämna arbetskopian i *Återställda* utan journalrad.
