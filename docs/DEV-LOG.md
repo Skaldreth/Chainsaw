@@ -4401,6 +4401,65 @@ App 14 nya i `RoundFourSurfacesTests`. Ett befintligt test räknar en läsning t
 - **ClusterChanges** räknar också länkar som börjar eller slutar slå ihop utan att förslaget ändras (efter en
   uppbrytning). **HP1a** fäller bara bort noder vars alla linjer hör till raden.
 
+## Omgång 7: vyerna och appen (2026-11-08)
+
+Byggt ur BACKLOG och TODO (omgång 7, användarens beslut att allt i BACKLOG görs före 1.0).
+
+- **Grafens prestanda vid tusentals noder.** `SceneLayout` håller platserna, kurvorna och beloppen med ett index efter
+  plats (`GraphIndex`, celler på 256 enheter; en linje som når fler än 32 celler hålls åt sidan och prövas alltid).
+  Hovring, klick och det som syns frågar indexet i stället för alla noder och linjer. Under ett drag räknas bara det om
+  som beror på de dragna noderna: deras linjer, i hoppkolumnerna bara de linjer vars väg runt noderna tittade i en cell
+  som noden lämnar eller kommer in i (`LineRouting.Route` säger vilka celler den tittade i), och de linjernas belopp
+  mot ett rutnät som hålls kvar (`RoomGrid.Remove`). Kurvorna blir exakt desamma som när allt räknas om (test), och
+  hela layouten räknas om när draget släpps, så att beloppen hittar sin plats igen. Ytan cachar områdena per
+  platser och scen.
+  - **Mätt** med ett påhittat ärende på 3 000 aktörer och 3 427 linjer (`GraphScaleTests.MeasureLargeGraph`, i
+    molnmiljön, ms per gång, före → efter): ett steg i ett drag 19 → 0,5 på den fria ytan och 123 → 1,3 i
+    hoppkolumnerna; en hovring 2–3 → under 0,5; det som syns 2–3 → 0,1–0,3. Hela layouten när draget släpps: 20 ms
+    fritt och 100 ms i hoppkolumnerna (förut betalades det vid varje steg).
+  - **Eget beslut:** beloppen som inte tillhör de dragna linjerna står kvar under draget, också där den dragna noden
+    nu står, och flyttas först när draget släpps. **Kvar** (BACKLOG): hela layouten efter draget räknas på UI-tråden.
+- **Exponering:**
+  - **Mixerns troliga utgångar** (TODO): en godkänd kandidat (KF2b) ritas bortom tjänsten pengarna betalades till, på
+    nästa ring eller bortom den sista (`ExposureLayout.Beyond`), som en streckad nod med en prickad linje och *förslag*
+    i stället för andelen. Den räknas aldrig och går inte att välja. Kandidaterna läses ur kontrollerna
+    (`ChecksViewModel.ApprovedPayouts`), också när panelen visar annat.
+  - **Kontokedjan och länkade insättningar:** läst bakåt på Ethereum räknas den länkade insättningens del av det
+    plånboken betalade vidare som *Fortsätter på annan kedja*, som på Bitcoin, i stället för *Kom före historiken*.
+  - *Pengar i cirkel i Fått från* var redan rättat och testat (omgång 2) och är struket.
+- **Rapport:** en godkänd trolig utbetalning ur en markerad aktör är en slutsats med analysens namn och version och
+  tx:en, kandidaten med förkortad adress. Toasten efter exporten har *Visa i mappen* (`IFolderView`, Utforskaren med
+  filen vald). *Ändra i grafen* ger *‹ Rapport Esc* i grafens huvud. Utan delen *Hashkedjornas topphash* bär utkastet
+  ingen gammal kontroll, så exporten provar inte om i onödan och journalraden har ingen rad för kontrollen
+  (`ReportService`). Den spårade andelen räknas utan att tokenbelopp görs om till `decimal`.
+- **Kommentarsnoden:** lagret har en och samma transform, skuggan är delad och ritas i en bitmapp
+  (`BitmapCache`), och en lapp som skrivs i när högen eller valvyn fälls ut släpper tangentbordet. En lapp som tappar
+  musgreppet sparas där den står, och soptunnan krymper.
+- **Valvyn:** de prickade guiderna görs en gång per vy och rombens hörnmärke är delat.
+- **Vyerna:** *Visa i grafen* hittar ett kort i en hög och fäller ut högen; Exponering gör plats för Guidens panel.
+- **Sökningen:** Enter på en rad *I soptunnan* lägger tillbaka den direkt (`TrashFilter.PlaceOf`), med tipset
+  *Lägg tillbaka*.
+- **Strukna som redan byggda eller inaktuella:** Nytt → Etikett (kopplad), fältets loop (teckenfältet finns inte
+  längre), äldre ärenden före etapp 21 (schemat får ändras före 1.0).
+- **Skriver i ärendet** (för den oberoende granskningen): rapportens export utan topphashen (journalradens detaljer,
+  `ReportService.TryExport`), och Enter på en rad i soptunnan (en återläggning, samma förseglade väg som soptunnans
+  vy). Exponeringens kontokedja och de godkända kandidaterna i rapporten och ringarna ändrar bara det som visas och
+  exporteras.
+- **Lämnat** (står kvar i BACKLOG med varför): `Compose` i Begäran utanför UI-tråden (testerna och vymodellen bygger på
+  att det sker direkt), sanktionslistans import mot grafen (Attribution), testärendets nya delar (en annan omgång
+  bygger in kontrollerna i berättelsen), att återuppta förstagångsinställningen efter en låsning, och gasavgifterna i
+  plånboksläsningen.
+- **Rättat efter granskningen** (0 C, 1 I, 5 M, alla rättade):
+  - **I:** Enter på en sökrad i soptunnan lägger bara tillbaka det användaren själv slängde, under nodens egen nyckel,
+    och bara när noden då syns igen (`TrashFilter.PlaceOf`); annars öppnas soptunnan med trädet. Tester med
+    granskarens fall (klustret slängt, en adress slängd för sig och sedan sammanslagen).
+  - **M2:** en sökrad vars plats i soptunnan inte längre gäller säger det och öppnar soptunnan
+    (`GraphViewModel.PutBackFoundAsync`). **M3:** en nod som bara följde med en slängning öppnar soptunnan.
+  - **M4:** flera troliga utgångar vid kanten flyttas som en grupp i stället för att klämmas en och en.
+  - **M5:** på sidan *Fått från* heter resten *Kom från en tx som fortsatte på annan kedja*.
+  - **M6:** en tokenmängd som är för stor för `decimal` ger spåret utan värde i stället för ett undantag, och en
+    rapport som inte gick att bygga om säger det i en toast.
+
 ## Grafens fart (2026-11-08)
 
 Användaren bad om så många bildrutor som möjligt i grafen. Inget provat på Windows än.
@@ -4493,4 +4552,12 @@ Användarens krav: optimeringarna får inte minska kvaliteten alls.
   ritas, en tur som tagit slut ritar hela scenen, och ringarna noteras per lager. Rutnätet räknar celler i `long`,
   tål NaN och absurda koordinater, slår upp en hårsmån förbi cellgränserna och följer ett drag genom att flytta bara
   det som flyttats.
+
+### Sammanslagning med omgång 7: grafen vid tusentals aktörer (2026-11-09)
+
+Huvudgrenen fick samtidigt modellsidan av samma arbete från en annan session: `SceneLayout` med ett eget index
+(`GraphIndex`, celler om 256 enheter) och ett drag som räknar om bara de dragna linjerna och placerar beloppen igen
+när draget slutar. Den behölls, och renderingen från denna gren ligger ovanpå: lagren, nodernas egna visuals, den
+eventstyrda slingan och cacharna. Mitt eget rutnät och diffningen av platser (`GraphMoved.Between`,
+`KeepSameCurves`) togs bort; ett drag skickar `Moved` med de dragna noderna i stället för `Redraw`.
 

@@ -351,7 +351,7 @@ public sealed partial class GraphCanvas
         DrawChainHeadings(dc, scene, visible);
         DrawAreas(dc, visible);
         DrawCommentThreads(dc, visible);
-        var edges = (model.Index?.VisibleEdges(visible) ?? [])
+        var edges = model.VisibleEdges(visible)
             .Where(edge => !model.IsFoldedAway(edge.Edge.From) && !model.IsFoldedAway(edge.Edge.To))
             .ToList();
         DrawWatchGlows(dc, visible);
@@ -393,7 +393,7 @@ public sealed partial class GraphCanvas
     {
         var model = _model!;
         var nodes = (_blast == BlastPhase.None
-            ? model.Index?.VisibleNodes(visible) ?? []
+            ? model.VisibleNodes(visible)
             : scene.Nodes.Where(node => model.Places.ContainsKey(node.Key)))
             .Where(node => !model.IsFoldedAway(node.Key));
         var kept = new Dictionary<string, LayerVisual>(StringComparer.Ordinal);

@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 using Chainsaw.App.Graph;
 using Chainsaw.App.ViewModels;
 
@@ -28,6 +29,12 @@ public sealed partial class GraphCanvas
 
     /// <summary>The notes on the surface, once attached.</summary>
     private CommentLayer? _commentLayer;
+
+    /// <summary>
+    /// The notes' layer's transform, made once and changed only when the viewport moves, so that a redraw does not
+    /// make a new one (BACKLOG, <em>Kommentarsnoden</em>).
+    /// </summary>
+    private readonly MatrixTransform _commentTransform = new();
 
     /// <summary>The note whose thread is being dragged, or <see langword="null"/>.</summary>
     private CommentNote? _threadNote;
@@ -78,7 +85,8 @@ public sealed partial class GraphCanvas
 
     /// <summary>
     /// Gives the notes' layer the viewport, so that the notes pan and zoom with the graph, and hides them while the
-    /// selection view or a fanned pile covers the graph.
+    /// selection view or a fanned pile covers the graph. A note being written when they are hidden lets go of the
+    /// keyboard, which goes to the surface, so that no key types into a note that cannot be seen.
     /// </summary>
     private void PlaceComments()
     {
@@ -88,18 +96,24 @@ public sealed partial class GraphCanvas
         }
 
         var matrix = new Matrix(_viewport.Zoom, 0, 0, _viewport.Zoom, _viewport.OffsetX, _viewport.OffsetY);
-        if (_commentLayer.RenderTransform is not MatrixTransform { IsFrozen: false } transform)
+        if (_commentTransform.Matrix != matrix)
         {
-            _commentLayer.RenderTransform = new MatrixTransform(matrix);
+            _commentTransform.Matrix = matrix;
         }
-        else if (transform.Matrix != matrix)
+
+        if (!ReferenceEquals(_commentLayer.RenderTransform, _commentTransform))
         {
-            // Changed in place, so that a pan moves the notes without laying them out again.
-            transform.Matrix = matrix;
+            _commentLayer.RenderTransform = _commentTransform;
         }
+
         var shown = _model?.Scene is not null && _blast == BlastPhase.None && _model.Fan is null;
         _commentLayer.Opacity = shown ? 1 : 0;
         _commentLayer.IsHitTestVisible = shown;
+        if (!shown && _commentLayer.IsKeyboardFocusWithin)
+        {
+            // Not during the drawing itself: the focus moves once the frame is drawn.
+            Dispatcher.BeginInvoke(() => Focus(), DispatcherPriority.Input);
+        }
     }
 
     /// <summary>Draws each note's thread to its node, and the thread being dragged to the pointer.</summary>
@@ -161,6 +175,9 @@ public sealed partial class GraphCanvas
     /// <param name="note">The note.</param>
     /// <returns><see langword="true"/> when it was thrown, so that its place is not stored.</returns>
     internal bool DropNoteOnBin(CommentNote note) => _model?.DropNoteOnBin(note) == true;
+
+    /// <summary>Lets the trash shrink back after a note's drag ended without a drop, as when the mouse was lost.</summary>
+    internal void ForgetNoteDrag() => _model?.Bin.EndDrag();
 
     /// <summary>Makes the thread's dotted pen, with the dots measured in pixels on the screen.</summary>
     /// <param name="brush">The thread's colour.</param>

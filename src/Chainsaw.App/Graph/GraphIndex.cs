@@ -1,428 +1,284 @@
 namespace Chainsaw.App.Graph;
 
 /// <summary>
-/// The graph's nodes and lines in a grid of cells on the surface, as a game engine keeps its world (principle 6): the
-/// part on screen, the pointer and a box find what lies there by asking only the cells they touch, instead of going
-/// through every node and line. The answers are exactly those of <see cref="GraphHitTest"/>, in the same order; the
-/// index only skips what cannot be among them.
+/// The graph's nodes and lines in a grid of cells by where they stand, so that what is under the pointer and what is on
+/// screen is found among what is near instead of among every node and line (principle 6, BACKLOG <em>Grafens
+/// prestanda vid tusentals noder</em>). A dragged node and its lines are moved in the grid one by one.
 /// </summary>
 /// <remarks>
-/// A node or a line is kept in every cell its frame or its curve's bounds touch; a line so long that it would touch
-/// very many cells is kept aside and always looked at, so that a long line never fills the grid. A drag moves only
-/// what moved (<see cref="Follow"/>); another scene makes a new index.
+/// Each item keeps the order it is drawn in, so that the topmost node wins a hit and what is on screen is given in the
+/// drawing order, as when every node and line was looked through.
 /// </remarks>
 public sealed class GraphIndex
 {
-    /// <summary>The side of a cell, in the surface's units: a few nodes wide.</summary>
-    public const double CellSize = 512;
+    /// <summary>The side of a cell in the surface's units: about two nodes wide.</summary>
+    public const double Cell = 256;
 
-    /// <summary>A line touching more cells than this is kept aside and always looked at.</summary>
-    private const int MostCells = 64;
+    /// <summary>The nodes.</summary>
+    private readonly Grid _nodes = new();
 
-    /// <summary>The farthest cell from the origin, so that no coordinate, however large, overflows a cell's number.</summary>
-    private const long FarthestCell = 1L << 40;
+    /// <summary>The lines, by the rectangle that holds each curve.</summary>
+    private readonly Grid _edges = new();
 
     /// <summary>
-    /// How much a lookup reaches past the part asked for, in the surface's units: the part and a frame grown by the
-    /// same margin may round apart by a hair at a cell's border, and the lookup must never miss what lies on it.
+    /// The lines in the hop columns by the cells of the nodes' room each looked in to be bent around the nodes
+    /// (<see cref="LineRouting.Route"/>).
     /// </summary>
-    private const double LookupPad = 1;
+    private readonly Dictionary<(int Column, int Row), HashSet<string>> _routes = [];
 
-    /// <summary>The scene the index is made for.</summary>
-    private readonly GraphScene _scene;
+    /// <summary>The cells each line looked in, so that it can be taken out of them.</summary>
+    private readonly Dictionary<string, IReadOnlySet<(int Column, int Row)>> _routeCells =
+        new(StringComparer.Ordinal);
 
-    /// <summary>Each placed node's frame, by its place in the scene's drawing order.</summary>
-    private readonly Dictionary<int, GraphRect> _frames = [];
+    /// <summary>Gets how many nodes are in the index.</summary>
+    public int NodeCount => _nodes.Count;
 
-    /// <summary>The nodes in each cell, by their place in the scene's drawing order.</summary>
-    private readonly Dictionary<(long X, long Y), List<int>> _nodeCells = [];
+    /// <summary>Gets how many lines are in the index.</summary>
+    public int EdgeCount => _edges.Count;
 
-    /// <summary>Each curved line, by its place in the scene's order of lines: its key, curve and bounds.</summary>
-    private readonly Dictionary<int, (string Key, EdgeCurve Curve, GraphRect Bounds)> _lines = [];
+    /// <summary>Puts a node in the index, or moves it there.</summary>
+    /// <param name="key">The node's key.</param>
+    /// <param name="order">Where it is drawn among the nodes; later lies on top.</param>
+    /// <param name="frame">Its frame.</param>
+    public void SetNode(string key, int order, GraphRect frame) => _nodes.Set(key, order, frame);
 
-    /// <summary>The lines in each cell, by their place in the scene's order of lines.</summary>
-    private readonly Dictionary<(long X, long Y), List<int>> _lineCells = [];
+    /// <summary>Puts a line in the index, or moves it there.</summary>
+    /// <param name="key">The line's key.</param>
+    /// <param name="order">Where it is drawn among the lines.</param>
+    /// <param name="bounds">The rectangle that holds its curve.</param>
+    public void SetEdge(string key, int order, GraphRect bounds) => _edges.Set(key, order, bounds);
 
-    /// <summary>The lines kept aside because they touch too many cells, by their place in the scene's order.</summary>
-    private readonly SortedSet<int> _longLines = [];
+    /// <summary>Keeps the cells of the nodes' room a line looked in to be routed around the nodes.</summary>
+    /// <param name="key">The line's key.</param>
+    /// <param name="cells">The cells; none for a line that looked in none.</param>
+    public void SetRoute(string key, IReadOnlySet<(int Column, int Row)> cells)
+    {
+        ArgumentNullException.ThrowIfNull(cells);
+        if (_routeCells.Remove(key, out var before))
+        {
+            foreach (var cell in before)
+            {
+                if (_routes.TryGetValue(cell, out var keys) && keys.Remove(key) && keys.Count == 0)
+                {
+                    _routes.Remove(cell);
+                }
+            }
+        }
 
-    /// <summary>Each curve's place in the order the curves were worked out, for the hit test's ties.</summary>
-    private readonly Dictionary<string, int> _curveOrder = new(StringComparer.Ordinal);
+        _routeCells[key] = cells;
+        foreach (var cell in cells)
+        {
+            if (!_routes.TryGetValue(cell, out var keys))
+            {
+                keys = new HashSet<string>(StringComparer.Ordinal);
+                _routes[cell] = keys;
+            }
 
-    /// <summary>The places of the nodes the index answers for.</summary>
-    private IReadOnlyDictionary<string, GraphPoint> _places;
+            keys.Add(key);
+        }
+    }
 
-    /// <summary>The curves of the lines the index answers for, in the order they were worked out.</summary>
-    private IReadOnlyDictionary<string, EdgeCurve> _curves;
+    /// <summary>Gives the lines whose routing looked in some cells, so that a node there may bend them.</summary>
+    /// <param name="cells">The cells.</param>
+    /// <returns>The lines' keys, each once.</returns>
+    public IReadOnlySet<string> RoutesIn(IEnumerable<(int Column, int Row)> cells)
+    {
+        ArgumentNullException.ThrowIfNull(cells);
+        var found = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var cell in cells)
+        {
+            if (_routes.TryGetValue(cell, out var keys))
+            {
+                found.UnionWith(keys);
+            }
+        }
 
-    /// <summary>Makes the index of a scene with its places and curves.</summary>
-    /// <param name="scene">The scene.</param>
-    /// <param name="places">Each node's top-left corner.</param>
+        return found;
+    }
+
+    /// <summary>Gives the frame a node has in the index.</summary>
+    /// <param name="key">The node's key.</param>
+    /// <returns>The frame, or <see langword="null"/> when the node is not in it.</returns>
+    public GraphRect? FrameOf(string key) => _nodes.RectOf(key);
+
+    /// <summary>Gives the nodes whose frame reaches into a rectangle, in drawing order.</summary>
+    /// <param name="area">The rectangle.</param>
+    /// <returns>The nodes' keys.</returns>
+    public IReadOnlyList<string> NodesIn(GraphRect area) => _nodes.In(area);
+
+    /// <summary>Gives the lines whose curve's rectangle reaches into a rectangle, in drawing order.</summary>
+    /// <param name="area">The rectangle.</param>
+    /// <returns>The lines' keys.</returns>
+    public IReadOnlyList<string> EdgesIn(GraphRect area) => _edges.In(area);
+
+    /// <summary>Gives the topmost node whose frame holds a point.</summary>
+    /// <param name="point">The point.</param>
+    /// <returns>The node's key, or <see langword="null"/>.</returns>
+    public string? NodeAt(GraphPoint point) => _nodes.TopmostAt(point);
+
+    /// <summary>Gives the line nearest a point within a distance.</summary>
+    /// <param name="point">The point.</param>
+    /// <param name="tolerance">How close counts.</param>
     /// <param name="curves">Each line's curve.</param>
-    public GraphIndex(
-        GraphScene scene, IReadOnlyDictionary<string, GraphPoint> places, IReadOnlyDictionary<string, EdgeCurve> curves)
+    /// <returns>The line's key, or <see langword="null"/> when none is that close.</returns>
+    public string? EdgeAt(GraphPoint point, double tolerance, IReadOnlyDictionary<string, EdgeCurve> curves)
     {
-        ArgumentNullException.ThrowIfNull(scene);
-        ArgumentNullException.ThrowIfNull(places);
         ArgumentNullException.ThrowIfNull(curves);
-        (_scene, _places, _curves) = (scene, places, curves);
-        for (var index = 0; index < scene.Nodes.Count; index++)
-        {
-            if (places.TryGetValue(scene.Nodes[index].Key, out var place))
-            {
-                AddNode(index, place);
-            }
-        }
-
-        OrderCurves();
-        for (var index = 0; index < scene.Edges.Count; index++)
-        {
-            if (curves.TryGetValue(scene.Edges[index].Key, out var curve))
-            {
-                AddLine(index, curve);
-            }
-        }
-    }
-
-    /// <summary>
-    /// Gives the nodes whose frame or marks reach into a part of the surface, in drawing order, as
-    /// <see cref="GraphHitTest.VisibleNodes"/> does.
-    /// </summary>
-    /// <param name="visible">The part of the surface.</param>
-    /// <returns>The nodes.</returns>
-    public IReadOnlyList<NodeView> VisibleNodes(GraphRect visible)
-    {
-        var shown = new List<NodeView>();
-        foreach (var index in InCells(_nodeCells, visible.Inflate(GraphSizes.MarkReach)))
-        {
-            if (_frames[index].Inflate(GraphSizes.MarkReach).Intersects(visible))
-            {
-                shown.Add(_scene.Nodes[index]);
-            }
-        }
-
-        return shown;
-    }
-
-    /// <summary>
-    /// Gives the lines that may cross a part of the surface, in the scene's order, as
-    /// <see cref="GraphHitTest.VisibleEdges"/> does.
-    /// </summary>
-    /// <param name="visible">The part of the surface.</param>
-    /// <returns>The lines.</returns>
-    public IReadOnlyList<EdgeView> VisibleEdges(GraphRect visible)
-    {
-        var shown = new List<EdgeView>();
-        foreach (var index in LinesNear(visible.Inflate(GraphSizes.MarkReach)))
-        {
-            if (_lines[index].Bounds.Inflate(GraphSizes.MarkReach).Intersects(visible))
-            {
-                shown.Add(_scene.Edges[index]);
-            }
-        }
-
-        return shown;
-    }
-
-    /// <summary>
-    /// Gives the node or the line under a point, as <see cref="GraphHitTest.At"/> does: the node drawn last whose frame
-    /// holds the point, else the nearest line within the tolerance, the later of two equally near.
-    /// </summary>
-    /// <param name="point">The point on the surface.</param>
-    /// <param name="tolerance">How close to a line counts, in the surface's units.</param>
-    /// <returns>The node's or the line's key; both <see langword="null"/> over empty surface.</returns>
-    public (string? Node, string? Edge) At(GraphPoint point, double tolerance)
-    {
-        var here = new GraphRect(point.X, point.Y, 0, 0);
-        var nodes = InCells(_nodeCells, here);
-        for (var at = nodes.Count - 1; at >= 0; at--)
-        {
-            if (_frames[nodes[at]].Contains(point))
-            {
-                return (_scene.Nodes[nodes[at]].Key, null);
-            }
-        }
-
         string? nearest = null;
         var best = tolerance;
-        var near = LinesNear(here.Inflate(tolerance))
-            .Select(index => _lines[index])
-            .OrderBy(line => _curveOrder[line.Key]);
-        foreach (var (key, curve, bounds) in near)
+        foreach (var key in _edges.In(new GraphRect(point.X, point.Y, 0, 0).Inflate(tolerance)))
         {
-            if (!bounds.Inflate(tolerance).Contains(point))
-            {
-                continue;
-            }
-
-            var distance = curve.DistanceTo(point);
-            if (distance <= best)
+            if (curves.TryGetValue(key, out var curve) && curve.DistanceTo(point) is var distance && distance <= best)
             {
                 (nearest, best) = (key, distance);
             }
         }
 
-        return (null, nearest);
+        return nearest;
     }
 
-    /// <summary>Says whether the index was made for this scene, these places and these curves.</summary>
-    /// <param name="scene">The scene.</param>
-    /// <param name="places">The places.</param>
-    /// <param name="curves">The curves.</param>
-    /// <returns><see langword="true"/> when it was.</returns>
-    public bool IsFor(
-        GraphScene scene,
-        IReadOnlyDictionary<string, GraphPoint> places,
-        IReadOnlyDictionary<string, EdgeCurve> curves) =>
-        ReferenceEquals(scene, _scene) && ReferenceEquals(places, _places) && ReferenceEquals(curves, _curves);
-
-    /// <summary>
-    /// Follows new places and curves of the same scene, as a drag gives them, by moving only the nodes whose place
-    /// changed and the lines whose curve changed (a curve that did not change is the same instance); it answers as an
-    /// index made anew would.
-    /// </summary>
-    /// <param name="scene">The scene.</param>
-    /// <param name="places">The new places.</param>
-    /// <param name="curves">The new curves.</param>
-    /// <returns><see langword="true"/> when it followed; <see langword="false"/> for another scene.</returns>
-    public bool Follow(
-        GraphScene scene, IReadOnlyDictionary<string, GraphPoint> places, IReadOnlyDictionary<string, EdgeCurve> curves)
+    /// <summary>A grid of keyed rectangles, each with its drawing order.</summary>
+    private sealed class Grid
     {
-        ArgumentNullException.ThrowIfNull(places);
-        ArgumentNullException.ThrowIfNull(curves);
-        if (!ReferenceEquals(scene, _scene))
-        {
-            return false;
-        }
+        /// <summary>The keys in each cell their rectangle reaches into.</summary>
+        private readonly Dictionary<(int Column, int Row), HashSet<string>> _cells = [];
 
-        for (var index = 0; index < scene.Nodes.Count; index++)
+        /// <summary>Each key's rectangle and drawing order.</summary>
+        private readonly Dictionary<string, (GraphRect Rect, int Order)> _items = new(StringComparer.Ordinal);
+
+        /// <summary>
+        /// The most cells a rectangle is put in; a larger one, as a line across the whole graph, is kept aside and
+        /// looked at by every question instead, so that putting it in and taking it out stay quick.
+        /// </summary>
+        private const int MostCells = 32;
+
+        /// <summary>The keys whose rectangle is too large for the cells (<see cref="MostCells"/>).</summary>
+        private readonly HashSet<string> _wide = new(StringComparer.Ordinal);
+
+        /// <summary>Gets how many keys are in the grid.</summary>
+        public int Count => _items.Count;
+
+        /// <summary>Puts a key's rectangle in the grid, taking out where it stood before.</summary>
+        /// <param name="key">The key.</param>
+        /// <param name="order">Its drawing order.</param>
+        /// <param name="rect">Its rectangle.</param>
+        public void Set(string key, int order, GraphRect rect)
         {
-            var key = scene.Nodes[index].Key;
-            var had = _places.TryGetValue(key, out var before);
-            var has = places.TryGetValue(key, out var after);
-            if (had == has && (!has || before == after))
+            Remove(key);
+            _items[key] = (rect, order);
+            if (CellCount(rect) > MostCells)
             {
-                continue;
+                _wide.Add(key);
+                return;
             }
 
-            RemoveNode(index);
-            if (has)
+            foreach (var cell in CellsOf(rect))
             {
-                AddNode(index, after);
-            }
-        }
+                if (!_cells.TryGetValue(cell, out var keys))
+                {
+                    keys = new HashSet<string>(StringComparer.Ordinal);
+                    _cells[cell] = keys;
+                }
 
-        var reordered = !curves.Keys.SequenceEqual(_curves.Keys);
-        for (var index = 0; index < scene.Edges.Count; index++)
-        {
-            var has = curves.TryGetValue(scene.Edges[index].Key, out var curve);
-            var had = _lines.TryGetValue(index, out var line);
-            if (had == has && (!has || ReferenceEquals(line.Curve, curve)))
-            {
-                continue;
-            }
-
-            RemoveLine(index);
-            if (has)
-            {
-                AddLine(index, curve!);
+                keys.Add(key);
             }
         }
 
-        (_places, _curves) = (places, curves);
-        if (reordered)
+        /// <summary>Takes a key out of the grid.</summary>
+        /// <param name="key">The key.</param>
+        public void Remove(string key)
         {
-            OrderCurves();
+            if (!_items.Remove(key, out var item) || _wide.Remove(key))
+            {
+                return;
+            }
+
+            foreach (var cell in CellsOf(item.Rect))
+            {
+                if (_cells.TryGetValue(cell, out var keys) && keys.Remove(key) && keys.Count == 0)
+                {
+                    _cells.Remove(cell);
+                }
+            }
         }
 
-        return true;
-    }
+        /// <summary>Gives a key's rectangle.</summary>
+        /// <param name="key">The key.</param>
+        /// <returns>The rectangle, or <see langword="null"/>.</returns>
+        public GraphRect? RectOf(string key) => _items.TryGetValue(key, out var item) ? item.Rect : null;
 
-    /// <summary>Notes each curve's place in the order the curves were worked out.</summary>
-    private void OrderCurves()
-    {
-        _curveOrder.Clear();
-        var order = 0;
-        foreach (var key in _curves.Keys)
+        /// <summary>Gives the keys whose rectangle reaches into an area, in drawing order.</summary>
+        /// <param name="area">The area.</param>
+        /// <returns>The keys.</returns>
+        public IReadOnlyList<string> In(GraphRect area)
         {
-            _curveOrder[key] = order++;
-        }
-    }
-
-    /// <summary>Puts a node in the cells its frame touches.</summary>
-    /// <param name="index">Its place in the scene's drawing order.</param>
-    /// <param name="place">Its top-left corner.</param>
-    private void AddNode(int index, GraphPoint place)
-    {
-        var frame = _scene.FrameOf(_scene.Nodes[index].Key, place);
-        _frames[index] = frame;
-        AddToCells(_nodeCells, frame, index);
-    }
-
-    /// <summary>Takes a node out of the cells it was in.</summary>
-    /// <param name="index">Its place in the scene's drawing order.</param>
-    private void RemoveNode(int index)
-    {
-        if (_frames.Remove(index, out var frame))
-        {
-            RemoveFromCells(_nodeCells, frame, index);
-        }
-    }
-
-    /// <summary>Puts a line in the cells its bounds touch, or aside when it would touch too many.</summary>
-    /// <param name="index">Its place in the scene's order of lines.</param>
-    /// <param name="curve">Its curve.</param>
-    private void AddLine(int index, EdgeCurve curve)
-    {
-        var bounds = curve.Bounds();
-        _lines[index] = (_scene.Edges[index].Key, curve, bounds);
-        if (CellCount(bounds) > MostCells)
-        {
-            _longLines.Add(index);
-        }
-        else
-        {
-            AddToCells(_lineCells, bounds, index);
-        }
-    }
-
-    /// <summary>Takes a line out of the cells it was in, or from aside.</summary>
-    /// <param name="index">Its place in the scene's order of lines.</param>
-    private void RemoveLine(int index)
-    {
-        if (!_lines.Remove(index, out var line))
-        {
-            return;
+            // An area wider than the grid holds, as the whole graph zoomed out, is looked through key by key rather
+            // than cell by cell, so that its empty cells cost nothing.
+            IEnumerable<string> near = CellCount(area) > _cells.Count ? _items.Keys : Near(area);
+            return [.. near
+                .Select(key => (Key: key, Item: _items[key]))
+                .Where(pair => pair.Item.Rect.Intersects(area))
+                .OrderBy(pair => pair.Item.Order)
+                .Select(pair => pair.Key)];
         }
 
-        if (!_longLines.Remove(index))
+        /// <summary>Gives the key with the highest drawing order whose rectangle holds a point.</summary>
+        /// <param name="point">The point.</param>
+        /// <returns>The key, or <see langword="null"/>.</returns>
+        public string? TopmostAt(GraphPoint point)
         {
-            RemoveFromCells(_lineCells, line.Bounds, index);
+            var keys = _cells.TryGetValue((Index(point.X), Index(point.Y)), out var found) ? found : [];
+            return keys.Concat(_wide)
+                .Select(key => (Key: key, Item: _items[key]))
+                .Where(pair => pair.Item.Rect.Contains(point))
+                .OrderByDescending(pair => pair.Item.Order)
+                .Select(pair => pair.Key)
+                .FirstOrDefault();
         }
-    }
 
-    /// <summary>Gives the lines in the cells a part of the surface touches and the long lines, in the scene's order.</summary>
-    /// <param name="area">The part of the surface.</param>
-    /// <returns>Their places in the scene's order of lines.</returns>
-    private List<int> LinesNear(GraphRect area)
-    {
-        var found = InCells(_lineCells, area);
-        if (_longLines.Count == 0)
+        /// <summary>Gives the keys in the cells an area reaches into, each once.</summary>
+        /// <param name="area">The area.</param>
+        /// <returns>The keys, which may lie outside the area within their cells.</returns>
+        private HashSet<string> Near(GraphRect area)
         {
+            var found = new HashSet<string>(_wide, StringComparer.Ordinal);
+            foreach (var cell in CellsOf(area))
+            {
+                if (_cells.TryGetValue(cell, out var keys))
+                {
+                    found.UnionWith(keys);
+                }
+            }
+
             return found;
         }
 
-        found.AddRange(_longLines);
-        found.Sort();
-        return found;
-    }
+        /// <summary>Gives how many cells a rectangle reaches into, without walking them.</summary>
+        /// <param name="rect">The rectangle.</param>
+        /// <returns>The number of cells, as a double so that a huge rectangle cannot overflow it.</returns>
+        private static double CellCount(GraphRect rect) =>
+            (Math.Floor(rect.Right / Cell) - Math.Floor(rect.X / Cell) + 1)
+            * (Math.Floor(rect.Bottom / Cell) - Math.Floor(rect.Y / Cell) + 1);
 
-    /// <summary>Puts an item in every cell a rectangle touches.</summary>
-    /// <param name="cells">The cells.</param>
-    /// <param name="area">The rectangle.</param>
-    /// <param name="index">The item's place in its order.</param>
-    private static void AddToCells(Dictionary<(long X, long Y), List<int>> cells, GraphRect area, int index)
-    {
-        var (left, top, right, bottom) = CellsOf(area);
-        for (var x = left; x <= right; x++)
+        /// <summary>Gives the cells a rectangle reaches into.</summary>
+        /// <param name="rect">The rectangle.</param>
+        /// <returns>The cells.</returns>
+        private static IEnumerable<(int Column, int Row)> CellsOf(GraphRect rect)
         {
-            for (var y = top; y <= bottom; y++)
+            var (left, right) = (Index(rect.X), Index(rect.Right));
+            var (top, bottom) = (Index(rect.Y), Index(rect.Bottom));
+            for (var column = left; column <= right; column++)
             {
-                if (!cells.TryGetValue((x, y), out var items))
+                for (var row = top; row <= bottom; row++)
                 {
-                    items = [];
-                    cells[(x, y)] = items;
-                }
-
-                items.Add(index);
-            }
-        }
-    }
-
-    /// <summary>Takes an item out of every cell a rectangle touches.</summary>
-    /// <param name="cells">The cells.</param>
-    /// <param name="area">The rectangle it was put in by.</param>
-    /// <param name="index">The item's place in its order.</param>
-    private static void RemoveFromCells(Dictionary<(long X, long Y), List<int>> cells, GraphRect area, int index)
-    {
-        var (left, top, right, bottom) = CellsOf(area);
-        for (var x = left; x <= right; x++)
-        {
-            for (var y = top; y <= bottom; y++)
-            {
-                if (cells.TryGetValue((x, y), out var items) && items.Remove(index) && items.Count == 0)
-                {
-                    cells.Remove((x, y));
-                }
-            }
-        }
-    }
-
-    /// <summary>
-    /// Gives the items in the cells a rectangle touches (reaching a hair past it), each once, in their order.
-    /// </summary>
-    /// <param name="cells">The cells.</param>
-    /// <param name="area">The rectangle.</param>
-    /// <returns>The items' places in their order, ascending.</returns>
-    private static List<int> InCells(Dictionary<(long X, long Y), List<int>> cells, GraphRect area)
-    {
-        var (left, top, right, bottom) = CellsOf(area.Inflate(LookupPad));
-        var found = new HashSet<int>();
-        if (Span(left, right) * Span(top, bottom) > cells.Count)
-        {
-            // A part wider than the grid holds: going through the cells that are there is quicker.
-            foreach (var ((x, y), items) in cells)
-            {
-                if (x >= left && x <= right && y >= top && y <= bottom)
-                {
-                    found.UnionWith(items);
-                }
-            }
-        }
-        else
-        {
-            for (var x = left; x <= right; x++)
-            {
-                for (var y = top; y <= bottom; y++)
-                {
-                    if (cells.TryGetValue((x, y), out var items))
-                    {
-                        found.UnionWith(items);
-                    }
+                    yield return (column, row);
                 }
             }
         }
 
-        var ordered = found.ToList();
-        ordered.Sort();
-        return ordered;
+        /// <summary>Gives the cell a coordinate falls in.</summary>
+        /// <param name="value">The coordinate.</param>
+        /// <returns>The cell's index.</returns>
+        private static int Index(double value) => (int)Math.Floor(value / Cell);
     }
-
-    /// <summary>Gives how many cells a rectangle touches.</summary>
-    /// <param name="area">The rectangle.</param>
-    /// <returns>The count.</returns>
-    private static double CellCount(GraphRect area)
-    {
-        var (left, top, right, bottom) = CellsOf(area);
-        return Span(left, right) * Span(top, bottom);
-    }
-
-    /// <summary>Gives how many cells lie from one to another, both counted, without overflowing.</summary>
-    /// <param name="first">The first cell.</param>
-    /// <param name="last">The last cell.</param>
-    /// <returns>The count, as a double so that the product of two never overflows.</returns>
-    private static double Span(long first, long last) => (double)last - first + 1;
-
-    /// <summary>Gives the cells a rectangle touches, its edges included.</summary>
-    /// <param name="area">The rectangle.</param>
-    /// <returns>The first and last cell across and down.</returns>
-    private static (long Left, long Top, long Right, long Bottom) CellsOf(GraphRect area) => (
-        Cell(area.X), Cell(area.Y), Cell(area.Right), Cell(area.Bottom));
-
-    /// <summary>Gives the cell a coordinate lies in, kept within the farthest cell.</summary>
-    /// <param name="value">The coordinate.</param>
-    /// <returns>The cell's number.</returns>
-    private static long Cell(double value) => double.IsNaN(value)
-        ? 0
-        : (long)Math.Clamp(Math.Floor(value / CellSize), -FarthestCell, FarthestCell);
 }

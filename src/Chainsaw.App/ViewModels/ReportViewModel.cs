@@ -133,6 +133,15 @@ public sealed partial class ReportViewModel : ObservableObject
     /// <summary>The toast's title after an export.</summary>
     public const string ExportedTitle = "Exporterad och journalförd";
 
+    /// <summary>The toast's title when the report could not be built anew.</summary>
+    public const string BuildFailedTitle = "Rapporten kunde inte byggas";
+
+    /// <summary>The toast's text when the report could not be built anew.</summary>
+    public const string BuildFailedText = "Det som visas är rapporten som den var innan. Ändra markeringen och försök igen.";
+
+    /// <summary>The export toast's action, which shows the file in its folder.</summary>
+    public const string ShowInFolderText = "Visa i mappen";
+
     /// <summary>The toast's text after an export, after the file's name.</summary>
     public const string ExportedText = " · en ny fil, inget skrevs över";
 
@@ -194,11 +203,17 @@ public sealed partial class ReportViewModel : ObservableObject
     /// <summary>The toaster, which says what an export did; or <see langword="null"/>.</summary>
     private readonly Toaster? _toaster;
 
+    /// <summary>Shows a written file in its folder, from the export's toast; none in the tests that leave it out.</summary>
+    private readonly IFolderView? _folders;
+
     /// <summary>The zone local times are written in.</summary>
     private readonly TimeZoneInfo _zone;
 
     /// <summary>The graph and the marking the report was last asked to follow.</summary>
     private (GraphScene? Scene, IReadOnlyList<string> Picked) _source = (null, []);
+
+    /// <summary>The candidates the user approved in the graph's suggestions, written among the conclusions.</summary>
+    private IReadOnlyList<ApprovedPayout> _approved = [];
 
     /// <summary>The material found from the marking.</summary>
     private ReportMaterial _material = ReportMaterial.Empty;
@@ -227,6 +242,7 @@ public sealed partial class ReportViewModel : ObservableObject
     /// <param name="toaster">The toaster, or <see langword="null"/>.</param>
     /// <param name="zone">The zone local times are written in; the computer's own when <see langword="null"/>.</param>
     /// <param name="prices">The case's rates, which value the traced amounts; or <see langword="null"/>.</param>
+    /// <param name="folders">Shows an exported file in its folder; or <see langword="null"/>.</param>
     public ReportViewModel(
         IReportService reports,
         CaseSession session,
@@ -235,9 +251,11 @@ public sealed partial class ReportViewModel : ObservableObject
         IClusteringService? clustering = null,
         Toaster? toaster = null,
         TimeZoneInfo? zone = null,
-        IPriceService? prices = null)
+        IPriceService? prices = null,
+        IFolderView? folders = null)
     {
         _prices = prices;
+        _folders = folders;
         _reports = reports;
         _session = session;
         _picker = picker;
@@ -335,6 +353,26 @@ public sealed partial class ReportViewModel : ObservableObject
     }
 
     /// <summary>
+    /// Follows the candidates the user approved among the graph's suggestions (sketch KF2b), which the report writes as
+    /// conclusions with their analysis; the report is built again when they changed and it is shown.
+    /// </summary>
+    /// <param name="approved">The approved candidates.</param>
+    public void UpdateApproved(IReadOnlyList<ApprovedPayout> approved)
+    {
+        ArgumentNullException.ThrowIfNull(approved);
+        if (approved.SequenceEqual(_approved))
+        {
+            return;
+        }
+
+        _approved = approved;
+        if (_isShown)
+        {
+            Built = RebuildAsync();
+        }
+    }
+
+    /// <summary>
     /// Says whether the view is shown. The report is found and composed only while it is, since the graph changes
     /// often and nobody reads a report that is not shown; when it is shown again, it follows the graph and checks the
     /// hash chains anew.
@@ -415,7 +453,7 @@ public sealed partial class ReportViewModel : ObservableObject
             // The very draft the report shown was composed from, so that the file holds what was seen.
             var draft = (_shownDraft ?? Draft()) with { MadeUtc = document.MadeUtc };
             var export = await Task.Run(() => _reports.Export(open, draft, path));
-            _toaster?.Show(ToastKind.Success, ExportedTitle, export.FileName + ExportedText);
+            _toaster?.Show(Exported(export));
             await LoadExportsAsync(open);
             await CheckAndRebuildAsync();
         }
@@ -428,6 +466,21 @@ public sealed partial class ReportViewModel : ObservableObject
         {
             IsExporting = false;
         }
+    }
+
+    /// <summary>
+    /// Gives the toast after an export (sketch RP1b): what was written and journalled, with <em>Visa i mappen</em>,
+    /// which shows the file in its folder.
+    /// </summary>
+    /// <param name="export">The export.</param>
+    /// <returns>The toast.</returns>
+    private ToastRequest Exported(ReportExport export)
+    {
+        var text = export.FileName + ExportedText;
+        return _folders is { } folders
+            ? new ToastRequest(
+                ToastKind.Success, ExportedTitle, text, ShowInFolderText, () => folders.ShowInFolder(export.Path))
+            : new ToastRequest(ToastKind.Success, ExportedTitle, text);
     }
 
     /// <summary>Says whether the report can be exported now.</summary>
@@ -445,6 +498,7 @@ public sealed partial class ReportViewModel : ObservableObject
     {
         var version = Interlocked.Increment(ref _version);
         var (scene, picked) = _source;
+        var approved = _approved;
         if (_session.Current is not { } open || scene is null || picked.Count == 0)
         {
             Show(version, ReportMaterial.Empty, null, null);
@@ -460,7 +514,8 @@ public sealed partial class ReportViewModel : ObservableObject
         {
             var (material, draft, document) = await Task.Run(() =>
             {
-                var found = ReportSelection.Build(scene, picked, Clusters(open, scene, picked), RateAt(open));
+                var found = ReportSelection.Build(
+                    scene, picked, Clusters(open, scene, picked), RateAt(open), approved);
                 var made = DraftOf(found);
                 return (found, made, found.Actors.Count == 0 ? null : _reports.Compose(open, made));
             });
@@ -469,6 +524,12 @@ public sealed partial class ReportViewModel : ObservableObject
         catch (CaseException)
         {
             // The case closed meanwhile; the next case builds its own.
+        }
+        catch (Exception exception) when (exception is OverflowException or InvalidOperationException
+            or ArgumentException)
+        {
+            // Never silent: the report shown stays, and the toast says that it could not be built anew.
+            _ui.Post(() => _toaster?.Show(ToastKind.Error, BuildFailedTitle, BuildFailedText));
         }
     }
 

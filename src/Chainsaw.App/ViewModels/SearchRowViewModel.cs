@@ -31,6 +31,9 @@ public sealed partial class SearchRowViewModel : ObservableObject
     /// <summary>The hint of a row that lies in the trash, whose Enter opens the trash (sketch SO1a).</summary>
     public const string InTrashHint = "Öppna soptunnan";
 
+    /// <summary>The hint of a row that lies in the trash and is put back by Enter, right from the row.</summary>
+    public const string PutBackHint = "Lägg tillbaka";
+
     /// <summary>Creates a row for a hit.</summary>
     /// <param name="hit">The hit.</param>
     /// <param name="isBest">Whether it is the best hit, drawn large at the top.</param>
@@ -98,6 +101,7 @@ public sealed partial class SearchRowViewModel : ObservableObject
     {
         { GuideSection: not null } => OpenGuideHint,
         { NodeKey: not null } => ShowInGraphHint,
+        { TrashPlace: not null } => PutBackHint,
         { IsInTrash: true } => InTrashHint,
         _ => NotInGraphHint,
     };

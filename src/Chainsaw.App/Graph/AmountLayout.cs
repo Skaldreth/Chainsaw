@@ -133,13 +133,35 @@ public static class AmountLayout
         IReadOnlyDictionary<string, GraphPoint> places,
         IReadOnlyDictionary<string, EdgeCurve> curves)
     {
+        var spots = new Dictionary<string, AmountSpot>(StringComparer.Ordinal);
+        var taken = Taken(scene, places, curves, spots);
+        PlaceInto(scene.Edges, curves, taken, spots);
+        return spots;
+    }
+
+    /// <summary>
+    /// Gives the room taken around the amounts: the nodes with their margin, the swaps' pills and the amounts already
+    /// placed. A drag keeps it and changes only what moved (<see cref="SceneLayout.Move"/>).
+    /// </summary>
+    /// <param name="scene">The graph.</param>
+    /// <param name="places">Each node's top-left corner.</param>
+    /// <param name="curves">Each line's curve.</param>
+    /// <param name="spots">The amounts placed so far.</param>
+    /// <returns>The room taken.</returns>
+    public static RoomGrid Taken(
+        GraphScene scene,
+        IReadOnlyDictionary<string, GraphPoint> places,
+        IReadOnlyDictionary<string, EdgeCurve> curves,
+        IReadOnlyDictionary<string, AmountSpot> spots)
+    {
         ArgumentNullException.ThrowIfNull(scene);
         ArgumentNullException.ThrowIfNull(places);
         ArgumentNullException.ThrowIfNull(curves);
+        ArgumentNullException.ThrowIfNull(spots);
         var taken = new RoomGrid();
         foreach (var (key, place) in places)
         {
-            taken.Add(scene.FrameOf(key, place).Inflate(NodeMargin));
+            taken.Add(NodeRoom(scene, key, place));
         }
 
         foreach (var edge in scene.Edges)
@@ -150,8 +172,44 @@ public static class AmountLayout
             }
         }
 
-        var spots = new Dictionary<string, AmountSpot>(StringComparer.Ordinal);
-        var order = scene.Edges
+        foreach (var spot in spots.Values)
+        {
+            taken.Add(spot.Box);
+        }
+
+        return taken;
+    }
+
+    /// <summary>Gives the room a node keeps free of amounts: its frame and the marks around it.</summary>
+    /// <param name="scene">The graph.</param>
+    /// <param name="key">The node's key.</param>
+    /// <param name="place">Its top-left corner.</param>
+    /// <returns>The room.</returns>
+    public static GraphRect NodeRoom(GraphScene scene, string key, GraphPoint place)
+    {
+        ArgumentNullException.ThrowIfNull(scene);
+        return scene.FrameOf(key, place).Inflate(NodeMargin);
+    }
+
+    /// <summary>
+    /// Places the amounts of some lines where they touch nothing taken, the traced first since the victims' money must
+    /// be read, then in the order given, and takes their room.
+    /// </summary>
+    /// <param name="lines">The lines, in the graph's order; one without a text or a curve is passed over.</param>
+    /// <param name="curves">Each line's curve.</param>
+    /// <param name="taken">The room taken, which the amounts placed are added to.</param>
+    /// <param name="spots">Where the amounts placed are written, by the line's key.</param>
+    public static void PlaceInto(
+        IEnumerable<EdgeView> lines,
+        IReadOnlyDictionary<string, EdgeCurve> curves,
+        RoomGrid taken,
+        IDictionary<string, AmountSpot> spots)
+    {
+        ArgumentNullException.ThrowIfNull(lines);
+        ArgumentNullException.ThrowIfNull(curves);
+        ArgumentNullException.ThrowIfNull(taken);
+        ArgumentNullException.ThrowIfNull(spots);
+        var order = lines
             .Where(edge => edge.Label.Length > 0 && curves.ContainsKey(edge.Key))
             .OrderByDescending(edge => edge.IsTraced);
         foreach (var edge in order)
@@ -162,8 +220,6 @@ public static class AmountLayout
                 taken.Add(spot.Box);
             }
         }
-
-        return spots;
     }
 
     /// <summary>Gives the steps from the middle of a line in the order they are tried: 0, −1, +1, −2, +2 …</summary>

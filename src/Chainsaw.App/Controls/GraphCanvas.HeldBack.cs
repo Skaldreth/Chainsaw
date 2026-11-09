@@ -73,6 +73,16 @@ public sealed partial class GraphCanvas
     /// </summary>
     private List<GraphPoint>? _lasso;
 
+    /// <summary>
+    /// The dotted guides as last made, with the guides and the centre they were made from, so that they are made
+    /// again only when the view changes, not on every frame (BACKLOG, <em>Ledtrådsnoden</em>).
+    /// </summary>
+    private (HeldBackGuides? Guides, GraphPoint Centre, IReadOnlyList<Geometry> Dotted) _guideGeometry =
+        (null, default, []);
+
+    /// <summary>The corner mark of a counterparty labelled in another case: a small diamond around the origin.</summary>
+    private static readonly Geometry CornerDiamond = Frozen(Diamond(CornerMark / 2));
+
     /// <summary>Whether a press in the view is under way.</summary>
     private bool _viewPressed;
 
@@ -346,16 +356,8 @@ public sealed partial class GraphCanvas
     {
         var faint = Ink("Brush.BorderStrong");
         var dots = PenOf(faint, 1.2, GuideDots, PenLineCap.Round);
-        foreach (var run in guides.Dotted.Where(run => run.Count > 1))
+        foreach (var geometry in DottedGuides(guides, centre))
         {
-            var geometry = new StreamGeometry();
-            using (var context = geometry.Open())
-            {
-                context.BeginFigure(At(centre, run[0]), false, false);
-                context.PolyLineTo([.. run.Skip(1).Select(point => At(centre, point))], true, true);
-            }
-
-            geometry.Freeze();
             dc.DrawGeometry(null, dots, geometry);
         }
 
@@ -525,21 +527,53 @@ public sealed partial class GraphCanvas
 
         if (dot.First.FromOtherCase)
         {
-            var half = CornerMark / 2;
-            var diamond = new StreamGeometry();
-            using (var context = diamond.Open())
+            dc.PushTransform(new TranslateTransform(corner.X, corner.Y));
+            dc.DrawGeometry(GraphPalette.Find(this, "Brush.TextMuted"), null, CornerDiamond);
+            dc.Pop();
+        }
+    }
+
+    /// <summary>Gives the dotted guides' geometry, made again only when the guides or the centre changed.</summary>
+    /// <param name="guides">The guides.</param>
+    /// <param name="centre">The view's centre.</param>
+    /// <returns>One frozen geometry per dotted run.</returns>
+    private IReadOnlyList<Geometry> DottedGuides(HeldBackGuides guides, GraphPoint centre)
+    {
+        if (!ReferenceEquals(_guideGeometry.Guides, guides) || _guideGeometry.Centre != centre)
+        {
+            var made = new List<Geometry>();
+            foreach (var run in guides.Dotted.Where(run => run.Count > 1))
             {
-                context.BeginFigure(new Point(corner.X, corner.Y - half), true, true);
-                context.PolyLineTo(
-                    [new Point(corner.X + half, corner.Y), new Point(corner.X, corner.Y + half),
-                        new Point(corner.X - half, corner.Y)],
-                    true,
-                    true);
+                var geometry = new StreamGeometry();
+                using (var context = geometry.Open())
+                {
+                    context.BeginFigure(At(centre, run[0]), false, false);
+                    context.PolyLineTo([.. run.Skip(1).Select(point => At(centre, point))], true, true);
+                }
+
+                geometry.Freeze();
+                made.Add(geometry);
             }
 
-            diamond.Freeze();
-            dc.DrawGeometry(Ink("Brush.TextMuted"), null, diamond);
+            _guideGeometry = (guides, centre, made);
         }
+
+        return _guideGeometry.Dotted;
+    }
+
+    /// <summary>Makes a filled diamond around the origin.</summary>
+    /// <param name="half">Half its width and height.</param>
+    /// <returns>The geometry, not yet frozen.</returns>
+    private static StreamGeometry Diamond(double half)
+    {
+        var diamond = new StreamGeometry();
+        using (var context = diamond.Open())
+        {
+            context.BeginFigure(new Point(0, -half), true, true);
+            context.PolyLineTo([new Point(half, 0), new Point(0, half), new Point(-half, 0)], true, true);
+        }
+
+        return diamond;
     }
 
     /// <summary>Draws the address in the middle (sketch EX2): its icon, its name and what was held back.</summary>

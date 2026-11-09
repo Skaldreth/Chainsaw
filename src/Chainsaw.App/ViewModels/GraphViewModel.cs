@@ -73,6 +73,15 @@ public sealed partial class GraphViewModel : ObservableObject
     /// <summary>The places the user has dragged nodes to in this session, per layout.</summary>
     private readonly Dictionary<(string Key, GraphLayout Layout), GraphPoint> _moved = [];
 
+    /// <summary>Where everything stands in the layout shown: places, curves, amounts and their index.</summary>
+    private SceneLayout _layout = SceneLayout.Empty;
+
+    /// <summary>
+    /// Whether a drag has moved nodes since the whole layout was last worked out, so that the amounts it passed are
+    /// placed again when it ends.
+    /// </summary>
+    private bool _dragUnsettled;
+
     /// <summary>
     /// Counts the graph's readings and expansions, so that an answer to an older one is dropped.
     /// </summary>
@@ -355,17 +364,26 @@ public sealed partial class GraphViewModel : ObservableObject
     public string LabelsText => Labels.Describe();
 
     /// <summary>Gets each node's place in the layout shown.</summary>
-    public IReadOnlyDictionary<string, GraphPoint> Places { get; private set; } = new Dictionary<string, GraphPoint>();
+    public IReadOnlyDictionary<string, GraphPoint> Places => _layout.Places;
 
     /// <summary>Gets each line's curve between its nodes' places.</summary>
-    public IReadOnlyDictionary<string, EdgeCurve> Curves { get; private set; } = new Dictionary<string, EdgeCurve>();
+    public IReadOnlyDictionary<string, EdgeCurve> Curves => _layout.Curves;
 
     /// <summary>
     /// Gets where each line's amount is written (<see cref="AmountLayout"/>); a line that is missing has no free place
     /// and shows its amount on hovering.
     /// </summary>
-    public IReadOnlyDictionary<string, AmountSpot> Amounts { get; private set; } =
-        new Dictionary<string, AmountSpot>();
+    public IReadOnlyDictionary<string, AmountSpot> Amounts => _layout.Amounts;
+
+    /// <summary>Gives the nodes on screen, in drawing order, among those near it only (principle 6).</summary>
+    /// <param name="visible">The visible part of the surface.</param>
+    /// <returns>The nodes whose frame or marks reach into it.</returns>
+    public IEnumerable<NodeView> VisibleNodes(GraphRect visible) => _layout.VisibleNodes(visible);
+
+    /// <summary>Gives the lines on screen, in drawing order, among those near it only (principle 6).</summary>
+    /// <param name="visible">The visible part of the surface.</param>
+    /// <returns>The lines that may cross it.</returns>
+    public IEnumerable<EdgeView> VisibleEdges(GraphRect visible) => _layout.VisibleEdges(visible);
 
     /// <summary>Gets the chosen node's key, or <see langword="null"/>.</summary>
     [ObservableProperty]
@@ -791,39 +809,11 @@ public sealed partial class GraphViewModel : ObservableObject
     /// <returns>The node's or the line's key; both <see langword="null"/> over empty surface.</returns>
     public (string? Node, string? Edge) HitTest(GraphPoint point, double tolerance)
     {
-        var (node, edge) = Index?.At(point, tolerance) ?? (null, null);
+        var (node, edge) = _layout.HitTest(point, tolerance);
 
         // What a folded row of many hops hides cannot be hit (sketch HP1a).
         return node is not null && IsFoldedAway(node) ? (null, edge) : (node, edge);
     }
-
-    /// <summary>
-    /// Gets the nodes and lines in a grid of cells, so that the view finds what is on screen or under the pointer
-    /// without going through the whole graph; made again whenever the scene, the places or the curves change, so that
-    /// it always answers for the graph shown; null without a graph.
-    /// </summary>
-    public GraphIndex? Index
-    {
-        get
-        {
-            if (Scene is not { } scene)
-            {
-                return null;
-            }
-
-            if (_index is { } index && (index.IsFor(scene, Places, Curves) || index.Follow(scene, Places, Curves)))
-            {
-                // The same graph with new places, as a drag gives them: only what moved is moved in the grid.
-                return index;
-            }
-
-            _index = new GraphIndex(scene, Places, Curves);
-            return _index;
-        }
-    }
-
-    /// <summary>The index made last, kept while it is for the graph shown.</summary>
-    private GraphIndex? _index;
 
     /// <summary>
     /// Moves a node while it is dragged: anywhere on the free surface, up and down in its column. A picked node takes
@@ -840,22 +830,25 @@ public sealed partial class GraphViewModel : ObservableObject
         }
 
         var at = GraphPlacement.Drag(Layout, start, wanted);
+        IEnumerable<string> keys;
         if (_group is not null || MovesGroup(nodeKey))
         {
             MoveGroup(nodeKey, start, at);
+            keys = _group!.Keys;
         }
         else
         {
             _moved[(nodeKey, Layout)] = at;
+            keys = [nodeKey];
         }
 
-        var before = Places;
-        Lay();
-
-        // The dragged nodes count as moved even where they could not move (a column's edge), since they shrink
-        // toward the bin as the pointer nears it.
-        IEnumerable<string> dragged = _group is { } group ? group.Keys : [nodeKey];
-        Moved?.Invoke(this, GraphMoved.Between(before, Places).With(dragged));
+        // Only the dragged nodes' lines are worked out again on each move; the whole layout when the drag ends
+        // (principle 6). The view draws again only the dragged nodes over the still ones, and they count as moved
+        // even where they could not move (a column's edge), since they shrink toward the bin as the pointer nears it.
+        var dragged = keys.ToDictionary(key => key, key => _moved[(key, Layout)], StringComparer.Ordinal);
+        _layout.Move(dragged);
+        _dragUnsettled = true;
+        Moved?.Invoke(this, new GraphMoved(dragged.Keys.ToHashSet(StringComparer.Ordinal)));
     }
 
     /// <summary>
@@ -865,6 +858,7 @@ public sealed partial class GraphViewModel : ObservableObject
     /// <returns>A task that completes when it is stored or could not be.</returns>
     public async Task DropNodeAsync(string nodeKey)
     {
+        SettleDrag();
         if (TakeGroup() is { } group)
         {
             await DropGroupAsync(group.Actors.Keys, group.Notes.Keys);
@@ -1266,16 +1260,6 @@ public sealed partial class GraphViewModel : ObservableObject
     /// <summary>Works out every node's place and every line's curve in the layout shown, and draws again.</summary>
     private void Arrange()
     {
-        Lay();
-        Redraw?.Invoke(this, EventArgs.Empty);
-    }
-
-    /// <summary>
-    /// Works out the nodes' places, the lines' curves and the amounts' places for the layout shown; a curve that did
-    /// not change stays the same instance, so that what the view made for it is used again.
-    /// </summary>
-    private void Lay()
-    {
         if (Scene is { } scene)
         {
             KeepFirstFreePlaces(scene);
@@ -1285,15 +1269,27 @@ public sealed partial class GraphViewModel : ObservableObject
                 moved.TryAdd((key, GraphLayout.Free), place);
             }
 
-            Places = GraphPlacement.Place(scene.LayoutNodes, Layout, scene.Columns, moved);
-            Curves = GraphMoved.KeepSameCurves(Curves, GraphHitTest.Curves(scene, Places, IsHopColumns));
-            Amounts = AmountLayout.Place(scene, Places, Curves);
+            _layout = SceneLayout.Build(
+                scene, GraphPlacement.Place(scene.LayoutNodes, Layout, scene.Columns, moved), IsHopColumns);
         }
         else
         {
-            Places = new Dictionary<string, GraphPoint>();
-            Curves = new Dictionary<string, EdgeCurve>();
-            Amounts = new Dictionary<string, AmountSpot>();
+            _layout = SceneLayout.Empty;
+        }
+
+        _dragUnsettled = false;
+        Redraw?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Works out the whole layout once a drag has ended, so that the amounts the dragged lines passed find their room
+    /// again; during the drag only the dragged lines were (<see cref="SceneLayout.Move"/>).
+    /// </summary>
+    private void SettleDrag()
+    {
+        if (_dragUnsettled)
+        {
+            Arrange();
         }
     }
 

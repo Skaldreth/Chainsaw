@@ -11,7 +11,7 @@ public partial class MainWindow
     /// <summary>
     /// Wires the view Rapport (sketch RP1b): the report follows the graph shown and what is marked in it while it is
     /// shown, checks the hash chains again each time it is shown, takes the keyboard then, so that Ctrl+S reaches it,
-    /// and <em>Ändra i grafen</em> shows the graph.
+    /// and <em>Ändra i grafen</em> shows the graph with a way back, <em>‹ Rapport Esc</em>.
     /// </summary>
     /// <param name="shell">The shell.</param>
     /// <param name="graph">The graph.</param>
@@ -35,7 +35,12 @@ public partial class MainWindow
                 Follow();
             }
         };
-        report.GraphWanted += (_, _) => shell.Show(AppView.Graph);
+        graph.Checks.Changed += (_, _) => report.UpdateApproved(graph.Checks.ApprovedPayouts);
+        report.GraphWanted += (_, _) =>
+        {
+            shell.Show(AppView.Graph);
+            graph.OfferReturn(AppView.Report);
+        };
         shell.PropertyChanged += (_, e) => OnReportShown(shell, graph, report, e);
     }
 
