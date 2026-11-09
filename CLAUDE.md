@@ -169,7 +169,11 @@ fortsättningen själv (belopp och tid hos swap-tjänster, bryggornas egna händ
   var och en med en **strömbrytare** i inställningarna. **Chainabuse** (TRM Labs) är den första underleverantören,
   eftersom den samarbetar med brottsbekämpande myndigheter; dess rapporter är bedömningar med källa (princip 2).
 - **Uppslag kräver inget godkännande** (användarens beslut 2026-11-06), men går alltid genom vald utgång (princip 4).
-- Källornas API-nycklar ligger i valvet, aldrig i ärendet.
+- Källornas API-nycklar ligger i valvet, aldrig i ärendet. **En nyckel som läggs in slår på de endpoints som
+  behöver den** (användarens önskemål 2026-11-09: att leta upp endpointen är för tekniska folk).
+- **En delvis läst adress väntar tills allt är läst** (användarens beslut 2026-11-09): när spårade pengar stannar vid
+  en adress som hölls tillbaka vid gränsen läser Chainsaw hela historiken till ärendet; grafen visar fortfarande de 50
+  nyaste, men spåret räknar med hela kontot.
 - **Källornas adresser hanteras per kedja** (användarens beslut 2026-11-07): användaren lägger till, prioriterar och tar
   bort endpoints för varje kedja i inställningarna, och väljer ett av tre lägen per kedja:
   - **Snabbast** (förval): Chainsaw provar endpointarna när den startar, genom utgången och med ett uppslag som inte

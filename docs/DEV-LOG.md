@@ -6286,4 +6286,16 @@ insättning i en borta tx i Begäran, Flöde).
 - Slutet vid en delvis läst adress säger *Väntar tills adressens hela historik är läst … Expandera den igen*.
 - Egna beslut: ingen ny skiss (det som syns är befintliga slut, `+N tx` och texter); ingen journalrad (sidorna
   förseglas som alla uppslag).
+- **Granskningen** (en omgång): C1 rättad, en rörelse utan linje jämförs med de ritade per rörelse och inte per tx,
+  så att kontots egen rörelse i en tx som ritas genom en annan adress står kvar i ledgern (test). I1 rättad: en adress
+  vars historik inte gick att läsa hel läses inte om vid varje expansion under sessionen, och meddelandet säger att
+  historiken är längre än Chainsaw läser. I2 rättad: kontoheuristikerna räknar inte en adress med rörelser utan linje
+  som helt läst, så att *Varför?* bara pekar på ritade tx. I3 och M1–M3 i BACKLOG.
+
+## Nycklar slår på sina endpoints (2026-11-09)
+
+- Användarens önskemål: att leta upp endpointen efter att nyckeln lagts in är för tekniska folk. En nyckel som sparas
+  under *Nycklar* slår på varje endpoint som skickar den (`IChainSources.EnableForKeyAsync`), och vid upplåsningen gör
+  nycklarna i valvet samma sak innan endpointarna provas. Eget beslut: en sådan endpoint som stängs av för hand slås
+  på igen vid nästa start; för att sluta använda tjänsten tar man bort nyckeln.
 

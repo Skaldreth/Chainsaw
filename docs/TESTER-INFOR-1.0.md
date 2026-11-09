@@ -2453,8 +2453,9 @@ Grafen för Ethereum är inte byggd än; det som går att prova är källan, sta
 
 - Inställningar › Källor › *Nycklar* (NY1a): *Lägg till nyckel …* med tjänsten *Etherscan* och nyckeln; raden visar
   bara de fyra sista tecknen, och *Byt …* och kryss syns på hovring.
-- Lägg Etherscan-nyckeln i valvet och slå på endpointen *Etherscan* under Inställningar › Källor ›
-  Ethereum. *Prova alla nu* ska ge höjd och hash för Etherscan.
+- Lägg Etherscan-nyckeln under *Nycklar*: endpointen *Etherscan* under Inställningar › Källor › Ethereum slås på av
+  sig själv. En nyckel som redan låg i valvet slår på den vid nästa upplåsning. *Prova alla nu* ska ge höjd och hash
+  för Etherscan.
 - Expandera en Ethereum-adress med bara Etherscan påslagen: historiken kommer från Etherscan. I ärendets råsvar ska
   adressen ha `chainid=1&module=…` men aldrig `apikey`.
 - En hel tx och tokens frågas av Blockscout även när Etherscan står först.

@@ -1463,9 +1463,14 @@ internal sealed class TracingService : ITracingService
         var contracts = Ending(TrailEndReason.Mixer, TrailEndReason.OtherChain);
         contracts.UnionWith(KnownContracts.All.Select(contract => contract.Address.ToChainAddress()));
         return new AccountActivity(
-            [.. account.Transfers.Concat(account.Unshown).Where(transfer => Stays(transfer.Transaction))],
-            [.. account.Fees.Concat(account.UnshownFees).Where(fee => Stays(fee.Transaction))],
-            account.ReadAccounts.Except(account.PartlyRead).ToHashSet(),
+            [.. account.Transfers.Where(transfer => Stays(transfer.Transaction))],
+            [.. account.Fees.Where(fee => Stays(fee.Transaction))],
+            // An account whose rest is held back is not read for the heuristics: they rest only on what is drawn, so
+            // that every merger's Varför? points at transactions the user can see.
+            account.ReadAccounts.Except(account.PartlyRead)
+                .Where(read => !account.Unshown.Any(transfer => transfer.From.ToChainAddress() == read
+                    || transfer.To.ToChainAddress() == read))
+                .ToHashSet(),
             Ending(TrailEndReason.Exchange),
             contracts);
     }

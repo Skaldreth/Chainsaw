@@ -31,7 +31,11 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
     kvar är att läsa grafen genom alla ärendets sidor för varje expanderad adress (M3, gå bara ner till expansionens
     lägsta block), att fröväljaren säger när en annan frös pengar når avsändaren genom en adress som inte bär (M1),
     och en räknare för uppslagen medan hela historiken läses. En adress med fler sidor än läsaren går igenom (50 per
-    historik) förblir delvis läst.
+    historik) förblir delvis läst. Från granskningen av E5: en adress som var delvis läst före E5, eller ett spår som
+    väljs efter expansionen, läses hel först när adressen expanderas igen (I3); en källa vars sista sida är tom men
+    ändå ger en markör räknas aldrig som hel (M1, prova TRON och Solana); slutet *hölls tillbaka* märks inaktuellt
+    efter `Block is null` i stället för `MayBeOutdated` (M2); kontrollerna (damm, Tornado, cross-chain) och
+    fröväljaren läser bara de ritade rörelserna, med avsikt, men skiljer sig då från spårets ledger (M3).
   - **Omexpansionens golv** (granskningen av etapp 23b, omgång 3): golvet tas ur det ärendets sidor når nu, så tidigare
     tx som inte längre nås (ett ärende från före rättelsen, eller en läsning som stannade vid 50 sidor) läses inte om;
     spara höjderna med expansionen. Att expandera en adress igen efter lång tid kan kosta upp till 150 uppslag; visa

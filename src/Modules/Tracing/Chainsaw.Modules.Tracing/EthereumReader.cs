@@ -97,9 +97,16 @@ internal sealed class EthereumReader(IAccountSource source)
     {
         var walk = await WalkAsync(@case, address, LookupMode.AsNeeded, null, null, cancellationToken)
             .ConfigureAwait(false);
-        return walk.Whole
-            ? (true, null)
-            : (false, Join(walk.Problem, "Hela historiken kunde inte läsas; spåret stannar vid adressen."));
+        if (walk.Whole)
+        {
+            return (true, null);
+        }
+
+        return (false, walk.Problem ?? string.Format(
+            CultureInfo.InvariantCulture,
+            "Adressen {0} har längre historik än Chainsaw läser ({1} sidor per lista); spåret stannar där.",
+            address,
+            MostPages));
     }
 
     /// <summary>Brings in a transaction with every movement in it, and its block's hash.</summary>
@@ -229,9 +236,11 @@ internal sealed class EthereumReader(IAccountSource source)
     /// <returns>The movements.</returns>
     private static List<EthereumTransfer> UnshownOf(AccountData data, List<EthereumTransfer> unshown)
     {
-        var shown = data.Transfers.Select(transfer => transfer.Transaction).ToHashSet();
+        // By the movement, not the transaction: a transaction drawn through another account's leg still leaves this
+        // account's own movement in it to the ledger.
+        var shown = data.Transfers.Select(TransferKey.Of).ToHashSet();
         var once = new Dictionary<TransferKey, EthereumTransfer>();
-        foreach (var transfer in unshown.Where(transfer => !shown.Contains(transfer.Transaction)))
+        foreach (var transfer in unshown.Where(transfer => !shown.Contains(TransferKey.Of(transfer))))
         {
             once.TryAdd(TransferKey.Of(transfer), transfer);
         }

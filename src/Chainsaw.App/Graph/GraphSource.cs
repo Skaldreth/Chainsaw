@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.CompilerServices;
@@ -334,6 +335,12 @@ public sealed class GraphSource(
     }
 
     /// <summary>
+    /// The accounts whose whole history a read this session could not take in (more pages than the reader goes
+    /// through, or a source that failed), so that each expansion does not ask for every page again.
+    /// </summary>
+    private readonly ConcurrentDictionary<(string Case, ChainAddress Account), byte> _tooLong = new();
+
+    /// <summary>
     /// Reads the whole history of each account the expansion asked for where traced money stops because the account is
     /// only partly read (the user's decision 2026-11-09: it waits until all of it is read), so that the trace carries
     /// the money on through it. Only the expanded accounts are read, so that no other lookup is made unasked.
@@ -369,11 +376,17 @@ public sealed class GraphSource(
             .Distinct()
             .ToList();
         var read = false;
-        foreach (var account in stopped)
+        foreach (var account in stopped.Where(account => _tooLong.TryAdd((@case.Path, account), 0)))
         {
             var problem = await tracing.ReadWholeHistoryAsync(@case, account, cancellationToken)
                 .ConfigureAwait(false);
             read |= problem is null;
+            if (problem is null)
+            {
+                // Read whole: should it be held back again later, another read is worth trying.
+                _tooLong.TryRemove((@case.Path, account), out _);
+            }
+
             if (problem is not null && !problems.Contains(problem))
             {
                 problems.Add(problem);

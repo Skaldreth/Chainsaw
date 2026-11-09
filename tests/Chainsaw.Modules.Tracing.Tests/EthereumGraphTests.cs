@@ -321,6 +321,26 @@ public sealed class EthereumGraphTests : IDisposable
     }
 
     [Fact]
+    public async Task A_held_back_movement_stays_in_the_ledger_when_another_account_draws_its_transaction()
+    {
+        Chain();
+        OlderIncome();
+        _harness.Ethereum.Add(Tx("two-legs", 105, Scammer, 0.001m,
+            Token(Scammer, Mule, Usdt(1)), Token(Pool, Exchange, Usdt(5))));
+        _harness.Service.AddStartPoint(_harness.Case, TraceStartPoint.ForEthereumAddress(Scammer));
+        await _harness.Service.ExpandAsync(_harness.Case, ExpansionRequest.ForEthereumAddress(Exchange));
+        await _harness.Service.ExpandAsync(_harness.Case, ExpansionRequest.ForEthereumAddress(Scammer, 1));
+
+        Assert.Null(await _harness.Service.ReadWholeHistoryAsync(_harness.Case, Scammer.ToChainAddress()));
+        var graph = await _harness.Load();
+
+        Assert.Contains(graph.Account.Transfers, transfer => transfer.Transaction == Hash("two-legs"));
+        var own = Assert.Single(graph.Account.Unshown, transfer => transfer.Transaction == Hash("two-legs"));
+        Assert.Equal(Scammer, own.From);
+        Assert.DoesNotContain(graph.Account.Unshown, transfer => transfer.From == Pool);
+    }
+
+    [Fact]
     public async Task An_expansion_whose_transactions_the_case_lost_is_only_partly_read()
     {
         Chain();
