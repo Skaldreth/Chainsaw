@@ -6210,4 +6210,10 @@ insättning i en borta tx i Begäran, Flöde).
   heuristik och version. Guiden har avsnittet *Kluster på Ethereum* (`kontokluster.md`).
 - **Avsteg från skissen:** högen ritas som en vanlig klusternod, inte som en kortlek; utfällningen sker utan rörelse.
 - Guldfacit i Tracing har fått den nya tabellen och schemasteget (inget annat ändrades).
+- **Granskningen av E2b (en omgång), rättat:** C1 ett hopfällt kluster tappade sin börs slut på spåret, så spåret gick
+  vidare genom börsen: klusternoden får nu sina kontons slut; I2 swappar och nekade swappar hittar kontot i ett
+  hopfällt kluster; I3 *Bevaka …* erbjuds inte på en hopfälld hög (en bevakning på Ethereum gäller ett konto); I4
+  soptunnan känner högen också på dess konton; I5 nyckeln följer samlaren, så den står stilla när klustret växer; I8
+  inspektören säger alla skäl; M9 en svepning inne i en hopfälld hög ritas inte som en linje till sig själv. **Inte
+  ändrat:** I6 `AccountData.Gone` håller både säkert och kanske borta tx, så båda lämnas redan ute.
 

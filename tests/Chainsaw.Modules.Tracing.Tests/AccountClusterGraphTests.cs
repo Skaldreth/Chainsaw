@@ -31,6 +31,18 @@ public sealed class AccountClusterGraphTests
     }
 
     [Fact]
+    public void A_closed_cluster_keeps_its_collector_s_end_and_draws_no_line_to_itself()
+    {
+        var hint = new TrailEndHint(TrailEndReason.Exchange, "test", "Börs");
+
+        var graph = Build(isOpen: false, ends: account => account == Members[2].ToChainAddress() ? [hint] : []);
+
+        var node = Assert.Single(graph.Nodes, node => node.Key == Cluster(false).Key);
+        Assert.Contains(hint, node.Ends);
+        Assert.DoesNotContain(graph.Edges, edge => edge.From == node.Key && edge.To == node.Key);
+    }
+
+    [Fact]
     public void An_open_cluster_is_its_accounts_as_their_own_nodes()
     {
         var graph = Build(isOpen: true);
@@ -41,7 +53,7 @@ public sealed class AccountClusterGraphTests
         Assert.True(Assert.Single(graph.AccountClusters).IsOpen);
     }
 
-    private static TraceGraph Build(bool isOpen)
+    private static TraceGraph Build(bool isOpen, Func<ChainAddress, IReadOnlyList<TrailEndHint>>? ends = null)
     {
         List<EthereumTransfer> history =
         [
@@ -63,6 +75,7 @@ public sealed class AccountClusterGraphTests
         return GraphBuilder.Build(data, new GraphKnowledge(address => [address], _ => [], _ => [])
         {
             AccountClusters = [Cluster(isOpen)],
+            AccountEnds = ends ?? (_ => []),
         });
     }
 

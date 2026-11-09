@@ -567,7 +567,7 @@ public sealed record GraphScene(
                 Glyph = TokenMarks.Glyph(edge.Amount.Asset),
                 Value = snapshot.Values.GetValueOrDefault(edge.Key),
                 ValueGap = snapshot.ValueGaps.GetValueOrDefault(edge.Key),
-                Swaps = SwapsOn(edge, swaps),
+                Swaps = SwapsOn(edge, swaps, graph),
             })
             .Select(edge => edge.Swaps.Count == 0 ? edge : WithSwapChoice(edge, graph, snapshot.AccountTrace))
             .ToList();
@@ -703,10 +703,11 @@ public sealed record GraphScene(
     /// <param name="edge">The line.</param>
     /// <param name="swaps">The graph's swaps.</param>
     /// <returns>The swaps; empty for most lines.</returns>
-    private static IReadOnlyList<TokenSwap> SwapsOn(GraphEdge edge, IReadOnlyList<TokenSwap> swaps) =>
+    /// <param name="graph">The graph, for the node an account is drawn in (its own, or a closed cluster's).</param>
+    private static IReadOnlyList<TokenSwap> SwapsOn(GraphEdge edge, IReadOnlyList<TokenSwap> swaps, TraceGraph graph) =>
     [
         .. swaps.Where(swap => edge.Kind == GraphEdgeKind.Transfer
-            && edge.From == AccountKey(swap.Account)
+            && edge.From == NodeKeyOf(graph, swap.Account)
             && edge.Transfers.Any(swap.IsSold)),
     ];
 
@@ -733,6 +734,19 @@ public sealed record GraphScene(
         .Select(SwapMarks.Of)
         .Distinct()
         .Select(marks => marks.Text));
+
+    /// <summary>
+    /// Gives the key of the node an account is drawn in: a closed account cluster's when it is in one (sketch KE1),
+    /// else its own.
+    /// </summary>
+    /// <param name="graph">The graph.</param>
+    /// <param name="account">The account.</param>
+    /// <returns>The key.</returns>
+    public static string NodeKeyOf(TraceGraph graph, ChainAddress account)
+    {
+        ArgumentNullException.ThrowIfNull(graph);
+        return graph.NodeOf(account)?.Key ?? AccountKey(account);
+    }
 
     /// <summary>Gives the key of an account's node, as Tracing writes it.</summary>
     /// <param name="account">The account.</param>

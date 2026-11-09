@@ -146,8 +146,15 @@ public sealed class TrashFilter
     public static IReadOnlyList<string> KeysOf(GraphNode node)
     {
         ArgumentNullException.ThrowIfNull(node);
-        return node.Kind is GraphNodeKind.Address or GraphNodeKind.Cluster && node.Accounts.Count == 0
-            ? [.. node.GraphAddresses.Select(GraphPile.MemberKey)]
+        if (node.Kind is GraphNodeKind.Address or GraphNodeKind.Cluster && node.Accounts.Count == 0)
+        {
+            return [.. node.GraphAddresses.Select(GraphPile.MemberKey)];
+        }
+
+        // A closed account cluster (KE1) is known by its accounts too, so that what was thrown out one account at a
+        // time stays out when they are folded together, and the other way round.
+        return node.Kind == GraphNodeKind.Cluster && node.Accounts.Count > 0
+            ? [node.Key, .. node.Accounts.Select(GraphPile.AccountKey)]
             : [node.Key];
     }
 }

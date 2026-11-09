@@ -453,6 +453,8 @@ public sealed partial class GraphViewModel
         WatchForm is not null && _session.Current is not null
         && node.Node.Kind is GraphNodeKind.Address or GraphNodeKind.Cluster
         && node.Node.Addresses.Count > 0
+        // A watch on Ethereum's machine is of one account; a closed account cluster is unfolded first (KE1).
+        && !(node.Node.Kind == GraphNodeKind.Cluster && node.Node.Accounts.Count > 0)
         && node.Node.Chain is Chain.Bitcoin or Chain.Ethereum or Chain.Tron or Chain.Bsc or Chain.Litecoin
             or Chain.Zcash or Chain.Solana;
 

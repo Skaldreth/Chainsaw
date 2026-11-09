@@ -56,6 +56,11 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
     en Blockscout med nyckel.
   - **Kontoklustren, efter E2a:** att dra tillbaka en version (KV1a) av `deposit-sweep` eller `gas-funding`, och
     en slutsats som hålls tillbaka (HB1a) när en tx den bygger på bytt block, finns bara för Bitcoin.
+  - **Granskningen av E2b:** en etikett från ett annat ärende, och OTC, P2P, kryptoautomat och kort (som
+    `TrailEndReason.Exchange`), räcker för att `deposit-sweep` slår ihop av sig själv; skälet borde säga vilken etikett
+    och varifrån. Utfällt eller inte hålls per filens sökväg och töms aldrig. Klustringen körs på hela historiken vid
+    varje läsning av grafen. En hopfälld hög kan inte väljas eller expanderas, bara fällas ut; *Varför?* och Historik
+    för klustret som i Bitcoin saknas (inspektören säger skälen).
   - **Granskningen av E1 (M):** Etherscan ger `traceId` i stället för `index` för interna överföringar (och kanske ingen
     `logIndex` i `tokentx`), så samma överföring kan få en annan position än hos Blockscout när källorna blandas; nyckeln
     i adressen kan synas i en företagsproxys URL-loggar med Windows som utgång (säg det i PX1a-texten); takten gäller

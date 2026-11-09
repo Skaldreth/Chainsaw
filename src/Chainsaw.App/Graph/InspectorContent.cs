@@ -252,7 +252,7 @@ public sealed record InspectorContent(
         sentences.Add(node.Node.IsStartPoint ? trace + " Den är ärendets startpunkt." : trace);
         if (AccountClusterOf(scene, node.Node) is { } cluster)
         {
-            sentences.Add(GraphAreas.AccountClusterLabel(cluster) + ". " + string.Join(" ", cluster.Reasons.Take(1)));
+            sentences.Add(GraphAreas.AccountClusterLabel(cluster) + ". " + string.Join(" ", cluster.Reasons));
         }
 
         return sentences;
@@ -724,12 +724,13 @@ public sealed record InspectorContent(
             GuideTopic.Swaps));
 
     /// <summary>Says whether a refused swap's transaction is on a line from or to the account that would swap.</summary>
+    /// <param name="scene">The scene, for the node the account is drawn in.</param>
     /// <param name="refusal">The refused swap.</param>
     /// <param name="edge">The line.</param>
     /// <returns><see langword="true"/> when it is.</returns>
-    private static bool IsOnLine(SwapRefusal refusal, EdgeView edge)
+    private static bool IsOnLine(GraphScene scene, SwapRefusal refusal, EdgeView edge)
     {
-        var account = GraphScene.AccountKey(refusal.Swap.Account);
+        var account = GraphScene.NodeKeyOf(scene.Snapshot.Graph, refusal.Swap.Account);
         return (edge.Edge.From == account || edge.Edge.To == account)
             && edge.Edge.Transfers.Any(transfer => transfer.Transaction.Id == refusal.Swap.Transaction.Value);
     }
@@ -870,7 +871,7 @@ public sealed record InspectorContent(
             if (account)
             {
                 why.AddRange(EthereumWhy(edge));
-                why.AddRange(RefusedSwapWhy(scene, refusal => IsOnLine(refusal, edge)));
+                why.AddRange(RefusedSwapWhy(scene, refusal => IsOnLine(scene, refusal, edge)));
             }
 
             why.Add(ValueWhy(edge));

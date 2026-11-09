@@ -1395,7 +1395,8 @@ internal sealed class TracingService : ITracingService
             var run = _accountClustering.Analyse(@case, chain, activity);
             foreach (var cluster in run.Clusters)
             {
-                var key = GraphAccountCluster.KeyOf(cluster.Members[0]);
+                // The collector keeps the key stable as the cluster grows; without one, the first account.
+                var key = GraphAccountCluster.KeyOf(cluster.Collector ?? cluster.Members[0]);
                 bool isOpen;
                 lock (opened)
                 {

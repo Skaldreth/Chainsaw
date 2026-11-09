@@ -135,10 +135,17 @@ internal sealed class GraphBuilder
 
         foreach (var transfer in account.Transfers.Where(transfer => transfer.From != transfer.To))
         {
+            var (from, to) = (AccountNode(transfer.From).Key, AccountNode(transfer.To).Key);
+            if (from == to)
+            {
+                // A move inside a closed account cluster (a sweep into its collector) is no line of its own.
+                continue;
+            }
+
             AddTransfer(
                 GraphEdgeKind.Transfer,
-                AccountNode(transfer.From).Key,
-                AccountNode(transfer.To).Key,
+                from,
+                to,
                 AssetTransfer.OfEthereum(transfer, account.BlockOf(transfer.Transaction.Chain, transfer.Block)));
         }
     }
@@ -575,7 +582,7 @@ internal sealed class GraphBuilder
         DateTimeOffset? firstReceived = _firstReceived.TryGetValue(draft.Key, out var first) ? first : null;
         IReadOnlyList<TrailEndHint> ends = draft.Kind switch
         {
-            GraphNodeKind.Address when draft.Accounts.Count > 0 =>
+            GraphNodeKind.Address or GraphNodeKind.Cluster when draft.Accounts.Count > 0 =>
                 [.. draft.Accounts.SelectMany(_knowledge.AccountEnds).Distinct()],
             GraphNodeKind.Address or GraphNodeKind.Cluster =>
                 [.. draft.Addresses.SelectMany(_knowledge.AddressEnds).Distinct()],
