@@ -185,8 +185,14 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
   - **Bevakningen i fas på Solana:** en endpoint räknas i fas bara med exakt den högsta sloten i sin omgång, och
     slotarna går 2,5 i sekunden; *efter* har en marginal på 75 slotar (`ChainSources.HeightMarginOf`), men *i fas*
     för bevakningen har det inte.
-  - **M2 och M3 ur granskningen av omgång 8c** står kvar som granskningen beskrev dem (granskarens rapport till
-    huvudsessionen 2026-11-09).
+  - **En full sida i en enda slot** (granskningen av omgång 8c, M2): sidor efter slot kommer inte förbi en full sida
+    som ligger i en slot (`SolanaSignaturePage.IsCutShort`), så historiken för en upptagen börs hot wallet med 25 tx
+    eller fler i samma slot slutar där. Det sägs ärligt, men Solana kan bläddra efter signatur; en sida som skärs av
+    borde behålla en signatur som markör och fortsätta därifrån.
+  - **Ägare som saknas eller byts** (granskningen av omgång 8c, M3): äldre tx har inget `owner` i sina tokensaldon. Ett
+    tokenkonto som skapas i tx:en får sin ägare ur `initializeAccount` eller ATA-`create` (rättat med I2), men ett äldre
+    konto utan ägare faller tillbaka på tokenkontots adress, så samma ägare kan synas som två parter. Ett ägarbyte inne
+    i tx:en (`setAuthority`) räknas helt till den nya ägaren. Inget av det sägs eller testas än.
   - **Stängda tokenkonton:** tokenhistoriken läser ägarens tokenkonton som noden listar dem nu; ett stängt konto finns
     inte där, och dess rörelser hittas bara i tx:er som ägaren själv signerade.
   - **Kända tokens i tokenhistoriken** är USDT och USDC; andra SPL-tokens syns i hela tx:er och i ägarens egna
