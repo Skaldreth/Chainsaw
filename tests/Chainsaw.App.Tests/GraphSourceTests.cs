@@ -141,6 +141,8 @@ internal sealed class TestClustering : IClusteringService
 
     public IReadOnlyList<HeldBackDecision> GetHeldBackDecisions(ICase @case) => Decisions;
 
+    public HeldBackDecision? ReopenHeldBack(ICase @case, long decisionSequence, string? reason) => null;
+
     public WithdrawPreview? Preview { get; set; }
 
     public List<HeldBackConclusion> HeldBack { get; } = [];

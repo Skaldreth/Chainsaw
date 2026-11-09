@@ -15,6 +15,12 @@ public sealed record HeldBackConclusion(
     Txid Txid, IReadOnlyList<ClusterEvidence> Evidence, IReadOnlyList<Txid> Missing, HeldBackDecision? Decision)
 {
     /// <summary>
+    /// Gets the stored findings of the transaction that count now, for example a CoinJoin that ends the trail; a
+    /// release lets them go too.
+    /// </summary>
+    public IReadOnlyList<StoredFinding> Findings { get; init; } = [];
+
+    /// <summary>
     /// Gets whether it waits for the user: nothing is decided, or what was let stand rested on other missing
     /// transactions than those missing now.
     /// </summary>
@@ -37,6 +43,12 @@ public enum ConclusionChoice
     /// stop counting, without being removed, and the next run stores what it concludes now.
     /// </summary>
     Release,
+
+    /// <summary>
+    /// The latest decision is taken back (sketch AN1b): a conclusion let go counts again, and one let stand waits
+    /// again. The decision stays sealed as it was.
+    /// </summary>
+    Reopen,
 }
 
 /// <summary>The user's sealed decision about a conclusion that was held back (sketch HB1a).</summary>
@@ -51,6 +63,7 @@ public enum ConclusionChoice
 /// <param name="Reason">The user's reason, or <see langword="null"/>; the reason is optional.</param>
 /// <param name="JournalSequence">The journal entry that says it.</param>
 /// <param name="RecordedUtc">When it was sealed.</param>
+/// <param name="Undoes">For <see cref="ConclusionChoice.Reopen"/>, the decision taken back; otherwise none.</param>
 public sealed record HeldBackDecision(
     long Sequence,
     Txid Txid,
@@ -59,4 +72,5 @@ public sealed record HeldBackDecision(
     ConclusionChoice Choice,
     string? Reason,
     long JournalSequence,
-    DateTimeOffset RecordedUtc);
+    DateTimeOffset RecordedUtc,
+    long? Undoes = null);

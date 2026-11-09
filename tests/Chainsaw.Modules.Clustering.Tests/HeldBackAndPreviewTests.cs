@@ -1,3 +1,4 @@
+using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Clustering.Contracts;
 using static Chainsaw.Modules.Clustering.Tests.Synthetic;
@@ -129,6 +130,63 @@ public sealed class HeldBackAndPreviewTests : IDisposable
         Assert.Empty(_harness.Service.GetHeldBackDecisions(_harness.Case));
         Assert.Throws<ArgumentException>(() => _harness.Service.DecideHeldBack(
             _harness.Case, Txid("payment"), ConclusionChoice.Keep, new string('x', 1_001)));
+    }
+
+    [Fact]
+    public void A_decision_can_be_taken_back_and_a_release_then_counts_again()
+    {
+        var (seen, payment) = Disagreement();
+        _harness.Analyse(seen, payment);
+        _harness.Analyse(payment);
+        var release = _harness.Service.DecideHeldBack(_harness.Case, Txid("disagree"), ConclusionChoice.Release, null)!;
+        Assert.Empty(_harness.Service.GetHeldBack(_harness.Case));
+
+        var reopened = _harness.Service.ReopenHeldBack(_harness.Case, release.Sequence, "Fel");
+
+        Assert.Equal((ConclusionChoice.Reopen, release.Sequence), (reopened!.Choice, reopened.Undoes));
+        var held = Assert.Single(_harness.Service.GetHeldBack(_harness.Case));
+        Assert.True(held.IsWaiting);
+        Assert.NotEmpty(held.Findings);
+        Assert.Null(_harness.Service.ReopenHeldBack(_harness.Case, release.Sequence, null));
+        Assert.Null(_harness.Service.ReopenHeldBack(_harness.Case, reopened.Sequence, null));
+
+        var kept = _harness.Service.DecideHeldBack(_harness.Case, Txid("disagree"), ConclusionChoice.Keep, null)!;
+        Assert.False(Assert.Single(_harness.Service.GetHeldBack(_harness.Case)).IsWaiting);
+        _harness.Service.ReopenHeldBack(_harness.Case, kept.Sequence, null);
+        Assert.True(Assert.Single(_harness.Service.GetHeldBack(_harness.Case)).IsWaiting);
+        Assert.Throws<ArgumentException>(() =>
+            _harness.Service.DecideHeldBack(_harness.Case, Txid("disagree"), ConclusionChoice.Reopen, null));
+        Assert.True(_harness.Verify().IsIntact);
+    }
+
+    [Fact]
+    public void An_edited_working_row_is_checked_against_the_sealed_basis_before_anything_is_sealed()
+    {
+        var (seen, payment) = Disagreement();
+        _harness.Analyse(seen, payment);
+        _harness.Analyse(payment);
+        _harness.Case.Write(transaction =>
+        {
+            using var edit = transaction.CreateCommand("UPDATE clustering_held_back SET missing = $missing");
+            edit.AddParameter("$missing", "[\"" + Txid("made-up").Value + "\"]");
+            return edit.ExecuteNonQuery();
+        });
+
+        Assert.Null(_harness.Service.DecideHeldBack(_harness.Case, Txid("disagree"), ConclusionChoice.Release, null));
+        Assert.Empty(_harness.Service.GetHeldBackDecisions(_harness.Case));
+    }
+
+    [Fact]
+    public void A_run_that_holds_back_the_same_in_another_order_writes_nothing()
+    {
+        var (seen, payment) = Disagreement();
+        _harness.Analyse(seen, payment);
+        _harness.Analyse(payment);
+        var first = Assert.Single(_harness.Service.GetHeldBack(_harness.Case));
+
+        _harness.Analyse(payment);
+
+        Assert.Equal(first.Txid, Assert.Single(_harness.Service.GetHeldBack(_harness.Case)).Txid);
     }
 
     /// <summary>

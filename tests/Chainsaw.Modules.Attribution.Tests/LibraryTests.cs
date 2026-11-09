@@ -155,7 +155,7 @@ public sealed class LibraryTests : IDisposable
     }
 
     [Fact]
-    public void An_analysis_label_taken_back_is_not_withdrawn_from_other_cases()
+    public void An_approved_analysis_label_taken_back_is_withdrawn_from_other_cases()
     {
         var address = Wpkh("behaviour");
         var label = _harness.Labels.Add(_harness.Case, new LabelDraft(
@@ -169,11 +169,14 @@ public sealed class LibraryTests : IDisposable
         using var other = _harness.Create(OtherCaseNumber);
         Assert.Single(_harness.Library.ShareInto(other, [address]));
 
+        Assert.True(Assert.Single(_harness.Labels.GetHistory(_harness.Case, [address])).CanRetract);
         _harness.Labels.Retract(_harness.Case, label.Sequence, null);
         _harness.Library.Absorb(_harness.Case);
         _harness.Library.ShareInto(other, [address]);
 
-        Assert.Single(_harness.Labels.GetLabels(other, address));
+        // The user approved the analysis's finding as a label (sketch TJ1b), so taking it back follows everywhere.
+        Assert.Empty(_harness.Labels.GetLabels(other, address));
+        Assert.Empty(_harness.Library.List());
     }
 
     [Fact]

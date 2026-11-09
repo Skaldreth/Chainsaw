@@ -24,7 +24,7 @@ internal static class ClusterChanges
         IReadOnlyList<ClusterEvidence> counting,
         IReadOnlyList<ClusterEvidence> countingAfter)
     {
-        var touched = Differing(counting, countingAfter);
+        var touched = Differing(counting, countingAfter).Concat(Remerged(before, after)).Distinct();
         var seen = new HashSet<BitcoinAddress>();
         var changes = new List<ClusterChange>();
         foreach (var address in touched.Where(address => !seen.Contains(address)))
@@ -58,6 +58,23 @@ internal static class ClusterChanges
             .Concat(countingAfter.Where(evidence => !now.Contains((evidence.Sequence, evidence.Strength))))
             .SelectMany(evidence => evidence.Addresses)
             .Distinct();
+    }
+
+    /// <summary>
+    /// Gives the addresses of the links that merge in one graph but not the other, also when the proposal itself is
+    /// the same: for example a link that only suggested after a split and merges once the version that split is
+    /// drawn back.
+    /// </summary>
+    /// <param name="before">The clusters before.</param>
+    /// <param name="after">The clusters after.</param>
+    /// <returns>The addresses.</returns>
+    private static IEnumerable<BitcoinAddress> Remerged(ClusterGraph before, ClusterGraph after)
+    {
+        var then = after.MergedKeys();
+        var now = before.MergedKeys();
+        return before.MergedLinks().Where(link => !then.Contains(ClusterGraph.KeyOf(link.Evidence)))
+            .Concat(after.MergedLinks().Where(link => !now.Contains(ClusterGraph.KeyOf(link.Evidence))))
+            .SelectMany(link => link.Evidence.Addresses);
     }
 
     /// <summary>Gives addresses in a fixed order, so that two sets can be compared.</summary>

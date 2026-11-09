@@ -4187,3 +4187,21 @@ Byggt efter skisserna som valdes 2026-11-08 (andra omgången), på backend från
 **Tester:** Clustering 6 nya (förhandsvisningen, det som hålls tillbaka, *Låt stå*, *Släpp* och nästa körning),
 App 14 nya i `RoundFourSurfacesTests`. Ett befintligt test räknar en läsning till av klustret (Varför?).
 
+**Granskningens rättelser (4 I, 9 M):**
+- **BU1a:** ett snitt räknas som klustringen gör: uppbrytningen vägrar hela förslaget (alla adresser i det), så
+  klustret delas om tills inget mer faller bort, och allt som inte når adressen som stannar lämnar, i de plånböcker
+  det faller isär i (`PairPath.Cut`).
+- **TJ1b och etiketterna:** en etikett ur en analys av beteende sätts bara när användaren godkänner den, så den är
+  användarens egen (`LabelSources.IsUsersOwn`): den kan tas tillbaka i Historik och överallt i biblioteket och märkas
+  *Sprid inte*. Tre äldre tester som sa motsatsen är ändrade.
+- **DM1a:** inspektörens kopieringsknapp frågar också vid den liknande adressen, och dess id-ruta visas inte.
+- **KV1a:** bekräftelsen säger streckat att tx som den andra versionen aldrig analyserat syns efter nästa körning, och
+  toasten att fler kan följa. *Dra tillbaka* erbjuds när en annan version står kvar. *Ångra* på toasten säger till
+  när det redan var taget tillbaka.
+- **HB1a:** besluten kan tas tillbaka med *Ångra* (`ReopenHeldBack`, ett nytt förseglat beslut med `undoes`). Det som
+  saknades kontrolleras mot de förseglade slutsatsernas grund innan beslutet förseglas, så en ändrad arbetsrad kan
+  inte förseglas. En tx med bara fynd (till exempel CoinJoin) visas också, och ett släpp säger att fynden följer med.
+  Arbetsraden jämförs som mängd, så ordningen ensam skriver inget.
+- **ClusterChanges** räknar också länkar som börjar eller slutar slå ihop utan att förslaget ändras (efter en
+  uppbrytning). **HP1a** fäller bara bort noder vars alla linjer hör till raden.
+

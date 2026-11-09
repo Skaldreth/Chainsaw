@@ -84,24 +84,69 @@ public static class PairPath
     }
 
     /// <summary>
-    /// Gives the addresses that leave the cluster when a link is cut: those still joined to the second address
-    /// without it, or none when other links still join the two.
+    /// Works out what cutting a link breaks out, as the clustering will once the splits are stored: the splits refuse
+    /// every proposal of their heuristic that holds both their addresses (all of it, not only the step on the way),
+    /// so the cluster is split again until nothing more falls away. Everything that no longer reaches the address
+    /// that stays leaves, in the wallets it falls into.
     /// </summary>
     /// <param name="cluster">The cluster.</param>
     /// <param name="from">The address that stays.</param>
     /// <param name="to">The address that is not the same owner.</param>
     /// <param name="cut">The link to cut.</param>
-    /// <returns>The addresses that leave, or empty when the cut does not part them.</returns>
-    public static IReadOnlyList<BitcoinAddress> Leaving(
-        Cluster cluster, BitcoinAddress from, BitcoinAddress to, ClusterLink cut)
+    /// <returns>What leaves; nothing when other links still join the two.</returns>
+    public static PairCut Cut(Cluster cluster, BitcoinAddress from, BitcoinAddress to, ClusterLink cut)
     {
         ArgumentNullException.ThrowIfNull(cluster);
+        ArgumentNullException.ThrowIfNull(from);
+        ArgumentNullException.ThrowIfNull(to);
         ArgumentNullException.ThrowIfNull(cut);
-        var links = cluster.Links
-            .Where(link => link.State == LinkState.Merged && link.Evidence.Sequence != cut.Evidence.Sequence)
-            .ToList();
-        var reached = new HashSet<BitcoinAddress> { to };
-        var queue = new Queue<BitcoinAddress>([to]);
+        var merged = cluster.Links.Where(link => link.State == LinkState.Merged).ToList();
+        var links = merged.Where(link => !Same(link, cut)).ToList();
+        while (true)
+        {
+            var staying = Reach(links, from);
+            if (staying.Contains(to))
+            {
+                return new PairCut([], []);
+            }
+
+            var leaving = cluster.Addresses.Where(address => !staying.Contains(address)).ToList();
+            var splits = InspectorForms.BreakOut(cluster, leaving, string.Empty);
+            var kept = merged.Where(link => !Same(link, cut) && !splits.Any(split => Refuses(split, link))).ToList();
+            if (kept.Count == links.Count)
+            {
+                return new PairCut(leaving, Groups(links, leaving));
+            }
+
+            links = kept;
+        }
+    }
+
+    /// <summary>Says whether two links are the same stored proposal.</summary>
+    /// <param name="link">One link.</param>
+    /// <param name="other">The other.</param>
+    /// <returns><see langword="true"/> when they are.</returns>
+    private static bool Same(ClusterLink link, ClusterLink other) =>
+        link.Evidence.Sequence == other.Evidence.Sequence
+        && link.Evidence.Heuristic.Name == other.Evidence.Heuristic.Name;
+
+    /// <summary>Says whether a split refuses a link: the same heuristic, and both its addresses in the link.</summary>
+    /// <param name="split">The split.</param>
+    /// <param name="link">The link.</param>
+    /// <returns><see langword="true"/> when it does.</returns>
+    private static bool Refuses(SplitRequest split, ClusterLink link) =>
+        split.Heuristic == link.Evidence.Heuristic.Name
+        && link.Evidence.Addresses.Contains(split.First)
+        && link.Evidence.Addresses.Contains(split.Second);
+
+    /// <summary>Gives the addresses a set of links joins to one.</summary>
+    /// <param name="links">The links.</param>
+    /// <param name="start">The address.</param>
+    /// <returns>The addresses reached, the start among them.</returns>
+    private static HashSet<BitcoinAddress> Reach(IReadOnlyList<ClusterLink> links, BitcoinAddress start)
+    {
+        var reached = new HashSet<BitcoinAddress> { start };
+        var queue = new Queue<BitcoinAddress>([start]);
         while (queue.TryDequeue(out var address))
         {
             foreach (var next in links.Where(link => link.Evidence.Addresses.Contains(address))
@@ -112,6 +157,30 @@ public static class PairPath
             }
         }
 
-        return reached.Contains(from) ? [] : [.. cluster.Addresses.Where(reached.Contains)];
+        return reached;
+    }
+
+    /// <summary>Gives the wallets the leaving addresses fall into.</summary>
+    /// <param name="links">The links that still hold.</param>
+    /// <param name="leaving">The addresses that leave.</param>
+    /// <returns>The wallets, in the order of their first address.</returns>
+    private static IReadOnlyList<IReadOnlyList<BitcoinAddress>> Groups(
+        IReadOnlyList<ClusterLink> links, IReadOnlyList<BitcoinAddress> leaving)
+    {
+        var placed = new HashSet<BitcoinAddress>();
+        var groups = new List<IReadOnlyList<BitcoinAddress>>();
+        foreach (var address in leaving.Where(address => !placed.Contains(address)))
+        {
+            var group = Reach(links, address);
+            placed.UnionWith(group);
+            groups.Add([.. leaving.Where(group.Contains)]);
+        }
+
+        return groups;
     }
 }
+
+/// <summary>What cutting a link breaks out (sketch BU1a).</summary>
+/// <param name="Leaving">The addresses that leave the cluster, in the cluster's order.</param>
+/// <param name="Groups">The wallets they fall into: an address alone becomes a node of its own.</param>
+public sealed record PairCut(IReadOnlyList<BitcoinAddress> Leaving, IReadOnlyList<IReadOnlyList<BitcoinAddress>> Groups);

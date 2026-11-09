@@ -94,13 +94,12 @@ public sealed partial class GraphViewModel
     public HeldBackConclusion? HeldBackOf(NodeView node)
     {
         ArgumentNullException.ThrowIfNull(node);
-        if (_heldBack.Count == 0 || node.Node.GraphAddresses.Count == 0)
+        if (_heldBack.Count == 0 || Scene is not { } scene)
         {
             return null;
         }
 
-        var addresses = node.Node.GraphAddresses.ToHashSet();
-        return _heldBack.FirstOrDefault(held => held.Addresses.Any(addresses.Contains));
+        return _heldBack.FirstOrDefault(held => HeldBackMatch.Touches(scene, node, held.Addresses, held.Txid));
     }
 
     /// <summary>
@@ -113,12 +112,16 @@ public sealed partial class GraphViewModel
     {
         ArgumentNullException.ThrowIfNull(held);
         var heuristics = string.Join(
-            ", ", held.Evidence.Select(evidence => evidence.Heuristic.ToString()).Distinct());
+            ", ",
+            held.Evidence.Select(evidence => evidence.Heuristic)
+                .Concat(held.Findings.Select(found => found.Heuristic))
+                .Select(heuristic => heuristic.ToString())
+                .Distinct());
         var missing = string.Join(", ", held.Missing.Select(txid => GraphScene.Shorten(txid.Value)));
         return
         [
             HeldBackTitle,
-            heuristics + " slog ihop på en tx som inte finns i senaste körningen.",
+            heuristics + " drog slutsatser på en tx som inte finns i senaste körningen.",
             "Byggde på " + missing,
             "Den gamla slutsatsen står kvar tills du väljer. Klicka för Historik.",
         ];

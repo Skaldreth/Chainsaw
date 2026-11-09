@@ -69,7 +69,7 @@ internal sealed class ClusteringSchema : ICaseSchemaContributor
     /// <summary>The sealed columns of a decision about a held back conclusion, in order.</summary>
     public static readonly IReadOnlyList<string> HeldBackDecisionColumns =
     [
-        "txid", "missing", "addresses", "choice", "reason", "journal_sequence", "recorded_utc",
+        "txid", "missing", "addresses", "choice", "reason", "undoes", "journal_sequence", "recorded_utc",
     ];
 
     /// <summary>The sealed columns of a version drawn back, in order.</summary>
@@ -228,6 +228,7 @@ internal sealed class ClusteringSchema : ICaseSchemaContributor
             addresses TEXT NOT NULL,
             choice TEXT NOT NULL,
             reason TEXT,
+            undoes INTEGER,
             journal_sequence INTEGER NOT NULL,
             recorded_utc TEXT NOT NULL,
             hash BLOB NOT NULL

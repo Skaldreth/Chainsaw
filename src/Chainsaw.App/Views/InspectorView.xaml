@@ -489,6 +489,9 @@
                       ===== The ids in full (sketch IN2b): in a dark box, in Cascadia Mono, each with copy, so that every
                       step can be checked against the chain with any tool (principle 1) =====
                     -->
+                    <!-- A look-alike's ids are not shown: the comparison above shows both addresses (DM1a). -->
+                    <Border Visibility="{Binding DataContext.ShowsIds, Converter={StaticResource Visible},
+                                                 RelativeSource={RelativeSource AncestorType=UserControl}}">
                     <Border Margin="{StaticResource Inspector.Ids}" Padding="12" CornerRadius="10" Background="{StaticResource Brush.Background}"
                             BorderBrush="{StaticResource Brush.Surface}" BorderThickness="1"
                             Visibility="{Binding HasIds, Converter={StaticResource Visible}}">
@@ -525,6 +528,7 @@
                             <TextBlock Text="{Binding MoreIds}" FontSize="12" Foreground="{StaticResource Brush.TextDim}"
                                        Visibility="{Binding HasMoreIds, Converter={StaticResource Visible}}" />
                         </StackPanel>
+                    </Border>
                     </Border>
                 </StackPanel>
             </StackPanel>

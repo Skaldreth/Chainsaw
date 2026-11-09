@@ -140,13 +140,14 @@ public sealed class RoundFourSurfacesTests
         Assert.Equal(HistoryUndo.TakeBackWithdrawal, withdrawal.Undo);
         Assert.Equal(2, withdrawal.WithdrawalSequence);
         Assert.Contains("M. Persson", withdrawal.Sub, StringComparison.Ordinal);
-        var waiting = rows.Single(row => row.Kind == HistoryKind.HeldBack && !row.IsWithdrawn);
-        Assert.Equal(HistoryUndo.DecideHeldBack, waiting.Undo);
+        var waiting = rows.Single(row => row.Undo == HistoryUndo.DecideHeldBack);
         Assert.Equal(NodeHistory.ReleaseText, waiting.UndoText);
         Assert.True(waiting.IsDashed);
         Assert.Equal(GraphSamples.Tx[2], waiting.HeldTxid);
         Assert.Contains(rows, row => row.Kind == HistoryKind.HeldBack && row.IsWithdrawn);
-        Assert.Contains(rows, row => row.Text == "Slutsatsen släppt");
+        var letGo = rows.Single(row => row.Undo == HistoryUndo.ReopenHeldBack);
+        Assert.Equal("Slutsatsen släppt, också dess fynd", letGo.Text);
+        Assert.Equal(7, letGo.DecisionSequence);
     }
 
     /// <summary>Låt stå and Släpp slutsatsen store their decision through the editor.</summary>
@@ -203,8 +204,8 @@ public sealed class RoundFourSurfacesTests
         Assert.Equal([GraphSamples.K1, GraphSamples.K2], steps.Select(step => step.From));
         Assert.Equal([GraphSamples.K2, K3], steps.Select(step => step.To));
         Assert.Equal(1, PairPath.Weakest(steps));
-        Assert.Equal([K3], PairPath.Leaving(cluster, GraphSamples.K1, K3, steps[1].Link));
-        Assert.Equal([GraphSamples.K2, K3], PairPath.Leaving(cluster, GraphSamples.K1, K3, steps[0].Link));
+        Assert.Equal([K3], PairPath.Cut(cluster, GraphSamples.K1, K3, steps[1].Link).Leaving);
+        Assert.Equal([GraphSamples.K2, K3], PairPath.Cut(cluster, GraphSamples.K1, K3, steps[0].Link).Leaving);
     }
 
     /// <summary>
@@ -308,7 +309,7 @@ public sealed class RoundFourSurfacesTests
         var check = Check(
             "pass-through",
             GraphSamples.Tx[0].Value,
-            [GraphSamples.V, GraphSamples.K1, GraphSamples.U],
+            [GraphSamples.K1, GraphSamples.E, GraphSamples.U],
             [
                 new CheckBasis(GraphSamples.Tx[0], new BlockReference(1, GraphSamples.Block(1).Hash, start)),
                 new CheckBasis(GraphSamples.Tx[1], new BlockReference(2, GraphSamples.Block(2).Hash, start.AddDays(3))),
@@ -317,8 +318,8 @@ public sealed class RoundFourSurfacesTests
 
         var row = Assert.Single(ObfuscationMarks.HopRows(scene, [check]));
 
-        Assert.Equal((GraphSamples.VKey, GraphSamples.UKey), (row.First, row.Last));
-        Assert.Equal([GraphSamples.KKey], row.Between);
+        Assert.Equal((GraphSamples.KKey, GraphSamples.UKey), (row.First, row.Last));
+        Assert.Equal([GraphSamples.EKey], row.Between);
         Assert.Equal("3 hopp · 3 d 4 h", row.Text);
         Assert.True(row.Beads[1] - row.Beads[0] > row.Beads[2] - row.Beads[1]);
         Assert.Contains("väntade 3 d 0 h", row.Lines[1], StringComparison.Ordinal);
@@ -354,6 +355,127 @@ public sealed class RoundFourSurfacesTests
         Assert.Equal((LabelSource.Behaviour, "service-behaviour", "v1"), (label.Source, label.SourceName, label.SourceVersion));
         Assert.Equal("Sydbörsen", label.Name);
         Assert.False(rig.Forms.IsFromCheck);
+    }
+
+    /// <summary>
+    /// A cut refuses the whole proposal, as the clustering will: common inputs a, b, c with a sign of change c – d,
+    /// cut at the common inputs, leaves b on its own and c with d, not a with b.
+    /// </summary>
+    [Fact]
+    public void ACutRefusesTheWholeProposalAsTheClusteringWill()
+    {
+        var (a, b, c, d) = (GraphSamples.K1, GraphSamples.K2, K3, GraphSamples.Address(32));
+        var common = Link(1, new HeuristicId(HeuristicNames.CommonInputOwnership, 1), a, b, c);
+        var change = Link(2, new HeuristicId(HeuristicNames.ChangeAddress, 2), c, d);
+        var cluster = new Cluster(
+            a,
+            [
+                new ClusterMember(a, null, null), new ClusterMember(b, common, a), new ClusterMember(c, common, a),
+                new ClusterMember(d, change, c),
+            ],
+            [common, change],
+            [],
+            [],
+            []);
+
+        var cut = PairPath.Cut(cluster, a, d, common);
+
+        Assert.Equal([b, c, d], cut.Leaving);
+        Assert.Equal(2, cut.Groups.Count);
+        Assert.Equal([b], cut.Groups[0]);
+        Assert.Equal([c, d], cut.Groups[1]);
+        Assert.Empty(PairPath.Cut(cluster with { Links = [common, change, Link(3, common.Evidence.Heuristic, a, d)] },
+            a, d, common).Leaving);
+    }
+
+    /// <summary>A label from an analysis the user approved is the user's own: it can be taken back in Historik.</summary>
+    [Fact]
+    public void AnApprovedBehaviourLabelCanBeTakenBackInTheHistory()
+    {
+        var scene = GraphSamples.Scene();
+        var label = GraphSamples.Label(GraphSamples.U, LabelKind.Exchange, "Sydbörsen", LabelSource.Behaviour);
+        var data = new NodeHistoryData(
+            [new LabelHistoryEntry(label.Entries[0], null)], [], [], null, new Dictionary<long, string>());
+
+        var row = Assert.Single(
+            NodeHistory.Build(scene, scene.Node(GraphSamples.UKey)!, data), r => r.Kind == HistoryKind.Label);
+
+        Assert.Equal(HistoryUndo.RetractLabel, row.Undo);
+        Assert.True(row.CanUndo);
+    }
+
+    /// <summary>The look-alike cannot be copied from the inspector's ids either, and its ids are not shown.</summary>
+    [Fact]
+    public async Task TheLookAlikeCannotBeCopiedFromTheIds()
+    {
+        var rig = new Rig(Check("dust", "poison:" + GraphSamples.U.Value, [GraphSamples.U, GraphSamples.E]));
+        await rig.Graph.Checks.FollowAsync(rig.Graph.Scene);
+        var copied = new List<string>();
+        rig.Graph.CopyWanted += (_, text) => copied.Add(text);
+        rig.Graph.Choose(GraphSamples.UKey, null);
+
+        rig.Graph.CopyTextCommand.Execute(GraphSamples.U.Value);
+
+        Assert.Empty(copied);
+        Assert.True(rig.Graph.IsPoisonAsked);
+        Assert.False(rig.Graph.ShowsIds);
+        rig.Graph.CopyTextCommand.Execute(GraphSamples.E.Value);
+        Assert.Equal([GraphSamples.E.Value], copied);
+    }
+
+    /// <summary>The confirmation says what the preview cannot know, and a withdrawal only drawn back by one stays.</summary>
+    [Fact]
+    public async Task TheConfirmationSaysWhatThePreviewCannotKnow()
+    {
+        var rig = new Rig();
+        rig.Editor.Cluster = Chain();
+        rig.Editor.WithdrawPreview = new WithdrawPreview(
+            new HeuristicId(HeuristicNames.ChangeAddress, 2), new HeuristicId(HeuristicNames.ChangeAddress, 1), []);
+        rig.Graph.Choose(GraphSamples.KKey, null);
+        var why = rig.Graph.ClusterWhy;
+
+        await why.AskWithdrawAsync(why.Rows.Single(r => r.Name == "change-address v2"));
+
+        Assert.True(why.HasPreview);
+        Assert.Contains("change-address v1", why.UnknownNote, StringComparison.Ordinal);
+        var withdrawnFirst = new VersionWithdrawal(
+            1, new HeuristicId(HeuristicNames.ChangeAddress, 1), null, 4, DateTimeOffset.UnixEpoch);
+        Assert.False(ClusterWhyViewModel.RowsOf(Chain(), [withdrawnFirst])
+            .Single(r => r.Name == "change-address v2").CanWithdraw);
+    }
+
+    /// <summary>A release is taken back in Historik with Ångra, as a new sealed decision.</summary>
+    [Fact]
+    public async Task AReleaseIsTakenBackInTheHistory()
+    {
+        var rig = new Rig();
+        var released = new HeldBackDecision(
+            7, GraphSamples.Tx[1], [GraphSamples.Tx[0]], [GraphSamples.K1], ConclusionChoice.Release, null, 9,
+            DateTimeOffset.UnixEpoch);
+        rig.Editor.History = new NodeHistoryData([], [], [], null, new Dictionary<long, string>())
+        {
+            HeldBackDecisions = [released],
+        };
+        rig.Graph.Choose(GraphSamples.KKey, null);
+        var history = rig.Graph.History;
+        history.ShowHistory();
+        var row = history.Rows.Single(r => r.Event.Undo == HistoryUndo.ReopenHeldBack);
+
+        Assert.Equal(NodeHistory.UndoText, row.Event.UndoText);
+        history.Toggle(row);
+        await history.SubmitAsync();
+
+        Assert.Equal([7L], rig.Editor.Reopened);
+    }
+
+    /// <summary>A node on the row with transactions of its own beside the row is not folded away.</summary>
+    [Fact]
+    public void ANodeWithOtherLinesIsNotFoldedAway()
+    {
+        var scene = GraphSamples.Scene();
+        var check = Check("pass-through", GraphSamples.Tx[0].Value, [GraphSamples.W, GraphSamples.V, GraphSamples.K1]);
+
+        Assert.Empty(ObfuscationMarks.HopRows(scene, [check]));
     }
 
     /// <summary>Gives a cluster K1 – K2 – K3: common inputs, then a sign of change.</summary>

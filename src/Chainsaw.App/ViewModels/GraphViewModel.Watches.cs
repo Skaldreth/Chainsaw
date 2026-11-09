@@ -289,6 +289,13 @@ public sealed partial class GraphViewModel
     [RelayCommand]
     private void CopyText(string? text)
     {
+        if (Poison is { } poison && text == poison.Suspect.Value)
+        {
+            // The look-alike is never copied past the comparison (sketch DM1a); the comparison lights up instead.
+            IsPoisonAsked = true;
+            return;
+        }
+
         if (!string.IsNullOrWhiteSpace(text))
         {
             CopyWanted?.Invoke(this, text);

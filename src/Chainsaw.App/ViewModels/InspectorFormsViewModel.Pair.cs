@@ -96,7 +96,9 @@ public sealed partial class InspectorFormsViewModel
     [NotifyPropertyChangedFor(nameof(CanSubmit))]
     public partial string PairResult { get; private set; } = string.Empty;
 
-    /// <summary>Gets the addresses that leave when the chosen link is cut; empty when it does not part the pair.</summary>
+    /// <summary>
+    /// Gets the addresses that leave when the chosen link is cut; empty when it does not part the pair.
+    /// </summary>
     public IReadOnlyList<BitcoinAddress> PairLeaving { get; private set; } = [];
 
     /// <summary>
@@ -236,8 +238,9 @@ public sealed partial class InspectorFormsViewModel
             return;
         }
 
-        PairLeaving = PairPath.Leaving(cluster, _pairFrom, _pairTo, cut.Step.Link);
-        PairResult = PairLeaving.Count == 0 ? StillJoinedText : ResultText(cluster, PairLeaving);
+        var result = PairPath.Cut(cluster, _pairFrom, _pairTo, cut.Step.Link);
+        PairLeaving = result.Leaving;
+        PairResult = PairLeaving.Count == 0 ? StillJoinedText : ResultText(cluster, result);
         OnPropertyChanged(nameof(CanSubmit));
     }
 
@@ -245,17 +248,23 @@ public sealed partial class InspectorFormsViewModel
     /// Writes what a cut does, for example <c>K1 behåller 4 · bc1q…t4vw och bc1q…2c7u blir en egen plånbok</c>.
     /// </summary>
     /// <param name="cluster">The cluster.</param>
-    /// <param name="leaving">The addresses that leave.</param>
+    /// <param name="cut">What the cut breaks out.</param>
     /// <returns>The sentence.</returns>
-    private string ResultText(Cluster cluster, IReadOnlyList<BitcoinAddress> leaving)
+    private string ResultText(Cluster cluster, PairCut cut)
     {
         var name = _node?.Name ?? "Klustret";
-        var stays = (cluster.Members.Count - leaving.Count).ToString(CultureInfo.InvariantCulture);
+        var stays = (cluster.Members.Count - cut.Leaving.Count).ToString(CultureInfo.InvariantCulture);
+        var leaving = cut.Leaving;
         var shown = string.Join(" och ", leaving.Take(2).Select(address => GraphScene.Shorten(address.Value)));
         var more = leaving.Count > 2
             ? string.Create(CultureInfo.InvariantCulture, $" och {leaving.Count - 2} till")
             : string.Empty;
-        var own = leaving.Count == 1 ? "blir en egen nod" : "blir en egen plånbok";
+        var own = cut.Groups switch
+        {
+            [[_]] => "blir en egen nod",
+            [_] => "blir en egen plånbok",
+            _ => string.Create(CultureInfo.InvariantCulture, $"lämnar och delas i {cut.Groups.Count}"),
+        };
         return $"{name} behåller {stays} · {shown}{more} {own}";
     }
 

@@ -496,7 +496,8 @@ internal sealed class ClusteringService : IClusteringService
         return @case.Read(reader =>
         {
             var held = HeldBackStore.Read(reader);
-            var decisions = HeldBackStore.ReadDecisions(reader);
+            var decisions = HeldBackStore.Latest(HeldBackStore.ReadDecisions(reader))
+                .ToDictionary(decision => decision.Txid);
             var conclusions = EvidenceStore.ReadLatest(reader, held.Select(entry => entry.Txid).ToHashSet());
             return (IReadOnlyList<HeldBackConclusion>)
             [
@@ -504,9 +505,12 @@ internal sealed class ClusteringService : IClusteringService
                         entry.Txid,
                         conclusions[entry.Txid].Evidence,
                         entry.Missing,
-                        decisions.LastOrDefault(decision => decision.Txid == entry.Txid)))
+                        decisions.GetValueOrDefault(entry.Txid))
+                    {
+                        Findings = conclusions[entry.Txid].Findings,
+                    })
                     // A conclusion let go no longer counts, so there is nothing left to hold back.
-                    .Where(conclusion => conclusion.Evidence.Count > 0),
+                    .Where(conclusion => conclusion.Evidence.Count > 0 || conclusion.Findings.Count > 0),
             ];
         });
     }
@@ -516,35 +520,93 @@ internal sealed class ClusteringService : IClusteringService
     {
         ArgumentNullException.ThrowIfNull(@case);
         ArgumentNullException.ThrowIfNull(txid);
+        if (choice == ConclusionChoice.Reopen)
+        {
+            throw new ArgumentException("A decision is taken back with ReopenHeldBack.", nameof(choice));
+        }
+
         var checkedReason = OptionalReason(reason);
         return @case.Write(transaction =>
         {
             var held = HeldBackStore.Read(transaction).FirstOrDefault(entry => entry.Txid == txid);
-            var evidence = EvidenceStore.ReadLatest(transaction, txid, withFindings: false).Evidence;
-            if (held.Txid is null || evidence.Count == 0)
+            var (evidence, findings) = EvidenceStore.ReadLatest(transaction, txid);
+
+            // The kept row is working state that is not sealed, so what it says was missing is checked against the
+            // sealed conclusions' own basis before anything is sealed from it.
+            var basis = SealedBasis(transaction, txid);
+            var missing = held.Txid is null ? [] : held.Missing.Where(basis.Contains).ToList();
+            if (missing.Count == 0 || (evidence.Count == 0 && findings.Count == 0))
             {
                 return null;
             }
 
             var addresses = evidence.SelectMany(proposal => proposal.Addresses).Distinct().ToList();
-
             var summary = choice == ConclusionChoice.Keep
                 ? "Slutsatsen om {0} står kvar fast den bygger på en tx som inte fanns i senaste körningen."
-                : "Slutsatsen om {0} är släppt: den räknas inte längre, men står kvar förseglad.";
+                : "Slutsatsen om {0} är släppt: den räknas inte längre, inte heller dess fynd, men står kvar "
+                    + "förseglad.";
             var journal = transaction.AppendJournal(new JournalDraft(
                 ClusteringJournalKinds.HeldBackDecided,
                 string.Format(CultureInfo.InvariantCulture, summary, txid.Value),
                 JsonSerializer.Serialize(new
                 {
                     txid = txid.Value,
-                    missing = held.Missing.Select(missing => missing.Value),
+                    missing = missing.Select(item => item.Value),
                     choice = choice.ToString(),
                     reason = checkedReason,
                 })));
-            return HeldBackStore.AppendDecision(
-                transaction, txid, held.Missing, addresses, choice, checkedReason, journal);
+            return HeldBackStore.AppendDecision(transaction, txid, missing, addresses, choice, checkedReason, journal);
         });
     }
+
+    /// <inheritdoc/>
+    public HeldBackDecision? ReopenHeldBack(ICase @case, long decisionSequence, string? reason)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        var checkedReason = OptionalReason(reason);
+        return @case.Write(transaction =>
+        {
+            var decisions = HeldBackStore.ReadDecisions(transaction);
+            if (decisions.FirstOrDefault(known => known.Sequence == decisionSequence) is not { } decision
+                || decision.Choice == ConclusionChoice.Reopen
+                || HeldBackStore.Latest(decisions).All(latest => latest.Sequence != decisionSequence))
+            {
+                return null;
+            }
+
+            var journal = transaction.AppendJournal(new JournalDraft(
+                ClusteringJournalKinds.HeldBackDecided,
+                string.Format(
+                    CultureInfo.InvariantCulture,
+                    "Beslutet om slutsatsen om {0} är taget tillbaka.",
+                    decision.Txid.Value),
+                JsonSerializer.Serialize(new
+                {
+                    txid = decision.Txid.Value,
+                    undoes = decision.Sequence,
+                    choice = nameof(ConclusionChoice.Reopen),
+                    reason = checkedReason,
+                })));
+            return HeldBackStore.AppendDecision(
+                transaction, decision.Txid, decision.Missing, decision.Addresses, ConclusionChoice.Reopen,
+                checkedReason, journal, decision.Sequence);
+        });
+    }
+
+    /// <summary>
+    /// Gives the transactions the counting sealed results of a transaction rest on (the highest version of each
+    /// analysis), read from the sealed records themselves.
+    /// </summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <param name="txid">The transaction.</param>
+    /// <returns>The basis.</returns>
+    private static HashSet<Txid> SealedBasis(ICaseReader reader, Txid txid) =>
+    [
+        .. EvidenceStore.LatestResults(reader, new HashSet<Txid> { txid })
+            .GroupBy(entry => entry.Key.Heuristic.Name)
+            .Select(group => group.MaxBy(entry => entry.Key.Heuristic.Version))
+            .SelectMany(entry => entry.Value.Basis),
+    ];
 
     /// <inheritdoc/>
     public IReadOnlyList<HeldBackDecision> GetHeldBackDecisions(ICase @case)

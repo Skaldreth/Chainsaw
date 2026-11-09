@@ -19,9 +19,12 @@ internal static class HeldBackStore
     /// </summary>
     /// <param name="transaction">The case's write transaction.</param>
     /// <param name="heldBack">The transactions held back, each with the transactions that were missing.</param>
-    public static void Replace(ICaseTransaction transaction, IReadOnlyList<(Txid Txid, IReadOnlyList<Txid> Missing)> heldBack)
+    public static void Replace(
+        ICaseTransaction transaction, IReadOnlyList<(Txid Txid, IReadOnlyList<Txid> Missing)> heldBack)
     {
-        var kept = Read(transaction);
+        // Kept in one order, so that a run that only gives the same in another order writes nothing.
+        heldBack = Normal(heldBack);
+        var kept = Normal(Read(transaction));
         if (kept.Count == heldBack.Count && kept.Zip(heldBack).All(pair =>
                 pair.First.Txid == pair.Second.Txid && pair.First.Missing.SequenceEqual(pair.Second.Missing)))
         {
@@ -42,7 +45,17 @@ internal static class HeldBackStore
         }
     }
 
-    /// <summary>Reads what the latest run held back, in the order it gave it.</summary>
+    /// <summary>Puts what is held back in one order: by transaction, each with its missing transactions sorted.</summary>
+    /// <param name="heldBack">What is held back.</param>
+    /// <returns>The same, in order.</returns>
+    private static List<(Txid Txid, IReadOnlyList<Txid> Missing)> Normal(
+        IReadOnlyList<(Txid Txid, IReadOnlyList<Txid> Missing)> heldBack) =>
+    [
+        .. heldBack.OrderBy(entry => entry.Txid.Value, StringComparer.Ordinal).Select(entry =>
+            (entry.Txid, (IReadOnlyList<Txid>)[.. entry.Missing.OrderBy(txid => txid.Value, StringComparer.Ordinal)])),
+    ];
+
+    /// <summary>Reads what the latest run held back, in transaction order.</summary>
     /// <param name="reader">The case's reader.</param>
     /// <returns>The transactions held back, each with the transactions that were missing.</returns>
     /// <exception cref="CaseException"><see cref="CaseError.Corrupt"/> when a row cannot be read back.</exception>
@@ -67,6 +80,7 @@ internal static class HeldBackStore
     /// <param name="choice">What was decided.</param>
     /// <param name="reason">Why, or <see langword="null"/>.</param>
     /// <param name="journal">The journal entry.</param>
+    /// <param name="undoes">For a taking back, the decision taken back.</param>
     /// <returns>The stored decision.</returns>
     public static HeldBackDecision AppendDecision(
         ICaseTransaction transaction,
@@ -75,16 +89,17 @@ internal static class HeldBackStore
         IReadOnlyList<BitcoinAddress> addresses,
         ConclusionChoice choice,
         string? reason,
-        JournalEntry journal)
+        JournalEntry journal,
+        long? undoes = null)
     {
         object?[] values =
         [
             txid.Value, Serialize(missing), JsonSerializer.Serialize(addresses.Select(address => address.Value)),
-            choice.ToString(), reason, journal.Sequence, journal.Utc.ToString("O", CultureInfo.InvariantCulture),
+            choice.ToString(), reason, undoes, journal.Sequence, journal.Utc.ToString("O", CultureInfo.InvariantCulture),
         ];
         var record = transaction.AppendSealed(ClusteringSchema.HeldBackDecisionsChain, values);
         return new HeldBackDecision(
-            record.Sequence, txid, missing, addresses, choice, reason, journal.Sequence, journal.Utc);
+            record.Sequence, txid, missing, addresses, choice, reason, journal.Sequence, journal.Utc, undoes);
     }
 
     /// <summary>Reads every decision, oldest first.</summary>
@@ -94,7 +109,7 @@ internal static class HeldBackStore
     public static List<HeldBackDecision> ReadDecisions(ICaseReader reader)
     {
         using var command = reader.CreateCommand(
-            "SELECT sequence, txid, missing, addresses, choice, reason, journal_sequence, recorded_utc "
+            "SELECT sequence, txid, missing, addresses, choice, reason, undoes, journal_sequence, recorded_utc "
                 + "FROM clustering_held_back_decisions ORDER BY sequence");
         using var row = command.ExecuteReader();
         var all = new List<HeldBackDecision>();
@@ -110,24 +125,30 @@ internal static class HeldBackStore
                 [.. EvidenceStore.Deserialize<List<string>>(row.GetString(3)).Select(EvidenceStore.ParseAddress)],
                 choice,
                 row.IsDBNull(5) ? null : row.GetString(5),
-                row.GetInt64(6),
-                DateTimeOffset.Parse(row.GetString(7), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind)));
+                row.GetInt64(7),
+                DateTimeOffset.Parse(row.GetString(8), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind),
+                row.IsDBNull(6) ? null : row.GetInt64(6)));
         }
 
         return all;
     }
 
     /// <summary>
-    /// Gives, per transaction, the journal entry of its latest release: the conclusions stored before it stop
-    /// counting.
+    /// Gives, per transaction whose latest decision lets its conclusions go, the journal entry of that release: the
+    /// conclusions stored before it stop counting. A release taken back no longer counts.
     /// </summary>
     /// <param name="reader">The case's reader.</param>
-    /// <returns>The journal entry of each transaction's latest release.</returns>
+    /// <returns>The journal entry of each release in force.</returns>
     public static Dictionary<Txid, long> Releases(ICaseReader reader) =>
-        ReadDecisions(reader)
+        Latest(ReadDecisions(reader))
             .Where(decision => decision.Choice == ConclusionChoice.Release)
-            .GroupBy(decision => decision.Txid)
-            .ToDictionary(group => group.Key, group => group.Max(decision => decision.JournalSequence));
+            .ToDictionary(decision => decision.Txid, decision => decision.JournalSequence);
+
+    /// <summary>Gives each transaction's latest decision.</summary>
+    /// <param name="decisions">Every decision, oldest first.</param>
+    /// <returns>The latest per transaction.</returns>
+    public static IEnumerable<HeldBackDecision> Latest(IEnumerable<HeldBackDecision> decisions) =>
+        decisions.GroupBy(decision => decision.Txid).Select(group => group.MaxBy(decision => decision.Sequence)!);
 
     /// <summary>Writes transaction ids as a JSON array.</summary>
     /// <param name="txids">The transactions.</param>

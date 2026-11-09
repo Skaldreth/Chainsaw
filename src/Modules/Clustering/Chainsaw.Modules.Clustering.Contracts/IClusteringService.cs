@@ -315,6 +315,24 @@ public interface IClusteringService
     /// </exception>
     HeldBackDecision? DecideHeldBack(ICase @case, Txid txid, ConclusionChoice choice, string? reason);
 
+    /// <summary>
+    /// Takes the latest decision about a held back conclusion back (sketch AN1b), sealed as a new decision
+    /// <see cref="ConclusionChoice.Reopen"/> with a line in the journal: a conclusion let go counts again, and one let
+    /// stand waits again. The decision stays as it was.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="decisionSequence">The decision's <see cref="HeldBackDecision.Sequence"/>.</param>
+    /// <param name="reason">Why, or <see langword="null"/>; the reason is optional.</param>
+    /// <returns>
+    /// The taking back, or <see langword="null"/> when the decision does not exist, is not the latest for its
+    /// transaction or is itself a taking back (nothing is sealed).
+    /// </returns>
+    /// <exception cref="ArgumentException">The reason is too long.</exception>
+    /// <exception cref="CaseException">
+    /// <see cref="CaseError.NoOperatorProfile"/> or <see cref="CaseError.Closed"/>.
+    /// </exception>
+    HeldBackDecision? ReopenHeldBack(ICase @case, long decisionSequence, string? reason);
+
     /// <summary>Reads every decision about held back conclusions, oldest first.</summary>
     /// <param name="case">The open case.</param>
     /// <returns>The decisions.</returns>

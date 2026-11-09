@@ -223,7 +223,7 @@ table sealed_chain 13
   cases.journal | journal | ["utc","local","time_zone","operator_name","operator_title","operator_organization","kind","summary","details"]
   cases.title | case_title | ["utc","title"]
   clustering.evidence | clustering_evidence | ["record_kind","heuristic","heuristic_version","txid","addresses","strength","change_output","reason","adjustment","finding","basis","fingerprint","journal_sequence","recorded_utc"]
-  clustering.held_back_decisions | clustering_held_back_decisions | ["txid","missing","addresses","choice","reason","journal_sequence","recorded_utc"]
+  clustering.held_back_decisions | clustering_held_back_decisions | ["txid","missing","addresses","choice","reason","undoes","journal_sequence","recorded_utc"]
   clustering.merge_undos | clustering_merge_undos | ["merge_sequence","reason","journal_sequence","recorded_utc"]
   clustering.merges | clustering_merges | ["addresses","txid","proposal","proposal_version","grounds","reason","origin_chain","origin_sequence","journal_sequence","recorded_utc"]
   clustering.split_undos | clustering_split_undos | ["split_sequence","reason","journal_sequence","recorded_utc"]

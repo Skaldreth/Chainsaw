@@ -144,9 +144,21 @@ public static class ObfuscationMarks
                 continue;
             }
 
+            // Only a node whose every line belongs to the row folds away; one with other transactions stays, so that
+            // nothing but the row's own lines is hidden.
+            var inRow = nodes.ToHashSet(StringComparer.Ordinal);
+            var between = nodes[1..^1].Where(key => scene.Edges
+                    .Where(edge => edge.Edge.From == key || edge.Edge.To == key)
+                    .All(edge => inRow.Contains(edge.Edge.From) && inRow.Contains(edge.Edge.To)))
+                .ToList();
+            if (between.Count == 0)
+            {
+                continue;
+            }
+
             var hops = check.Finding.Basis;
             rows.Add(new HopRow(
-                check.Finding.Key, nodes[0], nodes[^1], nodes[1..^1], Beads(hops), TextOf(hops),
+                check.Finding.Key, nodes[0], nodes[^1], between, Beads(hops), TextOf(hops),
                 LinesOf(check.Finding.Addresses, hops)));
         }
 

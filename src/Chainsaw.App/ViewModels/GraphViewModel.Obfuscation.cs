@@ -36,11 +36,17 @@ public sealed partial class GraphViewModel
     /// Gets the poisoning of the chosen node, for the comparison in the inspector, or <see langword="null"/>.
     /// </summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasPoison), nameof(PoisonPairs), nameof(PoisonCopyText))]
+    [NotifyPropertyChangedFor(nameof(HasPoison), nameof(PoisonPairs), nameof(PoisonCopyText), nameof(ShowsIds))]
     public partial Poisoning? Poison { get; private set; }
 
     /// <summary>Gets whether the chosen node is a likely poisoning.</summary>
     public bool HasPoison => Poison is not null;
+
+    /// <summary>
+    /// Gets whether the inspector shows the ids in full: not for a look-alike, whose address could be selected and
+    /// copied past the comparison; the comparison shows both addresses instead (sketch DM1a).
+    /// </summary>
+    public bool ShowsIds => !HasPoison;
 
     /// <summary>Gets whether copying the look-alike asked first, so that the comparison is lit.</summary>
     [ObservableProperty]

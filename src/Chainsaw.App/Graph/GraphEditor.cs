@@ -166,6 +166,13 @@ public interface IGraphEditor
     /// <returns>Whether it was stored; not when the conclusion is no longer held back.</returns>
     Task<UndoOutcome> DecideHeldBackAsync(ICase @case, Txid txid, ConclusionChoice choice, string? reason);
 
+    /// <summary>Takes the latest decision about a held back conclusion back (sketch AN1b).</summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="decision">The decision's sequence.</param>
+    /// <param name="reason">Why, or <see langword="null"/>.</param>
+    /// <returns>Whether it was taken back; not when a newer decision came first.</returns>
+    Task<UndoOutcome> ReopenHeldBackAsync(ICase @case, long decision, string? reason);
+
     /// <summary>Gives the links on the way between two addresses in the same cluster (sketch BU1a).</summary>
     /// <param name="case">The open case.</param>
     /// <param name="from">One address.</param>
@@ -293,14 +300,12 @@ public sealed class GraphEditor(
                 var merges = node.Accounts.Count > 0
                     ? []
                     : Touching(clustering.GetMergeHistory(@case), addresses.ToHashSet());
-                var touched = addresses.ToHashSet();
                 var withdrawals = cluster is null
                     ? []
                     : ConcernedWithdrawals(clustering.GetWithdrawals(@case), cluster);
-                IReadOnlyList<HeldBackDecision> decisions =
-                [
-                    .. clustering.GetHeldBackDecisions(@case).Where(decision => decision.Addresses.Any(touched.Contains)),
-                ];
+                // Which held back conclusions and decisions concern the node is settled by NodeHistory, which also sees
+                // the lines through it (a conclusion with only findings merged no address).
+                var decisions = clustering.GetHeldBackDecisions(@case);
                 cancellationToken.ThrowIfCancellationRequested();
                 var operators = new Dictionary<long, string>();
                 var needs = NodeHistoryData.JournalNeeds(labels, splits, links)
@@ -320,7 +325,7 @@ public sealed class GraphEditor(
                 {
                     Merges = merges,
                     Withdrawals = withdrawals,
-                    HeldBack = [.. clustering.GetHeldBack(@case).Where(held => held.Addresses.Any(touched.Contains))],
+                    HeldBack = clustering.GetHeldBack(@case),
                     HeldBackDecisions = decisions,
                 };
             },
@@ -484,6 +489,13 @@ public sealed class GraphEditor(
         ArgumentNullException.ThrowIfNull(@case);
         ArgumentNullException.ThrowIfNull(txid);
         return Task.Run(() => new UndoOutcome(clustering.DecideHeldBack(@case, txid, choice, reason) is not null));
+    }
+
+    /// <inheritdoc/>
+    public Task<UndoOutcome> ReopenHeldBackAsync(ICase @case, long decision, string? reason)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        return Task.Run(() => new UndoOutcome(clustering.ReopenHeldBack(@case, decision, reason) is not null));
     }
 
     /// <inheritdoc/>

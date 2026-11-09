@@ -46,8 +46,8 @@ public sealed partial class HeuristicRowViewModel(HeuristicId heuristic, string 
     public bool HasTag => Tag.Length > 0;
 
     /// <summary>
-    /// Gets or sets whether the version can be drawn back: a version above the first, still in force; the menu shows
-    /// <em>Dra tillbaka …</em> only then (principle 7).
+    /// Gets or sets whether the version can be drawn back: another version of the analysis is still in force; the
+    /// menu shows <em>Dra tillbaka …</em> only then (principle 7).
     /// </summary>
     public bool CanWithdraw { get; init; }
 
@@ -105,6 +105,15 @@ public sealed partial class ClusterWhyViewModel : ObservableObject
 
     /// <summary>What the confirmation says while the preview is read.</summary>
     public const string ReadingText = "Räknar ut vad som ändras …";
+
+    /// <summary>
+    /// What the preview cannot know (KV1a): it counts on the stored conclusions, so what the version that counts
+    /// instead concludes about transactions it never analysed shows only after the next run.
+    /// </summary>
+    public const string UnknownText = "Tx som {0} aldrig har analyserat syns först efter nästa körning.";
+
+    /// <summary>What the toast's undo says when the withdrawal was already taken back.</summary>
+    public const string AlreadyText = "Tillbakadragandet var redan taget tillbaka.";
 
     /// <summary>The words of the toast's undo.</summary>
     public const string UndoText = "Ångra";
@@ -183,6 +192,10 @@ public sealed partial class ClusterWhyViewModel : ObservableObject
     [ObservableProperty]
     public partial string ConfirmText { get; private set; } = string.Empty;
 
+    /// <summary>Gets what the preview cannot know, said in the confirmation under the bars.</summary>
+    [ObservableProperty]
+    public partial string UnknownNote { get; private set; } = string.Empty;
+
     /// <summary>Gets the clusters before and after.</summary>
     public ObservableCollection<ChangeBar> Bars { get; } = [];
 
@@ -206,8 +219,11 @@ public sealed partial class ClusterWhyViewModel : ObservableObject
 
     /// <summary>Gets the preview the graph draws, or <see langword="null"/> when no confirmation is open.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanSubmit))]
+    [NotifyPropertyChangedFor(nameof(CanSubmit), nameof(HasPreview))]
     public partial WithdrawPreview? Preview { get; private set; }
+
+    /// <summary>Gets whether the preview is read, so that what it cannot know is said under the bars.</summary>
+    public bool HasPreview => Preview is not null;
 
     /// <summary>Gets whether the withdrawal can be stored: the preview is read and the reason fits.</summary>
     public bool CanSubmit => IsConfirmOpen && Preview is not null && !IsSaving && _session.Current is not null
@@ -241,6 +257,10 @@ public sealed partial class ClusterWhyViewModel : ObservableObject
         ArgumentNullException.ThrowIfNull(withdrawals);
         var members = cluster.Addresses.ToHashSet();
         var inForce = withdrawals.Where(withdrawal => withdrawal.IsInForce).ToList();
+        var newest = cluster.Links.Select(link => link.Evidence.Heuristic)
+            .Concat(withdrawals.Select(withdrawal => withdrawal.Heuristic))
+            .GroupBy(heuristic => heuristic.Name)
+            .ToDictionary(group => group.Key, group => group.Max(heuristic => heuristic.Version));
         var rows = new List<HeuristicRowViewModel>();
         foreach (var group in cluster.Links
             .Where(link => link.State == LinkState.Merged && link.Evidence.Heuristic.Name != UserMerges.Name)
@@ -252,7 +272,7 @@ public sealed partial class ClusterWhyViewModel : ObservableObject
             var detail = string.Create(CultureInfo.InvariantCulture, $"{count} adresser · {tx}");
             rows.Add(new HeuristicRowViewModel(group.Key, detail)
             {
-                CanWithdraw = group.Key.Version > 1,
+                CanWithdraw = HasOtherInForce(group.Key, newest[group.Key.Name], inForce),
                 CountsAgain = inForce.Any(withdrawal => withdrawal.Heuristic.Name == group.Key.Name
                     && withdrawal.Heuristic.Version > group.Key.Version),
             });
@@ -269,6 +289,19 @@ public sealed partial class ClusterWhyViewModel : ObservableObject
 
         return rows;
     }
+
+    /// <summary>
+    /// Says whether another version of an analysis would still count if this one were drawn back: one of the versions
+    /// from 1 to the newest the case knows that is not drawn back. Without one the menu does not offer it, since
+    /// Clustering refuses to leave an analysis without a version.
+    /// </summary>
+    /// <param name="heuristic">The version.</param>
+    /// <param name="newest">The newest version of the analysis the case knows.</param>
+    /// <param name="inForce">The withdrawals in force.</param>
+    /// <returns><see langword="true"/> when another version is left.</returns>
+    private static bool HasOtherInForce(HeuristicId heuristic, int newest, IReadOnlyList<VersionWithdrawal> inForce) =>
+        Enumerable.Range(1, Math.Max(newest, heuristic.Version)).Any(version => version != heuristic.Version
+            && inForce.All(withdrawal => withdrawal.Heuristic != new HeuristicId(heuristic.Name, version)));
 
     /// <summary>
     /// Builds the bars of the confirmation from a preview; pure, for the tests. The widest cluster is the whole bar.
@@ -368,6 +401,7 @@ public sealed partial class ClusterWhyViewModel : ObservableObject
 
             Notice = string.Empty;
             ConfirmText = SentenceOf(preview);
+            UnknownNote = string.Format(CultureInfo.InvariantCulture, UnknownText, preview.CountsInstead);
             foreach (var bar in BarsOf(preview, NameOf))
             {
                 Bars.Add(bar);
@@ -428,7 +462,7 @@ public sealed partial class ClusterWhyViewModel : ObservableObject
             ToastWanted?.Invoke(this, new ToastRequest(
                 ToastKind.Success,
                 withdrawal.Heuristic + " tillbakadragen",
-                changed + " kluster ändrades · journalfört",
+                changed + " kluster ändrades · journalfört · fler kan följa vid nästa körning",
                 UndoText,
                 () => _ = TakeBackAsync(openCase, withdrawal)));
         }
@@ -457,7 +491,12 @@ public sealed partial class ClusterWhyViewModel : ObservableObject
 
         try
         {
-            await _editor.TakeBackWithdrawalAsync(openCase, withdrawal.Sequence, null);
+            var outcome = await _editor.TakeBackWithdrawalAsync(openCase, withdrawal.Sequence, null);
+            if (!outcome.Done)
+            {
+                ToastWanted?.Invoke(this, new ToastRequest(ToastKind.Information, AlreadyText));
+            }
+
             Saved?.Invoke(this, EventArgs.Empty);
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)

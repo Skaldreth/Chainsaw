@@ -71,16 +71,16 @@ public sealed partial class InspectorHistoryViewModel : ObservableObject
     public const string AlreadyText = "Det var redan tillbakataget; historiken läses om.";
 
     /// <summary>The open case.</summary>
+    private readonly CaseSession _session;
+
+    /// <summary>The modules' readers and writers.</summary>
+    private readonly IGraphEditor _editor;
+
     /// <summary>
     /// What submitting a held back conclusion's form decides: letting it go (Enter, <em>Släpp slutsatsen</em>), or
     /// letting it stand while <see cref="KeepAsync"/> submits.
     /// </summary>
     private ConclusionChoice _heldChoice = ConclusionChoice.Release;
-
-    private readonly CaseSession _session;
-
-    /// <summary>The modules' readers and writers.</summary>
-    private readonly IGraphEditor _editor;
 
     /// <summary>The scene the chosen node is in.</summary>
     private GraphScene? _scene;
@@ -376,6 +376,8 @@ public sealed partial class InspectorHistoryViewModel : ObservableObject
                     await _editor.TakeBackWithdrawalAsync(openCase, row.Event.WithdrawalSequence, reason),
                 HistoryUndo.DecideHeldBack =>
                     await _editor.DecideHeldBackAsync(openCase, row.Event.HeldTxid!, _heldChoice, reason),
+                HistoryUndo.ReopenHeldBack =>
+                    await _editor.ReopenHeldBackAsync(openCase, row.Event.DecisionSequence, reason),
                 _ => await _editor.UnlinkAsync(openCase, row.Event.Link!, reason),
             };
             if (!outcome.Done)

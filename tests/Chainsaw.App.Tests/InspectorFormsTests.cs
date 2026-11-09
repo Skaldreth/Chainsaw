@@ -206,6 +206,15 @@ internal sealed class TestGraphEditor : IGraphEditor
         return Task.FromResult(new UndoOutcome(true));
     }
 
+    /// <summary>Gets the decisions taken back.</summary>
+    public List<long> Reopened { get; } = [];
+
+    public Task<UndoOutcome> ReopenHeldBackAsync(ICase @case, long decision, string? reason)
+    {
+        Reopened.Add(decision);
+        return Task.FromResult(new UndoOutcome(true));
+    }
+
     public Task<IReadOnlyList<ClusterLink>?> ExplainConnectionAsync(
         ICase @case, BitcoinAddress from, BitcoinAddress to, CancellationToken cancellationToken) =>
         Task.FromResult(Path);

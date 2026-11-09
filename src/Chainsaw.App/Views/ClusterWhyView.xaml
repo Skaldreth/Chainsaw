@@ -161,6 +161,13 @@
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
                 <TextBlock Text="{Binding MoreText}" FontSize="12" Foreground="{StaticResource Brush.TextDim}" />
+                <!-- What the preview cannot know, dashed like everything uncertain (principle 2). -->
+                <Border Margin="0,8,0,0" Padding="8,5" CornerRadius="6" BorderThickness="1"
+                        BorderBrush="{StaticResource Brush.TextDim}"
+                        Visibility="{Binding HasPreview, Converter={StaticResource Visible}}">
+                    <TextBlock Text="{Binding UnknownNote}" FontSize="12" TextWrapping="Wrap"
+                               Foreground="{StaticResource Brush.TextMuted}" />
+                </Border>
                 <TextBlock Text="{Binding Notice}" FontSize="12.5" TextWrapping="Wrap" Margin="0,6,0,0"
                            Foreground="{StaticResource Brush.TextMuted}" />
                 <TextBox Style="{StaticResource TextBox.Field}" Tag="Skäl, frivilligt" Margin="0,10,0,0"
