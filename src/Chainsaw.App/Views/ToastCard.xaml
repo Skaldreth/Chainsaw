@@ -70,7 +70,7 @@
                                            HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Grid>
 
-                    <StackPanel Grid.Column="1" Margin="12,0,8,0" VerticalAlignment="Top">
+                    <StackPanel Grid.Column="1" Margin="12,0,8,0" VerticalAlignment="Center">
                         <TextBlock Text="{Binding Title}" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
                         <TextBlock Text="{Binding Text}" FontSize="13" Foreground="{StaticResource Brush.TextMuted}"
                                    TextWrapping="Wrap" LineHeight="19" Margin="0,3,0,0"
@@ -80,15 +80,17 @@
                                 Visibility="{Binding HasAction, Converter={StaticResource Visible}}" />
                     </StackPanel>
 
-                    <Button Grid.Column="2" Style="{StaticResource Close}" Width="26" Height="26" VerticalAlignment="Top"
+                    <Button Grid.Column="2" Style="{StaticResource Close}" Width="26" Height="26" VerticalAlignment="Center"
                             Command="{Binding CloseCommand}" AutomationProperties.Name="Stäng" ToolTip="Stäng">
                         <controls:GridIcon Size="13" Data="{StaticResource Icon.Close}" />
                     </Button>
                 </Grid>
 
                 <!-- The line along the bottom edge: the time left for a toast that fades by itself (hovering stops it),
-                     a still line the whole width for one that stays until closed. -->
-                <Rectangle x:Name="Bar" Height="2" VerticalAlignment="Bottom" Opacity="0.7"
+                     a still line the whole width for one that stays until closed. It stands inside the rounded
+                     corners, rounded itself, since the border's clip is square and would let it stick out. -->
+                <Rectangle x:Name="Bar" Height="2" VerticalAlignment="Bottom" Opacity="0.7" RadiusX="1" RadiusY="1"
+                           Margin="14,0,14,3"
                            Fill="{Binding Foreground, ElementName=Glyph}" RenderTransformOrigin="0,0.5">
                     <Rectangle.RenderTransform>
                         <ScaleTransform x:Name="BarScale" ScaleX="1" />

@@ -97,6 +97,26 @@ public sealed class GraphTidyTests
     }
 
     [Fact]
+    public async Task A_press_elsewhere_closes_the_small_panels_and_stores_nothing()
+    {
+        var graph = await Open();
+        Mess(graph);
+        var before = new Dictionary<string, GraphPoint>(graph.Places);
+        await graph.AskTidyAsync();
+        graph.ToggleLegend();
+
+        graph.CloseSmallPanels();
+        await graph.ConfirmTidyAsync();
+
+        Assert.False(graph.IsTidyConfirmOpen);
+        Assert.False(graph.IsLegendOpen);
+        Assert.False(graph.Forms.IsOpen);
+        Assert.False(graph.IsWatchFormOpen);
+        Assert.Equal(before, graph.Places);
+        Assert.Empty(_source.SavedTogether);
+    }
+
+    [Fact]
     public async Task Cancelling_changes_nothing()
     {
         var graph = await Open();

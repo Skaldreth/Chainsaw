@@ -238,8 +238,11 @@ public partial class GraphStartView : UserControl
         return panel;
     }
 
-    /// <summary>Makes the course as five dots with names, the first (Ärende) where the user stands.</summary>
-    /// <returns>The dots.</returns>
+    /// <summary>
+    /// Makes the course as five steps, each an icon in a ring with its name under, the first (Ärende) where the user
+    /// stands in the accent; the steps ahead have dashed rings, joined by a dotted line.
+    /// </summary>
+    /// <returns>The steps and the lines between them.</returns>
     private List<FrameworkElement> CourseDots()
     {
         var dots = new List<FrameworkElement>();
@@ -249,29 +252,52 @@ public partial class GraphStartView : UserControl
             {
                 dots.Add(new Line
                 {
-                    X2 = 44, Stroke = Brush("Brush.BorderHover"), StrokeThickness = 1.5, StrokeDashArray = [0, 3],
-                    StrokeDashCap = PenLineCap.Round, Margin = new Thickness(-14, 5, -14, 0),
+                    X2 = 40, Stroke = Brush("Brush.BorderHover"), StrokeThickness = 1.5, StrokeDashArray = [0, 3],
+                    StrokeDashCap = PenLineCap.Round, Margin = new Thickness(-16, CourseRing / 2, -16, 0),
                 });
             }
 
-            var current = index == 0;
-            var dot = new StackPanel { Width = 76 };
-            dot.Children.Add(new Ellipse
-            {
-                Width = 11, Height = 11, StrokeThickness = 1.5,
-                Stroke = current ? Brush("Brush.Accent") : Brush("Brush.BorderHover"),
-                StrokeDashArray = current ? null : [2, 2],
-            });
-            dot.Children.Add(new TextBlock
-            {
-                Text = GraphStartViewModel.Course[index], FontSize = 11.5, Margin = new Thickness(0, 6, 0, 0),
-                HorizontalAlignment = HorizontalAlignment.Center,
-                Foreground = current ? Brush("Brush.Text") : Brush("Brush.TextDim"),
-            });
-            dots.Add(dot);
+            dots.Add(CourseStep(GraphStartViewModel.Course[index], CourseIcons[index], current: index == 0));
         }
 
         return dots;
+    }
+
+    /// <summary>The size of a step's ring in the course.</summary>
+    private const double CourseRing = 30;
+
+    /// <summary>The icon of each step in the course, in the same order as <see cref="GraphStartViewModel.Course"/>.</summary>
+    private static readonly string[] CourseIcons =
+        ["Icon.File", "Icon.Flag", "Icon.Plus", "Icon.Kind.Bank", "Icon.Eye"];
+
+    /// <summary>Makes one step of the course: the icon in a ring and the name under it.</summary>
+    /// <param name="name">The step's name.</param>
+    /// <param name="icon">The icon's resource key.</param>
+    /// <param name="current">Whether the user stands at this step.</param>
+    /// <returns>The step.</returns>
+    private StackPanel CourseStep(string name, string icon, bool current)
+    {
+        var ink = current ? Brush("Brush.Accent") : Brush("Brush.TextMuted");
+        var ring = new Grid { Width = CourseRing, Height = CourseRing, HorizontalAlignment = HorizontalAlignment.Center };
+        ring.Children.Add(new Ellipse
+        {
+            StrokeThickness = 1.5, Stroke = current ? ink : Brush("Brush.BorderHover"),
+            StrokeDashArray = current ? null : [2, 2],
+        });
+        ring.Children.Add(new GridIcon
+        {
+            Size = 14, Data = (Geometry)FindResource(icon), Foreground = ink,
+            HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
+        });
+        var step = new StackPanel { Width = 84 };
+        step.Children.Add(ring);
+        step.Children.Add(new TextBlock
+        {
+            Text = name, FontSize = 12.5, Margin = new Thickness(0, 7, 0, 0), HorizontalAlignment = HorizontalAlignment.Center,
+            Foreground = current ? Brush("Brush.Text") : Brush("Brush.TextMuted"),
+            FontWeight = current ? FontWeights.SemiBold : FontWeights.Normal,
+        });
+        return step;
     }
 
     /// <summary>Finds a brush in the theme.</summary>

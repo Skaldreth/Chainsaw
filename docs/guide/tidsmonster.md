@@ -8,12 +8,24 @@ aldrig gör det, kan man ana när den sover, och därmed i vilken **tidszon** de
 
 ## Hur Chainsaw läser det
 
-Kontrollen `active-hours v1` tar varje ägare som [klustringen](common-input-ownership.md) räknar den, och tittar på de
-bekräftade tx där ägaren spenderar. Har ägaren **minst tjugo** sådana tx, och finns det **minst sex timmar i rad**
-utan någon, prövar Chainsaw om tystnaden kan vara slumpen: av 2 000 slumpade dygn med lika många tx vid slumpade timmar
-får högst **en procent** en lika lång tystnad. Först då markeras ägaren med titeln *Aktiv kl. 08–22 UTC* och en trolig
-tidszon, och *Varför?* säger hur ofta slumpen ger lika lång tystnad. Tidszonen räknas som att den tysta
-perioden är natten, med mitten runt halv fyra på morgonen i ägarens tid.
+Kontrollen `active-hours v2` tar varje ägare som [klustringen](common-input-ownership.md) räknar den, och tittar på två
+serier för sig: de bekräftade tx där ägaren **spenderar**, och de där ägaren **tar emot** från andra (aldrig för en
+tjänst eller mixer med etikett, vars mottagna betalningar är kundernas timmar). En serie med **minst tjugo** tx på
+**minst sju olika dagar** prövas, och mönstret är den längsta tystnaden, **minst sex timmar i rad** utan någon tx.
+Flera tx samma timme samma dag räknas som en, så att ett utbrott en eftermiddag inte ser ut som en vana.
+
+- **Svensk tid med sommartid.** Timmarna läses i svensk tid (Europe/Stockholm). En vana som följer klockan flyttar sig
+  en timme i UTC när klockan ställs om; i svensk tid står den still. Titeln säger till exempel *Aktiv kl. 09–23 svensk
+  tid*. Chainsaw har ingen inställning för tidszon, och samma tidszon på alla datorer gör att samma ärende ger samma
+  fynd.
+- **Hur troligt slumpen är** räknas exakt: chansen att lika många tx vid slumpade timmar lämnar en lika lång tystnad.
+- **Många serier prövas samtidigt**, och bland hundra ägare får någon ett mönster av slumpen. Därför behålls bara de
+  serier som Benjamini–Hochbergs metod behåller med högst **en procent** falska fynd, och *Varför?* säger hur många
+  serier som prövades.
+
+För den som **spenderar** räknas en trolig tidszon som att den tysta perioden är natten, med mitten runt halv fyra på
+morgonen, och som om ägaren byter till sommartid när Sverige gör det. För den som **tar emot** säger tiderna i stället när de som betalar är aktiva, till exempel offer på samma
+ort, eller när ägaren tar ut pengar till sig själv från en tjänst; titeln är då *Tar emot kl. …*.
 
 ## Det är en svag bedömning
 

@@ -644,6 +644,33 @@ public sealed class TrashBinAndRowTests
     }
 
     [Fact]
+    public void The_view_draws_a_branch_line_through_each_row_where_the_tree_goes_on_below()
+    {
+        var thrown = new TrashThrow(
+            7,
+            [
+                new("x", null, "X", "Unknown"), new("o1", "x", "O1", "Cluster"), new("e2", "o1", "E2", "Gambling"),
+                new("o3", "x", "O3", "Unknown"), new("o4", "o3", "O4", "Unknown"),
+            ],
+            new OperatorProfile("Testa", "Utredare", "Enheten"),
+            DateTimeOffset.UnixEpoch,
+            1);
+
+        var rows = TrashRowViewModel.Tree(thrown.Members, member => thrown.DepthOf(member.Key), _ => [], 7);
+
+        var first = TrashRowViewModel.LineAt(1);
+        var second = TrashRowViewModel.LineAt(2);
+        Assert.Equal(TrashRowViewModel.TreeStart + TrashRowViewModel.BranchOffset, first);
+        Assert.Empty(rows[0].Rails);
+        Assert.Equal([first], rows[1].Rails);
+        Assert.Equal([first], rows[2].Rails);
+        Assert.Empty(rows[3].Rails);
+        Assert.Empty(rows[4].Rails);
+        Assert.Equal(second, rows[2].ElbowLeft);
+        Assert.Equal(TrashRowViewModel.TreeStart + (2 * TrashRowViewModel.TreeStep), rows[4].TreePad);
+    }
+
+    [Fact]
     public void The_warning_asks_about_each_watch_and_ends_only_those_left_on()
     {
         TrashMember[] members =
@@ -718,6 +745,35 @@ public sealed class TrashViewTests
         Assert.Equal("2 aktörer", view.Groups[0].Count);
         Assert.Equal("E. Berg", view.Groups[0].By);
         Assert.Equal("2 slängningar · 3 dolda i grafen", view.HeadText);
+        Assert.Equal("2 slängningar · 3 dolda i grafen", view.SubText);
+        Assert.Equal("2 slängningar", view.ThrowsCount);
+        Assert.Equal("B och 1 till", view.Groups[0].Title);
+        Assert.Equal("A", view.Groups[1].Title);
+        Assert.True(view.Groups[0].HasTree);
+        Assert.False(view.Groups[1].HasTree);
+        Assert.Equal(view.Groups[0].When + " · E. Berg · 2 aktörer", view.Groups[0].Meta);
+    }
+
+    [Fact]
+    public void Putting_everything_back_asks_for_every_throw_and_the_start_page()
+    {
+        var clock = new TestClock();
+        var cases = new CaseTrash(clock);
+        var view = new TrashViewModel(cases, clock, Zone);
+        var by = new OperatorProfile("E. Berg", "Utredare", "Enheten");
+        view.Show(
+            [
+                new TrashThrow(1, [new("a", null, "A", "Unknown")], by, clock.UtcNow, 1),
+                new TrashThrow(2, [new("b", null, "B", "Unknown")], by, clock.UtcNow, 2),
+            ],
+            2,
+            _ => []);
+        var wanted = new List<(long Throw, string? Key)>();
+        view.RestoreWanted += (_, each) => wanted.Add(each);
+
+        view.RestoreEverythingCommand.Execute(null);
+
+        Assert.Equal([(2L, (string?)null), (1L, (string?)null)], wanted);
     }
 
     [Fact]

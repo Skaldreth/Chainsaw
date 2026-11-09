@@ -2108,14 +2108,41 @@ analysen med version och att det är en bedömning; *?* öppnar Guidens avsnitt.
 - **PayJoin:** en tx där mottagaren lagt till ett eget mynt av en egen adresstyp ger ett grått område *Möjlig
   PayJoin*, och dess inputs står som förslag i klustret. En vanlig betalning med ett onödigt mynt heter bara *Onödig
   input* och slås ihop som vanligt.
-- **Tidsmönster:** en ägare med minst tjugo tx som bara spenderar på dagtid ger *Aktiv kl. HH–HH UTC* med en trolig
-  tidszon i raden under; *Varför?* säger hur ofta slumpen ger lika lång tystnad.
+- **Tidsmönster:** en ägare med minst tjugo tx som bara spenderar på dagtid ger *Aktiv kl. HH–HH svensk tid* med en
+  trolig tidszon i raden under; *Varför?* säger hur ofta slumpen ger lika lång tystnad.
 - **Tjänst ur beteende** kräver många kunder: minst två svep, tio insättningar från tio avsändare över minst ett dygn.
   Ett ärende där bedragaren sveper några offers betalningar får ingen *Trolig tjänst*.
 - **Damm:** utgångar på 330 eller 546 satoshi heter *Damm eller inskriptioner*.
 - Ikonerna på brickorna: sammanslagna mixade mynt (Join, rött), uppdelning (Split, sand), många hopp (Layers, sand),
   damm (mynt, sand); tjänst, plånbok och tid har sortens ikon.
 - **Snabbhet:** öppna ett stort ärende och se att *Förslag · N* inte blir märkbart långsammare än förut.
+
+### Förvirring, omgång 5 (2026-11-09)
+
+Testärendet visar inte de här kontrollerna än (TODO); prova dem i ett ärende där mönstret finns. Varje rad står i
+*Förslag · N* med sitt område, och *Varför?* säger analysen med version och att det är en bedömning.
+- [ ] **Trolig mixer utan etikett:** en central mixer utan etikett, där många insättningar kommer ut igen minus några
+      procent, ger ett rött område *Trolig mixer utan etikett* under *GJORT AV SIG SJÄLVT*, med mixerns ikon på
+      brickan. *?* öppnar Guidens *Mixer efter mixer och delarna*, avsnittet *En trolig mixer utan etikett*. Sätt
+      etiketten Mixer med L: kontrollen försvinner och insättningarna får mixerns egna förslag.
+- [ ] **Mixer efter mixer genom den:** en utgång ur en mixer med etikett som går in i den troliga mixern och vidare in
+      i en mixer till ger *Mixer efter mixer, 3 steg*; *Varför?* säger *en trolig mixer utan etikett* i steg 2.
+- [ ] **Grenar och delar tillsammans:** godkänn två utgångar ur samma insättning som går in i var sin mixer: titeln
+      får *, 2 grenar* och *Varför?* säger *kedjan delar sig i 2 vägar* och *Steg 3 (efter steg 1)*. Två delar som
+      spenderas i samma tx in i nästa mixer står som *2 troliga delar på sammanlagt …* i ett steg.
+- [ ] **Uppdelning över flera tx:** en ägare som betalar minst fem mottagare lika delar i flera tx inom ett dygn ger
+      *Uppdelning i N delar över k tx*, med området runt delarna. Delar som möts efter många hopp ger *Delarna samlas
+      igen* med *genom N mellanled*.
+- [ ] **Många hopp med avgift:** en rad hopp där varje hopp också betalar en procent till samma adress, eller till en
+      tjänst med etikett, ger *Många hopp, N i rad*; *Varför?* säger avgiften och vart den gick. Hovra över raden när
+      den är ihopfälld (HP1a): tipset säger *pass-through v2*.
+- [ ] **Tidsmönster:** titlarna säger *svensk tid*; en ägare som bara tar emot på dagtid får *Tar emot kl. HH–HH
+      svensk tid*. *Varför?* nämner Benjamini–Hochberg och hur många serier som prövades.
+- [ ] **Nästlad tjänst:** en adress som tar emot från många, betalar många, och flera gånger betalar in till och får
+      uttag från en börs med etikett ger ett **streckat** blått förslag *Trolig nästlad tjänst hos <börsen>* under *ATT
+      AVGÖRA*, med brickorna *Konto hos en börs*, *Genom kontot* och *Din bedömning*. Godkänn och avfärda: förslaget
+      står kvar streckat, och *?* öppnar Guidens *Nästlade tjänster*.
+- [ ] **Snabbhet:** *Förslag · N* blir inte märkbart långsammare i ett stort ärende.
 
 ### Mönster (`pattern v1`, 2026-11-09)
 
@@ -3257,3 +3284,26 @@ Inga riktiga adresser står här; ta dem ur en beställning eller en blockutfors
 - [ ] `chainsaw:solana/<adress>` öppnar Chainsaw med adressen på Solana.
 - [ ] Guiden: *Solana* under *Fler kedjor* stämmer med det som syns.
 - [ ] `/verify` är grönt efter allt ovan, och journalens rader nämner Solana.
+
+### Soptunnans vy (SO2a)
+
+- [ ] Öppna soptunnan (klick på ikonen nere till vänster) med några slängningar i `/testdata`: ett kort per slängning,
+      med det slängda som små noder lagda som en kortlek, titeln (*K7 och 2 till*) och när, vem och hur många under.
+- [ ] Ett klick på kortets huvud fäller ihop och ut trädet, och pilen vänder. Trädets grenlinjer går obrutna från
+      föräldern till varje rad, också i flera led.
+- [ ] *Lägg tillbaka* syns först när musen är över kortet, och den runda ikonen på en rad först när musen är över
+      raden. Båda lägger tillbaka det de ska.
+- [ ] *bevakas* står i kortets huvud och ögat på raden när något i slängningen är bevakat.
+- [ ] Utan ärende: bara *På startsidan*, med ärendena som rutor och en hög med två kort bakom sig. Hovra: rutan lyfts
+      en pixel och kanten ljusnar ett steg. *Lägg tillbaka allt* i huvudet lägger tillbaka allt.
+- [ ] Tom soptunna: en stor ikon nersänkt i ytan mitt i vyn, *Soptunnan är tom* och raden under.
+- [ ] Vyn Bevakning: namnet på varje rad är ljust, inte svart.
+- [ ] *Förslag* i grafens huvud: siffran står mitt i den runda bubblan.
+- [ ] Inställningar › Källor: att klicka på ett läge lämnar ingen orange ram; Tab ger ramen.
+- [ ] Grafen: öppna rutan *Bytte block* med ett klick på märket. Ett klick i rutan låter den stå, ett klick någon
+      annanstans i grafen stänger den (och gör det klicket annars gör, till exempel väljer en nod).
+- [ ] Ett klick i grafen bredvid en öppen liten panel stänger den utan att något sparas, och klicket gör sitt (väljer
+      en nod, eller inget): formulären Etikett, Bryt upp och Annan kedja, Bevaka, den egna ytans formulär, frågan
+      före sortering, soptunnans varning och bildspråkets ruta.
+- [ ] Toasten: listen längs nederkanten ligger inne i de rundade hörnen, texten står mitt för ikonen, och toasten står
+      24 px från fönstrets nederkant.

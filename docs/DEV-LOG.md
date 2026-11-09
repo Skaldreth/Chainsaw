@@ -5629,6 +5629,60 @@ i KF2b-panelen, och ett godkännande som knyter fortsättningen i samma transakt
 
 **Kvar:** provet på Windows (TESTER-INFOR, *Godkänna en plånbok*).
 
+## Förvirring, omgång 5: Checks och resterna i BACKLOG (2026-11-09)
+
+**Byggt** (modulen Checks, analyser utan nya ytor):
+- **`mixer-behaviour v1`** (*Trolig mixer*, ny, `LikelyMixers.cs` och `MixerBehaviourCheck.cs`): en ägare utan
+  etikett som tar emot från minst åtta avsändare, betalar minst åtta mottagare, och där minst fem insättningar (och
+  två av tre) kommer ut igen inom en vecka till någon som inte satte in, som insättningen minus 0,5–5 %, betalda med
+  andra mynt än insättningens egna. En kontroll med ett rött område; *Varför?* säger att sätta etiketten Mixer.
+- **`mixer-chain v2`**: följer *alla* godkända utgångar som går vidare, annars den troligaste, och är den en del, alla
+  delar i kombinationen som går vidare. Delar som spenderas i samma tx är ett steg med summan (*följs tillsammans*);
+  utgångar in i olika mixrar grenar kedjan (*kedjan delar sig i N vägar*, *Steg 3 (efter steg 1)*, titeln *, N
+  grenar*). En trolig mixer utan etikett passeras genom den utbetalning som bäst liknar insättningen minus avgiften.
+  Högst tio steg över alla grenar. Stegets avgift för flera hela utgångar är insättningen minus deras summa.
+- **`split-merge v2`**: uppdelning över flera tx (samma ägare, minst fem mottagare, lika delar, minst två tx inom ett
+  dygn, och delarna minst hälften av det ägaren betalade under tiden; en tjänst med etikett räknas inte), och delar som
+  möts efter upp till tolv mellanled (förut tre).
+- **`pass-through v2`**: ett hopp får betala en liten avgift (högst 3 %) till en tjänst med etikett eller till samma
+  avgiftsadress i minst två hopp; en peel chain till olika mottagare räknas inte. Mynt under 10 000 satoshi är inga hopp.
+  HP1a:s tips säger nu analysens version ur kontrollen (`HopRow.Analysis`) i stället för en fast `v1`.
+- **`active-hours v2`**: serierna för den som spenderar och den som tar emot prövas var för sig; timmarna läses i
+  svensk tid (Europe/Stockholm, med sommartid); chansen räknas exakt (fördelningen av antalet upptagna timmar och
+  antalet uppsättningar utan lång tystnad) i stället för med 2 000 slumpdragningar; och serierna behålls med
+  Benjamini–Hochberg vid högst 1 % falska fynd över alla serier som prövas.
+- **`nested-service v1`** (*Nästlad tjänst*, ny): en ägare utan etikett med minst åtta avsändare och åtta mottagare
+  över minst ett dygn, som minst två gånger betalar in till en börs med etikett och två gånger får uttag tillbaka, och
+  där minst hälften av kundernas pengar går till börsen och minst hälften av utbetalningarna kommer därifrån. Ett
+  **förslag** (streckat, blått område, inga kandidater) som användaren godkänner eller avfärdar.
+- Appen: `AreaLooks` (mixerns ikon för `mixer-behaviour`), Guidens ämne `NestedServices`, `TopicOf` och brickorna i
+  KF2b (`SuggestionWords.MixerBehaviour` och `NestedService`). Guiden: *Mixer efter mixer*, *Uppdelning*,
+  *Fördröjning och hopp*, *Tidsmönster* och *Nästlade tjänster*.
+- Tester: `RoundFiveChecksTests` (25) med facit `Behaviour.cs`: vad varje analys hittar och låter bli (börsen,
+  plånboken med få avsändare, mixern som betalar med insättningens mynt, peel chain, betalningar i olika belopp eller
+  över dagar, kunden hos börsen, offer som kunder), slumpade grafer (20 glesa och 20 täta) utan ett enda nytt fynd,
+  den exakta chansen mot en simulering, sommartiden och 500 slumpade ägare utan tidsmönster efter korrektionen.
+
+**Egna beslut:**
+- **Tidszonen:** Chainsaw har ingen inställning för användarens tidszon, så svensk tid är fast i analysen (samma ärende
+  ger samma fynd på alla datorer). Tidszonsgissningen är svensk normaltid plus avvikelsen.
+- **Korrektionen:** Benjamini–Hochberg i stället för Bonferroni, eftersom Bonferroni med hundra ägare kräver en
+  chans under en på tiotusen och tar bort riktiga mönster. Med exakt chans behövs inga fler slumpdragningar.
+- **Den troliga mixern** blir en kontroll, inte ett förslag: att godkänna den skulle inte göra något som etiketten
+  inte gör bättre. Kedjan kan bara passera den, inte börja i den, och den får inga egna förslag förrän den har etikett.
+- **Den nästlade tjänsten** blir ett förslag (streckat), som uppdraget sa; ett godkännande förseglas bara som
+  användarens bedömning och sätter ingen etikett av sig självt.
+- **Tröskelregler mot falsklarm** lades till efter mätningen på täta slumpgrafer (40 adresser, 1 500 tx): andelen
+  genom kontot för `nested-service` (83 fynd utan den) och mynt under 10 000 satoshi för `pass-through` (172 rader av
+  damm, som v1 också gav).
+- **Jämna belopp i fiat byggdes inte:** kontrollerna körs synkront vid varje läsning av grafen, och ärendets kurser nås
+  bara asynkront en tidpunkt i taget. Ett rent sätt kräver ett nytt kontrakt i `Pricing.Contracts` (BACKLOG och TODO).
+- Ingen oberoende granskning i den här sessionen; ändringarna skriver inte i ärendet utöver de vanliga förseglade
+  fynden och besluten.
+
+**Kvar:** testärendet (TODO), jämna belopp i fiat (TODO, BACKLOG), egna fynd under *Förvirringstekniker* i BACKLOG,
+provet på Windows (TESTER-INFOR, *Förvirring, omgång 5*).
+
 ## Testärendet: mönster, en slutsats som hålls tillbaka och en fortsättning på annan kedja (2026-11-09)
 
 Rester [direkt] ur TODO (punkt 9 och omgång 4), bara i Debug-testärendet (`src/Chainsaw.App/TestData/`); berättelsen
@@ -5776,3 +5830,70 @@ grund för en tx som inte vilar på en borta tx sparas som vanligt. *Låt stå* 
 varje senare körning, eftersom det som hålls tillbaka aldrig ersätts.
 
 **Kvar:** provet på Windows (TESTER-INFOR, *HB1a av sig själv*).
+
+## Förvirring, omgång 5: efter granskningen (2026-11-09)
+
+Den oberoende granskningen av omgång 5 fann 1 C och 5 I; alla är rättade, och granskarens prober är facit i
+`RoundFiveReviewTests` (med `Behaviour.RandomExchange`, `Processor`, `TwoPartMixer` och `Hub`).
+- **C1** (`mixer-behaviour`): varje utbetalning räknas för högst en insättning (girigt efter poäng); insättningarna ska
+  förklara minst hälften av ägarens utbetalningar, de flesta till adresser som bara tar emot en gång; och samma
+  matchning med beloppen skalade (80, 88, 112, 125 %) ska förklara högst hälften så många och minst fem färre. En
+  verklig börs (slumpade belopp, 45–600 uttag, också i batch) och en betaltjänst som skickar vidare till samma
+  handlare läses inte längre som en mixer. `Behaviour.CentralMixer` har slumpade belopp.
+- **I5:** en insättning kan komma ut i två delar (ett par bland de åtta första utbetalningarna). Bara par: med tre
+  delar gav slumpen lika många träffar. En mixer med tät trafik känns fortfarande inte igen (BACKLOG).
+- **I2** (`mixer-chain`): har användaren godkänt utgångar följs bara de; annars följs en utgång som går vidare bara om
+  dess poäng är högst 0,1 under den troligastes, och texten säger då dess plats och poäng.
+- **I1** (`pass-through`): en betalning till en börs är aldrig en avgift, och ett hopp som klustringen läser som peel
+  chain hör till peel chain.
+- **I3:** `mixer-chain` slår upp spenderingar i ett index, `split-merge` glider med två pekare och ett sorterat fönster,
+  och `mixer-behaviour` söker utbetalningarna efter belopp. Ett nav med 1 500 insättningar och 3 000 uttag läses under
+  en sekund per analys (testat).
+- **I4** (`active-hours`): minst sju olika dagar, och flera tx samma timme samma dag räknas som en i chansen.
+- **M:** versionen i `mixer-chain`s text tas ur `MixerBehaviourCheck.Identity`; tidszonsgissningen avrundas en gång
+  och *Varför?* säger att den räknar med svensk sommartid; en tjänst eller mixer med etikett får ingen serie som
+  mottagare. M3 och M4 nådde inte den här sessionen.
+
+## Förvirring, omgång 5: efter andra granskningen (2026-11-09)
+
+- **I1:** baslinjen i `mixer-behaviour` är snittet av de fyra skalade beloppen, och regeln är en signifikansmarginal:
+  träffarna minus baslinjen ska vara minst fem och minst 2,5 · √baslinjen. En upptagen mixer (300 användare, eller 100
+  med utbetalning i en eller två delar) hittas i alla tre slumpade fall, och en upptagen börs (300/300 och 100/100)
+  aldrig. 4 · √ gav för många missar (100 användare i delar, den glesa mixern i två delar); 2,5 lämnar börserna med
+  god marginal (skillnaden högst sex vid en baslinje runt 180).
+- **I2:** en betaltjänst som skickar vidare inom en timme med nästan samma avgift (90 % av träffarna, spridning högst
+  en kvarts procentenhet mellan tionde och nittionde percentilen) är ingen mixer, också med nya handlaradresser.
+  `Behaviour.CentralMixer` fördröjer nu en till sex timmar och tar 1–4 %. *Varför?* och raden under titeln säger
+  avgiften i median i stället för spannet.
+- **M1:** andelen förklarade utbetalningar räknas bara över utbetalningar inom en vecka efter någon insättning; en
+  mixer där grafen har en tredjedel av insättningarna känns ändå inte igen, vilket facit, Guiden och BACKLOG säger.
+- Facit: `RoundFiveReviewTests` (upptagen mixer, upptagen börs, betaltjänst med nya adresser, delvis sedd mixer).
+
+## Förvirring, omgång 5: efter tredje granskningen (2026-11-09)
+
+- **I:** betaltjänsten i `mixer-behaviour` känns igen på att avgiften passar en procentsats plus ett fast belopp
+  (minsta kvadrat på avgiftens andel mot 1 / beloppet, anpassad igen över de mittersta åtta tiondelarna så att några
+  fel parningar inte drar linjen) med restspridning högst en kvarts procentenhet, och på att fördröjningarna ligger
+  inom tre timmar från varandra (tionde till nittionde percentilen) i stället för inom en fast timme. Betaltjänster med
+  1 % plus 3 000 eller 10 000 satoshi och en som betalar ut efter en till tre timmar är nu facit, och läses inte som
+  mixer; de upptagna mixrarna och börserna ger samma utfall som förut.
+- **M1:** facit säger nu uttryckligen båda utfallen: `CentralMixer` (1–4 %, en till sex timmar) är en trolig mixer,
+  och `SteadyMixer` (fast 3 %, tre block) är det inte, som Guiden och BACKLOG säger.
+
+## Förvirring, omgång 5: efter fjärde granskningen (2026-11-09)
+
+- **Undantaget för betaltjänster är borttaget.** Varje regel bröt på verkliga variationer (avgiftsnivåer, en avvikare
+  på 3 %, en nätverksavgift som följer marknaden, väntan på sex bekräftelser). En betaltjänst som skickar varje
+  betalning vidare till en ny adress beter sig som en central mixer (princip 2 och 3), så den står med, och titeln
+  säger vad den kan vara.
+- **Jämnheten:** avgiften är nästan konstant när minst 75 % av träffarna ligger inom 0,15 procentenheter från en
+  procentsats plus ett fast belopp (linjerna prövas genom varje träff och varje par bland de 60 första), och
+  fördröjningen är jämn när minst 75 % ligger inom samma tre timmar. Är någon jämn heter fyndet *Trolig mixer eller
+  vidarebetalande tjänst*, och *Varför?* säger vilken och ber om en etikett; annars *Trolig mixer utan etikett*.
+  Utseendet är oförändrat (rött); en [skiss]-rad i TODO frågar om det tvetydiga fallet ska se annorlunda ut.
+- **mixer-chain** passerar det tvetydiga fallet som en trolig mixer, och steget säger *en trolig mixer eller
+  vidarebetalande tjänst utan etikett* och att steget då kan vara en vidarebetalning.
+- **Facit:** betaltjänsterna och `SteadyMixer` har den tvetydiga titeln, `CentralMixer` (1–4 %, 1–25 timmar)
+  *Trolig mixer utan etikett*, och granskningens fem varianter och tre mixrar har var sin uttalade titel. Börserna och
+  de upptagna mixrarna ger samma utfall som förut.
+- Versionen är kvar på `mixer-behaviour v1`, eftersom omgång 5 inte är släppt.
