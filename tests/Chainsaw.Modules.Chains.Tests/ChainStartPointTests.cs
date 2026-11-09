@@ -140,4 +140,19 @@ public sealed class ChainStartPointTests
         Assert.Equal((Chain.Litecoin, StartPointKind.Transaction), (litecoin.Chain, litecoin.Kind));
         Assert.Equal(new string('c', 64), litecoin.Value);
     }
+
+    [Fact]
+    public void An_mweb_address_is_litecoin_where_the_trail_ends_and_nothing_is_fetched()
+    {
+        var mweb = "ltcmweb1" + new string('q', 112);
+
+        var start = ChainStartPoint.Recognise(mweb);
+
+        Assert.Equal((Chain.Litecoin, StartPointKind.Address), (start.Chain, start.Kind));
+        Assert.True(start.IsShielded);
+        Assert.False(start.CanFetch);
+        Assert.False(start.IsSupported);
+        Assert.Null(start.UtxoAddress);
+        Assert.False(ChainStartPoint.Recognise("ltcmweb1" + new string('b', 112)).IsShielded);
+    }
 }

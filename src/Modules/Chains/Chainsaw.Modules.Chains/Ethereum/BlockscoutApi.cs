@@ -123,6 +123,5 @@ internal sealed class BlockscoutApi : ISourceApi
             : new Guid(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(seed)).AsSpan(0, 16));
         var name = isOpenDefault ? "Blockscout" : SourceAddress.NameOf(known);
         return new SourceEndpoint(id, _chain, name, known, Code, null, Enabled: true);
-
     }
 }

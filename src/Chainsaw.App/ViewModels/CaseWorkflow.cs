@@ -393,11 +393,16 @@ public sealed partial class CaseWorkflow
     /// <returns>The text.</returns>
     public static string NotBuiltText(ChainStartPoint startPoint) => startPoint.Chain switch
     {
+        _ when startPoint.IsShielded => MwebText,
         { } chain when startPoint.CanFetch =>
             $"{CaseTexts.ChainName(chain)} kan inte spåras i grafen än, så det kan inte bli en startpunkt.",
         { } chain => $"{CaseTexts.ChainName(chain)} är inte byggt än, så det kan inte bli en startpunkt.",
         _ => "Det känns inte igen som en adress eller en tx.",
     };
+
+    /// <summary>What is said of an address in Litecoin's shielded part, MWEB.</summary>
+    public const string MwebText =
+        "Adressen ligger i Litecoins skyddade del (MWEB), där belopp och ägare inte syns: spåret tar slut här.";
 
     /// <summary>Gives the Tracing start point for a Bitcoin, Ethereum, TRON or BSC start point.</summary>
     /// <param name="startPoint">The recognised start point.</param>

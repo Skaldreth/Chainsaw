@@ -156,7 +156,13 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
     post kunde visas som en bedömning också på BSC.
   - **Chainabuse på Litecoin och BSC:** leverantören frågas bara för Bitcoin och Ethereum (`ChainabuseProvider`).
   - **PancakeSwap och andra DEX:ar på BSC:** swappen känns igen på mönstret, men inget kontrakt på BSC står i
-    `KnownContracts`; läggs till när adresserna kan beläggas med en offentlig källa.
+    `KnownContracts` (och `KnownContractLabels` sätter därför inga etiketter på BSC); läggs till när adresserna kan
+    beläggas med en offentlig källa.
+  - **En annan kurskälla för BNB:** Bitstamps `bnbeur` och `bnbusd` saknar historik före 2026 och handlas mycket tunt,
+    så BNB och WBNB saknar ofta kurs, och en swap mot BNB kan inte prisprövas. En källa med längre historik (efter
+    licens och med samma krav på att kursen gäller en tidpunkt) behövs.
+  - **Litecoins råa bytes med MWEB-data** (flaggan 08, blockens HogEx) läses inte; sådana tx sägs inte gå att
+    kontrollera mot bytes. Att läsa MWEB-delen behövs först när HogEx ska kontrolleras.
   - **BSC:s takt i `ChainLimits`:** 0,25 s per block som undre gräns (blocken har kommit snabbare med varje fork, under
     en sekund sedan 2025). Blir de ännu snabbare måste gränsen sänkas.
   - **Etiketter på BSC** lagras som `bsc:0x…` (`LabelSubject.Stored`), eftersom ämnet lagras utan kedja; en kolumn

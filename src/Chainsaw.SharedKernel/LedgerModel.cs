@@ -56,4 +56,17 @@ public static class ChainModels
     /// <param name="chain">The chain.</param>
     /// <returns><see langword="true"/> for Ethereum and BSC.</returns>
     public static bool IsEvm(this Chain chain) => chain is Chain.Ethereum or Chain.Bsc;
+
+    /// <summary>
+    /// Gives a chain's name as people write it, for text the user and a receiver read (a request, a report):
+    /// <c>Bitcoin</c>, <c>Ethereum</c>, <c>TRON</c>, <c>Litecoin</c> or <c>BSC</c>.
+    /// </summary>
+    /// <param name="chain">The chain.</param>
+    /// <returns>The name.</returns>
+    public static string DisplayName(this Chain chain) => chain switch
+    {
+        Chain.Tron => "TRON",
+        Chain.Bsc => "BSC",
+        _ => chain.ToString(),
+    };
 }

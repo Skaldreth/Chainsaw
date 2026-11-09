@@ -15,8 +15,9 @@ internal static class ChainLimits
     /// minutes, Ethereum has at most one block per twelve seconds since 2022, TRON one per three seconds since its main
     /// network began in June 2018, Litecoin aims at two and a half minutes, and BSC, whose blocks have come faster with
     /// each fork (three seconds at first, under a second since 2025), is bounded at a quarter of a second). Litecoin's
-    /// and BSC's first blocks were read from litecoinspace.org and from BSC's public JSON-RPC node (2026-11-09). TRON keeps its slots so closely, with only a few missed, that its bound is set just
-    /// under the slot (2.8 seconds): a tip three times too high is refused, while a true one never comes near.
+    /// and BSC's first blocks were read from litecoinspace.org and from BSC's public JSON-RPC node (2026-11-09). TRON
+    /// keeps its slots so closely, with only a few missed, that its bound is set just under the slot (2.8 seconds): a
+    /// tip three times too high is refused, while a true one never comes near.
     /// </summary>
     private static readonly Dictionary<string, (string Genesis, DateTimeOffset Made, TimeSpan Fastest)> Known =
         new(StringComparer.Ordinal)

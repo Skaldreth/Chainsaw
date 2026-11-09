@@ -759,12 +759,12 @@ public sealed class InspectorFormsTests
         var rig = new Rig();
         rig.Graph.Choose(GraphSamples.UKey, null);
         rig.Forms.Open(InspectorForm.CrossChain);
-        var litecoin = rig.Forms.Chains.Single(chain => chain.Name == "Solana");
+        var solana = rig.Forms.Chains.Single(chain => chain.Name == "Solana");
 
-        rig.Forms.ChooseChain(litecoin);
+        rig.Forms.ChooseChain(solana);
 
-        Assert.False(litecoin.IsBuilt);
-        Assert.Contains(InspectorFormsViewModel.NotBuiltText, litecoin.ToolTip, StringComparison.Ordinal);
+        Assert.False(solana.IsBuilt);
+        Assert.Contains(InspectorFormsViewModel.NotBuiltText, solana.ToolTip, StringComparison.Ordinal);
         Assert.Equal(Chain.Ethereum, rig.Forms.TargetChain);
         rig.Forms.ChooseChain(rig.Forms.Chains.Single(chain => chain.Name == "TRON"));
         Assert.Equal(Chain.Tron, rig.Forms.TargetChain);

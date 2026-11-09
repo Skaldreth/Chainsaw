@@ -228,7 +228,6 @@ public static class InspectorForms
         return new AccountSeed(
             EthereumTxHash.Parse(transfer.Transaction.Chain, transfer.Transaction.Id), transfer.Movement!.Value,
             transfer.Position);
-
     }
 
     /// <summary>Says whether a line carries the money a link leaves from.</summary>

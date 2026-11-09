@@ -32,6 +32,16 @@ public sealed record ChainStartPoint(Chain? Chain, StartPointKind Kind, string V
     /// <summary>The longest text that is looked at; no address or txid on any known chain is longer.</summary>
     public const int MaximumLength = 128;
 
+    /// <summary>What an address in Litecoin's MWEB begins with.</summary>
+    private const string MwebPrefix = "ltcmweb1";
+
+    /// <summary>The shortest MWEB address: the prefix, two 33-byte keys in Bech32 and the checksum.</summary>
+    private const int MwebShortest = 100;
+
+    /// <summary>The characters of Bech32's data part.</summary>
+    private static readonly System.Buffers.SearchValues<char> Bech32Characters =
+        System.Buffers.SearchValues.Create("qpzry9x8gf2tvdw0s3jn54khce6mua7l");
+
     /// <summary>The number of hex digits in a transaction hash on every known chain.</summary>
     private const int TransactionDigits = 64;
 
@@ -50,9 +60,15 @@ public sealed record ChainStartPoint(Chain? Chain, StartPointKind Kind, string V
 
     /// <summary>
     /// Gets whether Chainsaw has a source that can answer for this start point: every chain it can trace, and
-    /// Litecoin, whose address can be fetched in advance and watched.
+    /// Litecoin, whose address can be fetched in advance and watched (not an MWEB address, which no source can).
     /// </summary>
-    public bool CanFetch => IsSupported || Chain == SharedKernel.Chain.Litecoin;
+    public bool CanFetch => IsSupported || (Chain == SharedKernel.Chain.Litecoin && !IsShielded);
+
+    /// <summary>
+    /// Gets whether the value is an address in a shielded part of its chain (Litecoin's MWEB, <c>ltcmweb1…</c>),
+    /// where amounts and owners do not show: the trail ends there, and nothing can be fetched.
+    /// </summary>
+    public bool IsShielded { get; init; }
 
     /// <summary>
     /// Gets the address on a UTXO chain (Bitcoin or Litecoin), when the start point is one; otherwise
@@ -102,8 +118,8 @@ public sealed record ChainStartPoint(Chain? Chain, StartPointKind Kind, string V
             return Unknown(trimmed);
         }
 
-        return RecogniseBitcoin(trimmed) ?? RecogniseLitecoinAddress(trimmed) ?? RecogniseEthereum(trimmed)
-            ?? RecogniseTronAddress(trimmed) ?? Unknown(trimmed);
+        return RecogniseBitcoin(trimmed) ?? RecogniseLitecoinAddress(trimmed) ?? RecogniseMweb(trimmed)
+            ?? RecogniseEthereum(trimmed) ?? RecogniseTronAddress(trimmed) ?? Unknown(trimmed);
     }
 
     /// <summary>Recognises a text on a chain that was named, as in a <c>chainsaw:tron/…</c> link.</summary>
@@ -124,7 +140,7 @@ public sealed record ChainStartPoint(Chain? Chain, StartPointKind Kind, string V
             SharedKernel.Chain.Ethereum => RecogniseEthereum(trimmed) ?? Unknown(trimmed),
             SharedKernel.Chain.Tron => RecogniseTronAddress(trimmed) ?? RecogniseTronTransaction(trimmed)
                 ?? Unknown(trimmed),
-            SharedKernel.Chain.Litecoin => RecogniseLitecoinAddress(trimmed)
+            SharedKernel.Chain.Litecoin => RecogniseLitecoinAddress(trimmed) ?? RecogniseMweb(trimmed)
                 ?? RecogniseBareTransaction(SharedKernel.Chain.Litecoin, trimmed) ?? Unknown(trimmed),
             SharedKernel.Chain.Bsc => RecogniseBsc(trimmed) ?? Unknown(trimmed),
             _ => Unknown(trimmed),
@@ -212,6 +228,25 @@ public sealed record ChainStartPoint(Chain? Chain, StartPointKind Kind, string V
         BitcoinAddress.TryParse(SharedKernel.Chain.Litecoin, text, out var address)
             ? new(SharedKernel.Chain.Litecoin, StartPointKind.Address, address.Value, null)
             : null;
+
+    /// <summary>
+    /// Recognises an address in Litecoin's MWEB (<c>ltcmweb1…</c>, Bech32 with two 33-byte keys): its form only, by
+    /// the prefix, the Bech32 characters and the length, since nothing can be looked up there. It is a start point on
+    /// Litecoin where the trail ends.
+    /// </summary>
+    /// <param name="text">The trimmed text.</param>
+    /// <returns>The result, or <see langword="null"/>.</returns>
+    private static ChainStartPoint? RecogniseMweb(string text)
+    {
+        var lower = text.ToLowerInvariant();
+        var isForm = lower.Length is >= MwebShortest and <= MaximumLength
+            && lower.StartsWith(MwebPrefix, StringComparison.Ordinal)
+            && (lower == text || text.ToUpperInvariant() == text)
+            && !lower.AsSpan(MwebPrefix.Length).ContainsAnyExcept(Bech32Characters);
+        return isForm
+            ? new(SharedKernel.Chain.Litecoin, StartPointKind.Address, lower, null) { IsShielded = true }
+            : null;
+    }
 
     /// <summary>
     /// Recognises a BSC address or transaction hash: written as Ethereum's, <c>0x</c> and 40 or 64 hex digits, with

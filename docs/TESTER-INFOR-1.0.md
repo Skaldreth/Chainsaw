@@ -3453,7 +3453,11 @@ Inga riktiga adresser står här; ta dem ur en beställning, litecoinspace.org e
       stängt.
 - [ ] Importera OFAC:s lista: en `LTC`-adress och en `BSC`-adress blir *Sanktionerad* på rätt kedja, aldrig på
       Bitcoin eller Ethereum för samma text.
-- [ ] Kurser: LTC och BNB visas i kronor (Bitstamp och Riksbanken), USDT på BSC som USDT.
+- [ ] Kurser: LTC och BNB visas i kronor (Bitstamp och Riksbanken), USDT på BSC som USDT. En BNB-linje före 2026
+      säger *Bitstamp har ingen BNB-kurs för perioden …*, och en swap mot BNB/WBNB står som *priset inte prövat* med
+      den sida som saknar kurs utskriven.
+- [ ] Klistra in en MWEB-adress (`ltcmweb1…`) i Nytt ärende: raden säger *MWEB-adress · spåret tar slut här* och
+      hämtar inget.
 - [ ] Annan kedja (K): BSC och Litecoin går att välja; en länk från en BSC-linje läses tillbaka efter att ärendet
       öppnats igen.
 - [ ] Guiden: *Litecoin* och *BSC* under *Fler kedjor* stämmer med det som syns.

@@ -58,7 +58,8 @@ public sealed class LitecoinTests
         Assert.Equal(Addresses["wpkh"], wpkh.Value);
 
         // On Bitcoin a version 9 program is only an unknown witness, written with Bech32m.
-        var bitcoin = BitcoinAddress.FromWitness(9, Enumerable.Repeat((byte)0x66, 32).ToArray(), BitcoinNetwork.Mainnet);
+        var bitcoin = BitcoinAddress.FromWitness(
+            9, Enumerable.Repeat((byte)0x66, 32).ToArray(), BitcoinNetwork.Mainnet);
         Assert.Equal(BitcoinScriptType.WitnessUnknown, bitcoin.Type);
         Assert.Equal(Chain.Bitcoin, bitcoin.Chain);
     }
@@ -126,6 +127,17 @@ public sealed class LitecoinTests
         var endpoint = Assert.Single(defaults.Defaults);
         Assert.Equal(BitcoinSourceOptions.LitecoinSpace, endpoint.Address);
         Assert.Equal(Chain.Litecoin, endpoint.Chain);
+    }
+
+    [Fact]
+    public void A_transaction_with_mweb_data_is_said_to_be_unreadable_rather_than_misread()
+    {
+        // Version 2, the marker 00 and the flag 08 (MWEB data) as in a block's HogEx, then anything.
+        byte[] bytes = [2, 0, 0, 0, 0, 0x08, 1, 0, 0, 0, 0];
+
+        var problem = Assert.Throws<EsploraFormatException>(() => RawTransactionReader.Read(bytes));
+
+        Assert.Contains("MWEB", problem.Message, StringComparison.Ordinal);
     }
 
     /// <summary>Answers a path under the fake Litecoin Esplora from a fixture in <c>Litecoin/</c>.</summary>

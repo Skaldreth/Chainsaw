@@ -24,7 +24,9 @@ public sealed class BscGraphTests : IDisposable
 
     public void Dispose() => _harness.Dispose();
 
-    /// <summary>The victim pays USDT and BNB to the scammer, who sends USDT on to a mule, who pays an exchange.</summary>
+    /// <summary>
+    /// The victim pays USDT and BNB to the scammer, who sends USDT on to a mule, who pays an exchange.
+    /// </summary>
     private void Chain()
     {
         _harness.Bsc.Add(

@@ -316,7 +316,6 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
             return startPoint.AccountTransaction is { } hash
                 ? EthereumTransactionAsync(source, memory, hash, cancellationToken)
                 : Task.FromResult(StartPointPreview.Only(PreviewState.NotRecognised));
-
         }
 
         if (startPoint.Chain == Chain.Litecoin)

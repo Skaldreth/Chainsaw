@@ -5040,8 +5040,11 @@ Byggt efter skissen DX1b (användarens val 2026-11-08). Bara visning i App; spå
     `litecoin:`/`ltc:` och `bsc:`/`bnb:` före ett värde och i `chainsaw:`-länkar.
   - **Sanktioner:** OFAC:s `LTC` på Litecoin och `BSC` på BSC; en träff räknas bara under den egna kedjans koder
     (`SanctionCurrency.On`). Etiketter på Litecoin- och BSC-adresser (BSC lagras som `bsc:0x…`).
-  - **Kurser:** Bitstamps `ltceur` och `bnbeur` (marknaderna lästa ur `trading-pairs-info`), BEP-20 USDT och USDC till
-    marknaden för den token de står för.
+  - **Kurser:** Bitstamps `ltceur` (historik bakåt till åtminstone 2018) och `bnbeur`, BEP-20 USDT och USDC till
+    marknaden för den token de står för. `bnbeur` och `bnbusd` har **ingen historik före 2026** och handlas mycket
+    tunt (dagar med volym 0, prövat 2026-11-09), så en BNB-kurs saknas ofta; det sägs då med källan och tillgången
+    (*Bitstamp har ingen BNB-kurs för perioden …*), och en swap mot BNB/WBNB står som *priset inte prövat* med den
+    sida som saknar kurs utskriven.
   - **Bevakning:** kedjornas källor samlade i `WatchSources`, Litecoin genom Esplora i LTC och BSC som Ethereum, också
     i bakgrunden (höjden frågas genom `IWatchFeeds.GetHeightAsync`, så `WatcherParts` bär inga källor längre).
   - Guiden: *Litecoin* och *BSC* under *Fler kedjor*.
@@ -5061,7 +5064,7 @@ Byggt efter skissen DX1b (användarens val 2026-11-08). Bara visning i App; spå
   - **Litecoin spåras inte i grafen än.** Grafens UTXO-del räknar i bitcoin och lagrar txid utan kedja, och ett annat
     arbete pågår i Tracing; en Litecoin-startpunkt är *känd och hämtad* (`ChainStartPoint.CanFetch`) men inte
     *spårbar* (`IsSupported`), och det sägs ärligt. Bevakning, sanktioner och kurser fungerar ändå. TODO, punkt 8.
-  - **BSC utan förvald källa** (TODO, *Väntar på dig* 12) och **USDT/USDC på BSC utan *Kan frysas*** (13).
+  - **BSC utan förvald källa** (TODO, *Väntar på dig* 20) och **USDT/USDC på BSC utan *Kan frysas*** (21).
   - **Två adresser med samma hex:** grafens expansioner hittas på kedja och adress, så att samma `0x…` på Ethereum och
     BSC aldrig blir en expanderad nod (felet fanns redan men syntes inte förrän två kedjor skrev adresser lika).
   - **Grenen byggdes på TRON-grenen** och slogs sedan ihop med huvudgrenen (SW1a, omgång 3, 5 och 7, DX1b):
@@ -5071,3 +5074,18 @@ Byggt efter skissen DX1b (användarens val 2026-11-08). Bara visning i App; spå
     blocket.
 - **Återstår:** TODO punkt 8 (Litecoin i grafen, MWEB:s kandidater, ytorna som skissas, testärendet) och BACKLOG,
   *Litecoin och BSC efter omgång 8b*. Oberoende granskning återstår.
+- **Granskningen (inga C, 5 I, ett antal M; alla I rättade):**
+  - **I1:** grafen läser BSC:s bytta block bredvid de andra kedjornas (TRON fanns redan).
+  - **I2:** en egen yta lagrar en BSC-medlem som `address:bsc:0x…` och läser en utan kedja som Ethereums, som förut;
+    Litecoins medlemmar läses också tillbaka. Test.
+  - **I3:** en bevakning på varje kontokedja räknar myntet och de tokens Chainsaw känner på kontraktet, aldrig en
+    främlings (en token som kallar sig USDT på BSC). Test.
+  - **I4:** BNB-kursens luckor sägs med källa och tillgång, och swappens *Varför?* säger vilken sida som saknar kurs;
+    pillret är redan märkt när priset inte är prövat. En annan kurskälla för BNB står i BACKLOG.
+  - **I5:** `CaseHeights` känner TRON, så bakgrundens starter och träffar på TRON förs in; den rimliga höjden räknas i
+    ticks, så att BSC:s takt under en sekund inte blir en division med noll (felet fanns i huvudgrenens kod och
+    syntes först med BSC). Test på TRON, BSC och Litecoin.
+  - **M:** på Litecoin säger kontrollen mot blocket att huvudet hashar till blocket men att arbetet (scrypt) inte
+    prövas; en tx med MWEB-data (flaggan 08, HogEx) sägs inte gå att kontrollera mot bytes i stället för att läsas
+    fel; en MWEB-adress (`ltcmweb1…`) är en startpunkt på Litecoin där spåret tar slut; begäran och rapporten skriver
+    kedjans namn (`Chain.DisplayName`: TRON, BSC); småsakerna rättade. Kända kontrakt på BSC står i BACKLOG.

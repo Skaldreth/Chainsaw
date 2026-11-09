@@ -93,6 +93,10 @@ internal class EsploraBitcoinSource : IBitcoinSource
     /// <inheritdoc/>
     public BitcoinNetwork Network => _options.Network;
 
+    /// <summary>What is said of a Litecoin block's header, whose work Chainsaw does not compute.</summary>
+    public const string LitecoinWorkText =
+        "Blockhuvudet hashar till blocket; dess arbete kontrolleras inte på Litecoin (scrypt).";
+
     /// <summary>A transaction's size that could pass for an inner node of the merkle tree (two hashes).</summary>
     private const int InnerNodeSize = 64;
 
@@ -263,14 +267,20 @@ internal class EsploraBitcoinSource : IBitcoinSource
         if (other.Value == block.Hash.Value && confirmedBy is not null)
         {
             return (InBlockCheck.ConfirmedElsewhere, other.Origins,
-                $"Blockets hash vid höjden bekräftades av en annan endpoint, {confirmedBy.Endpoint}.");
+                WithWork($"Blockets hash vid höjden bekräftades av en annan endpoint, {confirmedBy.Endpoint}."));
         }
 
         var note = other.Value is null
             ? "Blocket vilar bara på en källas svar: ingen annan endpoint i fas kunde bekräfta det."
             : "En annan endpoint i fas har ett annat block på samma höjd, så blocket vilar bara på en källas svar.";
-        return (InBlockCheck.SourceOnly, other.Origins, note);
+        return (InBlockCheck.SourceOnly, other.Origins, WithWork(note));
     }
+
+    /// <summary>Adds to what is said of a block, on Litecoin, that its header's work is not checked.</summary>
+    /// <param name="note">What is said.</param>
+    /// <returns>The note, on Litecoin with <see cref="LitecoinWorkText"/> after it.</returns>
+    private string WithWork(string note) =>
+        Network == BitcoinNetwork.Litecoin ? note + " " + LitecoinWorkText : note;
 
     /// <summary>Gives a transaction's size without its witness data, the bytes its txid is the hash of.</summary>
     /// <param name="transaction">The transaction.</param>

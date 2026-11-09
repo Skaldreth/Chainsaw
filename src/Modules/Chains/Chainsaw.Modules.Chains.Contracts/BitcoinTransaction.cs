@@ -65,7 +65,8 @@ public enum InBlockCheck
     /// <summary>
     /// The source's merkle proof leads from the transaction's own bytes to the merkle root in the block's own header,
     /// and the proof's depth fits the block's transactions; but the block itself rests only on that source's answer:
-    /// the header's work is only checked against the network's easiest target, which anyone can meet.
+    /// the header's work is only checked against the network's easiest target, which anyone can meet. On Litecoin the
+    /// header hashes to the block; its work (scrypt) is not checked at all.
     /// </summary>
     SourceOnly,
 

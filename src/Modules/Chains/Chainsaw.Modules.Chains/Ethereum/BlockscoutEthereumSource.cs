@@ -509,7 +509,6 @@ internal abstract class BlockscoutSource : IAccountSource
 
         return new EthereumTransaction(info.Hash, block, info.From, info.To, new AssetAmount(coin, info.Value),
             new AssetAmount(coin, info.Fee), info.Outcome, transfers);
-
     }
 
     /// <summary>The lookup of a transaction, which cannot change once its block is final.</summary>

@@ -56,7 +56,8 @@ public sealed class LitecoinBscWatchTests : IDisposable
             new WatchFilter(Chain.Bsc, WatchDirection.In, [], [sender.ToChainAddress()], KnownTokens.BscUsdt, null));
         await _harness.Service.CheckAsync(_harness.Case, Chain.Bsc, 21_000_000);
         var usdt = new AssetAmount(KnownTokens.BscUsdt, new BigInteger(2_500) * BigInteger.Pow(10, 18));
-        var block = new EthereumBlockReference(21_000_040, Synthetic.EthBlockHash(21_000_040), DateTimeOffset.UnixEpoch);
+        var block = new EthereumBlockReference(
+            21_000_040, Synthetic.EthBlockHash(21_000_040), DateTimeOffset.UnixEpoch);
         _harness.Bsc.Holds(node, EthereumHistory.Tokens, new EthereumTransfer(
             EthereumTxHash.Parse(Chain.Bsc, "0x" + new string('c', 64)), EthereumTransferKind.Token, sender, node, usdt,
             0, block));
@@ -79,7 +80,8 @@ public sealed class LitecoinBscWatchTests : IDisposable
             new WatchSubject(WatchSubjectKind.Address, node.ToChainAddress(), "0x…node"),
             new WatchFilter(Chain.Bsc, WatchDirection.In, [], [], null, null));
         await _harness.Service.CheckAsync(_harness.Case, Chain.Bsc, 21_000_000);
-        var block = new EthereumBlockReference(21_000_040, Synthetic.EthBlockHash(21_000_040), DateTimeOffset.UnixEpoch);
+        var block = new EthereumBlockReference(
+            21_000_040, Synthetic.EthBlockHash(21_000_040), DateTimeOffset.UnixEpoch);
         var fake = Asset.Token(Chain.Bsc, "0x" + new string('4', 40), "USDT", 18);
         var usdt = new AssetAmount(KnownTokens.BscUsdt, BigInteger.Pow(10, 21));
         _harness.Bsc.Holds(node, EthereumHistory.Tokens,
