@@ -31,9 +31,8 @@ kedjan syns bara gränsen:
 - **Blockets integrationstx (HogEx):** den sista tx:en i varje block tar emot blockets peg-ins och betalar ut det som
   lämnar MWEB (**peg-out**) till vanliga adresser. Dess egen adress är version 8 (`ltc1g…`), *MWEB HogAddr*.
 
-Vad som hände inne i MWEB går inte att läsa. Att föreslå vilka peg-outs som kan höra till en peg-in, ur belopp (minus
-avgift) och tid, är en forskningsmetod som kommer senare, alltid som streckade kandidater (se
-[Privacy coins](privacy-coins.md)).
+Vad som hände inne i MWEB går inte att läsa. Chainsaw kan **föreslå** vilka peg-outs som kan höra till en peg-in, ur
+belopp (minus avgift) och tid, alltid som streckade kandidater (se [Ut ur en skyddad pool](skyddade-pooler.md)).
 
 ## Var Chainsaw hämtar
 
@@ -43,10 +42,11 @@ block djupt (en halvtimme) hämtas aldrig igen.
 
 ## Vad Chainsaw gör med Litecoin i dag
 
-- En Litecoin-adress eller tx känns igen som startpunkt, och i *Nytt ärende* hämtas saldo, antal tx, aktivitet och
-  blockhöjd i förväg.
+- En Litecoin-adress eller tx är en startpunkt som **spåras i grafen**, med FIFO eller haircut, i LTC; i *Nytt ärende*
+  hämtas saldo, antal tx, aktivitet och blockhöjd i förväg.
+- Klustringen kör **common-input-ownership** och **växeladressen**. CoinJoin-mönstren, PayJoin och peel chain känner
+  bara Bitcoins mönster och körs inte på Litecoin; en tx med flera lika stora utgångar slås därför inte ihop av sig
+  själv utan föreslås. Kontrollerna i grafen är Bitcoins, utom förslaget om vägar ut ur MWEB.
 - OFAC:s Litecoin-adresser (*LTC*) känns igen som sanktionerade.
 - En adress kan **bevakas**, också av bakgrunden, och en träff räknas i LTC.
 - Kurserna kommer från Bitstamps marknad *LTC/EUR*.
-- **Grafen spårar inte Litecoin än**: grafens UTXO-del räknar bara i bitcoin, så en Litecoin-startpunkt läggs inte i
-  grafen, och klustring och kontroller körs inte på Litecoin. Det sägs ärligt där startpunkten skrivs.

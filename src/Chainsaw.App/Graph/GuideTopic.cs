@@ -105,6 +105,12 @@ public enum GuideTopic
     /// replaced it (sketch GR9a).
     /// </summary>
     GoneTransaction,
+
+    /// <summary>
+    /// <em>Ut ur en skyddad pool</em>: money into Zcash's pools or Litecoin's MWEB, and the likely ways out that
+    /// <c>shielded-pool</c> suggests.
+    /// </summary>
+    ShieldedPool,
 }
 
 /// <summary>Reads <see cref="GuideTopic"/>.</summary>
@@ -155,6 +161,7 @@ public static class GuideTopics
         GuideTopic.TimePattern => "tidsmonster",
         GuideTopic.Anchors => "ankaret",
         GuideTopic.GoneTransaction => "ersatt-tx",
+        GuideTopic.ShieldedPool => "skyddade-pooler",
         _ => "utxo-modellen",
     };
 
@@ -194,6 +201,7 @@ public static class GuideTopics
         GuideTopic.TimePattern => "Tidsmönster",
         GuideTopic.Anchors => "Ankaret och flera datorer",
         GuideTopic.GoneTransaction => "En tx som inte finns längre",
+        GuideTopic.ShieldedPool => "Ut ur en skyddad pool",
         _ => "UTXO-modellen",
     };
 

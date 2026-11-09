@@ -35,6 +35,7 @@ public static class ChecksModule
         services.AddSingleton<ICheckAnalysis, DustCheck>();
         services.AddSingleton<ICheckAnalysis, PayJoinCheck>();
         services.AddSingleton<ICheckAnalysis, ActiveHoursCheck>();
+        services.AddSingleton<ICheckAnalysis, ShieldedPoolCheck>();
         services.AddSingleton<ICheckService, CheckService>();
         return services;
     }

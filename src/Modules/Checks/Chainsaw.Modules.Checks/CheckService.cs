@@ -50,7 +50,7 @@ internal sealed class CheckService : ICheckService
             throw new InvalidOperationException($"The analysis {unscoped.Id} says no chains it covers.");
         }
 
-        _analyses = [.. all.Where(analysis => analysis.Scope.Covers(Chain.Bitcoin))];
+        _analyses = [.. all.Where(analysis => analysis.Scope.Model == LedgerModel.Utxo)];
         if (_analyses.GroupBy(analysis => analysis.Id.Name).FirstOrDefault(group => group.Count() > 1) is { } twice)
         {
             throw new InvalidOperationException($"Two analyses are named {twice.Key}.");
@@ -85,7 +85,7 @@ internal sealed class CheckService : ICheckService
         {
             try
             {
-                var mine = analysis.Run(input)
+                var mine = analysis.Run(OnItsChains(analysis, input))
                     .DistinctBy(finding => finding.Key, StringComparer.Ordinal)
                     .Select(finding => (analysis, new ResultKey(analysis.Id.Name, analysis.Id.Version, finding.Key),
                         finding))
@@ -126,6 +126,21 @@ internal sealed class CheckService : ICheckService
         }).ToList();
         return new CheckRun(checks, sealedCount, input.Transactions.Count, _clock.UtcNow, problems);
     }
+
+    /// <summary>
+    /// Gives an analysis the graph's transactions on the chains its scope covers, so that one written for Bitcoin's
+    /// patterns never weighs a Litecoin or Zcash transaction, and one for the pools never a Bitcoin one.
+    /// </summary>
+    /// <param name="analysis">The analysis.</param>
+    /// <param name="input">The whole input.</param>
+    /// <returns>The input with only the transactions on the analysis's chains; the same input when none is left out.</returns>
+    private static CheckInput OnItsChains(ICheckAnalysis analysis, CheckInput input) =>
+        input.Transactions.All(transaction => analysis.Scope.Covers(transaction.Txid.Chain))
+            ? input
+            : input with
+            {
+                Transactions = [.. input.Transactions.Where(t => analysis.Scope.Covers(t.Txid.Chain))],
+            };
 
     /// <inheritdoc/>
     public CheckDecision Decide(ICase @case, DecisionRequest request)

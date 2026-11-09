@@ -29,7 +29,7 @@ public sealed class GuideLibrary
         ("Bitcoin", ["utxo-modellen", "adresstyper", "startpunkter", "kontroll-mot-kedjan", "ersatt-tx"]),
         ("Ethereum", ["kontomodellen", "erc-20", "swappar", "interna-tx", "kan-frysas"]),
         ("TRON", ["tron"]),
-        ("Fler kedjor", ["litecoin", "bsc"]),
+        ("Fler kedjor", ["litecoin", "zcash", "bsc"]),
         ("Klustring",
             ["common-input-ownership", "vaxeladress", "peel-chain", "coinjoin", "payjoin", "bryta-upp-kluster"]),
         ("Spårning",
@@ -43,7 +43,7 @@ public sealed class GuideLibrary
         ("Förvirring",
             ["kontroller-och-forslag", "mixerns-kandidater", "mixer-efter-mixer", "omraden", "uppdelning",
                 "fordrojning-och-hopp", "damm-och-forgiftning", "tidsmonster", "bryggor-och-swappar",
-                "nastlade-tjanster", "privacy-coins", "usdt-pa-tron"]),
+                "nastlade-tjanster", "privacy-coins", "skyddade-pooler", "usdt-pa-tron"]),
         ("Ordlista", ["ordlista"]),
     ];
 

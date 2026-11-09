@@ -962,6 +962,7 @@ public sealed partial class ChecksViewModel : ObservableObject
     private static GuideTopic TopicOf(StoredCheck check) => check.Analysis.Name switch
     {
         "mixer-outputs" => GuideTopic.MixerCandidates,
+        "shielded-pool" => GuideTopic.ShieldedPool,
         "mixer-parts" or "mixer-chain" => GuideTopic.MixerChain,
         "coinjoin-area" or "coinjoin-merge" => GuideTopic.CoinJoin,
         "peel-chain-area" => GuideTopic.PeelChain,

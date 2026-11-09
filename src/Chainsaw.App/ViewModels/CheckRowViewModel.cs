@@ -80,6 +80,19 @@ public sealed record SuggestionWords(
         "ADRESS",
         "TID");
 
+    /// <summary>The words of the likely ways out of a shielded pool (<c>shielded-pool</c>).</summary>
+    public static SuggestionWords ShieldedPool { get; } = new(
+        [
+            new("Icon.Amounts", "Samma belopp − avgift", "Det som kommer ut jämförs med det som gick in, minus "
+                + "nätverkets avgift"),
+            new("Icon.Clock", "Tid", "Ju kortare tid efter insättningen, desto högre poäng"),
+            new("Icon.Kind.Mask", "Poolen döljer", "Inne i poolen syns varken belopp eller ägare; en kandidat är "
+                + "alltid en bedömning"),
+        ],
+        "Trolig väg ut",
+        "ADRESS",
+        "TID");
+
     /// <summary>The words of a deposit paid out in parts (<c>mixer-parts</c>).</summary>
     public static SuggestionWords MixerParts { get; } = new(
         [
@@ -123,6 +136,7 @@ public sealed record SuggestionWords(
     public static SuggestionWords Of(string analysis) => analysis switch
     {
         "mixer-outputs" => MixerOutputs,
+        "shielded-pool" => ShieldedPool,
         "mixer-parts" => MixerParts,
         "mixer-chain" => MixerChain,
         CheckAnalysisNames.Wallets => Wallets,

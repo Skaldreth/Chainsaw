@@ -28,16 +28,16 @@ internal static class FindingCodec
             finding.Summary,
             finding.Why,
             [.. finding.Addresses.Select(address => address.Value)],
-            [.. finding.Transactions.Select(txid => txid.Value)],
+            [.. finding.Transactions.Select(txid => txid.Stored)],
             [
                 .. finding.Basis.Select(basis => new StoredBasis(
-                    basis.Txid.Value, basis.Block?.Height, basis.Block?.Hash.Value, basis.Block?.Time)),
+                    basis.Txid.Stored, basis.Block?.Height, basis.Block?.Hash.Value, basis.Block?.Time)),
             ],
             [
                 .. finding.Candidates.Select(candidate => new StoredCandidate(
                     candidate.Key,
                     candidate.Address.Value,
-                    candidate.Txid.Value,
+                    candidate.Txid.Stored,
                     candidate.Output,
                     candidate.Amount.Value,
                     candidate.Score,
@@ -61,11 +61,11 @@ internal static class FindingCodec
             stored.Title,
             stored.Summary,
             stored.Why,
-            [.. stored.Addresses.Select(BitcoinAddress.Parse)],
-            [.. stored.Transactions.Select(Txid.Parse)],
+            [.. stored.Addresses.Select(AddressOf)],
+            [.. stored.Transactions.Select(TxidOf)],
             [
                 .. stored.Basis.Select(basis => new CheckBasis(
-                    Txid.Parse(basis.Txid),
+                    TxidOf(basis.Txid),
                     basis is { Height: { } height, Hash: { } hash, Time: { } time }
                         ? new BlockReference(height, BlockHash.Parse(hash), time)
                         : null)),
@@ -73,14 +73,34 @@ internal static class FindingCodec
             [
                 .. stored.Candidates.Select(candidate => new CheckCandidate(
                     candidate.Key,
-                    BitcoinAddress.Parse(candidate.Address),
-                    Txid.Parse(candidate.Txid),
+                    AddressOf(candidate.Address),
+                    TxidOf(candidate.Txid),
                     candidate.Output,
                     new Satoshi(candidate.Amount),
                     candidate.Score,
                     candidate.Reason)),
             ]);
     }
+
+    /// <summary>
+    /// Reads a stored address on whichever UTXO chain writes it so (Bitcoin, Litecoin, Zcash); no two write one alike.
+    /// </summary>
+    /// <param name="text">The stored address.</param>
+    /// <returns>The address.</returns>
+    /// <exception cref="FormatException">The text is no address.</exception>
+    private static BitcoinAddress AddressOf(string text) =>
+        BitcoinAddress.TryParseOnAnyChain(text, out var address) && address.Value == text
+            ? address
+            : throw new FormatException("A sealed finding names something that is not an address.");
+
+    /// <summary>Reads a stored txid on its chain (<see cref="Txid.Stored"/>: bare on Bitcoin).</summary>
+    /// <param name="text">The stored txid.</param>
+    /// <returns>The txid.</returns>
+    /// <exception cref="FormatException">The text is no txid.</exception>
+    private static Txid TxidOf(string text) =>
+        Txid.TryParseStored(text, out var txid)
+            ? txid
+            : throw new FormatException("A sealed finding names something that is not a txid.");
 
     /// <summary>Gives the fingerprint of a finding's JSON.</summary>
     /// <param name="json">The JSON.</param>
