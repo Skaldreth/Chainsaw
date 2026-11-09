@@ -4308,7 +4308,6 @@ topp.
     tillbaka version 2. Tester åt båda hållen: en riktig PayJoin blir förslag, granskarens prob (bedragaren som betalar
     en börs från tre insättningar) och en vanlig plånboks betalning med ett extra mynt slås ihop.
 
-<<<<<<< HEAD
 ## Omgång 3: Bitcoin-källan, bevakningen och bakgrunden (backloggen, 2026-11-08)
 
 - **VPN i bakgrunden** (användarens beslut 2026-11-08): `IBackgroundExits` i Network håller en kopia av en utgångs post
@@ -4792,7 +4791,6 @@ när draget slutar. Den behölls, och renderingen från denna gren ligger ovanp�
 eventstyrda slingan och cacharna. Mitt eget rutnät och diffningen av platser (`GraphMoved.Between`,
 `KeepSameCurves`) togs bort; ett drag skickar `Moved` med de dragna noderna i stället för `Redraw`.
 
-=======
 ## Omgång 5: attribution och kurser (backloggen, 2026-11-08)
 
 - **EU:s konsoliderade lista** (`EuFsfParser`): läses ur en sparad FSF-fil i XML (`export` med `sanctionEntity`)
@@ -4880,4 +4878,3 @@ eventstyrda slingan och cacharna. Mitt eget rutnät och diffningen av platser (`
     etiketter på tx); testärendets sanktion på Skuggtorget kommer nu ur den påhittade listan, och *Tidigare
     sanktionerad* står i BACKLOG, **M-3** en lista som saknas säger *saknas på datorn* (`Missing`), **M-4** *etc* och
     *base* är borttagna ur de svaga orden.
->>>>>>> worktree-agent-a9532d92522604c5d
