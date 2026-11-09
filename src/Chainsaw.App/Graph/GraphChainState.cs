@@ -104,9 +104,11 @@ public interface IGraphChainState
 /// <param name="prices">The rates.</param>
 /// <param name="tron">TRON's source, or <see langword="null"/> where it is not registered.</param>
 /// <param name="bsc">BSC's source, or <see langword="null"/> where it is not registered.</param>
+/// <param name="litecoin">Litecoin's source, or <see langword="null"/> where it is not registered.</param>
+/// <param name="zcash">Zcash's source, or <see langword="null"/> where it is not registered.</param>
 public sealed class GraphChainState(
     IBitcoinSource bitcoin, IEthereumSource ethereum, IPriceService prices, ITronSource? tron = null,
-    IBscSource? bsc = null)
+    IBscSource? bsc = null, ILitecoinSource? litecoin = null, IZcashSource? zcash = null)
     : IGraphChainState
 {
     /// <summary>The most addresses of a cluster whose balance is asked for, so that a large one is not asked one by one.</summary>
@@ -125,7 +127,12 @@ public sealed class GraphChainState(
         ArgumentNullException.ThrowIfNull(node);
         return node.Chain switch
         {
-            Chain.Bitcoin => await BitcoinAsync(@case, node.GraphAddresses, cancellationToken).ConfigureAwait(false),
+            Chain.Bitcoin => await UtxoAsync(@case, bitcoin, node.GraphAddresses, cancellationToken)
+                .ConfigureAwait(false),
+            Chain.Litecoin when litecoin is not null => await UtxoAsync(
+                @case, litecoin, node.GraphAddresses, cancellationToken).ConfigureAwait(false),
+            Chain.Zcash when zcash is not null => await UtxoAsync(@case, zcash, node.GraphAddresses, cancellationToken)
+                .ConfigureAwait(false),
             Chain.Ethereum => await EthereumAsync(@case, ethereum, node.Accounts, cancellationToken)
                 .ConfigureAwait(false),
             Chain.Tron when tron is not null => await EthereumAsync(@case, tron, node.Accounts, cancellationToken)
@@ -239,19 +246,21 @@ public sealed class GraphChainState(
     /// each, less what was spent, in blocks; what waits in the mempool is not counted until it is confirmed.
     /// </summary>
     /// <param name="case">The open case.</param>
+    /// <param name="source">The UTXO chain's source: Bitcoin's, Litecoin's or Zcash's.</param>
     /// <param name="addresses">The addresses.</param>
     /// <param name="cancellationToken">Stops the lookups.</param>
-    /// <returns>The balance.</returns>
-    private async Task<NodeHoldings> BitcoinAsync(
-        ICase @case, IReadOnlyList<BitcoinAddress> addresses, CancellationToken cancellationToken)
+    /// <returns>The balance, in the chain's coin.</returns>
+    private static async Task<NodeHoldings> UtxoAsync(
+        ICase @case, IBitcoinSource source, IReadOnlyList<BitcoinAddress> addresses, CancellationToken cancellationToken)
     {
         if (addresses.Count == 0)
         {
             return new NodeHoldings([], null, null, false, NoAddressText);
         }
 
+        var coin = source.Network.ChainOf().NativeAsset();
         var left = Satoshi.Zero;
-        var pending = AssetAmount.Zero(Asset.Bitcoin);
+        var pending = AssetAmount.Zero(coin);
         DateTimeOffset? fetched = null;
         var outdated = false;
         string? problem = addresses.Count > MostAddresses
@@ -259,21 +268,21 @@ public sealed class GraphChainState(
             : null;
         foreach (var address in addresses.Take(MostAddresses))
         {
-            var lookup = await bitcoin.GetAddressSummaryAsync(@case, address, cancellationToken).ConfigureAwait(false);
+            var lookup = await source.GetAddressSummaryAsync(@case, address, cancellationToken).ConfigureAwait(false);
             if (lookup.Value is not { } summary)
             {
                 return new NodeHoldings([], null, null, false, lookup.Problem ?? NoAddressText);
             }
 
             left += summary.Confirmed.Funded - summary.Confirmed.Spent;
-            pending += summary.Mempool.Funded.ToAmount() - summary.Mempool.Spent.ToAmount();
+            pending += new AssetAmount(coin, summary.Mempool.Funded.Value - summary.Mempool.Spent.Value);
             outdated |= lookup.Status == LookupStatus.FromCaseMayBeOutdated;
             var at = lookup.Origins.Count > 0 ? lookup.Origins[^1].ReceivedLocal : (DateTimeOffset?)null;
             fetched = Older(fetched, at);
         }
 
-        var tip = await bitcoin.GetTipAsync(@case, cancellationToken).ConfigureAwait(false);
-        AssetAmount[] held = left.Value > 0 ? [AssetAmount.Of(left)] : [];
+        var tip = await source.GetTipAsync(@case, cancellationToken).ConfigureAwait(false);
+        AssetAmount[] held = left.Value > 0 ? [new AssetAmount(coin, left.Value)] : [];
         return new NodeHoldings(held, tip.Value, fetched, outdated, problem)
         {
             Pending = pending.IsZero ? null : pending,

@@ -199,6 +199,9 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
     Blockbook vore stabilare.
   - **ZEC-kursen:** Bitstamps `zeceur` har historik bara från 2026-03-31 och handlas tunt, som BNB.
   - **Chainabuse på Zcash** frågas inte (som Litecoin och BSC).
+  - **Bytt block och ersatt tx i grafen på Litecoin** (GR9a): Tracing läser Litecoins bytta och försvunna tx, men
+    grafens märken (`BlockMarks`) och valet att följa en ersättare (`GraphViewModel.Replacements`) visar bara
+    Bitcoins. *Kontroll* mot tx:ens bytes i inspektören visas också bara för Bitcoin.
   - **`shielded-pool v1`, kvar:** bara det som finns i grafen prövas; mönster över flera insättningar som pekar på
     samma användare (forskningens andra metod), och ett godkänt förslag som blir en egen streckad linje i grafen.
 - **Privacy coins:** metoderna är beslutade (CLAUDE.md, *Spåret tar slut*); skyddade pooler (Zcash, MWEB) är byggda

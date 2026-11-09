@@ -839,7 +839,7 @@ public sealed partial class GraphViewModel
     /// <summary>Gives the key a watched address is known by in the trash: its address key on Bitcoin, else its node.</summary>
     /// <param name="address">The address.</param>
     /// <returns>The key.</returns>
-    private static string KeyOfWatched(ChainAddress address) => address.Chain == Chain.Bitcoin
+    private static string KeyOfWatched(ChainAddress address) => address.Chain.Model() == LedgerModel.Utxo
         ? GraphPile.AddressKeyPrefix + address.Value
         : GraphPile.AccountKey(address);
 

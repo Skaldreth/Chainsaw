@@ -60,7 +60,7 @@ public sealed record ChainOption(string Name, Chain? Chain)
 /// A coin, or an Ethereum movement, that came into the chosen node and can be linked to another chain. Exactly one of
 /// <see cref="Coin"/> and <see cref="Movement"/> is set.
 /// </summary>
-/// <param name="Coin">The Bitcoin coin, or <see langword="null"/> for an Ethereum movement.</param>
+/// <param name="Coin">The coin on its UTXO chain, or <see langword="null"/> for a movement on an account chain.</param>
 /// <param name="Amount">Its amount.</param>
 /// <param name="Time">When it came, or <see langword="null"/> while unconfirmed.</param>
 public sealed record IncomingCoin(Outpoint? Coin, AssetAmount Amount, DateTimeOffset? Time)
@@ -69,7 +69,7 @@ public sealed record IncomingCoin(Outpoint? Coin, AssetAmount Amount, DateTimeOf
     public AccountSeed? Movement { get; init; }
 
     /// <summary>Gets the chain the money is on.</summary>
-    public Chain Chain => Movement?.Transaction.Chain ?? Chain.Bitcoin;
+    public Chain Chain => Movement?.Transaction.Chain ?? Coin!.Txid.Chain;
 
     /// <summary>Gets the transaction it came in, as its chain writes it.</summary>
     public string TransactionId => Coin?.Txid.Value ?? Movement!.Transaction.Value;
@@ -118,8 +118,8 @@ public static class InspectorForms
         [LabelBasis.Own, LabelBasis.OpenSource, LabelBasis.Order, LabelBasis.ExchangeAnswer];
 
     /// <summary>
-    /// Gets the chains the form <em>Annan kedja</em> offers: Bitcoin, Ethereum, TRON, BSC, Litecoin and Zcash, which
-    /// a link can name
+    /// Gets the chains the form <em>Annan kedja</em> offers: Ethereum, TRON, BSC, Litecoin, Zcash and Bitcoin (last, since
+    /// a coin on Bitcoin is where most links leave from), which a link can name
     /// now, and the chains that are not built yet, shown toned (CLAUDE.md: never show what does not exist as if it
     /// did).
     /// </summary>
@@ -130,6 +130,7 @@ public static class InspectorForms
         new("BSC", Chain.Bsc),
         new("Litecoin", Chain.Litecoin),
         new("Zcash", Chain.Zcash),
+        new("Bitcoin", Chain.Bitcoin),
         new("Solana", null),
     ];
 
