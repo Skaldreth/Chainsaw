@@ -584,7 +584,6 @@ public sealed partial class SettingsViewModel : ObservableObject
             return;
         }
 
-        var allow = !ExitInBackground;
         try
         {
             await Task.Run(() =>
@@ -594,7 +593,8 @@ public sealed partial class SettingsViewModel : ObservableObject
                     return;
                 }
 
-                if (allow)
+                // Decided from the file, not the switch, so that a selection changed meanwhile is never mistaken.
+                if (!exits.IsAllowed(selected.Id))
                 {
                     exits.Allow(selected.Id);
                 }
