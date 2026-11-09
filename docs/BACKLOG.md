@@ -406,6 +406,14 @@ en tjänst (`pass-through v2`), tidsmönster i svensk tid för mottagare och avs
     delar tillsammans och troliga mixrar ger inga fynd där.
   - `nested-service` kräver en börs med etikett och att minst hälften av pengarna går genom kontot åt båda hållen; en
     tjänst som bara delvis använder börsen syns inte.
+  - `nested-service` känner bara igen en insättning till börsen när adressen redan är klustrad med börsen eller har
+    dess etikett (granskningen, M3); utan börsens svep i grafen blir det ett falskt negativt. Facit knyter kontot till
+    hot wallet för hand. Förslag: godta också en insättningsadress som `service-behaviour` har sett svepas till
+    börsens hot wallet.
+  - `split-merge`: nyckeln `spread:` är den tidigaste tx:en bland delarna i fönstret (granskningen, M4). Kommer en
+    tidigare betalning in i grafen kan fönstret flytta och fyndet få en ny nyckel, medan det gamla står kvar förseglat.
+    Lika löner, faucets och airdrops passar också mönstret (texten säger det). Förslag: en fast nyckel som inte beror
+    på fönstret, till exempel den tidigaste tx:en bland delarna efter att bandet har bestämts över hela dygnet.
   - Tidsmönstret läses i svensk tid för alla; en inställning för användarens tidszon finns inte. Korrektionen gör att
     ett mönster kan försvinna när fler ägare kommer in i ärendet.
 

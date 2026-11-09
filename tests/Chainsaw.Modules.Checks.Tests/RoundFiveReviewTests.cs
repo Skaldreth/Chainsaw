@@ -133,10 +133,8 @@ public sealed class RoundFiveReviewTests
 
         var run = harness.Run(row);
 
-        if (run.Checks.Any(check => check.Analysis.Name == PeelChainCheck.Name))
-        {
-            Assert.DoesNotContain(run.Checks, check => check.Analysis.Name == PassThroughCheck.Name);
-        }
+        Assert.Contains(run.Checks, check => check.Analysis.Name == PeelChainCheck.Name);
+        Assert.DoesNotContain(run.Checks, check => check.Analysis.Name == PassThroughCheck.Name);
     }
 
     [Fact]
