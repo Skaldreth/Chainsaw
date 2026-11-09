@@ -40,8 +40,9 @@ internal sealed class AccountWalletCheck : ICheckAnalysis
                 AreaSort.Wallet,
                 "Samma ägare troligt",
                 proposal.Heuristic,
-                $"{proposal.Reason} Godkänner du förslaget slås adresserna ihop som din bedömning (user v1), som kan "
-                    + "brytas upp och ångras. Ett förslag är en bedömning, inte ett faktum.",
+                $"{proposal.Reason} Bygger på tx {string.Join(", ", proposal.Transactions)} på {proposal.Chain}. "
+                    + "Godkänner du förslaget slås adresserna ihop som din bedömning (user v1), som kan brytas upp. "
+                    + "Ett förslag är en bedömning, inte ett faktum.",
                 [],
                 [],
                 [],

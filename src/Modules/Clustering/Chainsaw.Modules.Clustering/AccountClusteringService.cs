@@ -72,14 +72,20 @@ internal sealed class AccountClusteringService : IAccountClustering
         var splits = decisions.Where(decision => decision.Action == AccountDecisionAction.Split).ToList();
         bool Splits(AccountEvidence entry) => splits.Any(split => split.Accounts.All(entry.Accounts.Contains));
         var evidence = ReadEvidence(reader, chain).Where(entry => !Splits(entry)).ToList();
-        var merging = evidence.Where(entry => entry.Strength == EvidenceStrength.Merge)
+        var byHeuristics = evidence.Where(entry => entry.Strength == EvidenceStrength.Merge).ToList();
+        var merging = byHeuristics
             .Concat(decisions.Where(decision => decision.Action == AccountDecisionAction.Merge).Select(UserEvidence))
             .Where(entry => !Splits(entry))
             .ToList();
-        var clusters = Clusters(merging);
+        var apart = splits.Select(split => (split.Accounts[0], split.Accounts[1])).ToList();
+        var clusters = Clusters(merging, apart);
+
+        // A proposal the user approved stays, so that the panel shows it approved and the approval can be taken back;
+        // only one the heuristics themselves already merged has nothing to add.
+        var merged = Clusters(byHeuristics, apart);
         var proposals = evidence
             .Where(entry => entry.Strength == EvidenceStrength.Suggestion)
-            .Where(entry => !InOneCluster(entry.Accounts, clusters))
+            .Where(entry => !InOneCluster(entry.Accounts, merged))
             .ToList();
         return new AccountClusteringRun(clusters, proposals);
     }
@@ -112,26 +118,43 @@ internal sealed class AccountClusteringService : IAccountClustering
     /// <inheritdoc/>
     public AccountDecision Split(ICase @case, ChainAddress first, ChainAddress second, string? reason)
     {
-        ArgumentNullException.ThrowIfNull(@case);
-        ArgumentNullException.ThrowIfNull(first);
         ArgumentNullException.ThrowIfNull(second);
-        if (first.Chain != second.Chain || first == second)
+        return Split(@case, first, [second], reason)[0];
+    }
+
+    /// <inheritdoc/>
+    public IReadOnlyList<AccountDecision> Split(
+        ICase @case, ChainAddress account, IReadOnlyList<ChainAddress> others, string? reason)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(account);
+        ArgumentNullException.ThrowIfNull(others);
+        var pairs = others.Where(other => other != account).Distinct()
+            .Select(other => Members(account.Chain, [account, other]))
+            .ToList();
+        if (pairs.Count == 0)
         {
-            throw new ArgumentException("A split is of two accounts on the same chain.", nameof(second));
+            throw new ArgumentException("A split is of two accounts on the same chain.", nameof(others));
         }
 
-        var members = Members(first.Chain, [first, second]);
+        // One transaction: the account is broken out from all the others, or from none.
         return @case.Write(transaction =>
         {
-            var (one, other) = (AccountFinding.Short(members[0]), AccountFinding.Short(members[1]));
             var journal = transaction.AppendJournal(new JournalDraft(
                 ClusteringJournalKinds.AccountsSplit,
-                $"Bröt upp {one} och {other} på {first.Chain}.",
-                JsonSerializer.Serialize(
-                    new { chain = first.Chain.ToString(), accounts = members.Select(account => account.Value) },
-                    Json)));
-            return AppendDecision(
-                transaction, AccountDecisionAction.Split, first.Chain, members, null, null, reason, journal);
+                string.Create(CultureInfo.InvariantCulture,
+                    $"Bröt ut {AccountFinding.Short(account)} från {pairs.Count} adresser på {account.Chain}."),
+                JsonSerializer.Serialize(new
+                {
+                    chain = account.Chain.ToString(),
+                    account = account.Value,
+                    others = pairs.Select(pair => pair.First(member => member != account).Value),
+                }, Json)));
+            return (IReadOnlyList<AccountDecision>)
+            [
+                .. pairs.Select(pair => AppendDecision(
+                    transaction, AccountDecisionAction.Split, account.Chain, pair, null, null, reason, journal)),
+            ];
         });
     }
 
@@ -345,9 +368,14 @@ internal sealed class AccountClusteringService : IAccountClustering
     }
 
     /// <summary>Joins the accounts of the merging conclusions into clusters.</summary>
-    /// <param name="merging">The conclusions that merge by themselves.</param>
+    /// <param name="merging">The conclusions that merge, in sequence order.</param>
+    /// <param name="apart">
+    /// The pairs the user split: a conclusion that would bring the two into one cluster, however indirectly, is left
+    /// out, so that a split stands.
+    /// </param>
     /// <returns>The clusters of two or more accounts, ordered by their first member.</returns>
-    private static List<AccountCluster> Clusters(IReadOnlyList<AccountEvidence> merging)
+    private static List<AccountCluster> Clusters(
+        IReadOnlyList<AccountEvidence> merging, IReadOnlyList<(ChainAddress First, ChainAddress Second)> apart)
     {
         var parent = new Dictionary<ChainAddress, ChainAddress>();
         ChainAddress Root(ChainAddress account)
@@ -360,14 +388,24 @@ internal sealed class AccountClusteringService : IAccountClustering
             return account;
         }
 
+        bool Joins(ChainAddress one, ChainAddress other) => apart.Any(pair =>
+            (Root(pair.First) == Root(one) && Root(pair.Second) == Root(other))
+            || (Root(pair.First) == Root(other) && Root(pair.Second) == Root(one)));
+        var counted = new List<AccountEvidence>();
         foreach (var entry in merging)
         {
-            foreach (var account in entry.Accounts)
+            foreach (var account in entry.Accounts.Concat(apart.SelectMany(pair => new[] { pair.First, pair.Second })))
             {
                 parent.TryAdd(account, account);
             }
 
             var first = Root(entry.Accounts[0]);
+            if (entry.Accounts.Skip(1).Any(other => Root(other) != first && Joins(first, other)))
+            {
+                continue;
+            }
+
+            counted.Add(entry);
             foreach (var other in entry.Accounts.Skip(1))
             {
                 var root = Root(other);
@@ -381,7 +419,7 @@ internal sealed class AccountClusteringService : IAccountClustering
         return [.. parent.Keys
             .GroupBy(Root)
             .Where(group => group.Count() > 1)
-            .Select(group => Cluster([.. group], merging))
+            .Select(group => Cluster([.. group], counted))
             .OrderBy(cluster => cluster.Members[0].Value, StringComparer.Ordinal)];
     }
 

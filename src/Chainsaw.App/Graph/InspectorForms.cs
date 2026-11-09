@@ -196,7 +196,7 @@ public static class InspectorForms
         ArgumentNullException.ThrowIfNull(cluster);
         ArgumentNullException.ThrowIfNull(node);
         return $"Bryter ut {node.Name} ur {GraphAreas.AccountClusterLabel(cluster)}. Ingen slutsats som slår ihop dem "
-            + "räknas längre, tills uppbrytningen ångras.";
+            + "räknas längre; uppbrytningen förseglas.";
     }
 
     /// <summary>

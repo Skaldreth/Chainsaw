@@ -428,7 +428,12 @@ public sealed partial class InspectorFormsViewModel : ObservableObject
         {
             FillCoins();
         }
-        else if (Form == InspectorForm.Split && !IsSaving && AccountCluster is null)
+        else if (Form == InspectorForm.Split && !IsSaving && AccountCluster is { } cluster)
+        {
+            // The cluster may have grown since the form opened; the notice names it as it is now.
+            MembersNotice = InspectorForms.AccountSplitNotice(cluster, node!);
+        }
+        else if (Form == InspectorForm.Split && !IsSaving)
         {
             _ = ReadMembersAsync(_opened);
         }
@@ -657,7 +662,7 @@ public sealed partial class InspectorFormsViewModel : ObservableObject
     /// when the chosen node is not such an account; the form then breaks it out instead of listing addresses.
     /// </summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShowsMembers))]
+    [NotifyPropertyChangedFor(nameof(ShowsMembers), nameof(CanSubmit), nameof(SubmitText))]
     public partial GraphAccountCluster? AccountCluster { get; private set; }
 
     /// <summary>Gets whether the form lists a Bitcoin cluster's addresses to pick from.</summary>

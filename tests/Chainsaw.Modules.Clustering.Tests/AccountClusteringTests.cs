@@ -221,7 +221,6 @@ public sealed class AccountClusteringTests : IDisposable
         var cluster = Assert.Single(merged.Clusters);
         Assert.Equal(accounts.OrderBy(account => account.Value), cluster.Members);
         Assert.Contains(cluster.Evidence, evidence => evidence.Heuristic == new HeuristicId("user", 1));
-        Assert.DoesNotContain(merged.Proposals, proposal => proposal.Accounts.All(cluster.Members.Contains));
         Assert.Equal(ClusteringJournalKinds.AccountsMerged, _harness.Case.ReadJournal().Last().Kind);
 
         _harness.Case.Write(transaction =>
@@ -257,6 +256,38 @@ public sealed class AccountClusteringTests : IDisposable
         });
 
         Assert.Equal(4, Assert.Single(Read().Clusters).Members.Count);
+    }
+
+    [Fact]
+    public void A_split_stands_also_against_a_merge_that_would_bring_the_account_back_another_way()
+    {
+        Analyse(Sweeps(Address(3), Address(4), Address(5)), services: [Hot]);
+        _harness.Accounts.Split(_harness.Case, Address(3).ToChainAddress(),
+            [Hot.ToChainAddress(), Address(4).ToChainAddress(), Address(5).ToChainAddress()], null);
+        Assert.Equal(3, _harness.Case.Read(reader => _harness.Accounts.Decisions(reader, Chain.Ethereum)).Count);
+
+        _harness.Case.Write(transaction => _harness.Accounts.Merge(transaction, Chain.Ethereum,
+            [Address(3).ToChainAddress(), Address(6).ToChainAddress()], "checks.decisions:3", null));
+        _harness.Case.Write(transaction => _harness.Accounts.Merge(transaction, Chain.Ethereum,
+            [Address(6).ToChainAddress(), Address(4).ToChainAddress()], "checks.decisions:4", null));
+
+        var clusters = Read().Clusters;
+        var service = Assert.Single(clusters, cluster => cluster.Members.Contains(Hot.ToChainAddress()));
+        Assert.DoesNotContain(Address(3).ToChainAddress(), service.Members);
+    }
+
+    [Fact]
+    public void An_approved_proposal_stays_a_proposal_so_that_the_approval_can_be_taken_back()
+    {
+        var victims = new[] { Address(3), Address(4) };
+        var proposed = Analyse([.. victims.SelectMany(victim => new[]
+        {
+            Ether(Address(1), victim, 4_000, 0), Ether(victim, Scammer, 3_990, 5),
+        })]);
+        _harness.Case.Write(transaction => _harness.Accounts.Merge(
+            transaction, Chain.Ethereum, proposed.Proposals[0].Accounts, "checks.decisions:1", null));
+
+        Assert.Equal(proposed.Proposals.Count, Read().Proposals.Count);
     }
 
     [Fact]

@@ -1412,7 +1412,8 @@ internal sealed class TracingService : ITracingService
             }
 
             proposals.AddRange(run.Proposals.Select(proposal => new GraphAccountProposal(
-                proposal.Heuristic.Name + ":" + string.Join(",", proposal.Accounts.Select(account => account.Value)),
+                proposal.Heuristic.Name + ":" + chain.ToString().ToLowerInvariant() + ":"
+                    + string.Join(",", proposal.Accounts.Select(account => account.Value)),
                 chain,
                 proposal.Heuristic.ToString(),
                 proposal.Accounts,

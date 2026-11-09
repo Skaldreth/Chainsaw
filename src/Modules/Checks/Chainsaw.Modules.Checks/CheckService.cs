@@ -438,9 +438,17 @@ internal sealed class CheckService : ICheckService
                 throw new SuggestionChangedException("The proposal has no accounts to merge; run the checks again.");
             }
 
-            accounts.Merge(
-                transaction, finding.Accounts[0].Chain, finding.Accounts, OriginOf(decision.Sequence),
-                decision.Reason);
+            try
+            {
+                accounts.Merge(
+                    transaction, finding.Accounts[0].Chain, finding.Accounts, OriginOf(decision.Sequence),
+                    decision.Reason);
+            }
+            catch (ArgumentException exception)
+            {
+                throw new SuggestionChangedException(
+                    "Two of the accounts were split since the proposal was sealed; run the checks again.", exception);
+            }
         }
         else if (request.Verdict == CheckVerdict.Withdrawn && request.Undoes is { } undone)
         {

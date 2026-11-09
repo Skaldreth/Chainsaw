@@ -274,6 +274,9 @@ public sealed class GraphEditor(
     ICheckService checks,
     IAccountClustering? accounts = null) : IGraphEditor
 {
+    /// <summary>What the form says when an account could not be broken out; nothing was sealed.</summary>
+    public const string AccountSplitFailedText = "Adressen kunde inte brytas ut. Inget sparades.";
+
     /// <inheritdoc/>
     public Task<string?> SplitAccountAsync(
         ICase @case, ChainAddress account, IReadOnlyList<ChainAddress> others, string? reason)
@@ -290,16 +293,12 @@ public sealed class GraphEditor(
         {
             try
             {
-                foreach (var other in others.Where(other => other != account))
-                {
-                    accounts.Split(@case, account, other, reason);
-                }
-
+                accounts.Split(@case, account, others, reason);
                 return null;
             }
             catch (Exception exception) when (exception is ArgumentException or CaseException)
             {
-                return exception.Message;
+                return AccountSplitFailedText;
             }
         });
     }

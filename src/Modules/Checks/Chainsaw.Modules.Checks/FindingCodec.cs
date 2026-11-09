@@ -180,8 +180,10 @@ internal static class FindingCodec
     private static ChainAddress AccountOf(string text)
     {
         var colon = text.IndexOf(':', StringComparison.Ordinal);
-        return colon > 0 && Enum.TryParse<Chain>(text[..colon], out var chain) && Enum.IsDefined(chain)
-            ? new ChainAddress(chain, text[(colon + 1)..])
+        return colon > 0 && !int.TryParse(text[..colon], out _)
+            && Enum.TryParse<Chain>(text[..colon], out var chain) && Enum.IsDefined(chain)
+            && EthereumAddress.TryParse(chain, text[(colon + 1)..], out var address)
+            ? address.ToChainAddress()
             : throw new InvalidDataException("A sealed finding's account is not one.");
     }
 

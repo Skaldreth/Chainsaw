@@ -52,6 +52,20 @@ public sealed class AccountWalletTests : IDisposable
         Assert.True(_harness.Verify().IsIntact);
     }
 
+    [Fact]
+    public void An_approved_proposal_is_still_in_the_panel_after_the_next_run_and_can_be_taken_back()
+    {
+        var decision = _harness.Service.Decide(_harness.Case, new DecisionRequest(
+            Proposal().Analysis, Proposal().Finding.Key, null, CheckVerdict.Approved));
+
+        var again = Proposal();
+
+        Assert.Equal([First, Second], again.Finding.Accounts);
+        Assert.Contains(again.Decisions, entry => entry.Sequence == decision.Sequence);
+        _harness.Service.Decide(_harness.Case, DecisionRequest.TakeBack(decision));
+        Assert.Empty(Read().Clusters);
+    }
+
     private IAccountClustering Accounts => _harness.Provider.GetRequiredService<IAccountClustering>();
 
     private AccountClusteringRun Read() => _harness.Case.Read(reader => Accounts.Read(reader, Chain.Ethereum));

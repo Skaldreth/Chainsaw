@@ -6231,4 +6231,11 @@ insättning i en borta tx i Begäran, Flöde).
   händer i stället för att lista adresser, och skälet är frivilligt.
 - **Kvar:** att ångra en uppbrytning eller en sammanslagning av konton i Historik (AN1b) finns bara i Clustering, inte i
   inspektören; uppbrytningen av ett konto görs mot varje annat konto, i var sin transaktion.
+- **Granskningen av E2c (en omgång), rättat:** I1 ett godkänt kontoförslag står kvar i KF2b efter nästa körning, så att
+  godkännandet syns och kan tas tillbaka (bara ett förslag som heuristikerna själva slagit ihop faller bort); I3
+  förslagets nyckel har kedjan, så samma adresser på Ethereum och BSC är två förslag; I4 skälet nämner tx:erna och
+  kedjan; I5 en uppbrytning står sig också mot en slutsats som skulle föra tillbaka kontot en annan väg; I6 att bryta ut
+  ett konto förseglas i en transaktion, allt eller inget, med en svensk text om det misslyckas; M7 ett godkännande efter
+  en uppbrytning blir *förslaget har ändrats*; M8 ett skadat konto i ett fynd känns igen; M9 formulärets text följer
+  klustret. **Kvar (BACKLOG):** I2 att ångra en uppbrytning av konton i Historik; formulärets text lovar det inte längre.
 

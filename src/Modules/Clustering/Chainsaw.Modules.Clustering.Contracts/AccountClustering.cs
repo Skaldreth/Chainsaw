@@ -56,6 +56,18 @@ public interface IAccountClustering
     /// <returns>The sealed decision.</returns>
     AccountDecision Split(ICase @case, ChainAddress first, ChainAddress second, string? reason);
 
+    /// <summary>
+    /// Breaks an account out of its account cluster: a split from each of the others, sealed in one transaction, all
+    /// or none, under one journal entry.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="account">The account to break out.</param>
+    /// <param name="others">The accounts it is split from, on the same chain.</param>
+    /// <param name="reason">Why, or <see langword="null"/>.</param>
+    /// <returns>The sealed decisions, one per other account.</returns>
+    IReadOnlyList<AccountDecision> Split(
+        ICase @case, ChainAddress account, IReadOnlyList<ChainAddress> others, string? reason);
+
     /// <summary>Undoes a merge or a split; the decision itself stays, struck through (AN1b).</summary>
     /// <param name="transaction">The case's write transaction.</param>
     /// <param name="decision">The decision's sequence.</param>
