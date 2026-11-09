@@ -22,8 +22,9 @@ bredvid en kryptospårare som ger synpunkter och provar systemet.
 vem som står och tar ut pengarna. Bevisvärdet i domstol är inte huvudfrågan nu, men varje slutsats ska ändå kunna förklaras
 (princip 3), eftersom det kostar lite att spara och mycket att återskapa.
 
-**Kedjor:** Bitcoin först. Sedan Ethereum med ERC-20 och TRON med USDT (den största brottsvalutan i praktiken). Privacy
-coins (Monero, Zcash, Litecoin MWEB) visas först som *Spåret tar slut här*, men modellen hålls öppen för forskningsmetoderna.
+**Kedjor:** Bitcoin först. Sedan Ethereum med ERC-20 och TRON med USDT (den största brottsvalutan i praktiken), och
+Litecoin, BSC, Solana och Zcashs genomskinliga del (byggda 2026-11-09). Privacy coins (Monero, Zcash, Litecoin MWEB)
+visas först som *Spåret tar slut här*, men modellen hålls öppen för forskningsmetoderna. Monero är inte byggt.
 
 ### Principer som inte får brytas
 
@@ -147,7 +148,7 @@ fortsättningar med de etablerade metoderna ur forskningen, alltid som streckade
 **Cross-chain** (Claudes beslut 2026-11-06, användaren lät Claude avgöra): datamodellen har från början en kant *fortsätter
 på annan kedja* mellan två tx på olika kedjor. I första versionen känns kända bryggor och swap-tjänster igen som slut på
 spåret med *Fortsätter på annan kedja*, och användaren knyter fortsättningen för hand (tx:en på den andra kedjan). Att hitta
-fortsättningen själv (belopp och tid hos swap-tjänster, bryggornas egna händelser) kommer senare.
+fortsättningen själv (belopp och tid hos swap-tjänster, bryggornas egna händelser) är byggt som förslag, `cross-chain v1`.
 
 ### Datalagret
 
@@ -328,7 +329,7 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
 ## Gränssnitt
 
 - **Samma stil som Gawk, egen identitet** (användarens beslut 2026-11-06): mörkt tema i neutrala gråtoner, tangentbordsfokus,
-  en flytande kommandorad för power users, svenska i gränssnittet. Loggan är **en kätting** (användarens beslut 2026-11-07, skiss
+  en flytande kommandorad, svenska i gränssnittet. Loggan är **en kätting** (användarens beslut 2026-11-07, skiss
   ID5): **Chainsaw är blockkedjan som såg**, en ordlek. **Ikonen är två länkar som hakar i varandra, diagonalt, fyllda i
   accentfärgen**, spårad exakt som vektor ur användarens förlaga (så ritas en kedja i Chainsaw)
   (användarens beslut 2026-11-07, ersätter ID5 variant B med ögat). Bitcoin-myntet (ID1) och sågkedjan (ID3) är avvisade. Låsskärmen och
@@ -359,7 +360,7 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   och **accenten terrakotta `#C55A3D`** med kräm på. Stegen räknas ut ur paletten i `Themes/Colors.xaml`. Accenten
   betyder alltid offrens pengar och det valda; den ligger nära risk (rött, `#FF5A4E`, inte rosa: användarens beslut
   2026-11-08) och spenderas (gult), som får hållas isär på ljushet.
-- **Typsnitt:** Segoe UI Variable, Cascadia Mono bara för hashar, txid och adresser i inspektören samt terminalen.
+- **Typsnitt:** Segoe UI Variable, Cascadia Mono bara för hashar, txid och adresser i inspektören.
 - **Grafen är hjärtat.** Det är där man arbetar mest. Den bygger på idéerna från Gawks Byggare (en duk med noder, portar och
   kopplingar), anpassad för spårning. Scrubbern, tidslinjen och kolumner med kort tas över i formen.
   Efter GR1 (användarens beslut 2026-11-07): noderna ritas **tunt som i GR1b** (en rund eller fyrkantig ram med sortens färg,
@@ -444,8 +445,8 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   utgivaren kan frysa dem på begäran.
 - **Skalet är SH1b** (användarens beslut 2026-11-07, byggt): vyernas ikoner i ett **flytande piller** vid vänsterkanten,
   som i Gawks Byggare (runda knappar på 38 px, upphöjd yta, skugga, 18 px från kanten och centrerat i höjd; användarens
-  beslut 2026-11-07), med namnet på hovring, i ordningen Nytt · Graf, Tidslinje, Flöde, Exponering, Begäran, Bevakning, Etiketter ·
-  Guide, Inställningar (`src/Chainsaw.App/Navigation/ViewTable.cs`, som också ger kortkommandona). **Sök och kommandon
+  beslut 2026-11-07), med namnet på hovring, i ordningen Nytt · Graf, Tidslinje, Flöde, Exponering, Begäran, Bevakning, Etiketter,
+  Rapport · Guide, Inställningar (`src/Chainsaw.App/Navigation/ViewTable.cs`, som också ger kortkommandona). **Sök och kommandon
   finns bara i kommandoraden**, som är dold och fälls fram med Ctrl+K eller Ctrl+F som Spotlight i macOS (användarens
   beslut 2026-11-07), aldrig i huvudet eller som egen vy. Statusraden längst ner finns inte. Antal visas som
   en prick på ikonen, inte som en siffra. **Pillret följer läget** (användarens beslut 2026-11-07): utan öppet ärende
@@ -516,9 +517,9 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   *Exporterade* med SHA-256. Exporten tar bara med det begäran behöver, aldrig offrets namn eller anteckningar,
   journalförs och skriver aldrig över (en ny fil får ett nummer).
 - **Inställningarna är ST1a** (användarens beslut 2026-11-07): en dialog mitt i fönstret över mörkad bakgrund, som i Gawk,
-  öppnad med Ctrl+, eller kugghjulet i pillret, med menyn till vänster (Nätverk, Låsning, Utseende, Länkar, Kurser,
-  Profil, Om Chainsaw) och rader med titel och förklaring till vänster och valet till höger. Nätverk har *Windows* eller
-  *VPN* som två kort, och under VPN utgångarna som i UT1a. *Byt …* vid huvudnyckeln fäller ut tre fält under raden
+  öppnad med Ctrl+, eller kugghjulet i pillret, med menyn till vänster (Nätverk, Källor, Låsning, Utseende, Länkar,
+  Kurser, Profil, Om Chainsaw) och rader med titel och förklaring till vänster och valet till höger. Nätverk har *Windows* eller
+  *VPN* som två kort, och under VPN utgångarna som i UT3b. *Byt …* vid huvudnyckeln fäller ut tre fält under raden
   (nuvarande, ny, upprepa) med Avbryt och *Byt huvudnyckel* (användarens beslut 2026-11-07, byggt i etapp 19).
 - **Förstagångsinställningen är FS1a** (stegvis: Välkommen, Huvudnyckel, Utgång, Första ärendet, bredvid låsskärmens figur) och
   **Nytt ärende är NC2a** (användarens beslut 2026-11-08, ersätter NC1a): en panel från höger som mörkar resten, med
@@ -529,7 +530,7 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   förvalt** (användarens beslut 2026-11-08); WireGuard-filen läggs till under VPN.
 - **Vyer** (bekräftade 2026-11-06): Graf, Tx-inspektör, Adresskort och kluster, Bevakning, Begäran, Guide och, i 1.0
   (användarens val 2026-11-08), **Etiketter (ET1a)**, **Exponering (EP1b)** och **Rapport (RP1b)**, och
-  **Tidslinje** och **Flöde (Sankey)**, som skissas först. Terminal är borttagen.
+  **Tidslinje (TL3a)** och **Flöde (Sankey, FL1a)**. Terminal är borttagen.
 - **Allt i BACKLOG görs före 1.0** (användarens beslut 2026-11-08: "lika bra att vara så vältäckande som möjligt"):
   de nya förmågorna (TRON, fler kedjor, egen nod, nya heuristiker och källor, vyerna) och de mindre fynden från
   granskningarna. Ordningen och det som väntar på beslut står i `docs/TODO.md`.
@@ -567,17 +568,17 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   - **PL1b** (vald 2026-11-08, byggd 2026-11-09): att ångra en godkänd plånbok (Ctrl+Z eller *Ångra* i KF2b)
     bekräftas i grafen, där klustret öppnas som ett kort med adresserna och en liten ruta under som i IN1b; panelen
     säger *Bekräfta i grafen*.
-  - **SW1a** (vald 2026-11-08): valet per swap görs i pillret ₮ → Ξ, som fälls ut på plats till *Följer* och *Följer
+  - **SW1a** (vald och byggd 2026-11-08): valet per swap görs i pillret ₮ → Ξ, som fälls ut på plats till *Följer* och *Följer
     inte*; följer värdet är linjen efter streckad i accent, annars grå med ett stopp och en person-markering.
-  - **VT1a** (vald 2026-11-08): *Byt filnyckel* i fliken *Kuvert* (ÄR1b); korten får *Lindas om* eller *Faller
+  - **VT1a** (vald och byggd 2026-11-08): *Byt filnyckel* i fliken *Kuvert* (ÄR1b); korten får *Lindas om* eller *Faller
     bort*, och bekräftelsen fälls ut under dem med huvudnyckeln och valet att skapa ett nytt ärendelösenord. Kuvertens
     kort ritas **utan kuvertlinjen** (fliken som gör dem till brev), också i ÄR1b.
-  - **LN1a** (vald 2026-11-08): en länk som väntat på upplåsningen står överst i ärendeväljaren (ÄV1a), som fälls ut av
+  - **LN1a** (vald och byggd 2026-11-08): en länk som väntat på upplåsningen står överst i ärendeväljaren (ÄV1a), som fälls ut av
     sig själv, med sökfältet, *Lägg i ärende* och *Nytt ärende med adressen …* (NC2a med adressen hämtad); låsskärmen
     säger bara att en länk väntar, aldrig adressen.
-  - **AK1a** (vald 2026-11-08): *Verifiera* säger att hashkedjan är hel och, med en lugn gul rad, att ankaret byttes;
+  - **AK1a** (vald och byggd 2026-11-08): *Verifiera* säger att hashkedjan är hel och, med en lugn gul rad, att ankaret byttes;
     *Varför?* öppnar Guidens panel med förklaringen, kedjan som prickar och den troligaste orsaken streckad.
-  - **Valda 2026-11-08 (andra omgången):** **DX1b** (en DEX:s router är en liten markering i swap-pillrets hörn;
+  - **Valda och byggda 2026-11-08 (andra omgången):** **DX1b** (en DEX:s router är en liten markering i swap-pillrets hörn;
     hovring visar vägen genom poolerna, klick öppnar *Varför?*, en aggregator visar antalet steg), **KV1a** (dra
     tillbaka en heuristiks version i menyn på heuristikens rad i inspektörens *Varför?*, med före och efter per
     kluster och adresserna som lämnar eller kommer tillbaka streckade i grafen), **HB1a** (en slutsats som hålls
@@ -676,16 +677,16 @@ Canvas: https://claude.ai/artifact/LVMLEqgJteM68jjc7vuq1h. **Den är uppdelad i 
 | **Stil och ikoner** | ID1 (Bitcoin-myntet), ID3 (sågkedjan), ID5 (kättingen); ID6 (accentfärgen), GR3a och GR3c (bildspråket); ID9a–c (accentfärgen i varma jordtoner); IK1 (grafens ikon) | ID1 och ID3 avvisade, ID5 ersatt av loggan i `assets/logo/`; ID6 Magenta ersatt, GR3a och GR3c godkända; ID9b vald och byggd; IK1 kandidat 2, *Förgrening*, vald och byggd |
 | **Låsskärm och förstagång** | ID2, ID4, ID7a, ID7b (låsskärmen); FS1a, FS1b (förstagångsinställningen); ID8a–d (kättingen som blir DNA); ID8e, ID8f (startanimationen och ett spänt rep som svajar när fönstret skakas); LS1a, LS1b (formuläret ovanför bandet, kedjan som svarar på nyckeln och spiralen som blir noden Nytt ärende) | ID8c (ersätter ID7a) och FS1a valda och byggda; ID8f (stram, ersätter ID8c) och LS1b valda och byggda 2026-11-08 |
 | **Skalet** | SH1a (sidopanel), SH1b (pillret) | SH1b vald och byggd |
-| **Vänsternavigering** | PN1 (undermenyer i pillret), B9 från Gawk (förlaga) | PN1 godkänd, byggs i etapp 11b |
+| **Vänsternavigering** | PN1 (undermenyer i pillret), B9 från Gawk (förlaga) | PN1 godkänd och byggd |
 | **Ärenden** | NC1a (panel), NC1b (dialog); NC2a, NC2b (startpunkterna som lista som förhandshämtar) | NC2a vald 2026-11-08 och byggd (ersätter NC1a) |
-| **Grafen** | GR1a, GR1b; GR2a, GR2b; GR3b, GR4; GR5 (startpunkten och namnen), IN1a, IN1b (inspektörens formulär); AN1a, AN1b (ta tillbaka och ångra); TK1a, TK1b (tokens och Kan frysas); TL1a, TL1b (tidslinjen under grafen); EX1a, EX1b (det som hölls tillbaka vid en expansion); EX2a, EX2b (filtren och var de utplockade hamnar); GR6a, GR6b, GR6c (tom graf med guidenoder); IN2a, IN2b (inspektören med ikoner); KN1a, KN1b (kommentarsnoden); GR7a, GR7b (bildspråkets ruta); GR8a, GR8b (ärenden i högar i startvyn); IN5a, IN5b (inspektören under grafen, i skissernas stil) | GR4 godkänd, förlagan för grafen; GR5 variant A, IN1a, AN1b och TK1a valda; TL1a vald; EX1a och EX1b båda, som två lägen, med filter och samlingsnoden; EX2b vald, med dimmad bakgrund; GR6c vald och byggd; IN2b vald (ikonlisten vid noden), med formulären vid noden som i IN1b; KN1a vald; GR7a vald; GR8a vald, med grafens stöt och centrering; IN5a vald och byggd 2026-11-08 |
-| **Utgångar** | UT1a (i titelraden), UT1b (undermeny i pillret); UT2a, UT2b (lättare att läsa) | UT2b vald (ersätter UT1a) |
+| **Grafen** | GR1a, GR1b; GR2a, GR2b; GR3b, GR4; GR5 (startpunkten och namnen), IN1a, IN1b (inspektörens formulär); AN1a, AN1b (ta tillbaka och ångra); TK1a, TK1b (tokens och Kan frysas); TL1a, TL1b (tidslinjen under grafen); EX1a, EX1b (det som hölls tillbaka vid en expansion); EX2a, EX2b (filtren och var de utplockade hamnar); GR6a, GR6b, GR6c (tom graf med guidenoder); IN2a, IN2b (inspektören med ikoner); KN1a, KN1b (kommentarsnoden); GR7a, GR7b (bildspråkets ruta); GR8a, GR8b (ärenden i högar i startvyn); IN5a, IN5b (inspektören under grafen, i skissernas stil); IN3a–d (innehavet), SN1a, SN1b (sonarn) | Allt valt är byggt. GR4 godkänd, förlagan för grafen; GR5 variant A, IN1a, AN1b och TK1a valda; TL1a vald; EX1a och EX1b båda, som två lägen, med filter och samlingsnoden; EX2b vald, med dimmad bakgrund; GR6c vald och byggd; IN2b vald (ikonlisten vid noden), med formulären vid noden som i IN1b; KN1a vald; GR7a vald; GR8a vald, med grafens stöt och centrering; IN5a vald och byggd 2026-11-08 |
+| **Utgångar** | UT1a (i titelraden), UT1b (undermeny i pillret); UT2a, UT2b (lättare att läsa) | UT2b vald och byggd (ersätter UT1a), sedan UT3b och UT4a i Inställningar |
 | **Guiden** | GD1a (vy), GD1b (panel bredvid arbetet) | GD1b vald och byggd (etapp 18) |
-| **Inställningar** | ST1a (dialog som i Gawk), ST1b (vy); KL1a, KL1b (källornas endpoints) | ST1a vald och byggd (etapp 19); KL1a vald, ersatt av KL2b (vald 2026-11-08 utan linjerna vid raderna och byggd, med Chainabuse under *Etiketter*) |
-| **Bevakning** | BV1a (lista med formulär), BV1b (tidslinje med händelser); BV2a (vaktlinje), BV2b (båge vid porten); BV3a, BV3b (Bevaka, enklare och vid noden) | BV1a och BV2a valda, med animerade ringar vid träff; BV3a vald |
+| **Inställningar** | ST1a (dialog som i Gawk), ST1b (vy); KL1a, KL1b (källornas endpoints); KL2a, KL2b; KL3a, KL3b (den egna nodens certifikat) | ST1a vald och byggd (etapp 19); KL1a vald, ersatt av KL2b (vald 2026-11-08 utan linjerna vid raderna och byggd, med Chainabuse under *Etiketter*); KL3b vald och byggd |
+| **Bevakning** | BV1a (lista med formulär), BV1b (tidslinje med händelser); BV2a (vaktlinje), BV2b (båge vid porten); BV3a, BV3b (Bevaka, enklare och vid noden) | BV1a och BV2a valda och byggda, med animerade ringar vid träff; BV3a vald och byggd |
 | **Begäran** | BG1a (i inspektören), BG1b (vyn Begäran); export till Markdown | BG1b vald och byggd |
-| **Soptunnan** | SO1a, SO1b (släppytan, varningen och vyn); SO2a, SO2b (vyn omgjord: kort per slängning eller lista och bild, tomt läge med nersänkt ikon) | SO1a vald; SO2a vald och byggd 2026-11-08 (vyn) |
-| **Ärendeväljaren** | ÄV1a (i titelraden), ÄV1b (panel) | ÄV1a vald |
-| **Kontroller och förslag** | KF1a (lista att gå igenom), KF1b (områden bakom aktörerna, också för plånböcker, tid och egna ytor); KF2a, KF2b (omgjorda, professionellare) | KF1a byggd i etapp 22, ersätts av KF2b (vald 2026-11-08), med områdena från KF1b |
+| **Soptunnan** | SO1a, SO1b (släppytan, varningen och vyn); SO2a, SO2b (vyn omgjord: kort per slängning eller lista och bild, tomt läge med nersänkt ikon) | SO1a vald och byggd; SO2a vald och byggd 2026-11-08 (vyn) |
+| **Ärendeväljaren** | ÄV1a (i titelraden), ÄV1b (panel) | ÄV1a vald och byggd |
+| **Kontroller och förslag** | KF1a (lista att gå igenom), KF1b (områden bakom aktörerna, också för plånböcker, tid och egna ytor); KF2a, KF2b (omgjorda, professionellare) | KF1a byggd i etapp 22, ersatt av KF2b (vald och byggd 2026-11-08), med områdena från KF1b |
 | **Meddelanden** | TO1a (toastern nere till höger) | TO1a godkänd och byggd |
-| **Mot 1.0** | IN4, TL2, GR9 (grafen); ET1, EP1, RP1 (Etiketter, Exponering, Rapporten); KU1, BV4, ST2, FS2 (kurser, meddelandet, återställningsnyckeln, steget Utgång); UT3, ÄR1, KR1 (utgångarna, ärendet, sökningen), två varianter vardera; TL3, FL1 (vyerna Tidslinje och Flöde), PL1 (ångra en plånbok), SW1 (spåret genom en swap) | Valda 2026-11-08: IN4a, TL2a, GR9a, ET1a, EP1b, RP1b, KU1a, BV4a, ST2a, FS2a, UT3b, ÄR1b, KR1a; TL3a, FL1a, PL1b och SW1a valda |
+| **Mot 1.0** | IN4, TL2, GR9 (grafen); ET1, EP1, RP1 (Etiketter, Exponering, Rapporten); KU1, BV4, ST2, FS2 (kurser, meddelandet, återställningsnyckeln, steget Utgång); UT3, ÄR1, KR1 (utgångarna, ärendet, sökningen), två varianter vardera; TL3, FL1 (vyerna Tidslinje och Flöde), PL1 (ångra en plånbok), SW1 (spåret genom en swap); VT1, LN1, AK1, DX1, KV1, HB1, BU1, DM1, HP1, PX1, UT4, KL3, TJ1; OM1, LK1, RS1, SP1, YT1, UT5, BV5, KB1, CJ1, TE1, MS1, LS1 (listorna, döps om till LI1), FR1, AV1 | Allt utom de 14 sista valt och byggt 2026-11-08 och 2026-11-09; OM1–AV1 väntar på val (TODO) |
