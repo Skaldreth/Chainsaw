@@ -16,6 +16,9 @@ internal sealed class SourceHarness : IDisposable
 {
     public const string CaseNumber = "2026-0042";
 
+    /// <summary>The fake Esplora for Litecoin, answered from the fixtures in <c>Litecoin/</c>.</summary>
+    public const string LitecoinBase = "https://litecoin.test/api/";
+
     private readonly ServiceProvider _provider;
 
     private readonly string _directory =
@@ -41,7 +44,8 @@ internal sealed class SourceHarness : IDisposable
         services.AddChainsModule(
             // The recorded blocks were mined at regtest's ease, beyond mainnet's work limit.
             new BitcoinSourceOptions { EsploraBaseUri = new Uri(Fixtures.Base), CheckWorkLimit = false },
-            options => options.Delay = Clock.Delay);
+            options => options.Delay = Clock.Delay,
+            litecoin: BitcoinSourceOptions.ForLitecoin() with { DefaultEndpoints = [new Uri(LitecoinBase)] });
         _provider = services.BuildServiceProvider();
         Case = _provider.GetRequiredService<ICaseStore>().Create(CaseNumber);
         Source = _provider.GetRequiredService<IBitcoinSource>();
@@ -59,6 +63,9 @@ internal sealed class SourceHarness : IDisposable
     public ICase Case { get; }
 
     public IBitcoinSource Source { get; }
+
+    /// <summary>Gets Litecoin's source.</summary>
+    public ILitecoinSource Litecoin => _provider.GetRequiredService<ILitecoinSource>();
 
     public CaseVerification Verify() => _provider.GetRequiredService<ICaseVerifier>().Verify(Case);
 

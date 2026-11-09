@@ -8,8 +8,9 @@ namespace Chainsaw.Modules.Pricing;
 
 /// <summary>
 /// Bitstamp's public price history (<c>GET /api/v2/ohlc/{market}/</c>), open without an API key, with candles of a
-/// minute, an hour or a day back to 2011 for BTC/USD and BTC/EUR, and for ETH, TRX, USDT and USDC (on Ethereum, and USDT
-/// on TRON) in dollars and euro. One request asks for one candle: <c>step</c> is the length in seconds,
+/// minute, an hour or a day back to 2011 for BTC/USD and BTC/EUR, and for ETH, TRX, LTC, BNB, USDT and USDC (on
+/// Ethereum, USDT on TRON, and both on BSC) in dollars and euro (markets read 2026-11-09: <c>ltceur</c> and
+/// <c>bnbeur</c> among them). One request asks for one candle: <c>step</c> is the length in seconds,
 /// <c>limit=1</c> and <c>start</c> the candle's start as Unix time.
 /// </summary>
 /// <param name="baseUri">The API's base address, for example <c>https://www.bitstamp.net/api/v2/</c>.</param>
@@ -31,18 +32,23 @@ internal sealed class BitstampRateSource(Uri baseUri) : ICryptoRateSource
     /// The tokens Bitstamp has markets for, recognised by chain and contract (never by symbol), with Bitstamp's code
     /// for each: USDT and USDC on Ethereum and USDT on TRON, the stablecoins it lists against dollars and euro
     /// (<c>usdtusd</c>, <c>usdteur</c>, <c>usdcusd</c>, <c>usdceur</c>). Bitstamp's USDT is Tether's token whatever
-    /// chain it is issued on, so the same market prices it on Ethereum and on TRON.
+    /// chain it is issued on, so the same market prices it on Ethereum and on TRON. On BSC, USDT and USDC are
+    /// Binance's bridged tokens, each backed one to one by the token it bridges; Bitstamp has no market of their own,
+    /// so they are priced by the token they stand for, which the rate's source says (principle 2: a rate is a
+    /// judgement with its source).
     /// </summary>
     private static readonly Dictionary<Asset, string> Tokens = new()
     {
         [KnownTokens.EthereumUsdt] = "USDT",
         [KnownTokens.EthereumUsdc] = "USDC",
         [KnownTokens.TronUsdt] = "USDT",
+        [KnownTokens.BscUsdt] = "USDT",
+        [KnownTokens.BscUsdc] = "USDC",
     };
 
     /// <inheritdoc/>
     public bool Supports(Chain chain, FiatCurrency quote) =>
-        chain is Chain.Bitcoin or Chain.Ethereum or Chain.Tron && HasQuote(quote);
+        chain is Chain.Bitcoin or Chain.Ethereum or Chain.Tron or Chain.Litecoin or Chain.Bsc && HasQuote(quote);
 
 
     /// <inheritdoc/>

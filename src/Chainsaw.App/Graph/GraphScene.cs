@@ -351,8 +351,7 @@ public sealed record SwapMarks(string Sold, string Bought)
             return glyph;
         }
 
-        var known = asset.Kind != AssetKind.Token || asset == KnownTokens.EthereumWeth
-            || KnownTokens.IssuerOf(asset) is not null;
+        var known = asset.Kind != AssetKind.Token || KnownTokens.IsWrappedNative(asset) || KnownTokens.IsKnown(asset);
         return known ? asset.Symbol : asset.Symbol + UnknownTokenMark;
     }
 
@@ -653,6 +652,8 @@ public sealed record GraphScene(
         Chain.Bitcoin => "BTC",
         Chain.Ethereum => "ETH",
         Chain.Tron => "TRON",
+        Chain.Litecoin => "LTC",
+        Chain.Bsc => "BSC",
         _ => chain.ToString().ToUpperInvariant(),
     };
 
@@ -970,14 +971,15 @@ public sealed record GraphScene(
     };
 
     /// <summary>
-    /// Writes an address as its chain's tools do: an Ethereum address with its EIP-55 checksum, others as they are.
+    /// Writes an address as its chain's tools do: an address on Ethereum or BSC with its EIP-55 checksum, others as
+    /// they are.
     /// </summary>
     /// <param name="address">The address.</param>
     /// <returns>The text.</returns>
     public static string Written(ChainAddress address)
     {
         ArgumentNullException.ThrowIfNull(address);
-        return address.Chain == Chain.Ethereum
+        return address.Chain.IsEvm()
             && Chainsaw.Modules.Chains.Contracts.EthereumAddress.TryParse(address.Value, out var ethereum)
             ? ethereum.Checksummed
             : address.Value;

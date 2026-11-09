@@ -78,6 +78,17 @@ på grafikkortet** bakom samma `GraphCanvas`, så att inget annat ändras. *Vän
 19. **Det en kollega har lagt till** i ett delat ärende efter den här datorns ankare godtas som äkta och visas inte som
     tillagt någon annanstans. Ska raderna efter det egna ankaret märkas?
 
+**Från Litecoin och BSC 2026-11-09** (DEV-LOG, *Omgång 8b*):
+20. **BSC:s källa:** det finns ingen öppen Blockscout för BSC (Blockscouts egen lista har ingen för kedja 56), BscScans
+    API har gått upp i Etherscans, som för BSC kräver en **betald** nyckel och tar den i adressen, och BSC:s öppna
+    JSON-RPC-noder har ingen historik per adress (allt prövat 2026-11-09). *Nu:* BSC har ingen endpoint från början;
+    användaren lägger till en egen eller köpt Blockscout för BSC under *Källor*, med nyckeln i valvet. Ska Chainsaw
+    tala Etherscans API (v2, `chainid=56`) med en betald nyckel? Det kräver att nyckeln kan skickas i adressen men
+    förseglas utan den (BACKLOG, *Etherscan med API-nyckel*).
+21. **USDT och USDC på BSC** är Binances bryggade tokens (*Binance-Peg*), inte Tethers och Circles egna. *Nu:* de känns
+    igen på kontraktet, har **inte** snöflingan *Kan frysas* (inget känt sätt att frysa dem), och kursen tas från
+    Bitstamps marknad för den token de står för (USDT, USDC). Stämmer det med hur kryptospåraren ser på dem?
+
 **Äldre, där sessionen valt det säkraste:**
 - **Återkallade återställningsnycklar** (etapp 9):
   - När nyckeln byts ligger den gamla nyckelns kuvert kvar. Det tas bort först när nyckeln återkallas med en rad
@@ -156,8 +167,24 @@ byggt ur BACKLOG; det som skriver i ärendet granskas oberoende.
    - [skiss] **Ta tillbaka en egen yta i Historik** (KF1b, Z): samma rad och formulär som för en etikett.
    - Resterna i BACKLOG under Exponering, Begäran, Låsskärmen, Historik, Testärendet och *Vyerna efter 1.0* står kvar
      där, med varför.
-8. **TRON med USDT** är byggt (omgång 8, DEV-LOG, resterna i BACKLOG under *TRON efter omgång 8*); kvar **Litecoin**,
-   **BSC**, **Solana** och den genomskinliga delen av **Zcash**. TRON:s ytor som väntar:
+8. **TRON med USDT** är byggt (omgång 8, DEV-LOG, resterna i BACKLOG under *TRON efter omgång 8*), och **Litecoin** och
+   **BSC** (omgång 8b, DEV-LOG); kvar **Solana** och den genomskinliga delen av **Zcash**. Litecoin och BSC, kvar:
+   - **Litecoin i grafen:** grafens UTXO-del (`UtxoGraph`, `TraceCalculator`, `GraphStateStore`, `TracingService`
+     med en källa) räknar i bitcoin och lagrar Bitcoins txid utan kedja. En Litecoin-startpunkt hämtas i förväg och
+     kan bevakas men läggs inte i grafen. Att bära kedjan i UTXO-delen (en källa per kedja, `litecoin-address` och
+     `litecoin-transaction` i grafens läge, belopp i LTC, klustring och kontroller per kedja) är en egen omgång;
+     `MwebTrailEnds` (MWEB som *skyddad pool*) är redan registrerad och tar då över.
+   - **MWEB:s troliga utgångar:** peg-outs ur blockens HogEx som matchar en peg-in på belopp minus avgift och tid, som
+     streckade kandidater (CLAUDE.md, *Privacy coins*).
+   - [skiss] **Välja kedja för en `0x`-adress:** en BSC-adress skrivs som Ethereums, så i *Nytt ärende*, i formuläret
+     *Bevaka* och i kommandoraden blir `0x…` Ethereum om inte `bsc:` står före. En väljare (Ethereum, BSC) vid raden
+     eller fältet när texten passar båda.
+   - [skiss] **Startpunktsnodens brickor (GR6c)** visar inte Litecoin och BSC.
+   - [skiss] **Ett eget märke för Litecoin och BSC:** raden i *Nytt ärende* och *Väntar på källan* visar `Ł` och `B`
+     som text, inte en ritad ikon som TRON:s.
+   - **Testärendet** (`/testdata`) har ingen Litecoin- eller BSC-källa än (som TRON:s `TestTronHttp`).
+
+   TRON:s ytor som väntar:
    - [skiss] **Fryst:** Tethers kontrakt på TRON har en svartlista (`isBlackListed`); en adress som står där kunde få
      en markering *Fryst* bredvid snöflingan *Kan frysas*, med när den lästes och ur vilket svar. Hur den skiljer sig
      från snöflingan (som bara säger att utgivaren *kan* frysa) och hur ofta den frågas skissas först.

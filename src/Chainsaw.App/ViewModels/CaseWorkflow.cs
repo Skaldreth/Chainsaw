@@ -393,17 +393,30 @@ public sealed partial class CaseWorkflow
     /// <returns>The text.</returns>
     public static string NotBuiltText(ChainStartPoint startPoint) => startPoint.Chain switch
     {
+        _ when startPoint.IsShielded => MwebText,
+        { } chain when startPoint.CanFetch =>
+            $"{CaseTexts.ChainName(chain)} kan inte spåras i grafen än, så det kan inte bli en startpunkt.",
         { } chain => $"{CaseTexts.ChainName(chain)} är inte byggt än, så det kan inte bli en startpunkt.",
         _ => "Det känns inte igen som en adress eller en tx.",
     };
 
-    /// <summary>Gives the Tracing start point for a Bitcoin, Ethereum or TRON start point.</summary>
+    /// <summary>Says why a start point on a chain cannot be traced: not in the graph yet, or not built at all.</summary>
+    /// <param name="startPoint">The start point.</param>
+    /// <returns>The words after the chain's name.</returns>
+    private static string NotTracedWhy(ChainStartPoint startPoint) =>
+        startPoint.CanFetch ? "kan inte spåras i grafen än" : "är inte byggt än";
+
+    /// <summary>What is said of an address in Litecoin's shielded part, MWEB.</summary>
+    public const string MwebText =
+        "Adressen ligger i Litecoins skyddade del (MWEB), där belopp och ägare inte syns: spåret tar slut här.";
+
+    /// <summary>Gives the Tracing start point for a Bitcoin, Ethereum, TRON or BSC start point.</summary>
     /// <param name="startPoint">The recognised start point.</param>
     /// <returns>The start point, or <see langword="null"/> when its chain is not built.</returns>
     public static TraceStartPoint? ToTrace(ChainStartPoint startPoint)
     {
         ArgumentNullException.ThrowIfNull(startPoint);
-        if (startPoint.Chain is Chain.Ethereum or Chain.Tron)
+        if (startPoint.Chain is Chain.Ethereum or Chain.Tron or Chain.Bsc)
         {
             if (startPoint.EthereumAccount is { } address)
             {
@@ -471,9 +484,12 @@ public sealed partial class CaseWorkflow
         }
 
         var chain = CaseTexts.ChainName(startPoint.Chain!.Value);
+        var summary = startPoint.IsShielded
+            ? $"Startpunkt på {chain} noterad: {MwebText} {startPoint.Value}"
+            : $"Startpunkt på {chain} noterad, men {chain} {NotTracedWhy(startPoint)}: {startPoint.Value}";
         created.AppendJournal(new JournalDraft(
             AppJournalKinds.StartPointNoted,
-            $"Startpunkt på {chain} noterad, men {chain} är inte byggt än: {startPoint.Value}",
+            summary,
             JsonSerializer.Serialize(new Dictionary<string, string>
             {
                 ["chain"] = startPoint.Chain.Value.ToString(),

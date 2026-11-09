@@ -20,6 +20,15 @@ public static class Bech32
     /// <summary>What the checksum's polynomial gives for a valid Bech32 text.</summary>
     private const uint Bech32Constant = 1;
 
+    /// <summary>Litecoin's SegWit prefix.</summary>
+    private const string LitecoinPrefix = "ltc";
+
+    /// <summary>The witness version of Litecoin's extension block's own address (MWEB's HogAddr).</summary>
+    private const int MwebHogVersion = 8;
+
+    /// <summary>The witness version of a peg-in to Litecoin's MWEB.</summary>
+    private const int MwebPegInVersion = 9;
+
     /// <summary>What the checksum's polynomial gives for a valid Bech32m text.</summary>
     private const uint Bech32mConstant = 0x2bc830a3;
 
@@ -51,7 +60,7 @@ public static class Bech32
 
         var data = new List<byte> { (byte)witnessVersion };
         data.AddRange(ConvertBits(program, 8, 5, pad: true)!);
-        var constant = witnessVersion == 0 ? Bech32Constant : Bech32mConstant;
+        var constant = ChecksumFor(humanReadablePart, witnessVersion);
         var values = ExpandPart(humanReadablePart).Concat(data).Concat(new byte[ChecksumLength]).ToArray();
         var polymod = Polymod(values) ^ constant;
         for (var i = 0; i < ChecksumLength; i++)
@@ -84,7 +93,7 @@ public static class Bech32
 
         var version = data[0];
         var converted = ConvertBits(data.AsSpan(1), 5, 8, pad: false);
-        var expected = version == 0 ? Bech32Constant : Bech32mConstant;
+        var expected = ChecksumFor(part, version);
         if (converted is null || constant != expected || !IsValidProgram(version, converted.Length))
         {
             return false;
@@ -95,6 +104,20 @@ public static class Bech32
         program = converted;
         return true;
     }
+
+    /// <summary>
+    /// Gives the checksum a SegWit address of a version is written with: Bech32 for version 0 and Bech32m from version
+    /// 1 (BIP 350), except Litecoin's MWEB addresses (prefix <c>ltc</c>, versions 8 and 9: the extension block's own
+    /// address and a peg-in), which Litecoin and litecoinspace.org write with Bech32 (read from litecoinspace.org's
+    /// answers, 2026-11-09).
+    /// </summary>
+    /// <param name="humanReadablePart">The prefix in lower case.</param>
+    /// <param name="version">The witness version.</param>
+    /// <returns>The constant the checksum ends in.</returns>
+    private static uint ChecksumFor(string humanReadablePart, int version) =>
+        version == 0 || (humanReadablePart == LitecoinPrefix && version is MwebHogVersion or MwebPegInVersion)
+            ? Bech32Constant
+            : Bech32mConstant;
 
     /// <summary>Checks a witness version and program length (BIP 141 and BIP 173).</summary>
     /// <param name="version">The version.</param>

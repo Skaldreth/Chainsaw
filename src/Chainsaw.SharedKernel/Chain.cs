@@ -2,7 +2,8 @@ namespace Chainsaw.SharedKernel;
 
 /// <summary>
 /// The blockchains Chainsaw knows. Bitcoin is traced first; the others are listed so that the model (for example an
-/// edge that continues on another chain) can name them from the start.
+/// edge that continues on another chain) can name them from the start. New chains are added last, so that a chain's
+/// number never changes.
 /// </summary>
 public enum Chain
 {
@@ -14,4 +15,15 @@ public enum Chain
 
     /// <summary>TRON: accounts, amounts in sun, tokens such as TRC-20 (USDT).</summary>
     Tron,
+
+    /// <summary>
+    /// Litecoin: unspent outputs (UTXO) as Bitcoin, amounts in litoshi; its shielded part (MWEB) is where the trail
+    /// ends.
+    /// </summary>
+    Litecoin,
+
+    /// <summary>
+    /// BNB Smart Chain (BSC): accounts on Ethereum's virtual machine, amounts in wei of BNB, tokens such as BEP-20.
+    /// </summary>
+    Bsc,
 }

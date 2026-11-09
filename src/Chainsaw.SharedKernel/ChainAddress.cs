@@ -10,7 +10,8 @@ public sealed record ChainAddress
     /// <summary>Creates an address.</summary>
     /// <param name="chain">The chain.</param>
     /// <param name="value">
-    /// The address; Ethereum's hex is kept in lower case (the mixed case is only a checksum), other chains' as given.
+    /// The address; hex on Ethereum's virtual machine (Ethereum and BSC) is kept in lower case (the mixed case is only a
+    /// checksum), other chains' as given.
     /// </param>
     /// <exception cref="ArgumentException">The address is empty or holds white space.</exception>
     public ChainAddress(Chain chain, string value)
@@ -27,7 +28,7 @@ public sealed record ChainAddress
             throw new ArgumentException("An address holds no white space.", nameof(value));
         }
 
-        (Chain, Value) = (chain, chain == Chain.Ethereum ? trimmed.ToLowerInvariant() : trimmed);
+        (Chain, Value) = (chain, chain.IsEvm() ? trimmed.ToLowerInvariant() : trimmed);
     }
 
     /// <summary>Gets the chain.</summary>

@@ -6,10 +6,10 @@ using Chainsaw.SharedKernel;
 namespace Chainsaw.Modules.Chains.Contracts;
 
 /// <summary>
-/// A transaction's id in the account model, on Ethereum or on TRON (the type keeps Ethereum's name, as
-/// <see cref="EthereumAddress"/> does). On Ethereum it is <c>0x</c> and 32 bytes in hex, kept in lower case, and the
-/// same form names a block's hash (<see cref="EthereumBlockReference.Hash"/>). On TRON it is the 32 bytes in hex
-/// without <c>0x</c>, in lower case, as TRON writes its transaction ids and block ids.
+/// A transaction's id in the account model, on Ethereum, BSC or TRON (the type keeps Ethereum's name, as
+/// <see cref="EthereumAddress"/> does). On Ethereum and BSC it is <c>0x</c> and 32 bytes in hex, kept in lower case,
+/// and the same form names a block's hash (<see cref="EthereumBlockReference.Hash"/>). On TRON it is the 32 bytes in
+/// hex without <c>0x</c>, in lower case, as TRON writes its transaction ids and block ids.
 /// </summary>
 public sealed record EthereumTxHash
 {
@@ -24,10 +24,13 @@ public sealed record EthereumTxHash
     /// <param name="value">The hash.</param>
     private EthereumTxHash(Chain chain, string value) => (Chain, Value) = (chain, value);
 
-    /// <summary>Gets the chain the transaction is on: <see cref="Chain.Ethereum"/> or <see cref="Chain.Tron"/>.</summary>
+    /// <summary>
+    /// Gets the chain the transaction is on: <see cref="Chain.Ethereum"/>, <see cref="Chain.Bsc"/> or
+    /// <see cref="Chain.Tron"/>.
+    /// </summary>
     public Chain Chain { get; }
 
-    /// <summary>Gets the hash in lower case: with <c>0x</c> on Ethereum, without on TRON.</summary>
+    /// <summary>Gets the hash in lower case: with <c>0x</c> on Ethereum and BSC, without on TRON.</summary>
     public string Value { get; }
 
     /// <summary>Reads an Ethereum hash.</summary>
@@ -41,7 +44,7 @@ public sealed record EthereumTxHash
     }
 
     /// <summary>Reads a transaction's id on an account chain.</summary>
-    /// <param name="chain">The chain: Ethereum (<c>0x</c> and 64 hex digits) or TRON (64 hex digits).</param>
+    /// <param name="chain">The chain: Ethereum or BSC (<c>0x</c> and 64 hex digits) or TRON (64 hex digits).</param>
     /// <param name="text">The text; white space around it is ignored.</param>
     /// <param name="hash">The hash, or <see langword="null"/>.</param>
     /// <returns><see langword="true"/> when the text is a transaction's id on the chain.</returns>
@@ -54,6 +57,9 @@ public sealed record EthereumTxHash
         {
             case Chain.Ethereum:
                 return TryParse(trimmed, out hash);
+            case Chain.Bsc when IsHash(trimmed):
+                hash = new EthereumTxHash(Chain.Bsc, trimmed.ToLowerInvariant());
+                return true;
             case Chain.Tron when trimmed is { Length: Digits } && !trimmed.AsSpan().ContainsAnyExcept(HexDigits):
                 hash = new EthereumTxHash(Chain.Tron, trimmed.ToLowerInvariant());
                 return true;

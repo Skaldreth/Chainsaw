@@ -246,7 +246,7 @@ internal sealed class ExposureTally
             .OrderBy(tx => _times.GetValueOrDefault(tx) ?? DateTimeOffset.MaxValue)
             .ThenBy(tx => tx.Id, StringComparer.Ordinal)
             .ToList();
-        var crossed = transactions.Where(tx => tx.Chain == Chain.Ethereum).Select(tx => tx.Id)
+        var crossed = transactions.Where(tx => tx.Chain.IsEvm()).Select(tx => tx.Id)
             .ToHashSet(StringComparer.Ordinal);
         return new ExposureReach(service, amount, Hops[service], path, edges, transactions)
         {

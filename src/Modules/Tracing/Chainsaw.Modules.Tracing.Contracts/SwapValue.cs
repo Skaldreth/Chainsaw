@@ -45,10 +45,17 @@ public static class SwapValue
     public static SwapPriceCheck CheckPrice(TokenSwap swap, SwapPricing? pricing)
     {
         ArgumentNullException.ThrowIfNull(swap);
-        if (pricing is null || swap.Time is not { } time
-            || pricing.ValueAt(swap.Sold, time) is not { } sold || pricing.ValueAt(swap.Bought, time) is not { } bought)
+        if (pricing is null || swap.Time is not { } time)
         {
             return new SwapPriceCheck(swap, SwapPriceVerdict.NotTested, null, null, pricing?.Currency);
+        }
+
+        // An untested check keeps the side that has a value, so that it can say which side lacks its rate.
+        var soldValue = pricing.ValueAt(swap.Sold, time);
+        var boughtValue = pricing.ValueAt(swap.Bought, time);
+        if (soldValue is not { } sold || boughtValue is not { } bought)
+        {
+            return new SwapPriceCheck(swap, SwapPriceVerdict.NotTested, soldValue, boughtValue, pricing.Currency);
         }
 
         var larger = Math.Max(sold, bought);
@@ -383,6 +390,18 @@ public sealed record SwapPriceCheck(
         }
     }
 
+    /// <summary>
+    /// Names what lacks a rate in an untested check: the side that has no value, by its symbol (for example
+    /// <c>BNB</c>), or both sides when neither has one.
+    /// </summary>
+    /// <returns>The words.</returns>
+    private string Missing() => (SoldValue, BoughtValue) switch
+    {
+        (null, not null) => Swap.Sold.Asset.Symbol,
+        (not null, null) => Swap.Bought.Asset.Symbol,
+        _ => $"{Swap.Sold.Asset.Symbol} och {Swap.Bought.Asset.Symbol}",
+    };
+
     /// <summary>Explains the check in plain Swedish (principle 3): both amounts, both values and what follows.</summary>
     /// <returns>The explanation.</returns>
     public string Explain()
@@ -400,8 +419,8 @@ public sealed record SwapPriceCheck(
                 + "kedjan.",
             SwapPriceVerdict.Reasonable =>
                 $"Priset prövat ({Check}): in värt {sold}, ut värt {bought}, inom {limit} %.",
-            _ => $"Priset i swappen är inte prövat ({Check}): ärendet saknar kursen för det som gick in eller kom ut "
-                + "vid tx:ens tid. Värdet följer ändå med, som förval.",
+            _ => $"Priset i swappen är inte prövat ({Check}): ärendet saknar kursen för {Missing()} vid tx:ens tid "
+                + "(källan har ingen kurs för den då, eller den är inte hämtad än). Värdet följer ändå med, som förval.",
         };
     }
 }

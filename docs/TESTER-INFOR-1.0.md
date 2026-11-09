@@ -3481,3 +3481,34 @@ Inga riktiga TRON-adresser står här; ta en adress ur en beställning eller ur 
 - [ ] Guiden: avsnittet *TRON* (under TRON) och *USDT på TRON* stämmer med det som syns.
 - [ ] Bevaka en TRON-adress för alla tillgångar och skicka en skräptoken dit: ingen avisering. Kortets baksida visar TRX
       i stål och USDT i grönt; *Väntar på källan* visar `T` för TRON.
+
+## Litecoin och BSC (omgång 8b, 2026-11-09)
+
+Inga riktiga adresser står här; ta dem ur en beställning, litecoinspace.org eller BscScan.
+
+- [ ] Ctrl+, → *Källor*: Litecoin har litecoinspace.org (`https://litecoinspace.org/api/`) med lägena; *Prova alla
+      nu* visar den i fas. BSC har ingen endpoint och säger det; lägg till en Blockscout för BSC (sorten *Blockscout*)
+      och prova den.
+- [ ] Nytt ärende: klistra in en Litecoin-adress (`L…`, `M…`, `ltc1…`): raden får märket `Ł` och hämtar saldo i LTC,
+      antal tx, aktivitet och blockhöjd. `litecoin:3…` blir samma adress i `M…`-form. Raden säger att Litecoin inte
+      kan spåras i grafen än, och den blir ingen startpunkt.
+- [ ] Nytt ärende: `bsc:0x…` blir en BSC-rad med märket `B`, saldot i BNB och USDT; utan `bsc:` blir samma text
+      Ethereum. Skapa ärendet och expandera: linjerna har BNB och ₮ (USDT på BSC), utan snöflinga.
+- [ ] `chainsaw:bsc/0x…` och `chainsaw:litecoin/<tx>` öppnar Chainsaw med rätt kedja.
+- [ ] Samma `0x…` som startpunkt på både Ethereum och BSC: två noder, och att expandera den ena expanderar inte den
+      andra.
+- [ ] Bevaka en BSC-nod (högerklick): tillgångarna är BNB, ₮ USDT och USDC. Bevaka en Litecoin-adress i vyn Bevakning:
+      kedjan visas som Litecoin och ett minsta belopp skrivs i LTC. En ny överföring ger en träff, också med Chainsaw
+      stängt.
+- [ ] Importera OFAC:s lista: en `LTC`-adress och en `BSC`-adress blir *Sanktionerad* på rätt kedja, aldrig på
+      Bitcoin eller Ethereum för samma text.
+- [ ] Kurser: LTC och BNB visas i kronor (Bitstamp och Riksbanken), USDT på BSC som USDT. En BNB-linje före 2026
+      säger *Bitstamp har ingen BNB-kurs för perioden …*, och en swap mot BNB/WBNB står som *priset inte prövat* med
+      den sida som saknar kurs utskriven.
+- [ ] Klistra in en MWEB-adress (`ltcmweb1…`) i Nytt ärende: raden säger *MWEB-adress · spåret tar slut här* och
+      hämtar inget.
+- [ ] Annan kedja (K): BSC och Litecoin går att välja; en länk från en BSC-linje läses tillbaka efter att ärendet
+      öppnats igen.
+- [ ] Guiden: *Litecoin* och *BSC* under *Fler kedjor* stämmer med det som syns.
+- [ ] Bevaka en Ethereum-adress för *Alla*: ETH, WETH, USDT, USDC, DAI och WBTC ger träffar, en annan token gör det
+      inte (nytt sedan omgång 8b). På BSC ger BNB, WBNB, USDT och USDC träffar.

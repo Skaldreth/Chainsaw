@@ -388,6 +388,11 @@ public sealed class BitstampTokenSourceTests
         { Asset.Ether, FiatCurrency.Eur, true },
         { Asset.Tronix, FiatCurrency.Usd, true },
         { Asset.Tronix, FiatCurrency.Sek, false },
+        { KnownTokens.BscUsdt, FiatCurrency.Eur, true },
+        { KnownTokens.BscUsdc, FiatCurrency.Usd, true },
+        { Asset.Token(Chain.Bsc, KnownTokens.EthereumUsdt.Contract!, "USDT", 6), FiatCurrency.Usd, false },
+        { Asset.Litecoin, FiatCurrency.Eur, true },
+        { Asset.Bnb, FiatCurrency.Eur, true },
     };
 
     [Theory]

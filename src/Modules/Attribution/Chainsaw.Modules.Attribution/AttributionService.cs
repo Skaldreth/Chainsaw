@@ -82,7 +82,7 @@ internal sealed class AttributionService(
                     name is null ? string.Empty : $" ({name})"),
                 JsonSerializer.Serialize(new
                 {
-                    subject = draft.Subject.Target.Value,
+                    subject = draft.Subject.Stored,
                     subjectKind = draft.Subject.Kind.ToString(),
                     kind = draft.Kind.ToString(),
                     name,
@@ -299,7 +299,7 @@ internal sealed class AttributionService(
         var list = lookup.Lists.FirstOrDefault();
         var hits = lookup.Matches
             .SelectMany(pair => pair.Value.SelectMany(match => match.Hits
-                .Where(hit => OnChain(pair.Key.Chain, hit.Currency))
+                .Where(hit => SanctionCurrency.On(pair.Key.Chain, hit.Currency))
                 .Select(hit => new SanctionHit(pair.Key, hit, match.List))))
             .ToList();
         var done = new SanctionCheck(list, [], hits.Count) { Unusable = lookup.Unusable, Missing = lookup.Missing };
@@ -352,22 +352,9 @@ internal sealed class AttributionService(
 
     /// <summary>Says whether an address is on a chain the sanction lists are read for.</summary>
     /// <param name="address">The address with its chain.</param>
-    /// <returns><see langword="true"/> for Bitcoin, Ethereum and TRON.</returns>
+    /// <returns><see langword="true"/> for Bitcoin, Ethereum, TRON, Litecoin and BSC.</returns>
     private static bool IsSanctionChain(ChainAddress address) =>
-        address.Chain is Chain.Bitcoin or Chain.Ethereum or Chain.Tron;
-
-    /// <summary>Says whether a hit's currency is a chain's, so that a hit is never taken for another chain.</summary>
-    /// <param name="chain">The address's chain.</param>
-    /// <param name="currency">The hit's currency code.</param>
-    /// <returns><see langword="true"/> when the currency is the chain's.</returns>
-    private static bool OnChain(Chain chain, string currency) => chain switch
-    {
-        Chain.Bitcoin => currency == SanctionCurrency.Bitcoin,
-        Chain.Ethereum => SanctionCurrency.OnEthereum.Contains(currency),
-        Chain.Tron => SanctionCurrency.OnTron.Contains(currency),
-        _ => false,
-
-    };
+        address.Chain is Chain.Bitcoin or Chain.Ethereum or Chain.Tron or Chain.Litecoin or Chain.Bsc;
 
     /// <summary>Gives the hits the case has not had from the same list, with their origins.</summary>
     /// <param name="stored">The case's labels.</param>

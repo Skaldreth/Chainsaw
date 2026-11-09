@@ -117,7 +117,17 @@ public sealed partial class WatchFormViewModel : ObservableObject
             new WatchChoice("TRX", SharedKernel.Asset.Tronix),
             new WatchChoice("₮ USDT", KnownTokens.TronUsdt),
         ];
+        _bscAssets =
+        [
+            new WatchChoice("Alla", null),
+            new WatchChoice("BNB", SharedKernel.Asset.Bnb),
+            new WatchChoice("₮ USDT", KnownTokens.BscUsdt),
+            new WatchChoice("USDC", KnownTokens.BscUsdc),
+        ];
     }
+
+    /// <summary>The assets to choose from on BSC.</summary>
+    private readonly IReadOnlyList<WatchChoice> _bscAssets;
 
     /// <summary>The assets to choose from on Ethereum.</summary>
     private readonly IReadOnlyList<WatchChoice> _ethereumAssets;
@@ -134,8 +144,13 @@ public sealed partial class WatchFormViewModel : ObservableObject
     /// <summary>Gets how often the watch can ask the source.</summary>
     public IReadOnlyList<WatchChoice> Paces { get; }
 
-    /// <summary>Gets the assets to choose from on the watch's account chain (Ethereum's, or TRON's).</summary>
-    public IReadOnlyList<WatchChoice> Assets => Chain == SharedKernel.Chain.Tron ? _tronAssets : _ethereumAssets;
+    /// <summary>Gets the assets to choose from on the watch's account chain (Ethereum's, TRON's or BSC's).</summary>
+    public IReadOnlyList<WatchChoice> Assets => Chain switch
+    {
+        SharedKernel.Chain.Tron => _tronAssets,
+        SharedKernel.Chain.Bsc => _bscAssets,
+        _ => _ethereumAssets,
+    };
 
     /// <summary>Gets the receivers.</summary>
     public ObservableCollection<WatchPartyChip> Receivers { get; } = [];
@@ -251,7 +266,7 @@ public sealed partial class WatchFormViewModel : ObservableObject
             return string.Empty;
         }
 
-        var unit = IsBitcoin ? "BTC" : Asset?.Symbol;
+        var unit = IsBitcoin ? Chain!.Value.NativeAsset().Symbol : Asset?.Symbol;
         return unit is null ? typed : $"{typed} {unit}";
     }
 
@@ -272,11 +287,15 @@ public sealed partial class WatchFormViewModel : ObservableObject
     /// <summary>Gets whether the watch is on Ethereum.</summary>
     public bool IsEthereum => Chain == SharedKernel.Chain.Ethereum;
 
-    /// <summary>Gets whether the watch is on an account chain (Ethereum, TRON), where the asset is chosen.</summary>
-    public bool IsAccountChain => Chain is SharedKernel.Chain.Ethereum or SharedKernel.Chain.Tron;
+    /// <summary>
+    /// Gets whether the watch is on an account chain (Ethereum, TRON, BSC), where the asset is chosen.
+    /// </summary>
+    public bool IsAccountChain => Chain is { } chain && chain.Model() == LedgerModel.Account;
 
-    /// <summary>Gets whether the watch is on Bitcoin, where BTC is the only asset.</summary>
-    public bool IsBitcoin => Chain == SharedKernel.Chain.Bitcoin;
+    /// <summary>
+    /// Gets whether the watch is on a UTXO chain (Bitcoin, Litecoin), where the chain's own coin is the only asset.
+    /// </summary>
+    public bool IsBitcoin => Chain is { } chain && chain.Model() == LedgerModel.Utxo;
 
     /// <summary>Gets whether receivers are shown: money going out is watched.</summary>
     public bool ShowsReceivers => Direction != WatchDirection.In;
@@ -550,7 +569,7 @@ public sealed partial class WatchFormViewModel : ObservableObject
             .Replace(' '.ToString(), string.Empty, StringComparison.Ordinal).Replace(',', '.');
         if (typed.Length > 0)
         {
-            var counted = asset ?? (chain == SharedKernel.Chain.Bitcoin ? SharedKernel.Asset.Bitcoin : null);
+            var counted = asset ?? (chain.Model() == LedgerModel.Utxo ? chain.NativeAsset() : null);
             try
             {
                 minimum = counted is null ? null : AssetAmount.Parse(counted, typed);
@@ -591,6 +610,13 @@ public sealed partial class WatchFormViewModel : ObservableObject
             return SharedKernel.Chain.Bitcoin;
         }
 
+        if (BitcoinAddress.TryParse(SharedKernel.Chain.Litecoin, trimmed, out var litecoin)
+            && litecoin.Value == trimmed)
+        {
+            return SharedKernel.Chain.Litecoin;
+        }
+
+        // A BSC address is written as Ethereum's, so typed alone it is Ethereum's; a node on BSC brings its chain.
         if (EthereumAddress.TryParse(trimmed, out _))
         {
             return SharedKernel.Chain.Ethereum;
@@ -606,7 +632,10 @@ public sealed partial class WatchFormViewModel : ObservableObject
     /// <param name="chain">The chain.</param>
     /// <param name="text">The text.</param>
     /// <returns><see langword="true"/> when it is.</returns>
-    private static bool IsAddress(Chain chain, string text) => ChainOf(text) == chain;
+    private static bool IsAddress(Chain chain, string text) => chain == SharedKernel.Chain.Bsc
+        ? EthereumAddress.TryParse(chain, text.Trim(), out _)
+        : ChainOf(text) == chain;
+
 
     /// <summary>Marks the chosen choice of a row.</summary>
     /// <param name="choices">The row.</param>

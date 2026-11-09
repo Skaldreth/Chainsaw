@@ -186,17 +186,20 @@ public sealed record SwapRoute(
     /// <returns><see langword="true"/> when it is.</returns>
     private static bool IsAccount(EthereumAddress address, TokenSwap swap) => address.ToChainAddress() == swap.Account;
 
-    /// <summary>Says whether two assets are the same on the way, ether and wrapped ether counted as one.</summary>
+    /// <summary>
+    /// Says whether two assets are the same on the way, a chain's coin and the coin wrapped counted as one.
+    /// </summary>
     /// <param name="first">One asset.</param>
     /// <param name="second">The other.</param>
     /// <returns><see langword="true"/> when they are.</returns>
-    private static bool SameAsset(Asset first, Asset second) => first == second || (IsEther(first) && IsEther(second));
+    private static bool SameAsset(Asset first, Asset second) =>
+        first == second || (first.Chain == second.Chain && IsEther(first) && IsEther(second));
 
-    /// <summary>Says whether an asset is ether or wrapped ether.</summary>
+    /// <summary>Says whether an asset is a chain's own coin or the coin wrapped (ether and WETH, BNB and WBNB).</summary>
     /// <param name="asset">The asset.</param>
     /// <returns><see langword="true"/> when it is.</returns>
     private static bool IsEther(Asset asset) =>
-        asset == KnownTokens.EthereumWeth || asset == Asset.Ether;
+        KnownTokens.IsWrappedNative(asset) || (asset.Kind == AssetKind.Native && asset.Chain.IsEvm());
 
     /// <summary>Names an address on the way: by the list of known contracts, or by its address shortened.</summary>
     /// <param name="address">The address that paid an asset out.</param>

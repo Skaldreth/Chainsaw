@@ -66,8 +66,11 @@ internal sealed class ChainSources : IChainSources
     /// <summary>How a probe's words begin when the endpoint asked Chainsaw to wait.</summary>
     private const string AskedText = "Bad Chainsaw vänta";
 
-    /// <summary>The sorts of API, by code.</summary>
-    private readonly IReadOnlyDictionary<string, ISourceApi> _apis;
+    /// <summary>
+    /// The sorts of API, by chain and code: one code (Blockscout's) can be spoken for more than one chain, each with
+    /// its own defaults and chain name.
+    /// </summary>
+    private readonly IReadOnlyDictionary<(Chain Chain, string Code), ISourceApi> _apis;
 
     /// <summary>The only way out.</summary>
     private readonly IExitHttp _http;
@@ -121,7 +124,7 @@ internal sealed class ChainSources : IChainSources
     {
         ArgumentNullException.ThrowIfNull(apis);
         ArgumentNullException.ThrowIfNull(options);
-        _apis = apis.ToDictionary(api => api.Info.Code, StringComparer.Ordinal);
+        _apis = apis.ToDictionary(api => (api.Info.Chain, api.Info.Code));
         _http = http;
         _local = local;
         _delay = delay ?? Task.Delay;
@@ -204,7 +207,7 @@ internal sealed class ChainSources : IChainSources
             var order = Order(state);
             var chosen = inStep ? [.. order.Where(endpoint => InStep(state, endpoint))] : order;
             var now = _clock.UtcNow;
-            return new SourcePlan(false, [.. chosen.Select((e, index) => new PlannedEndpoint(e, _apis[e.Api])
+            return new SourcePlan(false, [.. chosen.Select((e, index) => new PlannedEndpoint(e, _apis[(chain, e.Api)])
             {
                 Tier = state.Mode == SourceMode.Priority ? index : Tier(state, e, now),
             })])
@@ -538,7 +541,8 @@ internal sealed class ChainSources : IChainSources
                 return ProbeRun.Off;
             }
 
-            endpoints = [.. state.Endpoints.Where(e => e.Enabled).Select(e => new PlannedEndpoint(e, _apis[e.Api]))];
+            endpoints = [.. state.Endpoints.Where(e => e.Enabled)
+                .Select(e => new PlannedEndpoint(e, _apis[(chain, e.Api)]))];
             if (endpoints.Count == 0)
             {
                 return ProbeRun.NoneOn;
@@ -1134,7 +1138,7 @@ internal sealed class ChainSources : IChainSources
             throw new ArgumentException(problem, nameof(address));
         }
 
-        if (api is null || !_apis.TryGetValue(api, out var sort) || sort.Info.Chain != chain)
+        if (api is null || !_apis.TryGetValue((chain, api), out var sort))
         {
             throw new ArgumentException("The sort of API is not one Chainsaw speaks for the chain.", nameof(api));
         }
