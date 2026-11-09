@@ -515,7 +515,7 @@ internal sealed class WatcherLoop
     /// <returns>Its name, or <see langword="null"/>.</returns>
     private static string? InStep(ChainSourcesView view) => view.Endpoints
         .FirstOrDefault(each => each.Endpoint.Enabled && !each.FailedSince
-            && each.Probe is { Outcome: ProbeOutcome.Answered } probe && (probe.BlocksBehind ?? 0) == 0)
+            && each.Probe is { IsInStep: true })
         ?.Endpoint.Name;
 
     /// <summary>Reads the plan again when Chainsaw has written it since.</summary>

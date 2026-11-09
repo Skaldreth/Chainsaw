@@ -5178,3 +5178,64 @@ offline), App 6 i `ChainStateTests` (rutans rad och fot, länken, en fråga per 
   - **M:** MWEB-raden i Nytt ärende och journalraden ger MWEB-skälet; `RecogniseMweb` säger att bara formen prövas;
     flaggan 08 nämner inte Litecoin, eftersom samma läsare används för Bitcoin.
 
+
+## Egen nod: Bitcoin Core, electrs och bekräftelse mot den egna noden (backloggen, 2026-11-09)
+
+- **Byggt:**
+  - **Bitcoin Core som källa** (`BitcoinCoreApi`, kod `bitcoin-core`, *Bitcoin Core (egen nod)*): JSON-RPC 1.0 som POST
+    till endpointens adress, bara för en endpoint märkt *Lokal* (`SourceApiInfo.LocalOnly`: kan inte läggas till,
+    provas eller läsas ur `sources.json` utan *Lokal*, och `ChainSources.SendAsync` vägrar att skicka den genom
+    utgången). Den svarar på uppslagen vars svar är kedjans egna värden, med Esploras sökvägar som nycklar
+    (`ISourceApi.Answers`): `getblockcount`, `getbestblockhash`, `getblockhash`, `getblockheader … false` och
+    `getrawtransaction … false`. Allt annat (adresser, tx:ens beskrivning med föregående utgångar, `outspends`,
+    merkle-beviset, blocket som JSON) frågas av kedjans Esplora-endpoints, så `IBitcoinSource` och allt ovanför är
+    oförändrat (princip 8). Anropets `id` är metoden och dess värden, och Bitcoin Core ger tillbaka det i svaret, så att
+    det förseglade råsvaret självt säger vad som frågades (princip 1); svaret förseglas rått med endpointen och
+    `exit_route` = `local` som förut för en egen nod, och packas upp på ett ställe (`SourceLookups.Readable`) både
+    när det är nytt och när det läses ur ärendet.
+  - **Nodens fel sägs ärligt** (`ISourceApi.Judge`): `-5` utan `txindex` och medan indexet byggs blir det nya utfallet
+    `Outcome.CannotAnswer` (de andra frågas, och noden pausas inte), `-5` annars är *känner inte till*, `-8` (höjden
+    utanför) *har inte kommit så långt*, `-28` *startar*, `-32601` *saknar anropet*, 401 fel lösenord och 403
+    `rpcwhitelist`; en 404 utan JSON-RPC-fel är vägen framför noden, aldrig ett svar om kedjan.
+  - **Användare och lösenord** är en nyckel i valvet skriven `användare:lösenord` (eller kakfilens `__cookie__:…`),
+    skickad som HTTP Basic (`Authorization`), aldrig i ärendet; en nyckel utan kolon skickas inte.
+  - **Adresshistoriken:** genom en egen electrs med Esplora-API, märkt *Lokal* (fanns redan); den lämnar aldrig det
+    egna nätet.
+  - **Bekräftad av den egna noden** (`InBlockCheck.ConfirmedByOwnNode`): `VerifyInBlockAsync` frågar först en egen
+    nod som är på (Bitcoin Core eller electrs, `FetchAsync(ownNodeOnly: true)`) om blockets hash på höjden. Samma hash
+    ger *bekräftad av den egna noden*; ett annat block säger det, och blocket vilar då bara på en källas svar; kan
+    noden inte svara frågas en annan endpoint i fas som förut, med nodens skäl i noten.
+  - **Provet utan utgång** (`ProbeRun.OwnNodesOnly`, `EndpointProbe.Unreferenced`, `EndpointProbe.IsInStep`): varje
+    endpoint i en provomgång provas för sig, så att utgångens vägran bara stoppar dem som går genom den. Utan utgång
+    behålls de egna nodernas prov (de andras tidigare står kvar), mätta mot den högsta höjd de tidigare proven genom
+    utgången kände (efter när den ligger lägre), men alltid *ojämförda*: de svarar på vanliga uppslag men är aldrig
+    *i fas*, så bevakningen (också `WatcherLoop`, som nu läser samma regel) räknar aldrig från nodens ord ensamt.
+    Provet vid start provar kedjor med en egen nod en gång innan utgången är ansluten, och hela omgången görs när den
+    ansluts; *Prova alla nu* säger *Bara egna noder provades …*.
+  - **Sidan Källor:** *Bitcoin Core (egen nod)* står bland API:erna i *Lägg till endpoint …*; utan *Lokal* säger fältet
+    *Bitcoin Core frågas bara som din egen nod: slå på Lokal.* och *Prova* och *Lägg till* tonas (bara text i befintliga
+    ytor). Pricken för en ojämförd nod har ett eget verktygstips.
+  - **Guiden:** nytt avsnitt *Egen nod* (`docs/guide/egen-nod.md`) under *Säkerhet och utgångar*, länkat från *Källor*.
+- **Egna beslut och avsteg:**
+  - **Esplora/electrs i stället för Electrum-protokollet** för adresserna: Electrum talas över rå TCP/TLS, inte https,
+    och skulle kräva en ny väg förbi `ILocalHttp` (och dess kontroll att adressen är i det egna nätet och fästa
+    certifikat) och en egen form (scripthash) bakom källan. electrs har samma Esplora-API som redan finns, så den egna
+    noden blir bara en annan adress, som CLAUDE.md säger. Fulcrum står kvar i BACKLOG.
+  - **Merkle-beviset kommer från källan** (Esplora), inte från nodens `gettxoutproof`: beviset kontrolleras mot huvudet,
+    och huvudets hash bekräftas av den egna noden på höjden, så beviset behöver inte litas på. Nodens eget bevis står i
+    BACKLOG.
+  - **Bitcoin Core talar bara https** genom en TLS-proxy framför noden (Bitcoin Core har inte haft TLS för RPC sedan
+    0.12); certifikatet fästs med KL3b. JSON-RPC 1.0 som i Bitcoin Cores egna exempel, eftersom ett fel då kommer med
+    HTTP 500 och felobjektet, som `Judge` läser.
+  - **Bara Bitcoin:** Litecoin Core har samma RPC men registreras inte nu (en annan agent arbetar i Litecoin).
+  - **Den egna noden som facit utan utgång** är fortfarande ett beslut för användaren (BACKLOG); det försiktiga valet
+    (aldrig *i fas* utan ett prov genom utgången) gäller.
+  - Bakgrundens bevakning har inget valv, så en Bitcoin Core med nyckel frågas inte därifrån (nyckeln saknas och de
+    andra endpointarna används), som för andra endpoints med nyckel.
+- **Skriver i ärendet:** Bitcoin Cores råsvar förseglas i `chains.raw_responses` med `source` = `bitcoin-core`,
+  endpointen och vägen `local`, som andra svar; inget nytt schema.
+- **Tester:** `BitcoinCoreTests` (anropen, kroppen, Basic, felen, bara lokal också ur filen, höjden och bytesen från
+  noden förseglade och lästa ur ärendet, utan txindex, adresserna aldrig till noden, provet), tre i `MerkleProofTests`
+  (bekräftad, annat block, noden efter) och tre i `EndpointPhaseAndLocalTests` (provet utan utgång), och tre i
+  `SourcesTests`. Syntetiska svar i formen ur Bitcoin Cores RPC-dokumentation; aldrig nätet.
+- **Återstår:** oberoende granskning (rör princip 4), provet på Windows (`docs/TESTER-INFOR-1.0.md`), ytorna i TODO.

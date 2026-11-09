@@ -186,9 +186,11 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
 - **Privacy coins:** metoderna är beslutade (CLAUDE.md, *Spåret tar slut*) och byggs som förslag i omgång 9.
 - **Cross-chain automatiskt:** hitta fortsättningen på den andra kedjan själv (belopp och tid hos swap-tjänster, bryggornas
   egna händelser). Kanten finns i modellen från början.
-- **Direkt mot kedjan:** egen nod och eget index (Bitcoin Core med `txindex`, Fulcrum eller electrs eller ett eget index;
-  Reth eller Erigon för Ethereum; java-tron för TRON). Kräver en server. Esplora går att köra själv, så Bitcoin blir bara en
-  annan adress i datalagret.
+- **Direkt mot kedjan, resten** (Bitcoin Core och electrs som egen nod är byggt, 2026-11-09): Electrum-protokollet
+  (Fulcrum, `blockchain.scripthash.get_history` över TLS) kräver en ny väg i `ILocalHttp` för rå TLS och en egen
+  adressform (scripthash) bakom `IBitcoinSource`; Litecoin Core (samma RPC, registreras för Litecoin); den egna nodens
+  eget Merkle-bevis (`gettxoutproof`, ett partiellt merkleträd) i stället för källans; Reth eller Erigon för Ethereum;
+  java-tron för TRON.
 - **Bevakning i realtid, resten** (nya block via mempool.space:s websocket är byggt, omgång 3): ZMQ från egen nod (en
   egen nod nås bara genom `ILocalHttp`, och dess websocket lyssnas inte på), Ethereum (Blockscout har websockets) och
   mempool.space:s `track-address` för obekräftade tx. Det sista skickar de bevakade adresserna tillsammans över en
@@ -233,11 +235,11 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
   internet, ingen paus för en egen nod), inte källornas publicerade gränser. Takten står bara i `sources.json`
   (`IntervalMilliseconds`, aldrig snabbare än förvalet för en endpoint på internet); sidan Källor har inget val för den.
   Skissas om det behövs.
-- **Den egna noden provas inte utan utgång** (etapp 25, granskningen M1): ett prov där utgången vägrar sparas inte, också
-  när den egna noden svarade, och provet vid start väntar på en ansluten utgång (eller Windows). Uppslagen går ändå till
-  noden, men den kan inte bli *i fas* för bevakningen förrän ett prov med utgång gjorts. Lämnat i omgång 3: prövas den
-  egna noden för sig blir den sin egen högsta höjd och därmed *i fas* också när den ligger efter kedjan, så bevakningen
-  skulle kunna missa block utan att det syns. Ett beslut (lita på den egna noden som facit, eller inte) behövs först.
+- **Den egna noden som facit** (etapp 25, M1; provet utan utgång byggt 2026-11-09): den egna noden provas nu också
+  när utgången är stängd och behålls, men *ojämförd* (`EndpointProbe.Unreferenced`), så att bevakningen inte använder
+  den förrän ett prov genom utgången visat att den är i fas. Ett beslut återstår: ska den egna noden få vara facit för
+  bevakningen utan utgång? Bitcoin Core vet själv om den är i fas (`getblockchaininfo`: `blocks` mot `headers` och
+  `initialblockdownload`), vilket kunde vara underlaget.
 - **Ett behållet prov åldras** (granskningen av etapp 25, omgång 5, M; lämnat i omgång 3 som ett avvägningsbeslut, det
   försiktiga valet står kvar): ett prov som behålls när endpointen bara väntade
   mäts mot den nya omgångens höjd, så block som kommit sedan räknas mot den. På Ethereum (block var tolfte sekund) blir

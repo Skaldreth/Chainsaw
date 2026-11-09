@@ -82,6 +82,69 @@ public sealed class MerkleProofTests : IDisposable
     }
 
     [Fact]
+    public async Task A_block_the_own_node_has_at_the_height_is_said_as_confirmed_by_the_own_node()
+    {
+        var block = AnswerBlockWithRoot(Fixtures.Real, position: 0);
+        AnswerProof(position: 0);
+        await AddOwnNodeAsync();
+        _harness.Local.AnswerRpc(OwnNode, "getblockhash 800003", $$"""
+            {"result":"{{block.Value}}","error":null,"id":"getblockhash 800003"}
+            """);
+
+        var lookup = await _harness.Source.VerifyInBlockAsync(_harness.Case, Fixtures.Real);
+
+        Assert.Equal(InBlockCheck.ConfirmedByOwnNode, lookup.Value!.InBlock);
+        Assert.Contains(lookup.Notes, note => note.Contains("den egna noden, bitcoind.lan", StringComparison.Ordinal));
+        Assert.Contains(lookup.Origins, origin => origin.Source == BitcoinCoreApi.Code);
+
+        // Only the hash at the height went to the own node; the proof and the block came from the source.
+        Assert.Equal(["getblockhash 800003"], _harness.Local.RpcIds);
+        Assert.True(_harness.Verify().IsIntact);
+    }
+
+    [Fact]
+    public async Task An_own_node_with_another_block_at_the_height_leaves_the_block_one_sources()
+    {
+        AnswerBlockWithRoot(Fixtures.Real, position: 0);
+        AnswerProof(position: 0);
+        await AddOwnNodeAsync();
+        _harness.Local.AnswerRpc(OwnNode, "getblockhash 800003", $$"""
+            {"result":"{{Previous}}","error":null,"id":"getblockhash 800003"}
+            """);
+
+        var lookup = await _harness.Source.VerifyInBlockAsync(_harness.Case, Fixtures.Real);
+
+        Assert.Equal(InBlockCheck.SourceOnly, lookup.Value!.InBlock);
+        Assert.Contains(lookup.Notes, note => note.Contains("egna noden har ett annat block", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task An_own_node_that_has_not_come_so_far_says_so_and_another_endpoint_is_asked()
+    {
+        AnswerBlockWithRoot(Fixtures.Real, position: 0);
+        AnswerProof(position: 0);
+        await AddOwnNodeAsync();
+        _harness.Local.AnswerRpc(OwnNode, "getblockhash 800003", """
+            {"result":null,"error":{"code":-8,"message":"Block height out of range"},"id":"getblockhash 800003"}
+            """, status: 500);
+
+        var lookup = await _harness.Source.VerifyInBlockAsync(_harness.Case, Fixtures.Real);
+
+        Assert.Equal(InBlockCheck.SourceOnly, lookup.Value!.InBlock);
+        Assert.Contains(lookup.Notes, note => note.Contains("kunde inte bekräfta", StringComparison.Ordinal));
+    }
+
+    /// <summary>The user's own Bitcoin Core in the tests.</summary>
+    private const string OwnNode = "https://bitcoind.lan/";
+
+    /// <summary>Adds the own Bitcoin Core, marked local, last in the list, so the block comes from the source.</summary>
+    private async Task AddOwnNodeAsync()
+    {
+        await _harness.Sources.Add(Chain.Bitcoin, new Uri(OwnNode), BitcoinCoreApi.Code, null, local: true).Saved;
+        await _harness.Sources.SetModeAsync(Chain.Bitcoin, SourceMode.Priority);
+    }
+
+    [Fact]
     public void A_proof_that_uses_a_duplicated_node_as_a_place_or_the_wrong_depth_is_refused()
     {
         var txid = Txid.Parse(Sibling);

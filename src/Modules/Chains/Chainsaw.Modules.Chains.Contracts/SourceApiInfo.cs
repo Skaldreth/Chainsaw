@@ -6,4 +6,12 @@ namespace Chainsaw.Modules.Chains.Contracts;
 /// <param name="Code">The code it is saved and sealed under, for example <c>esplora</c>.</param>
 /// <param name="Name">Its name in the settings, for example <c>Esplora</c>.</param>
 /// <param name="Chain">The chain it answers for.</param>
-public sealed record SourceApiInfo(string Code, string Name, Chain Chain);
+public sealed record SourceApiInfo(string Code, string Name, Chain Chain)
+{
+    /// <summary>
+    /// Gets whether only an endpoint marked local (the user's own node) may speak it, as Bitcoin Core's own RPC, whose
+    /// user name and password must never leave the user's own network: an endpoint of the sort that is not marked
+    /// local cannot be added or tried, and is dropped when the settings are read.
+    /// </summary>
+    public bool LocalOnly { get; init; }
+}

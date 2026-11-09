@@ -25,7 +25,7 @@ public sealed class GuideLibrary
         ("Ärendet",
             ["nytt-arende", "arendevaljaren", "arendefilen", "journalen", "ankaret", "offline", "kommandoraden"]),
         ("Säkerhet och utgångar",
-            ["huvudnyckeln", "lasning", "utgangen", "vpn-utgangar", "kallor", "aterstallningsnyckeln"]),
+            ["huvudnyckeln", "lasning", "utgangen", "vpn-utgangar", "kallor", "egen-nod", "aterstallningsnyckeln"]),
         ("Bitcoin", ["utxo-modellen", "adresstyper", "startpunkter", "kontroll-mot-kedjan", "ersatt-tx"]),
         ("Ethereum", ["kontomodellen", "erc-20", "swappar", "interna-tx", "kan-frysas"]),
         ("TRON", ["tron"]),

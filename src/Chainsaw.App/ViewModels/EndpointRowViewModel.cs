@@ -310,6 +310,9 @@ public sealed partial class EndpointRowViewModel(Guid id) : ObservableObject
 
         return view.Probe?.Outcome switch
         {
+            ProbeOutcome.Answered when view.Probe.Unreferenced => (EndpointDot.Answered,
+                "Svarar; provad utan utgång, så höjden är inte jämförd med kedjan och bevakningen väntar på ett prov "
+                + "genom utgången"),
             ProbeOutcome.Answered when view.Probe.BlocksBehind is > 0 =>
                 (EndpointDot.Answered, "Svarar rätt; ett block efter räknas inte som efter"),
             ProbeOutcome.Answered => (EndpointDot.Answered, "Svarar rätt"),

@@ -188,6 +188,9 @@ fortsättningen själv (belopp och tid hos swap-tjänster, bryggornas egna händ
   - **En egen nod på det lokala nätet tillåts** (till exempel `https://esplora.lan`): bara en endpoint som användaren
     själv lagt till och uttryckligen märkt som lokal får ha en adress på datorn eller ett privat nät, fortfarande bara
     https. Uppslagen till den lämnar aldrig det egna nätet; alla andra uppslag går som förut genom utgången (princip 4).
+    En egen **Bitcoin Core** (JSON-RPC bakom en TLS-proxy, bara som lokal) svarar på höjd, blockhash, blockhuvud och
+    tx:ens bytes, och adresserna frågas av en egen electrs med Esplora-API; en tx vars block den egna noden har på
+    höjden är *bekräftad av den egna noden* (2026-11-09).
 
 ### Öppna med en adress
 

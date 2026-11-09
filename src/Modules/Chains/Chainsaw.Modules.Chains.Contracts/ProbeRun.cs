@@ -15,6 +15,13 @@ public enum ProbeRun
     /// </summary>
     NotSent,
 
+    /// <summary>
+    /// The exit did not allow lookups, so only the user's own nodes were tried (straight in the own network) and their
+    /// results kept, unmeasured against the chain (<see cref="EndpointProbe.Unreferenced"/>); the other endpoints'
+    /// earlier results stand, and a round with the exit is still to be made.
+    /// </summary>
+    OwnNodesOnly,
+
     /// <summary>No endpoint of the chain is on; nothing was sent.</summary>
     NoneOn,
 }

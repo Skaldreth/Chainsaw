@@ -844,6 +844,23 @@ Sidans form provas under *Sidan Källor (KL2b)*.
 - `sources.json`: endpointen har `"Local": true` och `"IntervalMilliseconds": 0`. Ändra för hand en privat adress till
   `"Local": false`: den endpointen används inte efter omstart.
 
+**Egen Bitcoin Core och electrs (2026-11-09)**
+- Kör Bitcoin Core (med `txindex=1`) bakom en TLS-proxy på det egna nätet (stunnel, nginx eller Caddy), och lägg
+  `användare:lösenord` (eller kakfilens `__cookie__:…`) som en nyckel i valvet.
+- *Lägg till endpoint …* på Bitcoin, välj *Bitcoin Core (egen nod)* utan *Lokal*: *Bitcoin Core frågas bara som din egen
+  nod: slå på Lokal.* och *Prova* och *Lägg till* tonade. Med *Lokal* och nyckeln: *Prova* ger höjd, hash och tid.
+- Fel lösenord: *Prova* säger *Den egna noden godtog inte användarnamnet och lösenordet i valvet.*
+- Lägg Bitcoin Core först (*Prioriterad*) och expandera en tx: tx:ens bytes och blockhuvudet kommer från noden (råsvaren
+  har `source` = `bitcoin-core`, `exit_route` = `local`, och kroppen är JSON-RPC-svaret med anropet i `id`), medan
+  tx:ens beskrivning och adresserna kommer från Esplora. `/verify` grön.
+- Starta om noden utan `txindex=1` och expandera en äldre tx: bytesen kommer från en annan endpoint, och noden får inte
+  röd prick för det.
+- Lägg till en egen electrs (Esplora-API) märkt *Lokal* och sätt den först: adresserna frågas där och syns inte i
+  utgångens logg.
+- Koppla ner VPN-utgången och starta Chainsaw: den egna noden provas ändå (raden får höjd och grön prick, hovring säger
+  att höjden inte är jämförd med kedjan), *Prova alla nu* säger *Bara egna noder provades …*, och bevakningen frågar
+  inte förrän utgången är ansluten och ett prov gjorts.
+
 ### Bitcoin-källan (etapp 5, Chains)
 
 Kräver en ansluten utgång (eller Windows som utgång).
