@@ -2,6 +2,12 @@ using Chainsaw.SharedKernel.Commands;
 
 namespace Chainsaw.App.Commands;
 
+/// <summary>One suggestion under the command bar (auto-suggest): what it fills in, its name and what it does.</summary>
+/// <param name="Completion">The whole text the bar gets when it is taken.</param>
+/// <param name="Label">What the row says first: the command with its slash, or the argument.</param>
+/// <param name="Detail">What it does, in one short line; empty when the label speaks for itself.</param>
+public sealed record CommandSuggestion(string Completion, string Label, string Detail);
+
 /// <summary>
 /// The command bar's commands: those the application and the modules register as <see cref="IShellCommand"/>, and
 /// <c>/help</c>, which lists them. Text without a slash goes to <see cref="StartPointInput"/>, where an address or a
@@ -11,6 +17,9 @@ public sealed class CommandRegistry
 {
     /// <summary>The name of the command that lists the others.</summary>
     public const string HelpName = "help";
+
+    /// <summary>What <c>/help</c> does.</summary>
+    private const string HelpSummary = "Visar kommandona";
 
     /// <summary>What is said for a command that does not exist.</summary>
     private const string UnknownText = "Okänt kommando. Skriv /help för att se kommandona.";
@@ -121,6 +130,58 @@ public sealed class CommandRegistry
     }
 
     /// <summary>
+    /// Gives the suggestions for what is written, for the list under the bar (auto-suggest): while the name is
+    /// written, the commands it can become with what each does; after the name and a space, the command's suggestions
+    /// for its argument. A text without a slash is the search's, and gets none here.
+    /// </summary>
+    /// <param name="text">The text.</param>
+    /// <returns>The suggestions, the best first; empty when there are none.</returns>
+    public IReadOnlyList<CommandSuggestion> Suggestions(string text)
+    {
+        var trimmed = (text ?? string.Empty).TrimStart();
+        if (!trimmed.StartsWith('/'))
+        {
+            return [];
+        }
+
+        if (!trimmed.Contains(' ', StringComparison.Ordinal))
+        {
+            return [.. Complete(trimmed).Select(name => new CommandSuggestion(name, Usage(name), Summary(name)))];
+        }
+
+        var (commandName, argument) = Split(trimmed);
+        if (!_commands.TryGetValue(commandName, out var command))
+        {
+            return [];
+        }
+
+        try
+        {
+            return
+            [
+                .. command.Suggest(argument).Select(suggestion =>
+                    new CommandSuggestion($"/{commandName} {suggestion}", suggestion, command.Describe(suggestion))),
+            ];
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            return [];
+        }
+    }
+
+    /// <summary>Gives how a command is written, from its name with the slash.</summary>
+    /// <param name="name">The name, for example <c>/open</c>.</param>
+    /// <returns>Its usage, for example <c>/open &lt;ärendenummer&gt;</c>.</returns>
+    private string Usage(string name) =>
+        _commands.TryGetValue(name[1..], out var command) ? command.Usage : name;
+
+    /// <summary>Gives what a command does, from its name with the slash.</summary>
+    /// <param name="name">The name, for example <c>/open</c>.</param>
+    /// <returns>Its summary.</returns>
+    private string Summary(string name) =>
+        _commands.TryGetValue(name[1..], out var command) ? command.Summary : HelpSummary;
+
+    /// <summary>
     /// Gives a hint for what is written: the command's form and what Tab would fill in, so that, for example, the
     /// case worked on last is offered for <c>/open</c>.
     /// </summary>
@@ -152,7 +213,7 @@ public sealed class CommandRegistry
         CommandReply.Done(string.Join(
             Environment.NewLine,
             _commands.Values.Select(command => $"{command.Usage}  {command.Summary}")
-                .Append("/help  Visar kommandona")
+                .Append($"/{HelpName}  {HelpSummary}")
                 .Append("En adress eller tx utan / blir en startpunkt i det öppna ärendet. Tab fyller i.")));
 
     /// <summary>Splits <c>/name argument</c>.</summary>

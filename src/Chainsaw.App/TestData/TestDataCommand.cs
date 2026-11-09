@@ -33,6 +33,11 @@ public sealed class TestDataCommand(TestCaseBuilder builder, CaseWorkflow workfl
     ];
 
     /// <inheritdoc/>
+    public string Describe(string suggestion) => TestScenarios.Find(suggestion) is { Number: > 0 } scenario
+        ? $"{scenario.Name}: {scenario.Summary}"
+        : string.Empty;
+
+    /// <inheritdoc/>
     public async Task<CommandReply> RunAsync(string argument, CancellationToken cancellationToken = default)
     {
         if (workflow.IsBusy)

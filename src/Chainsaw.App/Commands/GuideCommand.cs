@@ -51,6 +51,10 @@ public sealed class GuideCommand : IShellCommand
     ];
 
     /// <inheritdoc />
+    public string Describe(string suggestion) =>
+        _library.Sections.FirstOrDefault(section => section.Id == suggestion)?.Title ?? string.Empty;
+
+    /// <inheritdoc />
     public async Task<CommandReply> RunAsync(string argument, CancellationToken cancellationToken = default)
     {
         var term = (argument ?? string.Empty).Trim();

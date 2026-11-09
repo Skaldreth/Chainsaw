@@ -27,6 +27,14 @@ public interface IShellCommand
     /// <returns>Whole arguments that start with what is written; empty when there is nothing to suggest.</returns>
     IReadOnlyList<string> Suggest(string argument);
 
+    /// <summary>
+    /// Says what one of <see cref="Suggest"/>'s suggestions does, in a short Swedish line for the list of suggestions
+    /// under the command bar; empty when the suggestion speaks for itself, such as a case number.
+    /// </summary>
+    /// <param name="suggestion">The suggestion.</param>
+    /// <returns>The line, or an empty text.</returns>
+    string Describe(string suggestion) => string.Empty;
+
     /// <summary>Runs the command. Slow work is done off the calling thread.</summary>
     /// <param name="argument">What is written after the name, trimmed; empty when nothing is.</param>
     /// <param name="cancellationToken">Stops the work.</param>

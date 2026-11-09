@@ -605,6 +605,12 @@ public sealed partial class ShellViewModel : ObservableObject
             return;
         }
 
+        if (TakeChosenOnEnter())
+        {
+            // The arrows chose a suggestion: Enter fills it in, and a second Enter runs it.
+            return;
+        }
+
         if (CommandSearchViewModel.Parse(text).Term is not null && Search.IsShowing(text) && Search.TryAccept())
         {
             // A search row was taken; the window shows it and calls FinishSearch.
@@ -652,6 +658,12 @@ public sealed partial class ShellViewModel : ObservableObject
         if (_completed is not null && CommandText == _completed && _completions.Count > 1)
         {
             _completionIndex = (_completionIndex + 1) % _completions.Count;
+        }
+        else if (ChosenSuggestion is { } row)
+        {
+            // The list under the bar shows what Tab takes: the chosen row.
+            TakeSuggestion(row);
+            return;
         }
         else
         {
@@ -1103,6 +1115,7 @@ public sealed partial class ShellViewModel : ObservableObject
     {
         CommandAnswer = string.Empty;
         CommandHint = _commands.Hint(value);
+        ShowSuggestions(value);
         _ = Search.SearchAsync(value);
         if (value.Length == 0 && _waitingLink is { } waiting && _session.Current is not null)
         {

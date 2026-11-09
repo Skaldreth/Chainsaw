@@ -217,6 +217,17 @@ Verktyget `tools/Chainsaw.Recovery` körs på Windows (fingeravtrycket i appen p
       pengar) i grafen, på ljusheten.
 - [ ] Aktörer med negativ etikett i det som hölls tillbaka och i högen har riskfärgen, inte felfärgen.
 
+### Förslag medan man skriver ett kommando (2026-11-09)
+
+- [ ] Ctrl+K och `/`: under fältet står kommandona som rader, med hur de skrivs och vad de gör; den första är vald
+      och har en liten *Tab*-bricka. Högst åtta rader.
+- [ ] `/te`: bara `/testdata` står kvar; Tab fyller i `/testdata`, och listan försvinner när namnet är helt.
+- [ ] `/testdata ` (med mellanslag): varianterna `-1` … `-8` med namn och vad de visar. Pil ner och Enter fyller i
+      den valda; ett andra Enter kör den.
+- [ ] `/open `: de senaste ärendena, det senast ändrade först. `/guide `: avsnitten med sina rubriker.
+- [ ] Ett klick på en rad fyller i den och lämnar markören sist i fältet.
+- [ ] Text utan `/` visar sökningen som förut (KR1a), och pilarna går genom sökningens rader.
+
 ### Kommandoraden arbetar (2026-11-09)
 
 - [ ] Skriv `/testdata` och tryck Enter: förstoringsglaset blir en snurra och under fältet står *Arbetar med /testdata …*
