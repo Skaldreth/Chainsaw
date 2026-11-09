@@ -6185,4 +6185,15 @@ insättning i en borta tx i Begäran, Flöde).
   förseglas bara en gång. Klustren byggs ur det förseglade varje gång de efterfrågas (union-find), med samlaren.
 - **Kvar:** grafen (E2b, KE1), förslaget i KF2b och uppbrytning (E2c), och att dra tillbaka en version (KV1a) för
   kontoheuristikerna.
+- **Granskningen av E2a (en omgång), rättat:** C1 offer som betalar samma bedragare blev en tjänst: `deposit-sweep`
+  slår nu bara ihop av sig själv när samlaren har en etikett som tjänst som tar emot insättningar
+  (`AccountActivity.Services`), annars blir det ett förslag (Claudes beslut, en skärpning av KE1); C2 ett kontrakt
+  (känt, eller som skickar interna överföringar) är aldrig samlare, och interna överföringar räknas inte som insättningar;
+  I3 bara adresser vars hela historik är läst (`FullyRead`) prövas, och gasregeln kontrollerar att inget skickades före;
+  I4 och I5 fingeravtrycket är heuristik, styrka och adresser, utan tx, så att samma slutsats förseglas en gång också när
+  mer läses eller i en annan ordning, och en adress alla tillgångar räknas tillsammans; gasförslaget är ett par med
+  betalarens först finansierade adress; I7 varje insättning måste följas av en tömning inom fönstret; M8 en korrupt rad
+  ger `Corrupt`; I9 och I10 facit slår ut ett villkor i taget och har fall för mempoolen, kontrakt, offren, mer historik,
+  omvänd ordning och ett öppnat ärende. **Kvar till E2c:** att bryta upp ett kontokluster och besluten om förslagen;
+  att dra tillbaka en version (KV1a) för konton står i BACKLOG. Anroparen lämnar ut borta tx (GR9a).
 

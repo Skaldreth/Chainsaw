@@ -21,26 +21,25 @@ internal sealed class AccountClusteringService : IAccountClustering
     public IReadOnlyList<HeuristicId> Heuristics { get; } = [DepositSweepHeuristic.Id, GasFundingHeuristic.Id];
 
     /// <inheritdoc/>
-    public AccountClusteringRun Analyse(
-        ICase @case,
-        Chain chain,
-        IReadOnlyCollection<EthereumTransfer> transfers,
-        IReadOnlyCollection<EthereumFee> fees)
+    public AccountClusteringRun Analyse(ICase @case, Chain chain, AccountActivity activity)
     {
         ArgumentNullException.ThrowIfNull(@case);
-        ArgumentNullException.ThrowIfNull(transfers);
-        ArgumentNullException.ThrowIfNull(fees);
+        ArgumentNullException.ThrowIfNull(activity);
         if (!chain.IsEvm())
         {
             throw new ArgumentException("The account heuristics read chains on Ethereum's machine.", nameof(chain));
         }
 
-        var onChain = transfers.Where(transfer => transfer.From.Chain == chain && transfer.To.Chain == chain).ToList();
-        var paid = fees.Where(fee => fee.Payer.Chain == chain).ToList();
+        var onChain = activity with
+        {
+            Transfers = [.. activity.Transfers.Where(transfer => transfer.From.Chain == chain
+                && transfer.To.Chain == chain)],
+            Fees = [.. activity.Fees.Where(fee => fee.Payer.Chain == chain)],
+        };
         List<AccountFinding> found =
         [
             .. DepositSweepHeuristic.Analyse(onChain),
-            .. GasFundingHeuristic.Analyse(onChain, paid),
+            .. GasFundingHeuristic.Analyse(onChain),
         ];
         if (found.Count == 0)
         {
@@ -142,15 +141,20 @@ internal sealed class AccountClusteringService : IAccountClustering
         var evidence = new List<AccountEvidence>();
         while (row.Read())
         {
+            var accounts = EvidenceStore.Deserialize<List<string>>(row.GetString(4));
+            if (accounts.Count < 2 || !Enum.TryParse<EvidenceStrength>(row.GetString(5), out var strength)
+                || !Enum.IsDefined(strength) || int.TryParse(row.GetString(5), out _))
+            {
+                throw new CaseException(CaseError.Corrupt);
+            }
+
             evidence.Add(new AccountEvidence(
                 row.GetInt64(0),
                 EvidenceStore.Heuristic(row.GetString(1), row.GetInt64(2)),
                 chain,
                 [.. EvidenceStore.Deserialize<List<string>>(row.GetString(3)).Select(text => Hash(chain, text))],
-                [.. EvidenceStore.Deserialize<List<string>>(row.GetString(4)).Select(text => Account(chain, text))],
-                Enum.TryParse<EvidenceStrength>(row.GetString(5), out var strength)
-                    ? strength
-                    : throw new CaseException(CaseError.Corrupt),
+                [.. accounts.Select(text => Account(chain, text))],
+                strength,
                 row.GetString(6),
                 row.GetInt64(7),
                 EvidenceStore.ParseTime(row.GetString(8))));

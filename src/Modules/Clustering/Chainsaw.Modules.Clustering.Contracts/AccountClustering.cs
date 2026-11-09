@@ -21,14 +21,9 @@ public interface IAccountClustering
     /// </summary>
     /// <param name="case">The open case.</param>
     /// <param name="chain">The chain, on Ethereum's machine.</param>
-    /// <param name="transfers">The chain's transfers the graph has read.</param>
-    /// <param name="fees">The fees paid in those transactions.</param>
+    /// <param name="activity">What the graph has read of the chain, and what is known about its accounts.</param>
     /// <returns>The clusters and the proposals.</returns>
-    AccountClusteringRun Analyse(
-        ICase @case,
-        Chain chain,
-        IReadOnlyCollection<EthereumTransfer> transfers,
-        IReadOnlyCollection<EthereumFee> fees);
+    AccountClusteringRun Analyse(ICase @case, Chain chain, AccountActivity activity);
 
     /// <summary>Reads the clusters and proposals that count now, without running the heuristics.</summary>
     /// <param name="reader">The case's reader.</param>
@@ -36,6 +31,30 @@ public interface IAccountClustering
     /// <returns>The clusters and the proposals.</returns>
     AccountClusteringRun Read(ICaseReader reader, Chain chain);
 }
+
+/// <summary>
+/// What the graph has read of a chain on Ethereum's machine, for the account heuristics. The caller leaves out the
+/// transactions that are gone or may be (GR9a), so that no conclusion rests on them.
+/// </summary>
+/// <param name="Transfers">The confirmed and pending transfers read.</param>
+/// <param name="Fees">The fees paid in those transactions.</param>
+/// <param name="FullyRead">
+/// The accounts whose whole history is read; only they can be said to have sent nothing else, or to have got nothing
+/// before.
+/// </param>
+/// <param name="Services">
+/// The accounts with a label of a service that takes deposits (an exchange and the like): only a sweep into one of them
+/// merges by itself.
+/// </param>
+/// <param name="Contracts">
+/// The accounts known to be contracts (pools, routers, mixers, bridges), never a collector.
+/// </param>
+public sealed record AccountActivity(
+    IReadOnlyCollection<EthereumTransfer> Transfers,
+    IReadOnlyCollection<EthereumFee> Fees,
+    IReadOnlySet<ChainAddress> FullyRead,
+    IReadOnlySet<ChainAddress> Services,
+    IReadOnlySet<ChainAddress> Contracts);
 
 /// <summary>The account clusters and the proposals that count now.</summary>
 /// <param name="Clusters">The clusters the heuristics merged by themselves, each of two or more accounts.</param>
@@ -89,8 +108,8 @@ public sealed record AccountEvidence(
 public static class AccountHeuristicNames
 {
     /// <summary>
-    /// Deposit addresses that are emptied into the same account are one service's (Victor 2020, "Address clustering
-    /// heuristics for Ethereum").
+    /// Deposit addresses that are emptied into the same service's account are that service's (Victor 2020, "Address
+    /// clustering heuristics for Ethereum"); into an account without such a label, only a proposal.
     /// </summary>
     public const string DepositSweep = "deposit-sweep";
 
