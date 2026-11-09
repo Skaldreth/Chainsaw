@@ -120,7 +120,7 @@ Inget sedan etapp 1 är provat på Windows. Användaren provar efter `docs/TESTE
   - **En obekräftad tx som aldrig låg i ett block** och försvinner ur mempool räknas inte som borta, eftersom
     regeln (`BlockChangeRule`) jämför med det första svaret i ett block [etapp].
   - **Testärendet** (`/testdata`) har ingen tx som försvinner med en ersättare: testkedjan behöver svara `404` på
-    tx:en och `/tx/:txid/outspend/:vout` på mynten [direkt].
+    tx:en och `/tx/:txid/outspends` på tx:erna mynten kom ur [direkt].
 - **Ångra en godkänd plånbok** (PL1b, vald): Ctrl+Z och *Ångra* i KF2b-panelen bekräftas i grafen.
 - **En DEX:s router i grafen** [skiss]: listan över kända kontrakt (omgång 2) har Uniswaps, 1inchs och 0x:s routrar,
   men de får ingen etikett, eftersom ingen sort i bildspråket passar: *Swap eller brygga* avslutar spåret som

@@ -30,8 +30,26 @@ public sealed record GoneTransaction(Txid Txid, BlockChange Change, TransactionR
     /// <summary>Gets the transactions that spend its coins now, as far as the case knows.</summary>
     public IReadOnlyList<Txid> Replacers => Replacement?.Replacers ?? [];
 
-    /// <summary>Gets the end of the trail at it, with why.</summary>
-    public TrailEndHint Hint => new(TrailEndReason.TransactionGone, Source, Explain());
+    /// <summary>
+    /// Gets whether the answers settle that it is gone, so that the trail ends at it: another transaction spends its
+    /// coins or they are free again (<see cref="ReplacementKind.Replaced"/>,
+    /// <see cref="ReplacementKind.PartlyReplaced"/> or <see cref="ReplacementKind.Dropped"/>), or, while the coins are not asked about, endpoints on two hosts (or
+    /// the only one switched on) said the source does not know it. Answers about the coins that still name it as
+    /// their spender never settle it.
+    /// </summary>
+    public bool IsSettled => (Replacement?.Kind ?? ReplacementKind.Unknown) switch
+    {
+        ReplacementKind.Replaced or ReplacementKind.PartlyReplaced or ReplacementKind.Dropped => true,
+        ReplacementKind.Unknown => Change.IsCorroborated,
+        _ => false,
+    };
+
+    /// <summary>
+    /// Gets the end of the trail at it, with why, when the answers settle that it is gone (<see cref="IsSettled"/>);
+    /// otherwise <see langword="null"/>, and the trace stops at it without ending (<see
+    /// cref="TrailEndReason.GoneUncertain"/>).
+    /// </summary>
+    public TrailEndHint? Hint => IsSettled ? new(TrailEndReason.TransactionGone, Source, Explain()) : null;
 
     /// <summary>
     /// Explains in plain Swedish why the trail ends here (principle 3): where the case saw the transaction, what the
@@ -46,10 +64,25 @@ public sealed record GoneTransaction(Txid Txid, BlockChange Change, TransactionR
             : "väntade i mempool";
         var source = Change.Now.Endpoint.Length > 0 ? $" ({Change.Now.Endpoint})" : string.Empty;
         var answer = Change.Now.Sequence.ToString(CultureInfo.InvariantCulture);
-        return $"Tx {Txid.Value} {where} när ärendet såg den, men källan{source} känner inte längre till den (svar "
-            + $"{answer} i ärendet). Den finns inte i kedjan, så spåret följs inte genom den; båda svaren står kvar i "
-            + "ärendet. " + ReplacementText();
+        var head = $"Tx {Txid.Value} {where} när ärendet såg den, men källan{source} känner inte längre till den (svar "
+            + $"{answer} i ärendet). ";
+        if (!IsSettled)
+        {
+            return head + UnsettledText();
+        }
+
+        return head + "Den finns inte i kedjan, så spåret följs inte genom den; alla svar står kvar i ärendet. "
+            + ReplacementText();
     }
+
+    /// <summary>Says why the answers do not settle that it is gone, in plain Swedish.</summary>
+    /// <returns>The sentences.</returns>
+    private string UnsettledText() => Replacement?.Kind == ReplacementKind.Conflicting
+        ? "Men källan säger samtidigt att tx:en spenderar ett av mynten, så svaren går inte ihop. Spåret stannar här i "
+            + "stället för att gissa; att fråga igen kan reda ut det."
+        : "Bara en endpoint har sagt det, fast fler är påslagna, och vad som spenderar mynten är inte hämtat. Spåret "
+            + "stannar här i stället för att gissa; när en annan endpoint eller svaret om mynten bekräftar det slutar "
+            + "spåret vid tx:en.";
 
     /// <summary>Says what spends the coins now, in plain Swedish.</summary>
     /// <returns>The sentence.</returns>
@@ -86,3 +119,32 @@ public sealed record GoneTransaction(Txid Txid, BlockChange Change, TransactionR
 /// <param name="RecordedUtc">When it was chosen.</param>
 public sealed record ReplacementFollow(
     long Sequence, Txid Gone, Txid Replacer, string? Reason, long JournalSequence, DateTimeOffset RecordedUtc);
+
+/// <summary>
+/// The replacer of a gone transaction could not be had, from the source or the case, so the choice to follow it was not
+/// sealed. The message says why in Swedish, as the lookup said it (for example that the exit is not connected), and
+/// never names anything of the case.
+/// </summary>
+public sealed class ReplacementUnavailableException : InvalidOperationException
+{
+    /// <summary>Creates the exception with no reason given.</summary>
+    public ReplacementUnavailableException()
+        : this("Tx:en som ersatte den gick inte att hämta.")
+    {
+    }
+
+    /// <summary>Creates the exception.</summary>
+    /// <param name="message">Why, in Swedish.</param>
+    public ReplacementUnavailableException(string message)
+        : base(message)
+    {
+    }
+
+    /// <summary>Creates the exception with its cause.</summary>
+    /// <param name="message">Why, in Swedish.</param>
+    /// <param name="innerException">The cause.</param>
+    public ReplacementUnavailableException(string message, Exception innerException)
+        : base(message, innerException)
+    {
+    }
+}

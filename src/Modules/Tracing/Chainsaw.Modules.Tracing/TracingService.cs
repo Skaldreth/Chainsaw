@@ -403,9 +403,12 @@ internal sealed class TracingService : ITracingService
 
         var replacement = await _source.GetReplacementAsync(@case, gone, LookupMode.CaseOnly, cancellationToken)
             .ConfigureAwait(false);
-        if (replacement.Value?.Replacers.Contains(replacer) != true)
+        if (replacement.Value is not { Kind: not ReplacementKind.Conflicting } known
+            || !known.Replacers.Contains(replacer))
         {
-            throw new ArgumentException("The case does not show the transaction spending the coins.", nameof(replacer));
+            throw new ArgumentException(
+                "The case does not show the transaction spending the coins, or its answers do not agree.",
+                nameof(replacer));
         }
 
         // The replacer comes into the graph like an expanded transaction: fetched through the exit and sealed, with
@@ -414,7 +417,17 @@ internal sealed class TracingService : ITracingService
             .ConfigureAwait(false);
         if (fetched.Value is null)
         {
-            throw new InvalidOperationException(fetched.Problem ?? "Tx:en som ersatte den gick inte att hämta.");
+            throw fetched.Problem is { } problem
+                ? new ReplacementUnavailableException(problem)
+                : new ReplacementUnavailableException();
+        }
+
+        var goneTransaction = await _source.GetTransactionAsync(@case, gone, LookupMode.CaseOnly, cancellationToken)
+            .ConfigureAwait(false);
+        if (goneTransaction.Value is not { } read || !Agrees(read, known, fetched.Value))
+        {
+            throw new ArgumentException(
+                "The replacer's inputs do not spend the gone transaction's coins as the source said.", nameof(replacer));
         }
 
         await FetchSpendsAsync(@case, [replacer], cancellationToken).ConfigureAwait(false);
@@ -439,6 +452,28 @@ internal sealed class TracingService : ITracingService
                     gone = gone.Value, replacer = replacer.Value, analysis = GoneTransaction.Source, reason,
                 })));
             return ReplacementFollowStore.Seal(transaction, gone, replacer, reason, journal);
+        });
+    }
+
+    /// <summary>
+    /// Says whether a replacer's own inputs spend the gone transaction's coins as the answers about the coins say: the
+    /// same coin, with the same amount, at the input named (<see cref="SpendRules.IsConflicting"/>).
+    /// </summary>
+    /// <param name="gone">The gone transaction.</param>
+    /// <param name="replacement">What the case knows spends its coins.</param>
+    /// <param name="replacer">The replacer as fetched.</param>
+    /// <returns><see langword="true"/> when every coin it is said to spend agrees.</returns>
+    private static bool Agrees(BitcoinTransaction gone, TransactionReplacement replacement, BitcoinTransaction replacer)
+    {
+        var coins = replacement.Coins.Where(coin => coin.SpentBy?.Txid == replacer.Txid).ToList();
+        return coins.Count > 0 && coins.All(coin =>
+        {
+            var input = gone.Inputs[coin.InputIndex];
+            var output = new BitcoinOutput(
+                coin.PreviousIndex, input.ScriptType ?? BitcoinScriptType.NonStandard, input.Address,
+                input.Amount ?? Satoshi.Zero, string.Empty, null);
+            return !SpendRules.IsConflicting(
+                replacer, coin.SpentBy!.InputIndex, new Outpoint(coin.PreviousTxid, coin.PreviousIndex), output);
         });
     }
 
@@ -1168,7 +1203,7 @@ internal sealed class TracingService : ITracingService
     /// <param name="txid">The transaction.</param>
     /// <returns>The end, or nothing when the transaction is not gone.</returns>
     private static IEnumerable<TrailEndHint> GoneEnds(GraphData data, Txid txid) =>
-        data.Gone.TryGetValue(txid, out var gone) ? [gone.Hint] : [];
+        data.Gone.TryGetValue(txid, out var gone) && gone.Hint is { } hint ? [hint] : [];
 
     /// <summary>
     /// Asks every classifier once about the Ethereum addresses the graph shows, and joins their hints per address.

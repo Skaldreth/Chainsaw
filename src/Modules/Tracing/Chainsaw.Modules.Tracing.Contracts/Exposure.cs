@@ -190,9 +190,9 @@ public sealed record ExposureResult(
     /// stops it: at a link to another chain, a transaction where the trail ends, and a spend that does not agree;
     /// version 3 follows the value through a swap on an account chain by <see cref="SwapValue"/>, as the trace does.
     /// </summary>
-    public const int AnalysisVersion = 3;
+    public const int AnalysisVersion = 4;
 
-    /// <summary>Gets the analysis's name and version, for example <c>exposure v3</c>.</summary>
+    /// <summary>Gets the analysis's name and version, for example <c>exposure v4</c>.</summary>
     public static string Analysis { get; } =
         AnalysisName + " v" + AnalysisVersion.ToString(CultureInfo.InvariantCulture);
 

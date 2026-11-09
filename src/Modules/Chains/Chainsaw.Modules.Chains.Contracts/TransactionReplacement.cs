@@ -17,9 +17,9 @@ public enum ReplacedCoinState
 }
 
 /// <summary>
-/// One coin a transaction spent, and what the source says about it now (<c>/tx/:txid/outspend/:vout</c>, sealed in
-/// the case). The answer is a fact as the source gave it (principle 1); that the spender continues the gone
-/// transaction's money is the user's judgement (principle 2).
+/// One coin a transaction spent, and what the source says about it now (<c>/tx/:txid/outspends</c> of the coin's
+/// transaction, sealed in the case). The answer is a fact as the source gave it (principle 1); that the spender
+/// continues the gone transaction's money is the user's judgement (principle 2).
 /// </summary>
 /// <param name="InputIndex">The input's place in the transaction that is gone.</param>
 /// <param name="PreviousTxid">The transaction whose output the input spent.</param>

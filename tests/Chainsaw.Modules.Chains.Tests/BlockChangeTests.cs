@@ -112,6 +112,38 @@ public sealed class BlockChangeTests : IDisposable
         Assert.Equal(BlockChangeKind.Gone, change.Kind);
         Assert.Equal(800_000, change.Before.Height);
         Assert.Null(change.Now.Hash);
+        Assert.True(change.IsCorroborated);
+    }
+
+    [Fact]
+    public async Task One_endpoint_that_says_gone_while_another_is_on_is_not_corroborated_until_another_host_says_it()
+    {
+        await TipAsync(Fixtures.Base, 800_001);
+        await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
+        var first = _harness.Sources.Get(Chain.Bitcoin).Endpoints[0].Endpoint;
+        var (second, saved) = _harness.Sources.Add(Chain.Bitcoin, new Uri(Second), "esplora", null);
+        await saved;
+        await _harness.Sources.SetEnabledAsync(Chain.Bitcoin, second.Id, false);
+
+        // The first endpoint lies: it says twice, a block apart, that it does not know the transaction.
+        Http.AnswerBytes(Fixtures.Url($"tx/{Fixtures.Confirmed}"), Encoding.UTF8.GetBytes("Transaction not found"), 404);
+        await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
+        await TipAsync(Fixtures.Base, 800_002);
+        await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
+        await _harness.Sources.SetEnabledAsync(Chain.Bitcoin, second.Id, true);
+        var alone = Assert.Single(await Source.GetBlockChangesAsync(_harness.Case));
+
+        await _harness.Sources.SetEnabledAsync(Chain.Bitcoin, first.Id, false);
+        await TipAsync(Second, 800_003);
+        Http.AnswerBytes(Second + $"tx/{Fixtures.Confirmed}", Encoding.UTF8.GetBytes("Transaction not found"), 404);
+        await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
+        await _harness.Sources.SetEnabledAsync(Chain.Bitcoin, first.Id, true);
+        var both = Assert.Single(await Source.GetBlockChangesAsync(_harness.Case));
+
+        Assert.Equal(BlockChangeKind.Gone, alone.Kind);
+        Assert.False(alone.IsCorroborated);
+        Assert.Equal(BlockChangeKind.Gone, both.Kind);
+        Assert.True(both.IsCorroborated);
     }
 
     [Fact]

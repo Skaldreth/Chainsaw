@@ -214,16 +214,18 @@ public interface IBitcoinSource
 
     /// <summary>
     /// Gets which transaction spends the coins of a transaction instead (sketch GR9a, <em>Ersatt av</em>): for each
-    /// coin its inputs spent, the source's answer about who spends it now (<c>/tx/:txid/outspend/:vout</c>), each
-    /// sealed in the case. Only the coins are sent, never the transaction or the case (principle 4). The answers are
-    /// kept apart from those the graph follows (<see cref="GetOutputSpendsAsync"/>), so that asking never makes the
-    /// trace follow the replacer by itself.
+    /// coin its inputs spent, the source's answer about who spends it now: one <c>/tx/:txid/outspends</c> per
+    /// transaction whose coins it spent, at most twenty, each sealed in the case. Only those transactions' ids are
+    /// sent, never the gone transaction or the case (principle 4). The answers are kept apart from those the graph
+    /// follows (<see cref="GetOutputSpendsAsync"/>), so that asking never makes the trace follow the replacer by
+    /// itself.
     /// </summary>
     /// <param name="case">The open case, which must hold the transaction's description.</param>
     /// <param name="txid">The transaction the source no longer knows.</param>
     /// <param name="mode">
-    /// <see cref="LookupMode.CaseOnly"/> reads the newest sealed answers and sends nothing; otherwise a coin is asked
-    /// about again unless the case already knows another transaction spends it.
+    /// <see cref="LookupMode.CaseOnly"/> reads the newest sealed answers and sends nothing; otherwise a transaction's
+    /// coins are asked about again unless the case already knows that other transactions in a block spend them all
+    /// (an unconfirmed replacer may itself have been replaced).
     /// </param>
     /// <param name="cancellationToken">Stops the lookups.</param>
     /// <returns>

@@ -78,9 +78,12 @@ public interface IGraphChainState
     /// <param name="case">The open case.</param>
     /// <param name="txid">The gone transaction.</param>
     /// <param name="cancellationToken">Stops the lookups.</param>
-    /// <returns><see langword="true"/> when a new answer was sealed, so that the graph is read again.</returns>
-    Task<bool> AskReplacementAsync(ICase @case, Txid txid, CancellationToken cancellationToken) =>
-        Task.FromResult(false);
+    /// <returns>
+    /// How the lookup went: <see cref="LookupStatus.Fetched"/> when a new answer was sealed, so that the graph is read
+    /// again; <see cref="LookupStatus.FromCase"/> when the case already knew; otherwise why nothing could be asked.
+    /// </returns>
+    Task<LookupStatus> AskReplacementAsync(ICase @case, Txid txid, CancellationToken cancellationToken) =>
+        Task.FromResult(LookupStatus.Failed);
 
     /// <summary>
     /// Reads from the case which transactions spend the coins of some transactions now, sending nothing: what replaced
@@ -173,12 +176,12 @@ public sealed class GraphChainState(IBitcoinSource bitcoin, IEthereumSource ethe
     }
 
     /// <inheritdoc/>
-    public async Task<bool> AskReplacementAsync(ICase @case, Txid txid, CancellationToken cancellationToken)
+    public async Task<LookupStatus> AskReplacementAsync(ICase @case, Txid txid, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(@case);
         var lookup = await bitcoin.GetReplacementAsync(@case, txid, LookupMode.AsNeeded, cancellationToken)
             .ConfigureAwait(false);
-        return lookup.Status == LookupStatus.Fetched;
+        return lookup.Status;
     }
 
     /// <summary>

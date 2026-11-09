@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Media;
 using Chainsaw.App.Graph;
+using Chainsaw.Modules.Chains.Contracts;
 using static Chainsaw.App.Controls.Freezing;
 
 namespace Chainsaw.App.Controls;
@@ -34,10 +35,10 @@ public sealed partial class GraphCanvas
     private Rect? _markGuide;
 
     /// <summary>
-    /// Where the open box's link in the row <em>Ersatt av …</em> stood on screen, with its line, so that a click on it
-    /// follows the replacer or takes the choice back.
+    /// Where the open box's links in the rows <em>Ersatt av …</em> stood on screen, with their line and replacer, so
+    /// that a click on one follows that replacer or takes the choice back.
     /// </summary>
-    private (Rect Area, string EdgeKey)? _markReplacementLink;
+    private readonly List<(Rect Area, string EdgeKey, Txid Replacer)> _markReplacementLinks = [];
 
     /// <summary>
     /// Draws a line's block mark in the corner of its amount, and strikes the amount through when the transaction is
@@ -88,7 +89,7 @@ public sealed partial class GraphCanvas
     private void DrawBlockMarkBox(DrawingContext dc)
     {
         _markGuide = null;
-        _markReplacementLink = null;
+        _markReplacementLinks.Clear();
         var model = _model!;
         var key = _hoveredMark ?? model.OpenBlockMark;
         if (key is null || !model.BlockMarksByLine.TryGetValue(key, out var mark)
@@ -99,7 +100,7 @@ public sealed partial class GraphCanvas
 
         var at = _viewport.ToScreen(new GraphPoint(centre.X, centre.Y));
         var foot = Wrapped(mark.Foot, MarkBoxWidth - (2 * MarkBoxPadding));
-        var rows = mark.Rows.Count + (mark.Replacement is null ? 0 : 1);
+        var rows = mark.Rows.Count + mark.Replacements.Count;
         var height = 40 + (rows * MarkRowHeight) + foot.Height + 18;
         var left = Math.Min(at.X + 16, ActualWidth - MarkBoxWidth - 8);
         var top = Math.Clamp(at.Y - 12, 8, Math.Max(8, ActualHeight - height - 8));
@@ -114,7 +115,7 @@ public sealed partial class GraphCanvas
             rowTop += MarkRowHeight;
         }
 
-        if (mark.Replacement is { } replacement)
+        foreach (var replacement in mark.Replacements)
         {
             DrawReplacementRow(dc, replacement, key, frame, rowTop);
             rowTop += MarkRowHeight;
@@ -184,8 +185,8 @@ public sealed partial class GraphCanvas
     }
 
     /// <summary>
-    /// Draws the row that names what replaced a gone transaction (<em>Ersatt av …</em>), with the link that follows
-    /// it, or takes the choice back, at the right; the link is in the accent only while it can be clicked.
+    /// Draws the row that names what replaced a gone transaction (<em>Ersatt av …</em>) with its block, and the link
+    /// that follows it, or takes the choice back, at the right, only while it can be used (principle 7).
     /// </summary>
     /// <param name="dc">Where to draw.</param>
     /// <param name="replacement">The row.</param>
@@ -199,14 +200,19 @@ public sealed partial class GraphCanvas
         var middle = top + (MarkRowHeight / 2);
         var left = frame.X + MarkBoxPadding;
         DrawScreenGlyph(dc, "Icon.ArrowRight", Ink("Brush.Text"), new Point(left, middle - 6.5), 13);
-        var clickable = _model!.IsChoosingReplacement ? "Brush.TextDim" : "Brush.Accent";
-        var link = Text(replacement.LinkText, 11.5, Ink(clickable), FontWeights.SemiBold);
-        var linkLeft = frame.Right - MarkBoxPadding - link.Width;
-        dc.DrawText(link, new Point(linkLeft, middle - (link.Height / 2)));
+        var linkLeft = frame.Right - MarkBoxPadding;
+        if (_model!.CanChooseReplacement(replacement))
+        {
+            var link = Text(replacement.LinkText, 11.5, Ink("Brush.Accent"), FontWeights.SemiBold);
+            linkLeft -= link.Width;
+            dc.DrawText(link, new Point(linkLeft, middle - (link.Height / 2)));
+            _markReplacementLinks.Add(
+                (new Rect(linkLeft - 6, top, link.Width + 12, MarkRowHeight), edgeKey, replacement.Replacer));
+        }
+
         var room = Math.Max(1, linkLeft - 10 - (left + 23));
         var text = CachedFitted(replacement.Text, 12, Ink("Brush.Text"), FontWeights.Normal, room);
         dc.DrawText(text, new Point(left + 23, middle - (text.Height / 2)));
-        _markReplacementLink = (new Rect(linkLeft - 6, top, link.Width + 12, MarkRowHeight), edgeKey);
     }
 
     /// <summary>Takes a press on a block mark (opens or closes its box) or on the open box's <em>?</em>.</summary>
@@ -221,9 +227,9 @@ public sealed partial class GraphCanvas
             return true;
         }
 
-        if (_markReplacementLink is { } link && link.Area.Contains(new Point(screen.X, screen.Y)))
+        foreach (var link in _markReplacementLinks.Where(link => link.Area.Contains(new Point(screen.X, screen.Y))))
         {
-            _ = _model!.ChooseReplacementAsync(link.EdgeKey);
+            _ = _model!.ChooseReplacementAsync(link.EdgeKey, link.Replacer);
             return true;
         }
 

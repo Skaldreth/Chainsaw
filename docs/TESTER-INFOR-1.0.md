@@ -1642,13 +1642,18 @@ källan svarat `404` två gånger efter att ha visat tx:en i ett block.
 - [ ] Öppna det röda märket: rutan har en tredje rad *Ersatt av 3f2a…9b1c* när en annan tx spenderar samma mynt, och
       foten säger RBF eller dubbelspendering. Föll tx:en bort utan ersättare säger foten att pengarna ligger kvar och
       raden saknas. Rutans *?* öppnar Guiden på *En tx som inte finns längre*.
-- [ ] Med utgången ansluten frågas det en gång per ärende och session vad som spenderar mynten (svaren förseglas i
-      ärendet som `bitcoin.outspend` och klarar `/verify`); offline skickas inget, och rutan säger att det inte är
-      hämtat ännu.
+- [ ] Med utgången ansluten frågas det en gång per ärende och session vad som spenderar mynten (en fråga per tx
+      som mynten kom ur, förseglad som `bitcoin.replaced-outspends`, och `/verify` klarar sig); offline skickas inget,
+      rutan säger att det inte är hämtat ännu, länken *Följ ersättaren* syns inte, och frågan ställs när utgången är
+      ansluten igen.
 - [ ] Klicka *Följ ersättaren*: toasten *Spåret följer ersättaren* med *Ångra*, ersättaren kommer in i grafen och
       spåret går vidare genom den med streckade accentlinjer; *Varför?* på beloppet säger att det är din bedömning.
       Journalen har en rad om valet. *Ta tillbaka* i rutan, eller *Ångra*, gör att spåret slutar vid den borta tx:en
       igen och ersättaren lämnar grafen.
+- [ ] Raden *Ersatt av …* visar ersättarens blockhöjd eller *obekräftad*; vid en dubbelspendering med flera
+      ersättare har var och en sin rad och sin länk.
+- [ ] Med två endpoints påslagna och bara den ena som svarat `404`: spåret stannar med *Tx:en kanske inte finns;
+      uppgifterna går inte ihop* (inget slut), och rutan säger att det inte är bekräftat.
 - [ ] Hovra en slutsats som hålls tillbaka (HB1a) som byggde på en ersatt tx: raden *Ersatt av …* står under
       *Byggde på …*.
 - [ ] Exponering från en aktör vars pengar gick in i en borta tx: det räknas som *Spåret tar slut*, och efter *Följ

@@ -34,10 +34,11 @@ internal static class ResponseKinds
     public const string OutputSpends = "bitcoin.outspends";
 
     /// <summary>
-    /// Who spends one output, <c>/tx/:txid/outspend/:vout</c>, asked only to find what replaced a transaction that is
-    /// gone (sketch GR9a), and kept apart from <see cref="OutputSpends"/>, which the graph follows.
+    /// Who spends a transaction's outputs, <c>/tx/:txid/outspends</c>, asked only to find what replaced a transaction
+    /// that is gone and spent some of them (sketch GR9a), and kept apart from <see cref="OutputSpends"/>, which the
+    /// graph follows, so that asking never makes the trace follow the replacer by itself.
     /// </summary>
-    public const string OutputSpend = "bitcoin.outspend";
+    public const string ReplacedSpends = "bitcoin.replaced-outspends";
 
     /// <summary>A page of an address's transactions, <c>/address/:address/txs[/chain/:after]</c>.</summary>
     public const string AddressTransactions = "bitcoin.address-txs";

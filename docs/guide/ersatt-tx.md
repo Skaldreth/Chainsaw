@@ -19,21 +19,27 @@ både det gamla och det nya svaret ligger kvar, förseglade.
 
 Att tx:en är borta är en **bedömning** av vad källan svarar, inte ett faktum. Chainsaw kräver därför två svar i rad,
 från olika endpoints eller med ett nytt block emellan, från endpoints som hade kommit minst lika långt som blocket.
+Spåret **slutar** vid tx:en först när det är bekräftat: endpoints på två olika värdar har sagt det (eller den enda som
+är påslagen), eller svaren om mynten visar att en annan tx spenderar dem eller att de är fria igen. Annars, och när
+källan samtidigt säger att tx:en fortfarande spenderar mynten, **stannar** spåret där med *Tx:en kanske inte finns;
+uppgifterna går inte ihop*. Det är inget slut: Chainsaw gissar inte åt något håll, och nästa svar kan reda ut det.
 
 ## Ersatt av
 
-Ett mynt kan bara spenderas en gång. Är tx:en borta frågar Chainsaw, genom utgången, vem som spenderar vart och ett av
-mynten den spenderade (`/tx/:txid/outspend/:vout`). Bara myntet skickas, aldrig ärendet, och varje svar förseglas.
-Svaren blir en rad i märkets ruta:
+Ett mynt kan bara spenderas en gång. Är tx:en borta frågar Chainsaw, genom utgången, vem som spenderar mynten den
+spenderade: en fråga per tx som mynten kom ur (`/tx/:txid/outspends`), högst tjugo. Bara de tx:ernas id skickas,
+aldrig ärendet, och varje svar förseglas. En ersättare som ännu inte ligger i ett block frågas om igen, eftersom den i
+sin tur kan ha ersatts. Svaren blir rader i märkets ruta, med ersättarens block eller *obekräftad*:
 
 - **Ersatt av …** när en annan tx spenderar mynten. Det kallas **RBF** (replace-by-fee) när avsändaren skickar om
   samma betalning med högre avgift, ofta till samma mottagare, och en **dubbelspendering** när mynten går till någon
-  annan.
+  annan. Spenderas mynten av flera olika tx får var och en sin rad.
 - **Föll bort utan ersättare** när inget spenderar mynten. Pengarna ligger kvar där de kom ifrån.
 
 ## Följ ersättaren
 
 Att ersättaren för *samma pengar* vidare är en bedömning, så spåret följer den inte av sig självt. **Följ ersättaren**
-i rutan hämtar tx:en till grafen och låter spåret gå vidare genom den. Valet förseglas med vem och när och står i
+i rutan hämtar tx:en till grafen och låter spåret gå vidare genom den. Länken syns bara när källan kan frågas;
+Chainsaw kontrollerar att ersättarens egna inputs spenderar just de mynten med samma belopp innan valet sparas. Valet förseglas med vem och när och står i
 journalen, och beloppen efter ersättaren ritas **streckade**, som allt som bygger på en bedömning. *Ta tillbaka* i
 rutan (eller *Ångra* i meddelandet) gör att spåret slutar vid den borttagna tx:en igen; valet står kvar förseglat.

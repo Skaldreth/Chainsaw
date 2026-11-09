@@ -26,7 +26,10 @@ public sealed record BlockMarkRow(
 /// </summary>
 /// <param name="Gone">The gone transaction.</param>
 /// <param name="Replacer">The transaction that spends its coins now.</param>
-/// <param name="Text">What the row says, for example <c>Ersatt av 3f2a…9b1c</c>.</param>
+/// <param name="Text">
+/// What the row says, with the replacer's block or that it is unconfirmed, for example
+/// <c>Ersatt av 3f2a…9b1c · 921 345</c>.
+/// </param>
 /// <param name="FullTxid">The replacer's txid in full, for hovering and copying.</param>
 /// <param name="Follow">The user's choice in force to follow it, or <see langword="null"/>.</param>
 public sealed record BlockMarkReplacement(
@@ -41,8 +44,8 @@ public sealed record BlockMarkReplacement(
 
 /// <summary>The graph's reading of a gone transaction, as its block mark shows it (sketch GR9a).</summary>
 /// <param name="Gone">The transaction and what the case knows replaced it.</param>
-/// <param name="Follow">The user's choice in force to follow its replacer, or <see langword="null"/>.</param>
-public sealed record GoneReading(GoneTransaction Gone, ReplacementFollow? Follow);
+/// <param name="Follows">The user's choices in force to follow its replacers.</param>
+public sealed record GoneReading(GoneTransaction Gone, IReadOnlyList<ReplacementFollow> Follows);
 
 /// <summary>
 /// The round mark in the corner of a line's amount when a transaction on it has left the block the case saw it in
@@ -62,10 +65,10 @@ public sealed record BlockMark(
     public bool IsGone => Change.Kind == BlockChangeKind.Gone;
 
     /// <summary>
-    /// Gets what replaced a gone transaction, as the case's sealed answers say, or <see langword="null"/> when nothing
-    /// is known to.
+    /// Gets what replaced a gone transaction, one row per replacer (a double spend can have several, each choosable),
+    /// as the case's sealed answers say; empty when nothing is known to, or the answers do not settle that it is gone.
     /// </summary>
-    public BlockMarkReplacement? Replacement { get; init; }
+    public IReadOnlyList<BlockMarkReplacement> Replacements { get; init; } = [];
 }
 
 /// <summary>Makes the block marks of a graph's lines (sketch GR9a), without WPF.</summary>
@@ -99,6 +102,21 @@ public static class BlockMarks
     public const string FollowedFoot =
         "Källan känner inte längre till tx:en, och en annan tx spenderar samma mynt i stället. Du valde att spåret "
         + "följer ersättaren; linjerna efter den är streckade som en bedömning. Alla svar står kvar i ärendet.";
+
+    /// <summary>
+    /// What a gone transaction's box says when the answers do not settle that it is gone: the trace stops there
+    /// without an end.
+    /// </summary>
+    public const string UncertainFoot =
+        "Källan säger att den inte känner till tx:en, men det är inte bekräftat: bara en endpoint har sagt det, eller "
+        + "svaren om mynten säger att tx:en fortfarande spenderar dem. Spåret stannar här utan att sluta, i stället "
+        + "för att gissa. Alla svar står kvar i ärendet.";
+
+    /// <summary>What a row says after the replacer's id when it is unconfirmed.</summary>
+    public const string UnconfirmedText = "obekräftad";
+
+    /// <summary>The most replacers a box names, each on its own row.</summary>
+    public const int MostReplacementRows = 3;
 
     /// <summary>What a gone transaction's box says when nothing spends its coins: it was dropped.</summary>
     public const string DroppedFoot =
@@ -195,7 +213,7 @@ public static class BlockMarks
         };
         return new BlockMark(change, title, title + TipTail, icon, [before, after], foot)
         {
-            Replacement = change.Kind == BlockChangeKind.Gone ? ReplacementOf(gone) : null,
+            Replacements = change.Kind == BlockChangeKind.Gone ? ReplacementsOf(gone) : [],
         };
     }
 
@@ -204,7 +222,12 @@ public static class BlockMarks
     /// <returns>The foot.</returns>
     private static string GoneFootOf(GoneReading? gone)
     {
-        if (gone is { Follow: not null })
+        if (gone is { Gone.IsSettled: false })
+        {
+            return UncertainFoot;
+        }
+
+        if (gone is { Follows.Count: > 0 })
         {
             return FollowedFoot;
         }
@@ -218,25 +241,40 @@ public static class BlockMarks
     }
 
     /// <summary>
-    /// Gives the row that names a gone transaction's replacer: the one the trace follows, or else the first.
+    /// Gives the rows that name a gone transaction's replacers, each with its block, those the trace follows first, at
+    /// most <see cref="MostReplacementRows"/>; none while the answers do not settle that it is gone.
     /// </summary>
     /// <param name="gone">The graph's reading of it, or <see langword="null"/>.</param>
-    /// <returns>The row, or <see langword="null"/> when nothing is known to replace it.</returns>
-    private static BlockMarkReplacement? ReplacementOf(GoneReading? gone)
+    /// <returns>The rows.</returns>
+    private static IReadOnlyList<BlockMarkReplacement> ReplacementsOf(GoneReading? gone)
     {
-        if (gone is not { } known || known.Gone.Replacers is not [var first, ..] replacers)
+        if (gone is not { Gone.IsSettled: true } known || known.Gone.Replacement is not { } replacement)
         {
-            return null;
+            return [];
         }
 
-        var replacer = known.Follow?.Replacer ?? first;
-        var more = replacers.Count > 1
-            ? string.Create(CultureInfo.InvariantCulture, $" och {replacers.Count - 1} till")
-            : string.Empty;
-        return new BlockMarkReplacement(
-            known.Gone.Txid, replacer, ReplacedByText + GraphScene.Shorten(replacer.Value) + more, replacer.Value,
-            known.Follow);
+        return
+        [
+            .. replacement.Replacers
+                .OrderBy(replacer => known.Follows.Any(follow => follow.Replacer == replacer) ? 0 : 1)
+                .Take(MostReplacementRows)
+                .Select(replacer => new BlockMarkReplacement(
+                    known.Gone.Txid,
+                    replacer,
+                    $"{ReplacedByText}{GraphScene.Shorten(replacer.Value)} · {BlockOf(replacement, replacer)}",
+                    replacer.Value,
+                    known.Follows.FirstOrDefault(follow => follow.Replacer == replacer))),
+        ];
     }
+
+    /// <summary>Writes the block a replacer is in, as the answers about the coins say, or that it is not in one.</summary>
+    /// <param name="replacement">The answers.</param>
+    /// <param name="replacer">The replacer.</param>
+    /// <returns>For example <c>921 345</c> or <c>obekräftad</c>.</returns>
+    private static string BlockOf(TransactionReplacement replacement, Txid replacer) =>
+        replacement.Coins.Select(coin => coin.SpentBy).FirstOrDefault(by => by?.Txid == replacer)?.Block is { } block
+            ? Height(block.Height)
+            : UnconfirmedText;
 
     /// <summary>
     /// Finds the graph's reading of a gone Bitcoin transaction, with the user's choice in force to follow its
@@ -253,7 +291,7 @@ public static class BlockMarks
             return null;
         }
 
-        return new GoneReading(gone, graph.FollowedReplacements.FirstOrDefault(follow => follow.Gone == txid));
+        return new GoneReading(gone, [.. graph.FollowedReplacements.Where(follow => follow.Gone == txid)]);
     }
 
     /// <summary>Writes a time the way the graph's small boxes do: the clock alone today, the day before it else.</summary>

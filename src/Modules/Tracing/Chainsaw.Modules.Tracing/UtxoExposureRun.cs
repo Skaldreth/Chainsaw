@@ -188,16 +188,29 @@ internal sealed class UtxoExposureRun
     /// <summary>Gives the input in the graph that spends a coin, or <see langword="null"/>.</summary>
     /// <param name="coin">The coin.</param>
     /// <returns>The transaction's id and the input's index.</returns>
-    private BitcoinSpend? Spender(Outpoint coin)
+    private BitcoinSpend? Spender(Outpoint coin) =>
+        SpendRules.SpentBy(Graph, coin) is { } by && Graph.Transactions.ContainsKey(by.Txid) ? by : null;
+
+    /// <summary>
+    /// Says whether a coin the money starts in was made by a transaction the source no longer knows, and stops it there
+    /// as the graph's trace does (<see cref="SpendRules.MadeByGone"/>): it is left out when a replacer is in the graph,
+    /// whose own coins carry the money, and otherwise stops where the trail ends, or as not adding up when the answers
+    /// do not settle that it is gone.
+    /// </summary>
+    /// <param name="coin">The coin.</param>
+    /// <param name="counts">Whether the coin is counted at all.</param>
+    /// <returns><see langword="true"/> when the coin's transaction is gone.</returns>
+    private bool StopsAtGone(Outpoint coin, out bool counts)
     {
-        if (!Graph.Spends.TryGetValue(coin, out var spend) || spend.SpentBy is not { } by)
+        counts = true;
+        if (SpendRules.MadeByGone(Graph, coin) is not { } made)
         {
-            return null;
+            return false;
         }
 
-        // A gone spender's replacer, when the user chose to follow it, as the graph's trace does.
-        var through = SpendRules.Replaced(Graph, coin, by) ?? by;
-        return Graph.Transactions.ContainsKey(through.Txid) ? through : null;
+        counts = made.Counts;
+        _ended[coin] = made.Gone.IsSettled ? ExposureRest.TrailEnds : ExposureRest.Conflicting;
+        return true;
     }
 
     /// <summary>
@@ -242,7 +255,8 @@ internal sealed class UtxoExposureRun
             return;
         }
 
-        if (SpendRules.IsConflicting(Graph.Transactions[by.Txid].Transaction, by.InputIndex, coin, output))
+        if (SpendRules.IsConflicting(Graph.Transactions[by.Txid].Transaction, by.InputIndex, coin, output)
+            || Graph.Gone.TryGetValue(by.Txid, out var gone) && !gone.IsSettled)
         {
             _ended[coin] = ExposureRest.Conflicting;
         }
@@ -320,7 +334,8 @@ internal sealed class UtxoExposureRun
             {
                 var coin = transfer.Coin!;
                 var owner = IsTransactionNode(edge.To) ? Subject : edge.To;
-                if (!_seeds.Add(coin))
+                var gone = StopsAtGone(coin, out var counts);
+                if (!counts || !_seeds.Add(coin))
                 {
                     continue;
                 }
@@ -329,7 +344,10 @@ internal sealed class UtxoExposureRun
                 _taint[coin] = TaintSet.FirstPart((long)transfer.Amount.Units);
                 _through[coin] = [transfer.Transaction];
                 total += transfer.Amount.Units;
-                Arrived(coin, Subject, edge);
+                if (!gone)
+                {
+                    Arrived(coin, Subject, edge);
+                }
             }
         }
 
@@ -346,7 +364,8 @@ internal sealed class UtxoExposureRun
             foreach (var transfer in edge.Transfers.Where(t => t.Amount.Asset == _request.Asset && t.Coin is not null))
             {
                 var coin = transfer.Coin!;
-                if (!_seeds.Add(coin))
+                var gone = StopsAtGone(coin, out var counts);
+                if (!counts || !_seeds.Add(coin))
                 {
                     continue;
                 }
@@ -355,7 +374,10 @@ internal sealed class UtxoExposureRun
                 _units[coin] = transfer.Amount.Units;
                 _through[coin] = [transfer.Transaction];
                 total += transfer.Amount.Units;
-                SettleIn(coin);
+                if (!gone)
+                {
+                    SettleIn(coin);
+                }
             }
         }
 
@@ -531,7 +553,8 @@ internal sealed class UtxoExposureRun
     /// <returns><see langword="true"/> when they disagree.</returns>
     private bool SpendsElsewhere(Outpoint coin, Txid txid, int index)
     {
-        if (!Graph.Spends.TryGetValue(coin, out var spend) || spend.SpentBy is not { } by)
+        // As the graph's trace counts the spend: a followed replacer's input in place of a gone transaction's.
+        if (SpendRules.SpentBy(Graph, coin) is not { } by)
         {
             return false;
         }
@@ -619,6 +642,11 @@ internal sealed class UtxoExposureRun
         }
 
         _owners.TryAdd(coin, owner);
+        if (!_seeds.Contains(coin) && StopsAtGone(coin, out _))
+        {
+            // Made by a transaction that is not in the chain: it is not read back through it.
+            return;
+        }
 
         if (spender is not null)
         {

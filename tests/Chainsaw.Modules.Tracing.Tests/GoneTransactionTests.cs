@@ -190,11 +190,132 @@ public sealed class GoneTransactionTests : IDisposable
         _harness.Source.Online = false;
         var before = _harness.Case.ReadJournal().Count;
 
-        await Assert.ThrowsAsync<InvalidOperationException>(
+        await Assert.ThrowsAsync<ReplacementUnavailableException>(
             () => _harness.Service.FollowReplacementAsync(_harness.Case, _gone.Txid, _rbf.Txid, null));
 
         Assert.Equal(before, _harness.Case.ReadJournal().Count);
     }
+
+    [Fact]
+    public async Task One_endpoints_word_alone_does_not_end_the_trail_but_stops_it_as_not_adding_up()
+    {
+        await ExpandAsync();
+        MarkGone(null, corroborated: false);
+
+        var graph = await _harness.Load();
+        var end = Assert.Single(Trace(graph).Ends);
+
+        Assert.Equal(TrailEndReason.GoneUncertain, end.Reason);
+        Assert.False(end.Reason.EndsTrail());
+        Assert.Contains("Bara en endpoint", end.Explanation, StringComparison.Ordinal);
+        Assert.False(graph.TransactionEnds.ContainsKey(_gone.Txid));
+    }
+
+    [Fact]
+    public async Task The_answers_about_the_coins_settle_what_one_endpoint_said()
+    {
+        await ExpandAsync();
+        MarkGone(new TransactionReplacement(
+            _gone.Txid, [new ReplacedCoin(0, _fund.Txid, 0, ReplacedCoinState.Unspent, null, 70)]), corroborated: false);
+
+        Assert.Equal(TrailEndReason.TransactionGone, Assert.Single(Trace(await _harness.Load()).Ends).Reason);
+    }
+
+    [Fact]
+    public async Task Answers_that_still_name_the_gone_transaction_never_end_the_trail_nor_let_a_replacer_be_followed()
+    {
+        await ExpandAsync();
+        _harness.Source.Add(_rbf);
+        MarkGone(new TransactionReplacement(_gone.Txid,
+        [
+            new ReplacedCoin(0, _fund.Txid, 0, ReplacedCoinState.SpentByItself, null, 70),
+            new ReplacedCoin(1, _rbf.Txid, 0, ReplacedCoinState.SpentByOther, new BitcoinSpend(_rbf.Txid, 0, null), 71),
+        ]));
+
+        var end = Assert.Single(Trace(await _harness.Load()).Ends);
+
+        Assert.Equal(TrailEndReason.GoneUncertain, end.Reason);
+        Assert.Contains("går inte ihop", end.Explanation, StringComparison.Ordinal);
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => _harness.Service.FollowReplacementAsync(_harness.Case, _gone.Txid, _rbf.Txid, null));
+    }
+
+    [Fact]
+    public async Task A_replacer_whose_own_input_does_not_spend_the_coin_is_refused()
+    {
+        await ExpandAsync();
+        _harness.Source.Add(_rbf);
+        MarkGone(new TransactionReplacement(_gone.Txid,
+            [new ReplacedCoin(
+                0, _fund.Txid, 0, ReplacedCoinState.SpentByOther, new BitcoinSpend(_rbf.Txid, 3, null), 70)]));
+        var before = _harness.Case.ReadJournal().Count;
+
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => _harness.Service.FollowReplacementAsync(_harness.Case, _gone.Txid, _rbf.Txid, null));
+
+        Assert.Equal(before, _harness.Case.ReadJournal().Count);
+    }
+
+    [Fact]
+    public async Task Exposure_paid_out_stops_at_the_gone_transaction_and_counts_only_the_replacer_once_followed()
+    {
+        await ExpandAsync();
+        _harness.Source.Add(_rbf);
+        MarkGone(Replaced(_rbf));
+        var before = Exposure(await _harness.Load(), "victim-wallet", ExposureDirection.Out, "bob");
+
+        await _harness.Service.FollowReplacementAsync(_harness.Case, _gone.Txid, _rbf.Txid, null);
+        var after = Exposure(await _harness.Load(), "victim-wallet", ExposureDirection.Out, "bob");
+
+        Assert.Equal(Btc(99_980_000), before.Total);
+        Assert.Equal(99_980_000, (long)before.Rest[ExposureRest.TrailEnds].Units);
+        Assert.Empty(before.Reached);
+        Assert.Equal(Btc(99_960_000), after.Total);
+        Assert.False(after.Rest.ContainsKey(ExposureRest.TrailEnds));
+        Assert.Equal(99_960_000, (long)Assert.Single(after.Reached).Amount.Units);
+    }
+
+    [Fact]
+    public async Task Exposure_got_reads_back_through_a_followed_replacer_as_the_trace_does()
+    {
+        await ExpandAsync();
+        _harness.Source.Add(_rbf);
+        MarkGone(Replaced(_rbf));
+        await _harness.Service.FollowReplacementAsync(_harness.Case, _gone.Txid, _rbf.Txid, null);
+
+        var got = Exposure(await _harness.Load(), "bob", ExposureDirection.In, "victim-wallet");
+
+        Assert.Equal(Btc(99_960_000), got.Total);
+        Assert.False(got.Rest.ContainsKey(ExposureRest.Conflicting));
+        Assert.Single(got.Reached);
+    }
+
+    [Fact]
+    public async Task A_confirmed_replacer_followed_still_rests_on_the_users_judgement()
+    {
+        var confirmed = Tx("rbf-confirmed", 900_003).Spend(_fund, 0).Out(Wpkh("bob"), 99_960_000).Build();
+        await ExpandAsync();
+        _harness.Source.Add(confirmed);
+        MarkGone(new TransactionReplacement(_gone.Txid,
+        [
+            new ReplacedCoin(0, _fund.Txid, 0, ReplacedCoinState.SpentByOther,
+                new BitcoinSpend(confirmed.Txid, 0, confirmed.Block), 70),
+        ]));
+        await _harness.Service.FollowReplacementAsync(_harness.Case, _gone.Txid, confirmed.Txid, null);
+
+        var result = Trace(await _harness.Load());
+
+        var lines = result.Edges.Where(edge => edge.Amount.Through.Contains(confirmed.Txid)).ToList();
+        Assert.NotEmpty(lines);
+        Assert.All(lines, edge => Assert.True(edge.Amount.RestsOnReplacement));
+    }
+
+    /// <summary>Reads exposure from an actor by FIFO, with one actor counted as a service.</summary>
+    private static ExposureResult Exposure(
+        TraceGraph graph, string subject, ExposureDirection direction, string service) =>
+        new ExposureAnalysis([new FifoMethod(), new HaircutMethod()]).Analyse(new ExposureRequest(
+            graph, graph.NodeOf(Wpkh(subject))!.Key, Asset.Bitcoin, direction, 3, TracingMethodKind.Fifo,
+            new HashSet<string>(StringComparer.Ordinal) { graph.NodeOf(Wpkh(service))!.Key }));
 
     /// <summary>Expands the victim's coin and the transaction after it, so that the graph knows where they went.
     /// </summary>
@@ -205,14 +326,15 @@ public sealed class GoneTransactionTests : IDisposable
     }
 
     /// <summary>Says, as Chains would from the sealed answers, that the gone transaction left the chain.</summary>
-    private void MarkGone(TransactionReplacement? replacement)
+    private void MarkGone(TransactionReplacement? replacement, bool corroborated = true)
     {
         var before = new BlockSighting(900_001, _gone.Block!.Hash.Value, DateTimeOffset.UnixEpoch, 10)
         {
             Endpoint = "esplora.test",
         };
         var now = new BlockSighting(null, null, DateTimeOffset.UnixEpoch.AddHours(1), 60) { Endpoint = "esplora.test" };
-        _harness.Source.Changes.Add(new BlockChange(_gone.Txid, BlockChangeKind.Gone, before, now));
+        _harness.Source.Changes.Add(
+            new BlockChange(_gone.Txid, BlockChangeKind.Gone, before, now) { IsCorroborated = corroborated });
         if (replacement is not null)
         {
             _harness.Source.Replacements[_gone.Txid] = replacement;

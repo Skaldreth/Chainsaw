@@ -296,11 +296,15 @@ internal sealed class TraceCalculator
         return new Step(spender, null, mayChange);
     }
 
-    /// <summary>Gives the end of the trail at a transaction the source no longer knows (sketch GR9a).</summary>
+    /// <summary>
+    /// Gives how the money stops at a transaction the source no longer knows (sketch GR9a): the end of the trail when
+    /// the answers settle it, or else a stop that is no end, since they do not add up.
+    /// </summary>
     /// <param name="gone">The transaction.</param>
     /// <returns>The ending.</returns>
-    private static Ending GoneEnding(GoneTransaction gone) =>
-        new(TrailEndReason.TransactionGone, gone.Txid, gone.Explain(), [gone.Hint]);
+    private static Ending GoneEnding(GoneTransaction gone) => gone.Hint is { } hint
+        ? new(TrailEndReason.TransactionGone, gone.Txid, hint.Explanation, [hint])
+        : new(TrailEndReason.GoneUncertain, gone.Txid, gone.Explain(), []);
 
     /// <summary>
     /// Orders the reached transactions so that each comes after every reached transaction it spends from.

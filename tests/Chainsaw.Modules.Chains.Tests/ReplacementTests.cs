@@ -6,17 +6,20 @@ namespace Chainsaw.Modules.Chains.Tests;
 
 /// <summary>
 /// <em>Ersatt av vilken tx</em> (sketch GR9a): which transaction spends the coins of a transaction the source no longer
-/// knows, asked coin by coin and sealed, against a synthetic facit: replace-by-fee (one replacer spends every coin), a
-/// double spend of one coin while the other is free again, and a transaction that leaves the mempool with nothing in
-/// its place.
+/// knows, asked once per transaction whose coins it spent and sealed, against a synthetic facit: replace-by-fee (one
+/// replacer spends every coin), a double spend of one coin while the other is free again, and a transaction that
+/// leaves the mempool with nothing in its place.
 /// </summary>
 public sealed class ReplacementTests : IDisposable
 {
-    /// <summary>The first coin <see cref="Fixtures.Confirmed"/> spends (<c>b1…:0</c>).</summary>
+    /// <summary>The transaction whose output 0 <see cref="Fixtures.Confirmed"/> spends (<c>b1…</c>).</summary>
     private static readonly Txid FirstPrevious = Txid.Parse(Fixtures.Repeat("b1", 32));
 
     /// <summary>The replacer in the facit.</summary>
     private static readonly Txid Replacer = Txid.Parse(Fixtures.Repeat("c1", 32));
+
+    /// <summary>Another transaction that spends the older transaction's first output, not the gone one's coin.</summary>
+    private static readonly Txid Bystander = Txid.Parse(Fixtures.Repeat("d1", 32));
 
     private readonly SourceHarness _harness = new();
 
@@ -29,11 +32,11 @@ public sealed class ReplacementTests : IDisposable
     public void Dispose() => _harness.Dispose();
 
     [Fact]
-    public async Task Replace_by_fee_names_the_replacer_of_every_coin_and_seals_each_answer()
+    public async Task Replace_by_fee_names_the_replacer_of_every_coin_and_seals_one_answer_per_transaction()
     {
         await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
-        AnswerSpend(FirstPrevious, 0, Replacer, 0);
-        AnswerSpend(Fixtures.Older, 1, Replacer, 1);
+        AnswerSpends(FirstPrevious, Spent(Replacer, 0, confirmed: true));
+        AnswerSpends(Fixtures.Older, Spent(Bystander, 0, confirmed: true), Spent(Replacer, 1, confirmed: true));
         var rows = _harness.RawRows().Count;
 
         var lookup = await Source.GetReplacementAsync(_harness.Case, Fixtures.Confirmed, LookupMode.AsNeeded);
@@ -52,8 +55,8 @@ public sealed class ReplacementTests : IDisposable
     public async Task A_double_spend_of_one_coin_is_partly_replaced_when_the_other_is_free_again()
     {
         await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
-        AnswerSpend(FirstPrevious, 0, Replacer, 0);
-        AnswerUnspent(Fixtures.Older, 1);
+        AnswerSpends(FirstPrevious, Spent(Replacer, 0, confirmed: true));
+        AnswerSpends(Fixtures.Older, Spent(Bystander, 0, confirmed: true), Unspent);
 
         var replacement = (await Source.GetReplacementAsync(
             _harness.Case, Fixtures.Confirmed, LookupMode.AsNeeded)).Value!;
@@ -67,8 +70,8 @@ public sealed class ReplacementTests : IDisposable
     public async Task A_transaction_that_leaves_the_mempool_without_a_replacer_is_dropped()
     {
         await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
-        AnswerUnspent(FirstPrevious, 0);
-        AnswerUnspent(Fixtures.Older, 1);
+        AnswerSpends(FirstPrevious, Unspent);
+        AnswerSpends(Fixtures.Older, Unspent, Unspent);
 
         var replacement = (await Source.GetReplacementAsync(
             _harness.Case, Fixtures.Confirmed, LookupMode.AsNeeded)).Value!;
@@ -84,8 +87,8 @@ public sealed class ReplacementTests : IDisposable
         Http.Sent.Clear();
 
         var before = (await Source.GetReplacementAsync(_harness.Case, Fixtures.Confirmed)).Value!;
-        AnswerSpend(FirstPrevious, 0, Replacer, 0);
-        AnswerSpend(Fixtures.Older, 1, Replacer, 1);
+        AnswerSpends(FirstPrevious, Spent(Replacer, 0, confirmed: true));
+        AnswerSpends(Fixtures.Older, Unspent, Spent(Replacer, 1, confirmed: true));
         await Source.GetReplacementAsync(_harness.Case, Fixtures.Confirmed, LookupMode.AsNeeded);
         var sent = Http.Sent.Count;
         var after = (await Source.GetReplacementAsync(_harness.Case, Fixtures.Confirmed)).Value!;
@@ -98,26 +101,41 @@ public sealed class ReplacementTests : IDisposable
     }
 
     [Fact]
-    public async Task A_known_replacer_is_not_asked_about_again_but_a_free_coin_is()
+    public async Task A_replacer_in_a_block_is_not_asked_about_again_but_a_free_coin_is()
     {
         await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
-        AnswerSpend(FirstPrevious, 0, Replacer, 0);
-        AnswerUnspent(Fixtures.Older, 1);
+        AnswerSpends(FirstPrevious, Spent(Replacer, 0, confirmed: true));
+        AnswerSpends(Fixtures.Older, Unspent, Unspent);
         await Source.GetReplacementAsync(_harness.Case, Fixtures.Confirmed, LookupMode.AsNeeded);
         Http.Sent.Clear();
 
         await Source.GetReplacementAsync(_harness.Case, Fixtures.Confirmed, LookupMode.AsNeeded);
 
         var asked = Assert.Single(Http.Sent);
-        Assert.EndsWith($"tx/{Fixtures.Older}/outspend/1", asked.Uri.AbsoluteUri, StringComparison.Ordinal);
+        Assert.EndsWith($"tx/{Fixtures.Older}/outspends", asked.Uri.AbsoluteUri, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task An_unconfirmed_replacer_is_asked_about_again_since_it_may_have_been_replaced_in_turn()
+    {
+        await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
+        AnswerSpends(FirstPrevious, Spent(Replacer, 0, confirmed: false));
+        AnswerSpends(Fixtures.Older, Unspent, Spent(Replacer, 1, confirmed: true));
+        await Source.GetReplacementAsync(_harness.Case, Fixtures.Confirmed, LookupMode.AsNeeded);
+        Http.Sent.Clear();
+
+        await Source.GetReplacementAsync(_harness.Case, Fixtures.Confirmed, LookupMode.AsNeeded);
+
+        var asked = Assert.Single(Http.Sent);
+        Assert.EndsWith($"tx/{FirstPrevious}/outspends", asked.Uri.AbsoluteUri, StringComparison.Ordinal);
     }
 
     [Fact]
     public async Task The_answers_never_change_what_the_graph_reads_about_spends()
     {
         await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
-        AnswerSpend(FirstPrevious, 0, Replacer, 0);
-        AnswerSpend(Fixtures.Older, 1, Replacer, 1);
+        AnswerSpends(FirstPrevious, Spent(Replacer, 0, confirmed: true));
+        AnswerSpends(Fixtures.Older, Unspent, Spent(Replacer, 1, confirmed: true));
 
         await Source.GetReplacementAsync(_harness.Case, Fixtures.Confirmed, LookupMode.AsNeeded);
 
@@ -129,13 +147,26 @@ public sealed class ReplacementTests : IDisposable
     public async Task A_source_that_still_names_the_gone_transaction_conflicts()
     {
         await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
-        AnswerSpend(FirstPrevious, 0, Fixtures.Confirmed, 0);
-        AnswerSpend(Fixtures.Older, 1, Replacer, 1);
+        AnswerSpends(FirstPrevious, Spent(Fixtures.Confirmed, 0, confirmed: true));
+        AnswerSpends(Fixtures.Older, Unspent, Spent(Replacer, 1, confirmed: true));
 
         var replacement = (await Source.GetReplacementAsync(
             _harness.Case, Fixtures.Confirmed, LookupMode.AsNeeded)).Value!;
 
         Assert.Equal(ReplacementKind.Conflicting, replacement.Kind);
+    }
+
+    [Fact]
+    public async Task Offline_the_case_answers_and_says_why_nothing_was_asked()
+    {
+        await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
+        Http.Connected = false;
+
+        var lookup = await Source.GetReplacementAsync(_harness.Case, Fixtures.Confirmed, LookupMode.AsNeeded);
+
+        Assert.Equal(LookupStatus.Offline, lookup.Status);
+        Assert.Equal(ReplacementKind.Unknown, lookup.Value!.Kind);
+        Assert.NotNull(lookup.Problem);
     }
 
     [Fact]
@@ -147,14 +178,19 @@ public sealed class ReplacementTests : IDisposable
         Assert.Empty(Http.Sent);
     }
 
-    /// <summary>Answers that a coin is spent by an input of another transaction, unconfirmed.</summary>
-    private void AnswerSpend(Txid previous, int index, Txid spender, int input) => Http.AnswerBytes(
-        Fixtures.Url($"tx/{previous}/outspend/{index}"),
-        Encoding.UTF8.GetBytes(
-            $$$"""{"spent":true,"txid":"{{{spender}}}","vin":{{{input}}},"status":{"confirmed":false}}"""),
-        200);
+    /// <summary>An output that is unspent, as <c>/outspends</c> writes it.</summary>
+    private const string Unspent = """{"spent":false}""";
 
-    /// <summary>Answers that a coin is unspent.</summary>
-    private void AnswerUnspent(Txid previous, int index) => Http.AnswerBytes(
-        Fixtures.Url($"tx/{previous}/outspend/{index}"), Encoding.UTF8.GetBytes("""{"spent":false}"""), 200);
+    /// <summary>An output spent by an input of another transaction.</summary>
+    private static string Spent(Txid spender, int input, bool confirmed)
+    {
+        var status = confirmed
+            ? $$$"""{"confirmed":true,"block_height":800005,"block_hash":"{{{Fixtures.Block}}}","block_time":1700003000}"""
+            : """{"confirmed":false}""";
+        return $$$"""{"spent":true,"txid":"{{{spender}}}","vin":{{{input}}},"status":{{{status}}}}""";
+    }
+
+    /// <summary>Answers who spends a transaction's outputs, one entry per output in order.</summary>
+    private void AnswerSpends(Txid previous, params string[] outputs) => Http.AnswerBytes(
+        Fixtures.Url($"tx/{previous}/outspends"), Encoding.UTF8.GetBytes("[" + string.Join(",", outputs) + "]"), 200);
 }

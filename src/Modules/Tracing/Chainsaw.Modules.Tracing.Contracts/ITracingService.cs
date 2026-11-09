@@ -179,7 +179,8 @@ public interface ITracingService
     /// <exception cref="ArgumentException">
     /// The reason is too long, the transaction is not gone, or the case does not know the replacer spends its coins.
     /// </exception>
-    /// <exception cref="InvalidOperationException">The replacer could not be had from the source or the case.
+    /// <exception cref="ReplacementUnavailableException">
+    /// The replacer could not be had from the source or the case; the message says why.
     /// </exception>
     /// <exception cref="CaseException">
     /// <see cref="CaseError.NoOperatorProfile"/> or <see cref="CaseError.Closed"/>.

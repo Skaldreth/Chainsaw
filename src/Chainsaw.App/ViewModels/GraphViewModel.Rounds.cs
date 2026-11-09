@@ -232,8 +232,8 @@ public sealed partial class GraphViewModel
 
     /// <summary>
     /// Reads what replaced the transactions the held back conclusions were built on, for the hovering's
-    /// <em>Ersatt av …</em> (HB1a): each is asked about once per case through the exit, only its coins going out,
-    /// and then read from the case.
+    /// <em>Ersatt av …</em> (HB1a): each one the rule says is gone is asked about once per case through the exit,
+    /// and all are then read from the case.
     /// </summary>
     /// <param name="openCase">The case.</param>
     /// <param name="read">The reading it belongs to; a newer one drops it.</param>
@@ -245,11 +245,10 @@ public sealed partial class GraphViewModel
             return;
         }
 
+        // Only a transaction the rule says is gone is asked about; the others are read from the case.
         var missing = _heldBack.SelectMany(held => held.Missing).Distinct().ToList();
-        foreach (var txid in missing.Where(txid => _askedReplacements.Add(txid.Value)))
-        {
-            await state.AskReplacementAsync(openCase, txid, _work.Token);
-        }
+        var gone = GoneByRule();
+        await AskAsync(state, openCase, [.. missing.Where(txid => gone.Contains(txid.Value))]);
 
         var replacers = await state.ReadReplacersAsync(openCase, missing, _work.Token);
         if (read == _heldReads && _session.Current == openCase)

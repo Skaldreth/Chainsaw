@@ -21,6 +21,8 @@ Tre orsaker betyder att pengarna **går att följa vidare**:
   flyttats sedan.
 - **Uppgifterna går inte ihop.** Källan säger att en viss tx spenderar myntet, men tx:en själv säger något annat.
   Chainsaw gissar inte vilken som har rätt och stannar här. Att expandera igen, eller en annan källa, kan reda ut det.
+- **Tx:en kanske inte finns.** Bara en endpoint har sagt att den inte känner tx:en, eller källans svar om mynten går
+  inte ihop med det. Spåret stannar tills det är bekräftat; se [En tx som inte finns längre](ersatt-tx.md).
 
 På Ethereum finns en fjärde: **Följer med genom en swap.** Pengarna byttes mot en annan tillgång, och det spårade
 värdet fortsätter i den nya (se [Spåret genom en swap](swappar.md)). Har du valt att värdet inte följer med är det i

@@ -4887,7 +4887,7 @@ eventstyrda slingan och cacharna. Mitt eget rutnät och diffningen av platser (`
 Två etapper ur TODO för Bitcoin: *Spårningen efter en tx som inte finns* och *Ersatt av vilken tx*.
 
 - **Chains:** `IBitcoinSource.GetReplacementAsync` frågar, för varje mynt en tx spenderade, vem som spenderar det nu
-  (`/tx/:txid/outspend/:vout`, ny sort `bitcoin.outspend`, förseglad som varje svar). Bara myntet skickas, genom
+  (först `/tx/:txid/outspend/:vout`; efter granskningen en fråga per föregående tx, se nedan). Bara myntet skickas, genom
   utgången. `CaseOnly` läser de förseglade svaren och skickar inget; annars frågas ett mynt igen bara när ärendet inte
   redan vet att en annan tx spenderar det. Svaren hålls isär från `bitcoin.outspends`, som grafen följer, så att
   frågan aldrig får spåret att följa ersättaren av sig själv. `TransactionReplacement` säger per mynt
@@ -4914,8 +4914,8 @@ Två etapper ur TODO för Bitcoin: *Spårningen efter en tx som inte finns* och 
 - Att följa ersättaren är en åtgärd i GR9a-rutan, inte ett förslag i KF2b: ett förslag i KF2b ändrar inte spåret
   (mixerns godkända kandidater ritas som vägar ut), medan uppgiften är att spåret ska kunna gå vidare genom ersättaren.
   Länken står i en ruta som redan var skissad; det är en textlänk som *?*, ingen ny yta.
-- Uppslagen gäller varje mynt för sig (`outspend/:vout`), inte hela den föregående tx:ens `outspends`, så att grafens
-  svar om spenderade utgångar inte ändras av frågan.
+- Uppslagen förseglas under en egen sort, apart från de svar grafen följer, så att grafens svar om spenderade
+  utgångar inte ändras av frågan.
 - Bara en tx som regeln (`BlockChangeRule`) säger är `Gone` räknas som borta; en obekräftad tx som aldrig låg i ett
   block omfattas inte (TODO).
 - Ethereum omfattas inte (TODO); testärendet fylls inte på (TODO).
@@ -4925,3 +4925,28 @@ läsning ur ärendet, ingen ny fråga om en känd ersättare, grafens svar orör
 Tracing 9 (`GoneTransactionTests`: slutet, inget räknas efter, startpunkt i en borta tx, bortfallen, ingen
 automatisk följning, följ och ta tillbaka med journal och `/verify`, vägrat utan borta tx eller okänd ersättare,
 offline), App 6 i `ChainStateTests` (rutans rad och fot, länken, en fråga per ärende, HB1a).
+
+**Granskningens rättelser (1 C, 5 I, 7 M, alla rättade):**
+- **C-1:** exponeringen *Ut* räknade genom en borta tx (och dubbelt med en följd ersättare). Ett mynt som en borta tx
+  gjorde lämnas nu utanför när en ersättare finns i grafen (dess egna mynt bär pengarna) och slutar annars som
+  *Spåret tar slut* (`SpendRules.MadeByGone`), både vid starten och när det läses bakåt. Test Ut med och utan följd
+  ersättare.
+- **I-1:** linjer som vilar på en följd ersättare ritas streckade också när ersättaren ligger i ett block
+  (`RestsOnReplacement` i `GraphScene`), och linjens *Varför?* har raden *Följer ersättaren*.
+- **I-2:** exponeringen *In* läser bakåt genom en följd ersättare: en regel, `SpendRules.SpentBy`, för både spåret och
+  exponeringen åt båda hållen.
+- **I-3:** en borta tx avslutar spåret bara när det är bekräftat: `BlockChange.IsCorroborated` (endpoints på två
+  värdar sa `404`, eller den enda påslagna), eller svaren om mynten (ersatt, delvis ersatt, bortfallen). Annars, och
+  när svaren om mynten säger att tx:en fortfarande spenderar dem, stannar spåret med det nya läget
+  `TrailEndReason.GoneUncertain` (inget slut, som *Uppgifterna går inte ihop*), och exponeringen räknar det som
+  *Uppgifterna går inte ihop*. Test med en endpoint som ljuger.
+- **I-4:** `exposure` är version 4.
+- **I-5:** `GetReplacementAsync` läser allt i en läsning av ärendet och frågar en gång per tx som mynten kom ur
+  (`/tx/:txid/outspends`, förseglad som den egna sorten `bitcoin.replaced-outspends`), högst 20, och säger det när
+  gränsen nås.
+- **M-1** valet kontrollerar ersättarens egna inputs (`SpendRules.IsConflicting`) och vägras när svaren går emot
+  varandra, **M-2** raden visar ersättarens blockhöjd eller *obekräftad*, **M-3** en obekräftad ersättare frågas om
+  igen, **M-4** en tx räknas som frågad bara när svaret kom (eller ärendet visste), **M-5** offline syns inte länken
+  *Följ ersättaren*, och ett misslyckat uppslag säger varför (`ReplacementUnavailableException`) i stället för ett
+  oväntat fel, **M-6** varje ersättare i en dubbelspendering har en egen rad och länk (högst tre), **M-7** HB1a frågar
+  bara om tx som regeln säger är borta.
