@@ -339,6 +339,15 @@ public interface IWatchFeeds
     /// <param name="chain">The chain.</param>
     /// <returns>The feed, or <see langword="null"/> for a chain that cannot be watched yet.</returns>
     IWatchFeed? For(ICase @case, Chain chain);
+
+    /// <summary>Asks a chain's height through its source; only an answer fetched now counts.</summary>
+    /// <param name="case">The case the response is sealed in.</param>
+    /// <param name="chain">The chain.</param>
+    /// <param name="cancellationToken">Stops the lookup.</param>
+    /// <returns>
+    /// The height, or <see langword="null"/> when it could not be had or the chain cannot be watched.
+    /// </returns>
+    Task<long?> GetHeightAsync(ICase @case, Chain chain, CancellationToken cancellationToken = default);
 }
 
 /// <summary>When a watch is due and how far a check leaves it, written once for Chainsaw and the background.</summary>

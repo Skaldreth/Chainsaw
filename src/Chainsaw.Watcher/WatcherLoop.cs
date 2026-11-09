@@ -321,21 +321,7 @@ internal sealed class WatcherLoop
     /// <returns>The height, or <see langword="null"/> when it could not be had.</returns>
     private async Task<long?> HeightAsync(ICase scratch, Chain chain, CancellationToken cancellationToken)
     {
-        switch (chain)
-        {
-            case Chain.Bitcoin:
-                var tip = await _parts.Bitcoin.GetTipHeightAsync(scratch, cancellationToken).ConfigureAwait(false);
-                return tip.Status == LookupStatus.Fetched ? tip.Value?.Height : null;
-            case Chain.Ethereum:
-                var height = await _parts.Ethereum.GetTipHeightAsync(scratch, cancellationToken)
-                    .ConfigureAwait(false);
-                return height.Status == LookupStatus.Fetched ? height.Value?.Height : null;
-            case Chain.Tron when _parts.Tron is not null:
-                var newest = await _parts.Tron.GetTipHeightAsync(scratch, cancellationToken).ConfigureAwait(false);
-                return newest.Status == LookupStatus.Fetched ? newest.Value?.Height : null;
-            default:
-                return null;
-        }
+        return await _parts.Feeds.GetHeightAsync(scratch, chain, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -508,9 +494,6 @@ internal sealed class WatcherLoop
 /// <param name="Check">The check, the same as in the open Chainsaw.</param>
 /// <param name="Feeds">The feeds, the same as in the open Chainsaw.</param>
 /// <param name="Sources">The chains' endpoints.</param>
-/// <param name="Bitcoin">Bitcoin's source.</param>
-/// <param name="Ethereum">Ethereum's source.</param>
-/// <param name="Tron">TRON's source, or <see langword="null"/> where it is not registered.</param>
 /// <param name="Transfer">Reads the responses out of the case in memory.</param>
 /// <param name="Alerts">Says that a watch has hit.</param>
 /// <param name="Clock">The clock.</param>
@@ -523,10 +506,7 @@ internal sealed record WatcherParts(
     IWatchCheck Check,
     IWatchFeeds Feeds,
     IChainSources Sources,
-    IBitcoinSource Bitcoin,
-    IEthereumSource Ethereum,
     IResponseTransfer Transfer,
     IAlerts Alerts,
-    IClock Clock,
-    ITronSource? Tron = null);
+    IClock Clock);
 

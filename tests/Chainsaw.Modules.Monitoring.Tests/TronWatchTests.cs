@@ -128,7 +128,7 @@ public sealed class TronWatchTests : IDisposable
     /// <param name="tip">The tip.</param>
     /// <returns>What was found.</returns>
     private Task<TipFinding> ReadTipAsync(WatchTip tip) => TipLookup.ReadAsync(
-        new WatchCheck(), _harness.Bitcoin, _harness.Ethereum, _harness.Tron, _harness.Case, tip,
+        new WatchCheck(), new WatchSources(_harness.Bitcoin, _harness.Ethereum, _harness.Tron), _harness.Case, tip,
         new HashSet<ChainAddress> { Node.ToChainAddress() },
         new WatchFilter(Chain.Tron, WatchDirection.In, [], [], null, null), 80_000_000, CancellationToken.None);
 

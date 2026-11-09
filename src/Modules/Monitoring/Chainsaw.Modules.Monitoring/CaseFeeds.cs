@@ -79,11 +79,11 @@ internal static class FeedTexts
 }
 
 /// <summary>
-/// Reads a Bitcoin address's newest transactions for a check through <see cref="IBitcoinSource"/> with
-/// <see cref="LookupMode.InStep"/>: only an endpoint in step with the chain answers, and every response is sealed in
-/// the case.
+/// Reads an address's newest transactions on a UTXO chain (Bitcoin or Litecoin) for a check through
+/// <see cref="IBitcoinSource"/> with <see cref="LookupMode.InStep"/>: only an endpoint in step with the chain answers,
+/// and every response is sealed in the case.
 /// </summary>
-/// <param name="source">Bitcoin's source.</param>
+/// <param name="source">The chain's source: Bitcoin's or Litecoin's.</param>
 /// <param name="case">The open case.</param>
 internal sealed class BitcoinCaseFeed(IBitcoinSource source, ICase @case) : IWatchFeed
 {
@@ -91,7 +91,8 @@ internal sealed class BitcoinCaseFeed(IBitcoinSource source, ICase @case) : IWat
     public async Task<WatchFeedPage> ReadAsync(
         ChainAddress address, Asset? asset, long downTo, CancellationToken cancellationToken = default)
     {
-        if (!BitcoinAddress.TryParse(address.Value, out var bitcoin))
+        if (address.Chain != source.Network.ChainOf()
+            || !BitcoinAddress.TryParse(address.Chain, address.Value, out var bitcoin))
         {
             return new WatchFeedPage(
                 WatchFeedStatus.Failed, [], [], false, FeedTexts.Format(FeedTexts.NotAnAddress, address.Value));
@@ -118,7 +119,7 @@ internal sealed class BitcoinCaseFeed(IBitcoinSource source, ICase @case) : IWat
                     status, transactions, origins, false, status == WatchFeedStatus.Read ? null : lookup.Problem);
             }
 
-            transactions.AddRange(read.Transactions.Select(Of));
+            transactions.AddRange(read.Transactions.Select(tx => Of(tx, address.Chain)));
             var oldest = read.Transactions.Where(tx => tx.Block is not null).Select(tx => tx.Block!.Height)
                 .DefaultIfEmpty(long.MinValue).Min();
             if (read.NextAfter is null || oldest <= downTo)
@@ -140,20 +141,23 @@ internal sealed class BitcoinCaseFeed(IBitcoinSource source, ICase @case) : IWat
         };
     }
 
-    /// <summary>Gives a Bitcoin transaction in the check's form: one flow from its inputs to its outputs.</summary>
+    /// <summary>
+    /// Gives a transaction on a UTXO chain in the check's form: one flow from its inputs to its outputs, counted in the
+    /// chain's own coin (bitcoin, or litecoin, both in units of 10⁻⁸).
+    /// </summary>
     /// <param name="transaction">The transaction.</param>
+    /// <param name="chain">The chain it is on: Bitcoin or Litecoin.</param>
     /// <returns>The check's form.</returns>
-    public static WatchTransaction Of(BitcoinTransaction transaction)
+    public static WatchTransaction Of(BitcoinTransaction transaction, Chain chain = Chain.Bitcoin)
     {
         ArgumentNullException.ThrowIfNull(transaction);
+        var coin = chain.NativeAsset();
         var from = transaction.Inputs.Select(input => new WatchLeg(
-            input.Address is { } address ? new ChainAddress(Chain.Bitcoin, address.Value) : null,
-            AssetAmount.Of(input.Amount ?? Satoshi.Zero)));
+            input.Address?.ToChainAddress(), new AssetAmount(coin, (input.Amount ?? Satoshi.Zero).Value)));
         var to = transaction.Outputs.Select(output => new WatchLeg(
-            output.Address is { } address ? new ChainAddress(Chain.Bitcoin, address.Value) : null,
-            AssetAmount.Of(output.Amount)));
+            output.Address?.ToChainAddress(), new AssetAmount(coin, output.Amount.Value)));
         var block = transaction.Block is { } at ? new WatchBlock(at.Height, at.Hash.Value, at.Time) : null;
-        return new WatchTransaction(Chain.Bitcoin, transaction.Txid.Value, block, [new WatchFlow([.. from], [.. to])]);
+        return new WatchTransaction(chain, transaction.Txid.Value, block, [new WatchFlow([.. from], [.. to])]);
     }
 }
 
@@ -390,7 +394,7 @@ internal sealed class EthereumCaseFeed(IAccountSource source, ICase @case) : IWa
     /// <returns><see langword="true"/> when nothing older is needed.</returns>
     private bool ReachedBelow(EthereumAddressPage read, long next, HistoryFloor floor)
     {
-        if (source.Chain == Chain.Ethereum)
+        if (source.Chain.IsEvm())
         {
             return next <= floor.Block;
         }
@@ -430,7 +434,7 @@ internal sealed class EthereumCaseFeed(IAccountSource source, ICase @case) : IWa
     private async Task<DateTimeOffset?> NotBeforeAsync(
         long downTo, List<long> origins, CancellationToken cancellationToken)
     {
-        if (source.Chain == Chain.Ethereum)
+        if (source.Chain.IsEvm())
         {
             return null;
         }

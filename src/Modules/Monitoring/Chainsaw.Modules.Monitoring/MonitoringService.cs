@@ -13,21 +13,17 @@ namespace Chainsaw.Modules.Monitoring;
 /// </summary>
 /// <param name="check">The check, the same the background process runs.</param>
 /// <param name="gate">Whether lookups may go.</param>
-/// <param name="bitcoin">Bitcoin's source.</param>
-/// <param name="ethereum">Ethereum's source.</param>
+/// <param name="sources">The chains' sources.</param>
 /// <param name="clustering">The clustering, which says a cluster's addresses at each check.</param>
 /// <param name="feeds">The feeds that read a chain through the case's sources.</param>
 /// <param name="clock">The clock.</param>
-/// <param name="tron">TRON's source, or <see langword="null"/> where it is not registered.</param>
 internal sealed class MonitoringService(
     IWatchCheck check,
     IWatchGate gate,
-    IBitcoinSource bitcoin,
-    IEthereumSource ethereum,
+    WatchSources sources,
     IClusteringService clustering,
     IWatchFeeds feeds,
-    IClock clock,
-    ITronSource? tron = null) : IMonitoringService
+    IClock clock) : IMonitoringService
 {
     /// <summary>What a check says when a cluster has more addresses than one check reads.</summary>
     public const string TooManyAddressesText =
@@ -206,20 +202,7 @@ internal sealed class MonitoringService(
             return null;
         }
 
-        switch (chain)
-        {
-            case Chain.Bitcoin:
-                var tip = await bitcoin.GetTipHeightAsync(@case, cancellationToken).ConfigureAwait(false);
-                return tip.Status == LookupStatus.Fetched ? tip.Value?.Height : null;
-            case Chain.Ethereum:
-                var height = await ethereum.GetTipHeightAsync(@case, cancellationToken).ConfigureAwait(false);
-                return height.Status == LookupStatus.Fetched ? height.Value?.Height : null;
-            case Chain.Tron when tron is not null:
-                var newest = await tron.GetTipHeightAsync(@case, cancellationToken).ConfigureAwait(false);
-                return newest.Status == LookupStatus.Fetched ? newest.Value?.Height : null;
-            default:
-                return null;
-        }
+        return await sources.HeightAsync(@case, chain, cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc/>
@@ -302,7 +285,7 @@ internal sealed class MonitoringService(
             }
 
             var finding = await TipLookup.ReadAsync(
-                check, bitcoin, ethereum, tron, @case, tip, AddressesOf(@case, watch).Addresses.ToHashSet(), filter,
+                check, sources, @case, tip, AddressesOf(@case, watch).Addresses.ToHashSet(), filter,
                 start,
                 cancellationToken).ConfigureAwait(false);
             if (finding.Verdict == TipVerdict.Wait)
@@ -644,9 +627,10 @@ internal sealed class MonitoringService(
     /// <exception cref="ArgumentException">It is wrong.</exception>
     private static WatchFilter Checked(WatchFilter filter)
     {
-        if (filter.Chain is not (Chain.Bitcoin or Chain.Ethereum or Chain.Tron))
+        if (!WatchSources.Watchable.Contains(filter.Chain))
         {
-            throw new ArgumentException("Only Bitcoin, Ethereum and TRON can be watched yet.", nameof(filter));
+            throw new ArgumentException(
+                "Only Bitcoin, Ethereum, TRON, Litecoin and BSC can be watched yet.", nameof(filter));
         }
 
         var valid = filter.Receivers.Concat(filter.Senders).All(party => IsAddress(filter.Chain, party.Value));
@@ -659,8 +643,8 @@ internal sealed class MonitoringService(
     /// <param name="chain">The chain.</param>
     /// <param name="value">The text.</param>
     /// <returns><see langword="true"/> when it is.</returns>
-    private static bool IsAddress(Chain chain, string value) => chain == Chain.Bitcoin
-        ? BitcoinAddress.TryParse(value, out _)
+    private static bool IsAddress(Chain chain, string value) => chain.Model() == LedgerModel.Utxo
+        ? BitcoinAddress.TryParse(chain, value, out var address) && address.Value == value
         : EthereumAddress.TryParse(chain, value, out var account) && account.Value == value;
 
 

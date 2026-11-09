@@ -72,7 +72,7 @@ internal sealed class FakeGate : IWatchGate
 }
 
 /// <summary>Bitcoin's source from a table of synthetic pages; records every lookup and its mode.</summary>
-internal sealed class FakeBitcoinSource : IBitcoinSource
+internal class FakeBitcoinSource : IBitcoinSource
 {
     /// <summary>The pages of each address, first page first.</summary>
     public Dictionary<string, List<BitcoinAddressPage>> Pages { get; } = [];
@@ -85,7 +85,7 @@ internal sealed class FakeBitcoinSource : IBitcoinSource
 
     public int TipAsked { get; private set; }
 
-    public BitcoinNetwork Network => BitcoinNetwork.Mainnet;
+    public virtual BitcoinNetwork Network => BitcoinNetwork.Mainnet;
 
     /// <summary>Puts the transactions on an address as one page, newest first.</summary>
     public void Holds(BitcoinAddress address, params BitcoinTransaction[] transactions) =>
@@ -165,7 +165,7 @@ internal sealed class FakeBitcoinSource : IBitcoinSource
 }
 
 /// <summary>Ethereum's source from a table of synthetic movements; records every history asked for.</summary>
-internal sealed class FakeEthereumSource : IEthereumSource
+internal class FakeEthereumSource : IEthereumSource
 {
     public Dictionary<(string, EthereumHistory), List<EthereumTransfer>> Histories { get; } = [];
 
@@ -397,4 +397,18 @@ internal sealed class FakeProtector : IUserDataProtector
 
         return data;
     }
+}
+
+/// <summary>Litecoin's source, as Bitcoin's fake on Litecoin's network.</summary>
+internal sealed class FakeLitecoinSource : FakeBitcoinSource, ILitecoinSource
+{
+    public override BitcoinNetwork Network => BitcoinNetwork.Litecoin;
+}
+
+/// <summary>BSC's source, as Ethereum's fake on BSC.</summary>
+internal sealed class FakeBscSource : FakeEthereumSource, IBscSource
+{
+    public Chain Chain => Chain.Bsc;
+
+    public long PageStartOf(EthereumBlockReference block) => block.Height;
 }

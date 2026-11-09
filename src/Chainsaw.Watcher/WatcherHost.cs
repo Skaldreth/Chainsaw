@@ -126,12 +126,10 @@ internal static class WatcherServices
             provider.GetRequiredService<IWatchCheck>(),
             provider.GetRequiredService<IWatchFeeds>(),
             provider.GetRequiredService<IChainSources>(),
-            provider.GetRequiredService<IBitcoinSource>(),
-            provider.GetRequiredService<IEthereumSource>(),
             provider.GetRequiredService<IResponseTransfer>(),
             provider.GetRequiredService<IAlerts>(),
-            provider.GetRequiredService<IClock>(),
-            provider.GetService<ITronSource>()));
+            provider.GetRequiredService<IClock>()));
+
         services.AddMemoryCases();
         services.AddSingleton<Func<IMemoryCase>>(provider =>
         {
