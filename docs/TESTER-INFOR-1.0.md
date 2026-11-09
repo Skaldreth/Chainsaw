@@ -1502,6 +1502,12 @@ Uniswap och ether tillbaka i samma tx. Testärendet har ingen Ethereum-källa ä
 - [ ] Priset: med kurser i ärendet säger rutan *priset prövat*; utan (ett nytt ärende offline) är pillret streckat i en
       lugn ton och rutan säger *priset inte prövat*. En swap till ett orimligt pris (egen pool) har pillret streckat i
       rött med ett stopp, går inte att fälla ut, och *Varför?* visar båda beloppen och värdena (`swap-price v1`).
+- [ ] Kurserna för swappen: öppna ett ärende med en swap utan kurser medan utgången är ansluten. Kurserna hämtas i
+      bakgrunden och spåret räknas om; ändras det (orimligt pris eller en del som stannar i poolen) kommer ett
+      meddelande en gång: *Spåret genom en swap räknades om efter kurserna*, med swappen. Offline står priset kvar som
+      inte prövat, och begäran säger *Priset i swappen är inte prövat*; med kurser säger den *prövat … skiljer x %*.
+- [ ] En swap där det som kom ut var värt några procent mindre: inspektören visar slutet *Stannar i poolen* vid poolen
+      med skillnaden, och summan av sluten är lika med det spårade.
 - [ ] Exponering från adressen som bytte (Ut): en börs som nås efter swappen räknas med värdet i den första tillgången;
       med *Följer inte* hamnar det i *Spåret tar slut*.
 - [ ] Rapport med aktörer före och efter swappen markerade: slutsatserna har en rad *Värdet följer med genom swappen

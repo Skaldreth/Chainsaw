@@ -1173,6 +1173,7 @@ public sealed partial class GraphViewModel : ObservableObject
         FollowFan();
         ShowTrash();
         TellThrownStartPoints(scene);
+        TellRecalculatedSwaps(scene);
         OnPropertyChanged(nameof(MethodToolTip));
         if (fit)
         {

@@ -77,7 +77,13 @@ missad bara låter spåret sluta ärligt vid poolen som *inte expanderad*. Chain
   än en femtedel följer värdet inte med, eftersom vem som helst kan öppna en egen pool och byta till vilket pris som
   helst, till exempel 1 000 USDT mot en enda wei WETH. Pillret är då streckat i rött med ett stopp, och *Varför?*
   visar båda beloppen och värdena; pengarna går vidare till poolen som en vanlig betalning. Saknar ärendet en kurs
-  följer värdet med som förval, och pillret är streckat i en lugn ton: *priset inte prövat*;
+  följer värdet med som förval, och pillret är streckat i en lugn ton: *priset inte prövat*. Chainsaw hämtar då
+  kurserna vid swappens tid i bakgrunden, för båda sidor och före linjernas kurser (WETH värderas som ether), och
+  räknar om spåret när de kommit. Ändras spåret av prövningen säger ett meddelande det en gång, med swappen: *Spåret
+  genom en swap räknades om efter kurserna*. Offline, eller när källan ber Chainsaw vänta, står priset kvar som inte
+  prövat, och det står i *Varför?* och i begäran. Var det som kom ut värt mindre än det som gick in, men inom en
+  femtedel, följer bara så stor del av det spårade med som det som kom ut var värt; resten **stannar i poolen** som
+  avgifter och slippage, ett eget slut på spåret, så att det spårade beloppet inte ser helt ut när värde försvunnit;
 - ingen motpart är en känd brygga eller mixer, eller har en etikett som börs, mixer eller brygga: dit ska spåret nå.
   *Varför?* på linjen och noden säger då *Ingen swap* med etiketten och dess källa, och ett val *Följer inte* som
   redan finns står kvar i Historik med *ingen swap längre*.

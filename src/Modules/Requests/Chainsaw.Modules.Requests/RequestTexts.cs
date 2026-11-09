@@ -120,6 +120,8 @@ internal sealed record RequestTexts(
     {
         SwapText = "Genom swappen {0} i tx {1} följer värdet med enligt {2}: {3} av det som gick in var spårat, och "
             + "samma andel av det som kom ut räknas som spårat. Det är en bedömning, inte ett faktum på kedjan.",
+        SwapPriceTestedText = "Priset i swappen är prövat mot ärendets kurser enligt {0}: värdena in och ut skiljer {1}.",
+        SwapPriceUntestedText = "Priset i swappen är inte prövat ({0}): kursen vid tx:ens tid saknas i ärendet.",
         Kinds = new Dictionary<RequestTargetKind, string>
         {
             [RequestTargetKind.Exchange] = "Börs",
@@ -177,6 +179,10 @@ internal sealed record RequestTexts(
     {
         SwapText = "Through the swap {0} in tx {1} the value follows by {2}: {3} of what went in was traced, and the "
             + "same share of what came out is counted as traced. It is an assessment, not a fact on the chain.",
+        SwapPriceTestedText = "The swap's price is tested against the case's rates by {0}: the values in and out differ "
+            + "by {1}.",
+        SwapPriceUntestedText = "The swap's price is not tested ({0}): the rate at the transaction's time is missing "
+            + "from the case.",
         Kinds = new Dictionary<RequestTargetKind, string>
         {
             [RequestTargetKind.Exchange] = "Exchange",
@@ -207,6 +213,18 @@ internal sealed record RequestTexts(
     /// transaction, <c>{2}</c> the analysis with its version and <c>{3}</c> the traced share.
     /// </summary>
     public string SwapText { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Gets the sentence after a swap whose price was tested: <c>{0}</c> is the price check with its version and
+    /// <c>{1}</c> how much the values differed.
+    /// </summary>
+    public string SwapPriceTestedText { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Gets the sentence after a swap whose price was not tested, for want of a rate: <c>{0}</c> is the price check
+    /// with its version.
+    /// </summary>
+    public string SwapPriceUntestedText { get; init; } = string.Empty;
 
     /// <summary>Names a recipient's sort in this language.</summary>
     /// <param name="kind">The sort.</param>

@@ -75,6 +75,12 @@ public enum TrailEndReason
     /// (<see cref="SwapStop"/>, sketch SW1a).
     /// </summary>
     SwapStopped,
+
+    /// <summary>
+    /// The part of the traced value that went into a swap but that what came out was not worth, by the price check
+    /// (<see cref="SwapPriceCheck.KeptShare"/>): it stays in the pool as fees and slippage.
+    /// </summary>
+    KeptBySwapPool,
 }
 
 /// <summary>Reads what a <see cref="TrailEndReason"/> means for the trace.</summary>
@@ -110,6 +116,7 @@ public static class TrailEndReasons
         TrailEndReason.UnknownService => "Okänd tjänst",
         TrailEndReason.Swapped => "Följer med genom en swap",
         TrailEndReason.SwapStopped => "Slutar i swappen (ditt val)",
+        TrailEndReason.KeptBySwapPool => "Stannar i poolen",
         _ => reason.ToString(),
     };
 }

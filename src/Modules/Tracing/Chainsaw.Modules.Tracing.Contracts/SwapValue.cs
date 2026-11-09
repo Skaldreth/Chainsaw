@@ -191,6 +191,16 @@ public sealed record SwapConversion(
     public string ShareText => SwapValue.Percent(TracedSold.Units, Swap.Sold.Units);
 
     /// <summary>
+    /// Gets how much of the traced value that went in stays in the pool, by the price check: the share of what went in
+    /// that what came out was not worth (fees and slippage), in the sold asset; zero when nothing is kept or the price
+    /// was not tested.
+    /// </summary>
+    public AssetAmount KeptByPool { get; init; } = AssetAmount.Zero(Swap.Sold.Asset);
+
+    /// <summary>Gets the price check the swap's value followed after, or <see langword="null"/>.</summary>
+    public SwapPriceCheck? Price { get; init; }
+
+    /// <summary>
     /// Explains the swap's step in plain Swedish, so that the user can ask <em>why?</em> (principle 3): what went in
     /// and how much of it was traced, the share, what came out and through which exchange, and what follows.
     /// </summary>
@@ -252,6 +262,52 @@ public sealed record SwapPriceCheck(
 
     /// <summary>Gets whether the price is absurd, so that the value does not follow.</summary>
     public bool IsUnreasonable => Verdict == SwapPriceVerdict.Unreasonable;
+
+    /// <summary>
+    /// Gets what came out was worth as a share of what went in, when the price is tested and less came out, for
+    /// example 0.999; <see langword="null"/> otherwise. The rest of the traced value stays in the pool.
+    /// </summary>
+    public decimal? KeptShare => Verdict == SwapPriceVerdict.Reasonable && SoldValue > 0 && BoughtValue < SoldValue
+        ? BoughtValue / SoldValue
+        : null;
+
+    /// <summary>
+    /// Gets how much the values in and out differ, as a share of the larger, for example 0.001; <see langword="null"/>
+    /// when the price is not tested.
+    /// </summary>
+    public decimal? Gap
+    {
+        get
+        {
+            if (Verdict == SwapPriceVerdict.NotTested || SoldValue is not { } sold || BoughtValue is not { } bought)
+            {
+                return null;
+            }
+
+            var larger = Math.Max(sold, bought);
+            return larger <= 0 ? 0 : Math.Abs(sold - bought) / larger;
+        }
+    }
+
+    /// <summary>
+    /// Gets the check in a few words, for a report: <c>priset prövat, 0,1 % skillnad</c> or <c>priset inte prövat</c>,
+    /// with the check's name; never the value's following without whether its price was tested.
+    /// </summary>
+    public string Summary
+    {
+        get
+        {
+            if (Gap is not { } gap)
+            {
+                return $"priset inte prövat, kursen vid tx:ens tid saknas i ärendet ({Check})";
+            }
+
+            var text = (gap * 100).ToString("0.0", CultureInfo.GetCultureInfo("sv-SE"));
+            return IsUnreasonable
+                ? $"orimligt pris, {text} % skillnad ({Check})"
+                : $"priset prövat, {text} % skillnad ({Check})";
+        }
+    }
 
     /// <summary>Explains the check in plain Swedish (principle 3): both amounts, both values and what follows.</summary>
     /// <returns>The explanation.</returns>

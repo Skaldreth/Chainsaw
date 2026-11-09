@@ -461,9 +461,18 @@ public static class RequestExits
                     conversion.Swap.Transaction.Value,
                     SwapMarks.Of(conversion.Swap).Text,
                     conversion.ShareText,
-                    SwapValue.Analysis)),
+                    SwapValue.Analysis,
+                    SwapPriceCheck.Check,
+                    GapText(conversion.Price))),
         ];
     }
+
+    /// <summary>Writes how much a swap's values in and out differed, or nothing when its price is not tested.</summary>
+    /// <param name="price">The swap's price check, or <see langword="null"/>.</param>
+    /// <returns>For example <c>0,1 %</c>, or <see langword="null"/>.</returns>
+    private static string? GapText(SwapPriceCheck? price) => price?.Gap is { } gap
+        ? (gap * 100).ToString("0.0", CultureInfo.GetCultureInfo("sv-SE")) + " %"
+        : null;
 
     /// <summary>Gives a step's node in Tracing's model.</summary>
     /// <param name="graph">The graph.</param>

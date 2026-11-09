@@ -197,10 +197,22 @@ internal static class RequestTemplates
         {
             sentence += " " + string.Format(
                 CultureInfo.InvariantCulture, words.SwapText, swap.Pill, swap.Transaction, swap.Analysis, swap.Share);
+            sentence += " " + PriceSentence(words, swap);
         }
 
         blocks.Add(new RequestBlock(RequestBlockKind.Paragraph, sentence));
     }
+
+    /// <summary>
+    /// Says whether a swap's price was tested, and by how much the values differed, so that a request never says the
+    /// value follows without saying whether its price was tested.
+    /// </summary>
+    /// <param name="words">The language's words.</param>
+    /// <param name="swap">The swap.</param>
+    /// <returns>The sentence.</returns>
+    private static string PriceSentence(RequestTexts words, RequestSwap swap) => swap.PriceGap is { } gap
+        ? string.Format(CultureInfo.InvariantCulture, words.SwapPriceTestedText, swap.PriceCheck, gap)
+        : string.Format(CultureInfo.InvariantCulture, words.SwapPriceUntestedText, swap.PriceCheck);
 
     /// <summary>Writes a block's time in the local zone, with its offset; or that it is unconfirmed.</summary>
     /// <param name="time">The time.</param>

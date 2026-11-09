@@ -298,6 +298,32 @@ public sealed class SwapRecognitionTests : IDisposable
         Assert.Equal(SwapPriceVerdict.NotTested, Assert.Single(unpriced.PriceChecks).Verdict);
         Assert.Contains("inte prövat", unpriced.PriceChecks[0].Explain(), StringComparison.Ordinal);
         Assert.Single(unpriced.Swaps);
+        Assert.DoesNotContain(unpriced.Ends, end => end.Reason == TrailEndReason.KeptBySwapPool);
+    }
+
+    [Fact]
+    public async Task What_came_out_was_worth_less_so_that_part_stays_in_the_pool_and_the_sum_still_adds_up()
+    {
+        var graph = await Build(["k-swap"],
+            Tx("k-victim", 101, Victim, 0m, Token(Victim, Scammer, Usdt(1000))),
+            Tx("k-swap", 110, Scammer, 0m, Token(Scammer, BridgePool, Usdt(1000)),
+                Internal(BridgePool, Scammer, 0.32m)),
+            Tx("k-out", 130, Scammer, 0m, Eth(Scammer, Exchange, 0.32m)));
+
+        var result = await FromVictim(graph, Rates);
+
+        // 1 000 USDT was worth 10 000 kr and 0.32 ETH 9 600 kr: 4 % less, within the 20 %, so the value follows,
+        // and the 40 USDT the swap's price did not pay for stays in the pool as fees and slippage.
+        var conversion = Assert.Single(result.Swaps);
+        Assert.Equal(Usdt(40), conversion.KeptByPool);
+        var kept = Assert.Single(result.Ends, end => end.Reason == TrailEndReason.KeptBySwapPool);
+        Assert.Equal(Usdt(40), kept.Amount.Amount);
+        Assert.Equal(Key(graph, BridgePool), kept.NodeKey);
+        Assert.Contains("priset prövat, 4,0 % skillnad", kept.Explanation, StringComparison.Ordinal);
+        Assert.Equal(Usdt(960), Assert.Single(result.Ends, end => end.Reason == TrailEndReason.Swapped).Amount.Amount);
+        var usdt = Assert.Single(result.Assets, asset => asset.Traced.Asset == KnownTokens.EthereumUsdt);
+        Assert.Equal(Usdt(1000), usdt.Ends.Aggregate(Usdt(0), (sum, end) => sum + end.Amount.Amount));
+        Assert.True(TrailEndReason.KeptBySwapPool.EndsTrail());
     }
 
     [Fact]

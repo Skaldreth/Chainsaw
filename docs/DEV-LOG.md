@@ -4017,3 +4017,23 @@ Inga C; två I med samma rot i hur en swap känns igen, och fyra M.
   och en swap till rimligt pris som följer, och samma utan kurser (inte prövat, följer).
 - **Kvar (BACKLOG):** `StopAtSwap` läser fortfarande hela Ethereum-delen (inte bara tx:ens svar), och prisprövningen
   görs om först när grafen läses om efter att kurserna hämtats i bakgrunden.
+
+## Sjätte granskningen av SW1a rättad: kurserna för swappen hämtas (2026-11-09)
+
+- **Kurserna:** `GraphSource.FillRatesAsync` hämtar först kurserna vid varje swaps tid, för båda sidor och med WETH
+  som ether, inom `MostRateLookups`, och sedan linjernas. Kom en kurs som ärendet saknade (`GraphRates.SwapRatesFetched`)
+  läses grafen om, så att spåret räknas med prövningen.
+- **M-1, aldrig tyst:** ändras spåret av prövningen (orimligt pris, eller en del som stannar i poolen) säger toastern
+  det en gång, *Spåret genom en swap räknades om efter kurserna*, med swappen och prövningens resultat
+  (`GraphViewModel.RecalculatedSwaps`).
+- **Begäran och rapporten** säger alltid prövningens resultat: `RequestSwap` har `PriceCheck` och `PriceGap`, och
+  begäran skriver *prövat … skiljer x %* eller *inte prövat: kursen vid tx:ens tid saknas i ärendet* (M-3: också
+  offline och när källan ber Chainsaw vänta). Rapportens slutsats har `SwapPriceCheck.Summary`.
+- **M-2, stannar i poolen:** inom 20 % blir skillnaden i värde ett eget slut, `TrailEndReason.KeptBySwapPool`
+  (*Stannar i poolen*), vid poolen: det spårade gånger (1 − ut/in). Det som följer genom swappen är resten, så att
+  summan av sluten fortfarande är det spårade. Eget beslut: det köpta som följer räknas som förut på mängden, eftersom
+  det som kom ut redan är värt mindre.
+- **Tester:** granskarens prob genom GraphSource med en falsk kurskälla (WETH till ett absurt pris vägras efter att
+  kurserna hämtats, och sägs som omräknad), ett rimligt pris med 2,5 % i poolen, en källa som ber Chainsaw vänta, och
+  i Tracing 1 000 USDT mot 0,32 ETH (40 USDT stannar i poolen, 960 följer, summan 1 000).
+- **Kvar (BACKLOG):** exponeringen drar inte av poolens del.

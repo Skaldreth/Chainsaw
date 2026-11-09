@@ -297,7 +297,8 @@ public static class ReportSelection
                 ? new ReportConclusion(
                     $"Värdet följer med genom swappen ({pill}) i tx {swap.Transaction.Value}.",
                     $"{SwapValue.Analysis}: {conversion.ShareText} av det som gick in var spårat enligt "
-                        + $"{conversion.Method}, och samma andel av det som kom ut{venue} räknas som spårat")
+                        + $"{conversion.Method}, och samma andel av det som kom ut{venue} räknas som spårat; "
+                        + (conversion.Price ?? SwapValue.CheckPrice(swap, null)).Summary)
                 : new ReportConclusion(
                     $"Spåret slutar i swappen ({pill}) i tx {swap.Transaction.Value}.",
                     $"utredaren valde att värdet inte följer med genom swappen ({SwapValue.Analysis} gäller annars)");

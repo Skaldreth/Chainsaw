@@ -214,10 +214,20 @@ public sealed class GraphSource(
             {
                 var latest = new Dictionary<Asset, Price>();
                 var throttled = new StrongBox<bool>();
-                var (values, gaps) = await ValuesAsync(
-                    @case, scene.Snapshot.Graph, PriceLookupMode.AsNeeded, latest, cancellationToken, throttled)
+
+                // The swaps' rates come first, so that a price that decides where traced money goes is tested before
+                // a line's value is filled in.
+                var graph = scene.Snapshot.Graph;
+                var (swapRates, asked) = await FetchSwapRatesAsync(@case, graph, throttled, cancellationToken)
                     .ConfigureAwait(false);
-                return new GraphRates(values, gaps, latest) { IsThrottled = throttled.Value };
+                var (values, gaps) = await ValuesAsync(
+                    @case, graph, PriceLookupMode.AsNeeded, latest, cancellationToken, throttled, asked)
+                    .ConfigureAwait(false);
+                return new GraphRates(values, gaps, latest)
+                {
+                    IsThrottled = throttled.Value,
+                    SwapRatesFetched = swapRates,
+                };
             },
             cancellationToken);
     }
@@ -726,6 +736,7 @@ public sealed class GraphSource(
     /// Set when a source asked Chainsaw to wait (429): from then on no rate is asked of the source in this run, so that
     /// a refusing source is asked once and not once per line; <see langword="null"/> when it does not matter.
     /// </param>
+    /// <param name="alreadyAsked">How many rates were already asked of the source in this run, for the swaps.</param>
     /// <returns>The values and the reasons a line has none, by line key.</returns>
     private async Task<(IReadOnlyDictionary<string, EdgeValue> Values, IReadOnlyDictionary<string, EdgeValueGap> Gaps)>
         ValuesAsync(
@@ -734,7 +745,8 @@ public sealed class GraphSource(
             PriceLookupMode mode,
             Dictionary<Asset, Price> latest,
             CancellationToken cancellationToken,
-            StrongBox<bool>? throttled = null)
+            StrongBox<bool>? throttled = null,
+            int alreadyAsked = 0)
     {
         var values = new Dictionary<string, EdgeValue>(StringComparer.Ordinal);
         var gaps = new Dictionary<string, EdgeValueGap>(StringComparer.Ordinal);
@@ -743,7 +755,7 @@ public sealed class GraphSource(
             return (values, gaps);
         }
 
-        var asked = 0;
+        var asked = throttled?.Value == true ? MostRateLookups : alreadyAsked;
         var currency = Currency;
         var known = new Dictionary<(Asset, DateTimeOffset), PriceLookup<Price>>();
         foreach (var edge in graph.Edges.Where(edge => edge.Kind == GraphEdgeKind.Transfer && edge.Transfers.Count > 0))
@@ -843,6 +855,55 @@ public sealed class GraphSource(
         }
 
         return new SwapPricing((amount, at) => ValueAt(rates, amount, at), Currency);
+    }
+
+    /// <summary>
+    /// Asks the source for the rates the case lacks at each swap's time, for both sides and with wrapped ether as
+    /// ether, so that the swaps' price check (<see cref="SwapValue.CheckPrice"/>) can be made. They are asked before a
+    /// line's rates, within <see cref="MostRateLookups"/>, and a source that asks Chainsaw to wait is asked no more.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="graph">The graph.</param>
+    /// <param name="throttled">Set when the source asked Chainsaw to wait.</param>
+    /// <param name="cancellationToken">Stops the work.</param>
+    /// <returns>Whether a rate the case lacked arrived, and how many rates were asked of the source.</returns>
+    private async Task<(bool Fetched, int Asked)> FetchSwapRatesAsync(
+        ICase @case, TraceGraph graph, StrongBox<bool> throttled, CancellationToken cancellationToken)
+    {
+        var fetched = false;
+        var asked = 0;
+        if (prices is null)
+        {
+            return (fetched, asked);
+        }
+
+        var seen = new HashSet<(Asset, DateTimeOffset)>();
+        foreach (var swap in graph.Account.Swaps.Where(swap => swap.Time is not null))
+        {
+            foreach (var asset in new[] { PricedAs(swap.Sold.Asset), PricedAs(swap.Bought.Asset) })
+            {
+                var at = swap.Time!.Value;
+                if (!seen.Add((asset, at)) || throttled.Value || asked >= MostRateLookups)
+                {
+                    continue;
+                }
+
+                var lookup = await LookUp(@case, asset, at, PriceLookupMode.CaseOnly, cancellationToken)
+                    .ConfigureAwait(false);
+                if (lookup.Status != PriceLookupStatus.NotInCase)
+                {
+                    continue;
+                }
+
+                asked++;
+                lookup = await LookUp(@case, asset, at, PriceLookupMode.AsNeeded, cancellationToken)
+                    .ConfigureAwait(false);
+                throttled.Value |= lookup.IsThrottled;
+                fetched |= lookup.Value is not null;
+            }
+        }
+
+        return (fetched, asked);
     }
 
     /// <summary>Gives the asset an amount is priced as: wrapped ether as ether, everything else as itself.</summary>

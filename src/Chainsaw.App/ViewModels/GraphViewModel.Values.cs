@@ -1,5 +1,6 @@
 using Chainsaw.App.Graph;
 using Chainsaw.App.Guide;
+using Chainsaw.Modules.Tracing.Contracts;
 
 namespace Chainsaw.App.ViewModels;
 
@@ -15,6 +16,59 @@ public sealed partial class GraphViewModel
 
     /// <summary>Counts the background fetches of rates, so that only the latest one shows its answer.</summary>
     private int _rateFills;
+
+    /// <summary>
+    /// Gets the swaps' price checks from before the trace was calculated again with newly fetched rates, so that the
+    /// next reading says what changed; <see langword="null"/> when no such reading is waiting.
+    /// </summary>
+    private IReadOnlyList<SwapPriceCheck>? _swapChecksBefore;
+
+    /// <summary>What the toaster says when the trace through a swap changed after the swaps' rates arrived.</summary>
+    public const string SwapsRecalculatedText = "Spåret genom en swap räknades om efter kurserna.";
+
+    /// <summary>
+    /// Says which swaps the trace goes through differently now that their price is tested: one whose price became
+    /// absurd (the value no longer follows) or where less came out than went in (part stays in the pool).
+    /// </summary>
+    /// <param name="before">The checks before the rates arrived.</param>
+    /// <param name="after">The checks now.</param>
+    /// <returns>
+    /// A line per changed swap, for example <c>₮ → Ξ i tx 0x12…ab: orimligt pris …</c>; empty when none.
+    /// </returns>
+    public static IReadOnlyList<string> RecalculatedSwaps(
+        IReadOnlyList<SwapPriceCheck> before, IReadOnlyList<SwapPriceCheck> after)
+    {
+        ArgumentNullException.ThrowIfNull(before);
+        ArgumentNullException.ThrowIfNull(after);
+        return
+        [
+            .. after.Where(check => check.IsUnreasonable || check.KeptShare is not null)
+                .Where(check => before.FirstOrDefault(old => old.Swap.Equals(check.Swap)) is { } old
+                    && (old.Verdict != check.Verdict || old.KeptShare != check.KeptShare))
+                .Select(check => $"{SwapMarks.Of(check.Swap).Text} i tx "
+                    + $"{GraphScene.Shorten(check.Swap.Transaction.Value)}: {check.Summary}"),
+        ];
+    }
+
+    /// <summary>
+    /// Says once, after the trace was calculated again with the swaps' rates, which swaps it now goes through
+    /// differently (M-1: never a silent change).
+    /// </summary>
+    /// <param name="scene">The scene just read.</param>
+    private void TellRecalculatedSwaps(GraphScene scene)
+    {
+        if (_swapChecksBefore is not { } before)
+        {
+            return;
+        }
+
+        _swapChecksBefore = null;
+        var changed = RecalculatedSwaps(before, scene.Snapshot.AccountTrace?.PriceChecks ?? []);
+        if (changed.Count > 0)
+        {
+            Tell(ToastKind.Information, SwapsRecalculatedText, string.Join(" · ", changed));
+        }
+    }
 
     /// <summary>Forgets where the amounts were drawn, as the canvas starts drawing them again.</summary>
     public void BeginAmounts() => _drawnAmounts.Clear();
@@ -34,7 +88,8 @@ public sealed partial class GraphViewModel
     public async Task FillRatesAsync()
     {
         var fill = ++_rateFills;
-        if (_session.Current is not { } openCase || Scene is not { PendingRates: > 0 } scene)
+        if (_session.Current is not { } openCase || Scene is not { } scene
+            || (scene.PendingRates == 0 && !scene.HasUntestedSwapPrices))
         {
             return;
         }
@@ -67,6 +122,15 @@ public sealed partial class GraphViewModel
 
             if (fill != _rateFills || version != _version || !await ShowRatesAsync(rates, fill))
             {
+                return;
+            }
+
+            if (rates.SwapRatesFetched)
+            {
+                // A swap's price can now be tested, which may change where the traced money goes: the trace is
+                // calculated again, and the reading says once what changed (TellRecalculatedSwaps).
+                _swapChecksBefore = scene.Snapshot.AccountTrace?.PriceChecks ?? [];
+                await RefreshAsync();
                 return;
             }
 

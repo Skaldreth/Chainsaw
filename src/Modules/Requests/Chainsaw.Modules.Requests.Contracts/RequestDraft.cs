@@ -159,7 +159,14 @@ public sealed record RequestTrail(IReadOnlyList<string> Steps, string Method)
 /// <param name="Pill">What was swapped for what, for example <c>₮ → Ξ</c>.</param>
 /// <param name="Share">The traced share of what went in, for example <c>62,2 %</c>.</param>
 /// <param name="Analysis">The analysis with its version, for example <c>swap-value v1</c>.</param>
-public sealed record RequestSwap(string Transaction, string Pill, string Share, string Analysis);
+/// <param name="PriceCheck">The price check with its version, for example <c>swap-price v1</c>.</param>
+/// <param name="PriceGap">
+/// How much the values in and out differed by the case's rates, for example <c>0,1 %</c>, or <see langword="null"/>
+/// when the price is not tested (a rate is missing, offline or when the source asked Chainsaw to wait), which the
+/// request then says.
+/// </param>
+public sealed record RequestSwap(
+    string Transaction, string Pill, string Share, string Analysis, string PriceCheck, string? PriceGap);
 
 /// <summary>
 /// What a freeze asks for: the token, its issuer and how much is left at the address by the case's history (a

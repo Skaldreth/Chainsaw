@@ -75,7 +75,7 @@ internal static class AccountTraceCalculator
             asset => new AssetTracer(
                 graph, method, asset, [.. seeded.Where(transfer => transfer.Amount.Asset == asset)], swaps));
         Settle(tracers, swaps, graph.Account.Transfers.Count, cancellationToken);
-        var conversions = Conversions(tracers, swaps, method.Id);
+        var conversions = Conversions(tracers, swaps, method.Id, checks);
         Provenance(tracers, swaps, conversions);
         var traces = assets.Select(asset => tracers[asset].Result(conversions))
             .Where((trace, index) => index < seedAssets.Count || trace.Total.Units.Sign > 0)
@@ -142,9 +142,13 @@ internal static class AccountTraceCalculator
     /// <param name="tracers">The settled tracers, by asset.</param>
     /// <param name="swaps">The graph's swaps.</param>
     /// <param name="method">The method.</param>
+    /// <param name="checks">The swaps' price checks.</param>
     /// <returns>The conversions, by swap.</returns>
     private static Dictionary<TokenSwap, SwapConversion> Conversions(
-        Dictionary<Asset, AssetTracer> tracers, SwapSteps swaps, TracingMethodId method)
+        Dictionary<Asset, AssetTracer> tracers,
+        SwapSteps swaps,
+        TracingMethodId method,
+        IReadOnlyList<SwapPriceCheck> checks)
     {
         var conversions = new Dictionary<TokenSwap, SwapConversion>();
         foreach (var step in swaps.All)
@@ -158,15 +162,39 @@ internal static class AccountTraceCalculator
             var bought = step.Follows && tracers.TryGetValue(step.Swap.Bought.Asset, out var tracer)
                 ? tracer.SwappedInOf(step.BoughtTransfers)
                 : BigInteger.Zero;
+            var price = checks.FirstOrDefault(check => check.Swap.Equals(step.Swap));
             conversions[step.Swap] = new SwapConversion(
                 step.Swap,
                 new AssetAmount(step.Swap.Sold.Asset, traced),
                 new AssetAmount(step.Swap.Bought.Asset, bought),
                 method,
-                step.Stop);
+                step.Stop)
+            {
+                Price = price,
+                KeptByPool = new AssetAmount(step.Swap.Sold.Asset, KeptOf(traced, price?.KeptShare)),
+            };
         }
 
         return conversions;
+    }
+
+    /// <summary>
+    /// Gives how much of the traced units that went into a swap stays in the pool: the share that what came out was
+    /// not worth, rounded so that what follows is never more than what went in.
+    /// </summary>
+    /// <param name="traced">The traced units that went in.</param>
+    /// <param name="keptShare">What came out was worth as a share of what went in, or <see langword="null"/>.</param>
+    /// <returns>The units that stay in the pool.</returns>
+    private static BigInteger KeptOf(BigInteger traced, decimal? keptShare)
+    {
+        if (keptShare is not { } share || share >= 1)
+        {
+            return BigInteger.Zero;
+        }
+
+        const long Scale = 1_000_000_000_000;
+        var follows = traced * new BigInteger(Math.Floor(share * Scale)) / Scale;
+        return traced - follows;
     }
 
     /// <summary>
@@ -761,10 +789,23 @@ internal static class AccountTraceCalculator
                     behind = [.. behind, conversion];
                 }
 
-                var amount = Amount(
-                    group.Aggregate(BigInteger.Zero, (sum, transfer) => sum + _traced[transfer]),
-                    [step.Swap.Transaction],
-                    behind);
+                var total = group.Aggregate(BigInteger.Zero, (sum, transfer) => sum + _traced[transfer]);
+                var kept = step.Follows ? BigInteger.Min(total, conversion?.KeptByPool.Units ?? 0) : BigInteger.Zero;
+                if (kept.Sign > 0)
+                {
+                    // What came out was worth less than what went in: that part of the traced value stays in the pool
+                    // (fees and slippage), so that the value that follows never looks whole.
+                    ends.Add(End(
+                        TrailEndReason.KeptBySwapPool,
+                        Amount(kept, [step.Swap.Transaction], behind),
+                        _graph.NodeOf(group.First().To.ToChainAddress())?.Key,
+                        $"Det som kom ut var värt mindre än det som gick in ({conversion!.Price!.Summary}); den delen av "
+                            + "det spårade värdet stannar i poolen som avgift och glidning.",
+                        [],
+                        group.Any(transfer => transfer.Block is null)));
+                }
+
+                var amount = Amount(total - kept, [step.Swap.Transaction], behind);
                 var text = step.Follows
                     ? $"Gick in i en swap och följer med som {step.Swap.Bought.Asset.Symbol} enligt "
                         + $"{SwapValue.Analysis}: samma andel av det som kom ut."

@@ -125,6 +125,12 @@ public sealed record GraphRates(
     /// Gets whether a source asked Chainsaw to wait while these were fetched (429), so that no more is asked now.
     /// </summary>
     public bool IsThrottled { get; init; }
+
+    /// <summary>
+    /// Gets whether a rate for a swap's time arrived that the case did not have, so that the trace is calculated again
+    /// with the swaps' price check (<see cref="SwapValue.CheckPrice"/>).
+    /// </summary>
+    public bool SwapRatesFetched { get; init; }
 }
 
 /// <summary>How money in a currency is written in the graph.</summary>
@@ -425,6 +431,13 @@ public sealed record GraphScene(
 
     /// <summary>Gets how many lines wait for a rate the source can be asked for (sketch KU1a).</summary>
     public int PendingRates => Snapshot.ValueGaps.Values.Count(gap => gap.IsPending);
+
+    /// <summary>
+    /// Gets whether a swap that traced money goes through has not had its price tested, for want of a rate, so that the
+    /// rates are asked for and the trace calculated again.
+    /// </summary>
+    public bool HasUntestedSwapPrices => Snapshot.AccountTrace?.PriceChecks
+        .Any(check => check.Verdict == SwapPriceVerdict.NotTested && check.Swap.Time is not null) == true;
 
     /// <summary>Gives the lines' values as the scene has them, to be changed and shown again.</summary>
     public GraphRates Rates => new(Snapshot.Values, Snapshot.ValueGaps, Snapshot.Rates);
