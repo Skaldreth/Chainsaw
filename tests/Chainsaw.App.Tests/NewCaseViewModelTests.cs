@@ -19,8 +19,11 @@ public sealed class NewCaseViewModelTests
         Assert.Equal(["₿", "₿", string.Empty], panel.Rows.Select(row => row.Glyph));
         Assert.Equal(["Adress", "Tx", "Adress"], panel.Rows.Select(row => row.KindText));
         Assert.True(panel.Rows[2].IsTron);
-        Assert.Equal(PreviewState.NotBuilt, panel.Rows[2].Preview.State);
-        Assert.Equal("TRON hämtas inte, inte byggt än", panel.Rows[2].LineText);
+
+        // TRON is built: its row waits for the exit as Bitcoin's do.
+        Assert.Equal(panel.Rows[0].Preview.State, panel.Rows[2].Preview.State);
+        Assert.Equal(panel.Rows[0].LineText, panel.Rows[2].LineText);
+
         Assert.Equal("4f2a4f2a…f2a4f2a", panel.Rows[1].Short);
         Assert.Equal("3", panel.RowCountText);
         Assert.Contains("hämtades inte", panel.ErrorText, StringComparison.Ordinal);

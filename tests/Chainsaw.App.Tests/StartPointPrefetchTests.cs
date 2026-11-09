@@ -260,7 +260,26 @@ public sealed class StartPointPrefetchTests
     }
 
     [Fact]
-    public async Task TRON_and_the_unknown_are_never_asked()
+    public async Task A_tron_address_shows_its_trx_its_usdt_count_activity_and_the_chains_id()
+    {
+        var tron = new FakeTron();
+        var prefetch = new StartPointPrefetch(
+            _memory, _transfer, _bitcoin, _ethereum, _sanctions, new FixedClock(), tron);
+
+        var preview = await prefetch.PreviewAsync(StartPointText.Parse(Samples.Tron), mayFetch: true);
+
+        Assert.Equal(PreviewState.Fetched, preview.State);
+        Assert.Equal(["5,0000", "1\u00A0000,0000", "1", "okt 2025 → 29 okt 2025"],
+            preview.Facts.Select(fact => fact.Value));
+        Assert.Equal([" TRX", " USDT", " tx", string.Empty], preview.Facts.Select(fact => fact.Unit));
+        Assert.Equal(80_000_000, preview.Height);
+        Assert.Contains(FakeTron.TipHash, preview.HeightTip, StringComparison.Ordinal);
+        Assert.Equal(["tip", "history", "balance"], tron.Calls);
+        Assert.Empty(_ethereum.Calls);
+    }
+
+    [Fact]
+    public async Task TRON_without_its_source_and_the_unknown_are_never_asked()
     {
         var prefetch = Prefetch();
 
@@ -643,7 +662,70 @@ public sealed class StartPointPrefetchTests
         }
     }
 
+    /// <summary>A TRON source that answers from made-up values and seals one response per lookup.</summary>
+    private sealed class FakeTron : ITronSource
+    {
+        public static readonly string TipHash = "0000000004c4b400" + new string('c', 48);
+
+        private static readonly EthereumAddress Other = EthereumAddress.Parse(Chain.Tron, "41" + new string('2', 40));
+
+        public List<string> Calls { get; } = [];
+
+        public long PageStartOf(EthereumBlockReference block) => block.Time.ToUnixTimeMilliseconds();
+
+        public Task<BitcoinLookup<EthereumAddressPage>> GetAddressHistoryAsync(
+            ICase @case, EthereumAddress address, EthereumHistory history, long? atOrBelow = null,
+            LookupMode mode = LookupMode.AsNeeded, CancellationToken cancellationToken = default)
+        {
+            Calls.Add("history");
+            var block = new EthereumBlockReference(
+                79_000_000, null, new DateTimeOffset(2025, 10, 29, 12, 0, 0, TimeSpan.Zero));
+            var hash = EthereumTxHash.Parse(Chain.Tron, new string('1', 64));
+            EthereumTransfer[] transfers =
+            [
+                new(hash, EthereumTransferKind.Native, Other, address, new AssetAmount(Asset.Tronix, 1), 0, block),
+            ];
+            return Answer(@case, new EthereumAddressPage(
+                address, history, atOrBelow, transfers, [], null, IsCutShort: false, IsIncomplete: false));
+        }
+
+        public Task<BitcoinLookup<EthereumTransaction>> GetTransactionAsync(
+            ICase @case, EthereumTxHash hash, LookupMode mode = LookupMode.AsNeeded,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<BitcoinLookup<EthereumBlockReference>> GetBlockAsync(
+            ICase @case, long height, LookupMode mode = LookupMode.AsNeeded,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<BitcoinLookup<EthereumTip>> GetTipHeightAsync(
+            ICase @case, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<BitcoinLookup<ChainTip>> GetTipAsync(ICase @case, CancellationToken cancellationToken = default)
+        {
+            Calls.Add("tip");
+            return Answer(@case, new ChainTip(80_000_000, TipHash, DateTimeOffset.UnixEpoch));
+        }
+
+        public Task<BitcoinLookup<EthereumBalance>> GetBalanceAsync(
+            ICase @case, EthereumAddress address, CancellationToken cancellationToken = default)
+        {
+            Calls.Add("balance");
+            return Answer(@case, new EthereumBalance(
+                address,
+                new AssetAmount(Asset.Tronix, 5_000_000),
+                [new AssetAmount(KnownTokens.TronUsdt, 1_000_000_000)]));
+        }
+
+        private static Task<BitcoinLookup<T>> Answer<T>(ICase @case, T value)
+            where T : class
+        {
+            ((MemoryCase)@case).Seal();
+            return Task.FromResult(new BitcoinLookup<T>(LookupStatus.Fetched, value, [], null));
+        }
+    }
+
     /// <summary>An Ethereum source that answers from made-up values and seals one response per lookup.</summary>
+
     private sealed class FakeEthereum : IEthereumSource
     {
         public static readonly string TipHash = "0x" + new string('0', 60) + "c27e";

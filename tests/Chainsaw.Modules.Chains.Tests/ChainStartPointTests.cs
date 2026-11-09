@@ -23,13 +23,13 @@ public sealed class ChainStartPointTests
     }
 
     [Fact]
-    public void A_tron_address_is_recognised_but_not_supported()
+    public void A_tron_address_is_recognised_and_supported()
     {
         var tron = ChainStartPoint.Recognise(TronAddress);
 
         Assert.Equal((Chain.Tron, StartPointKind.Address), (tron.Chain, tron.Kind));
         Assert.True(tron.IsRecognised);
-        Assert.False(tron.IsSupported);
+        Assert.True(tron.IsSupported);
         Assert.Null(tron.Bitcoin);
     }
 

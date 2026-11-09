@@ -386,9 +386,11 @@ public static class WatchSchedule
     /// <param name="case">The case the response is sealed in.</param>
     /// <param name="chain">The chain.</param>
     /// <param name="cancellationToken">Stops the lookup.</param>
+    /// <param name="tron">TRON's source, or <see langword="null"/> where it is not registered.</param>
     /// <returns>The height, or <see langword="null"/> when it was not fetched or the chain cannot be watched.</returns>
     public static async Task<long?> HeightAsync(
-        IBitcoinSource bitcoin, IEthereumSource ethereum, ICase @case, Chain chain, CancellationToken cancellationToken)
+        IBitcoinSource bitcoin, IEthereumSource ethereum, ICase @case, Chain chain, CancellationToken cancellationToken,
+        ITronSource? tron = null)
     {
         ArgumentNullException.ThrowIfNull(bitcoin);
         ArgumentNullException.ThrowIfNull(ethereum);
@@ -403,6 +405,10 @@ public static class WatchSchedule
                 var height = await ethereum.GetTipHeightAsync(@case, LookupMode.InStep, cancellationToken)
                     .ConfigureAwait(false);
                 return height.Status == LookupStatus.Fetched ? height.Value?.Height : null;
+            case Chain.Tron when tron is not null:
+                var newest = await tron.GetTipHeightAsync(@case, LookupMode.InStep, cancellationToken)
+                    .ConfigureAwait(false);
+                return newest.Status == LookupStatus.Fetched ? newest.Value?.Height : null;
             default:
                 return null;
         }

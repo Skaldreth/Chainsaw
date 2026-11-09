@@ -237,14 +237,16 @@ public sealed class CommandTests
     }
 
     [Fact]
-    public async Task A_tron_address_is_honestly_not_built_and_other_text_finds_nothing_to_add()
+    public async Task A_tron_address_is_a_start_point_as_bitcoins_and_other_text_finds_nothing_to_add()
     {
         var rig = new GateRig(VaultState.Unlocked);
 
         var tron = await rig.Commands.RunAsync(Samples.Tron);
+        var bitcoin = await rig.Commands.RunAsync(Samples.Address);
         var text = await rig.Commands.RunAsync("Börs A");
 
-        Assert.Equal("TRON är inte byggt än, så det kan inte bli en startpunkt.", tron.Text);
+        Assert.StartsWith("Inget ärende är öppet", tron.Text, StringComparison.Ordinal);
+        Assert.Equal(bitcoin.IsError, tron.IsError);
         Assert.Contains("Inget i ärendet eller Guiden matchar", text.Text, StringComparison.Ordinal);
     }
 
@@ -285,10 +287,12 @@ public sealed class CommandTests
 
         var reply = await rig.Commands.RunAsync("tron:" + Samples.Txid);
 
-        Assert.True(reply.IsError);
-        Assert.Contains("TRON", reply.Text, StringComparison.Ordinal);
-        Assert.Empty(rig.Tracing.Added);
+        Assert.False(reply.IsError);
+        var added = Assert.Single(rig.Tracing.Added).StartPoint;
+        Assert.Equal(Chainsaw.SharedKernel.Chain.Tron, added.Chain);
+        Assert.Null(added.Txid);
     }
+
 
     /// <summary>A command that fails in an unexpected way.</summary>
     private sealed class Throwing : IShellCommand

@@ -76,7 +76,9 @@ public interface IGraphChainState
 /// <param name="bitcoin">Bitcoin's source.</param>
 /// <param name="ethereum">Ethereum's source.</param>
 /// <param name="prices">The rates.</param>
-public sealed class GraphChainState(IBitcoinSource bitcoin, IEthereumSource ethereum, IPriceService prices)
+/// <param name="tron">TRON's source, or <see langword="null"/> where it is not registered.</param>
+public sealed class GraphChainState(
+    IBitcoinSource bitcoin, IEthereumSource ethereum, IPriceService prices, ITronSource? tron = null)
     : IGraphChainState
 {
     /// <summary>The most addresses of a cluster whose balance is asked for, so that a large one is not asked one by one.</summary>
@@ -96,7 +98,10 @@ public sealed class GraphChainState(IBitcoinSource bitcoin, IEthereumSource ethe
         return node.Chain switch
         {
             Chain.Bitcoin => await BitcoinAsync(@case, node.GraphAddresses, cancellationToken).ConfigureAwait(false),
-            Chain.Ethereum => await EthereumAsync(@case, node.Accounts, cancellationToken).ConfigureAwait(false),
+            Chain.Ethereum => await EthereumAsync(@case, ethereum, node.Accounts, cancellationToken)
+                .ConfigureAwait(false),
+            Chain.Tron when tron is not null => await EthereumAsync(@case, tron, node.Accounts, cancellationToken)
+                .ConfigureAwait(false),
             _ => new NodeHoldings([], null, null, false, NoAddressText),
         };
     }
@@ -125,8 +130,11 @@ public sealed class GraphChainState(IBitcoinSource bitcoin, IEthereumSource ethe
         ArgumentNullException.ThrowIfNull(@case);
         var onBitcoin = await bitcoin.GetBlockChangesAsync(@case, cancellationToken).ConfigureAwait(false);
         var onEthereum = await ethereum.GetBlockChangesAsync(@case, cancellationToken).ConfigureAwait(false);
+        IReadOnlyList<BlockChange> onTron = tron is null
+            ? []
+            : await tron.GetBlockChangesAsync(@case, cancellationToken).ConfigureAwait(false);
         var tip = await bitcoin.GetTipAsync(@case, LookupMode.CaseOnly, cancellationToken).ConfigureAwait(false);
-        return new ChainMarksReading([.. onBitcoin, .. onEthereum], tip.Value);
+        return new ChainMarksReading([.. onBitcoin, .. onEthereum, .. onTron], tip.Value);
     }
 
     /// <summary>
@@ -211,28 +219,31 @@ public sealed class GraphChainState(IBitcoinSource bitcoin, IEthereumSource ethe
     }
 
     /// <summary>
-    /// Reads what an account on Ethereum holds: its ether and the tokens whose issuer Chainsaw knows (USDT, USDC);
-    /// another token is a contract's own claim, and anyone can send one to any address, so it is left out.
+    /// Reads what an account on an account chain (Ethereum or TRON) holds: its coin and the tokens whose issuer
+    /// Chainsaw knows (USDT, USDC); another token is a contract's own claim, and anyone can send one to any address,
+    /// so it is left out.
     /// </summary>
     /// <param name="case">The open case.</param>
+    /// <param name="source">The chain's source.</param>
     /// <param name="accounts">The node's accounts; the first is asked.</param>
     /// <param name="cancellationToken">Stops the lookups.</param>
     /// <returns>The balance.</returns>
-    private async Task<NodeHoldings> EthereumAsync(
-        ICase @case, IReadOnlyList<ChainAddress> accounts, CancellationToken cancellationToken)
+    private static async Task<NodeHoldings> EthereumAsync(
+        ICase @case, IAccountSource source, IReadOnlyList<ChainAddress> accounts, CancellationToken cancellationToken)
     {
-        if (accounts.Count == 0 || !EthereumAddress.TryParse(accounts[0].Value, out var address))
+        if (accounts.Count == 0 || !EthereumAddress.TryParse(source.Chain, accounts[0].Value, out var address))
         {
             return new NodeHoldings([], null, null, false, NoAddressText);
         }
 
-        var lookup = await ethereum.GetBalanceAsync(@case, address, cancellationToken).ConfigureAwait(false);
+        var lookup = await source.GetBalanceAsync(@case, address, cancellationToken).ConfigureAwait(false);
         if (lookup.Value is not { } balance)
         {
             return new NodeHoldings([], null, null, false, lookup.Problem ?? NoAddressText);
         }
 
-        var tip = await ethereum.GetTipAsync(@case, cancellationToken).ConfigureAwait(false);
+        var tip = await source.GetTipAsync(@case, cancellationToken).ConfigureAwait(false);
+
         var held = new[] { balance.Ether }
             .Concat(balance.Tokens.Where(token => KnownTokens.IssuerOf(token.Asset) is not null))
             .Where(amount => !amount.IsZero)

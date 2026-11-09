@@ -73,6 +73,10 @@ internal sealed class SourceLookups
     /// <summary>What a lookup that needs an endpoint in step says when none is known to be.</summary>
     private readonly string _noneInStepText;
 
+    /// <summary>Why nothing was sent when only the endpoint passed over is on.</summary>
+    private readonly string _noOtherText;
+
+
     /// <summary>Creates the lookups of one chain.</summary>
     /// <param name="chain">The chain.</param>
     /// <param name="chainName">The chain's name in the texts for the user, for example <c>Bitcoin</c>.</param>
@@ -100,6 +104,7 @@ internal sealed class SourceLookups
         (_safeConfirmations, _refreshHeight) = (safeConfirmations, refreshHeight);
         _sourcesOffText = $"Källorna för {chainName} är avstängda i inställningarna (Av). Inget skickades.";
         _noneOnText = $"Ingen källa för {chainName} är påslagen i inställningarna. Inget skickades.";
+        _noOtherText = $"Ingen annan källa för {chainName} är påslagen att fråga. Inget skickades.";
         _noneInStepText = $"Ingen källa för {chainName} är känd i fas med kedjans högsta höjd; prova källorna. "
             + "Inget skickades.";
     }
@@ -167,10 +172,16 @@ internal sealed class SourceLookups
     /// Whether endpoints in step with the chain are asked when some are known to be, and the others only when none is.
     /// </param>
     /// <param name="except">An endpoint not to ask, as when its own answer is to be confirmed by another.</param>
+    /// <param name="doubted">
+    /// The response of an answer that is not believed (a final TRON answer without a known token's event): its
+    /// endpoint, and any other at the same host and port, is not asked (<see cref="IsOther"/>); <see langword="null"/>
+    /// to ask any.
+    /// </param>
     /// <returns>The answer.</returns>
     public async Task<BitcoinLookup<T>> FetchAsync<T>(
         ICase @case, LookupQuery<T> query, (T Value, StoredResponse Response)? stored,
-        CancellationToken cancellationToken, bool inStep = false, bool preferInStep = false, Guid? except = null)
+        CancellationToken cancellationToken, bool inStep = false, bool preferInStep = false, Guid? except = null,
+        ResponseOrigin? doubted = null)
         where T : class
     {
         var fetchedBy = CurrentOperator(out var noOperator);
@@ -199,6 +210,19 @@ internal sealed class SourceLookups
         if (plan.Endpoints.Count == 0)
         {
             return Fallback(stored, LookupStatus.Failed, plan.NoneInStep ? _noneInStepText : _noneOnText);
+        }
+
+        if (doubted is { } notBelieved)
+        {
+            plan = plan with
+            {
+                Endpoints = [.. plan.Endpoints.Where(planned => IsOther(planned.Endpoint, notBelieved))],
+            };
+
+            if (plan.Endpoints.Count == 0)
+            {
+                return Fallback(stored, LookupStatus.Failed, _noOtherText);
+            }
         }
 
         var failures = new List<ResponseOrigin>();
@@ -518,7 +542,36 @@ internal sealed class SourceLookups
         ? $"{reason} Ärendet har inget sparat svar."
         : reason;
 
+    /// <summary>
+    /// Says whether an endpoint that is switched on could be asked instead of the one that gave a response: one that is
+    /// neither that endpoint nor at its host and port (<see cref="IsOther"/>).
+    /// </summary>
+    /// <param name="origin">The response.</param>
+    /// <returns><see langword="true"/> when there is another.</returns>
+    public bool HasOtherThan(ResponseOrigin origin)
+    {
+        ArgumentNullException.ThrowIfNull(origin);
+        return _sources.Plan(_chain).Endpoints.Any(planned => IsOther(planned.Endpoint, origin));
+    }
+
+    /// <summary>
+    /// Says whether an endpoint is another than the one that gave a response: not the same endpoint, and not at the
+    /// same host and port, since the same server added twice (or under another path) would give the same answer.
+    /// </summary>
+    /// <param name="endpoint">The endpoint.</param>
+    /// <param name="origin">The response.</param>
+    /// <returns><see langword="true"/> when it is another.</returns>
+    public static bool IsOther(SourceEndpoint endpoint, ResponseOrigin origin)
+    {
+        ArgumentNullException.ThrowIfNull(endpoint);
+        ArgumentNullException.ThrowIfNull(origin);
+        return endpoint.Id != origin.EndpointId
+            && !(string.Equals(endpoint.Address.Host, origin.Url.Host, StringComparison.OrdinalIgnoreCase)
+                && endpoint.Address.Port == origin.Url.Port);
+    }
+
     /// <summary>An answer refused before anything was asked.</summary>
+
     /// <typeparam name="T">What is looked up.</typeparam>
     /// <param name="problem">Why, in Swedish.</param>
     /// <returns>The answer.</returns>
@@ -605,11 +658,36 @@ internal sealed class SourceLookups
     public static long Confirmations(long height, long? knownHeight) =>
         Math.Max(knownHeight ?? height, height) - height + 1;
 
+    /// <summary>
+    /// Says when something is done next, as the user reads it: <c>kl. 14:05</c> on the same local day, <c>den
+    /// 2026-11-10 kl. 00:05</c> on another, and <c>vid nästa uppslag</c> when the time has already passed (nothing was
+    /// asked, for example when the case was only read).
+    /// </summary>
+    /// <param name="at">When.</param>
+    /// <param name="now">The time now.</param>
+    /// <param name="zone">The time zone the user reads times in.</param>
+    /// <returns>The text.</returns>
+    public static string WhenText(DateTimeOffset at, DateTimeOffset now, TimeZoneInfo zone)
+    {
+        ArgumentNullException.ThrowIfNull(zone);
+        if (at <= now)
+        {
+            return "vid nästa uppslag";
+        }
+
+        var local = TimeZoneInfo.ConvertTime(at, zone);
+        var clock = "kl. " + local.ToString("HH:mm", CultureInfo.InvariantCulture);
+        return local.Date == TimeZoneInfo.ConvertTime(now, zone).Date
+            ? clock
+            : $"den {local.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)} {clock}";
+    }
+
     /// <summary>Gives sealed responses once each, in the order they were sealed.</summary>
     /// <param name="origins">The responses.</param>
     /// <returns>The responses.</returns>
     public static List<ResponseOrigin> Ordered(IEnumerable<ResponseOrigin> origins) =>
         [.. origins.DistinctBy(origin => origin.Sequence).OrderBy(origin => origin.Sequence)];
+
 
     /// <summary>Writes a local time for the user.</summary>
     /// <param name="time">The time.</param>

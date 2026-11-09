@@ -107,8 +107,9 @@ public static class CheckRules
     }
 
     /// <summary>
-    /// Reads the address an address member stands for: a Bitcoin address, or an Ethereum address (<c>0x</c> and 40
-    /// hex digits).
+    /// Reads the address an address member stands for: a Bitcoin address, an Ethereum address (<c>0x</c> and 40 hex
+    /// digits), or a TRON address in its <c>T…</c> form (Base58Check with TRON's version byte, which no Bitcoin address
+    /// has).
     /// </summary>
     /// <param name="member">The member.</param>
     /// <returns>The address with its chain, or <see langword="null"/> when the member is not an address.</returns>
@@ -126,7 +127,13 @@ public static class CheckRules
             return account.ToChainAddress();
         }
 
+        if (Chains.Contracts.EthereumAddress.TryParseTron(text, out var tron, out _) && tron.Value == text)
+        {
+            return tron.ToChainAddress();
+        }
+
         return Chains.Contracts.BitcoinAddress.TryParse(text, out var address) ? address.ToChainAddress() : null;
+
     }
 
     /// <summary>Gives the member that stands for a transaction that is an actor of its own.</summary>

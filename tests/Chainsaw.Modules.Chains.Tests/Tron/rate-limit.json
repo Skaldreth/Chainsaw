@@ -1,0 +1,3 @@
+{
+ "Error": "request rate exceeded the allowed_rps(3), and the query server is suspended for 3s"
+}

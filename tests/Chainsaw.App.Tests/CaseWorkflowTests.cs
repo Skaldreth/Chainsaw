@@ -101,7 +101,7 @@ public sealed class CaseWorkflowTests
     }
 
     [Fact]
-    public async Task A_new_case_gets_its_title_its_bitcoin_start_points_and_a_note_for_the_rest()
+    public async Task A_new_case_gets_its_title_and_its_start_points_on_bitcoin_and_tron()
     {
         var rig = new GateRig(VaultState.Unlocked);
         var request = new NewCaseRequest(
@@ -120,11 +120,10 @@ public sealed class CaseWorkflowTests
         var created = (TestCase)rig.Session.Current!;
         Assert.Equal("Investeringsbedrägeri via chatt", created.Title);
         Assert.Equal(
-            [Samples.Address, Samples.Txid],
+            [Samples.Address, Samples.Txid, Samples.Tron],
             rig.Tracing.Added.Select(item => item.StartPoint.ToString()));
-        var note = Assert.Single(created.Journal);
-        Assert.Equal(AppJournalKinds.StartPointNoted, note.Kind);
-        Assert.Contains(Samples.Tron, note.Summary, StringComparison.Ordinal);
+        Assert.Equal(Chain.Tron, rig.Tracing.Added[^1].StartPoint.Chain);
+        Assert.Empty(created.Journal);
         Assert.False(created.HasSharingPassword);
     }
 
@@ -240,7 +239,7 @@ public sealed class CaseWorkflowTests
     }
 
     [Fact]
-    public async Task The_bitcoin_and_ethereum_start_points_are_checked_against_the_sanction_list()
+    public async Task The_bitcoin_ethereum_and_tron_start_points_are_checked_against_the_sanction_list()
     {
         var rig = new GateRig(VaultState.Unlocked);
         var attribution = new TestAttribution();
@@ -259,8 +258,12 @@ public sealed class CaseWorkflowTests
 
         Assert.True(creation.IsCreated);
         Assert.Equal(
-            [new ChainAddress(Chain.Bitcoin, Samples.Address), new ChainAddress(Chain.Ethereum, Samples.Ethereum)],
+            [
+                new ChainAddress(Chain.Bitcoin, Samples.Address), new ChainAddress(Chain.Ethereum, Samples.Ethereum),
+                new ChainAddress(Chain.Tron, Samples.Tron),
+            ],
             attribution.SanctionChecked);
+
     }
 
     [Fact]

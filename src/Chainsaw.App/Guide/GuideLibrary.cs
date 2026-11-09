@@ -28,6 +28,8 @@ public sealed class GuideLibrary
             ["huvudnyckeln", "lasning", "utgangen", "vpn-utgangar", "kallor", "aterstallningsnyckeln"]),
         ("Bitcoin", ["utxo-modellen", "adresstyper", "startpunkter", "kontroll-mot-kedjan"]),
         ("Ethereum", ["kontomodellen", "erc-20", "swappar", "interna-tx", "kan-frysas"]),
+        ("TRON", ["tron"]),
+
         ("Klustring",
             ["common-input-ownership", "vaxeladress", "peel-chain", "coinjoin", "payjoin", "bryta-upp-kluster"]),
         ("Spårning",

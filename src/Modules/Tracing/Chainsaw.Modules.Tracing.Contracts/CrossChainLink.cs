@@ -87,7 +87,7 @@ public sealed record CrossChainLink(
     public AccountSeed? FromTransfer { get; init; }
 
     /// <summary>Gets the chain the money left.</summary>
-    public Chain FromChain => FromTransfer is null ? Chain.Bitcoin : Chain.Ethereum;
+    public Chain FromChain => FromTransfer?.Transaction.Chain ?? Chain.Bitcoin;
 
     /// <summary>Writes where the money left: the coin, or the movement's kind and transaction.</summary>
     public string FromText => From?.ToString()

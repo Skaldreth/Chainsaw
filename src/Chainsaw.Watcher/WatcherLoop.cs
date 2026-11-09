@@ -300,7 +300,8 @@ internal sealed class WatcherLoop
 
         state.NextHeight = now + HeightPoll;
         var mark = scratch.Mark();
-        var height = await WatchSchedule.HeightAsync(_parts.Bitcoin, _parts.Ethereum, scratch, chain, cancellationToken)
+        var height = await WatchSchedule.HeightAsync(
+                _parts.Bitcoin, _parts.Ethereum, scratch, chain, cancellationToken, _parts.Tron)
             .ConfigureAwait(false);
         state.HeightFailed = height is null;
         if (height is not { } tip)
@@ -671,6 +672,7 @@ internal sealed class WatcherLoop
 /// <param name="Sources">The chains' endpoints.</param>
 /// <param name="Bitcoin">Bitcoin's source.</param>
 /// <param name="Ethereum">Ethereum's source.</param>
+/// <param name="Tron">TRON's source, or <see langword="null"/> where it is not registered.</param>
 /// <param name="Transfer">Reads the responses out of the case in memory.</param>
 /// <param name="Alerts">Says that a watch has hit.</param>
 /// <param name="Clock">The clock.</param>
@@ -691,7 +693,8 @@ internal sealed record WatcherParts(
     IEthereumSource Ethereum,
     IResponseTransfer Transfer,
     IAlerts Alerts,
-    IClock Clock)
+    IClock Clock,
+    ITronSource? Tron = null)
 {
     /// <summary>Gets the connection to the exit allowed in the background, or <see langword="null"/>.</summary>
     public IExitConnection? Exit { get; init; }
@@ -702,3 +705,4 @@ internal sealed record WatcherParts(
     /// <summary>Gets the chains' news of new blocks, or <see langword="null"/> to ask once a minute only.</summary>
     public IBlockNews? News { get; init; }
 }
+

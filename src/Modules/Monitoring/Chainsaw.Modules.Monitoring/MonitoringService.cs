@@ -18,6 +18,7 @@ namespace Chainsaw.Modules.Monitoring;
 /// <param name="clustering">The clustering, which says a cluster's addresses at each check.</param>
 /// <param name="feeds">The feeds that read a chain through the case's sources.</param>
 /// <param name="clock">The clock.</param>
+/// <param name="tron">TRON's source, or <see langword="null"/> where it is not registered.</param>
 internal sealed class MonitoringService(
     IWatchCheck check,
     IWatchGate gate,
@@ -25,7 +26,8 @@ internal sealed class MonitoringService(
     IEthereumSource ethereum,
     IClusteringService clustering,
     IWatchFeeds feeds,
-    IClock clock) : IMonitoringService
+    IClock clock,
+    ITronSource? tron = null) : IMonitoringService
 {
     /// <summary>What a check says when a cluster has more addresses than one check reads.</summary>
     public const string TooManyAddressesText =
@@ -269,8 +271,10 @@ internal sealed class MonitoringService(
     {
         ArgumentNullException.ThrowIfNull(@case);
         return gate.For(chain) == WatchGate.Open
-            ? await WatchSchedule.HeightAsync(bitcoin, ethereum, @case, chain, cancellationToken).ConfigureAwait(false)
+            ? await WatchSchedule.HeightAsync(bitcoin, ethereum, @case, chain, cancellationToken, tron)
+                .ConfigureAwait(false)
             : null;
+
     }
 
     /// <inheritdoc/>
@@ -359,7 +363,8 @@ internal sealed class MonitoringService(
             }
 
             var finding = await TipLookup.ReadAsync(
-                check, bitcoin, ethereum, @case, tip, AddressesOf(@case, watch).Addresses.ToHashSet(), filter, start,
+                check, bitcoin, ethereum, tron, @case, tip, AddressesOf(@case, watch).Addresses.ToHashSet(), filter,
+                start,
                 cancellationToken).ConfigureAwait(false);
             if (finding.Verdict == TipVerdict.Wait)
             {
@@ -758,9 +763,9 @@ internal sealed class MonitoringService(
     /// <exception cref="ArgumentException">It is wrong.</exception>
     private static WatchFilter Checked(WatchFilter filter)
     {
-        if (filter.Chain is not (Chain.Bitcoin or Chain.Ethereum))
+        if (filter.Chain is not (Chain.Bitcoin or Chain.Ethereum or Chain.Tron))
         {
-            throw new ArgumentException("Only Bitcoin and Ethereum can be watched yet.", nameof(filter));
+            throw new ArgumentException("Only Bitcoin, Ethereum and TRON can be watched yet.", nameof(filter));
         }
 
         var valid = filter.Receivers.Concat(filter.Senders).All(party => IsAddress(filter.Chain, party.Value));
@@ -775,7 +780,8 @@ internal sealed class MonitoringService(
     /// <returns><see langword="true"/> when it is.</returns>
     private static bool IsAddress(Chain chain, string value) => chain == Chain.Bitcoin
         ? BitcoinAddress.TryParse(value, out _)
-        : EthereumAddress.TryParse(value, out _);
+        : EthereumAddress.TryParse(chain, value, out var account) && account.Value == value;
+
 
     /// <summary>Checks a node.</summary>
     /// <param name="subject">The node.</param>

@@ -14,6 +14,9 @@ Vem som helst kan skapa en token och kalla den USDT. Chainsaw känner därför *
 symbolen, bara på **kontraktets adress**. Riktig USDT på Ethereum är kontraktet `0xdAC1…1ec7`; en token med samma
 symbol men ett annat kontrakt visas med sin egen adress och får aldrig USDT:s märke eller utgivare.
 
+På **TRON** heter samma standard **TRC-20**, och allt i det här avsnittet gäller där också. Riktig USDT på TRON är
+kontraktet `TR7NHq…gjLj6t`. Se [TRON](tron.md).
+
 ## Händelsen Transfer
 
 ![Kontraktet (rutan) håller en rad per adress. En överföring flyttar ett belopp från en rad till en annan: det streckade är det som lämnade den översta raden, och accenten det som kom till den nedersta.](figur:erc20-kontrakt)

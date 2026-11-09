@@ -19,17 +19,14 @@ namespace Chainsaw.App.TestData.Tests;
 public sealed class TestCaseTests : IDisposable
 {
     /// <summary>
-    /// What the built graph cannot show yet: Kan frysas needs USDT or USDC on Ethereum, whose made-up source is not
-    /// built (TODO). The start point and the watch are drawn by the graph from the trace and the watches, not as a
-    /// badge, so they are checked on their own below. An exported request's mark is drawn from the case's exports, not
-    /// from the scene.
+    /// What the built graph does not show as a badge: the start point and the watch are drawn by the graph from the
+    /// trace and the watches, so they are checked on their own below, and an exported request's mark is drawn from the
+    /// case's exports, not from the scene. Kan frysas is there since round 8: USDT on TRON.
     /// </summary>
     // A former sanction comes only from a list (round 5), and the made-up list has no removed entries yet (BACKLOG).
     private static readonly NodeBadge[] NotAsBadges =
-    [
-        NodeBadge.CanBeFrozen, NodeBadge.StartPoint, NodeBadge.Watched, NodeBadge.RequestExported,
-        NodeBadge.FormerlySanctioned,
-    ];
+        [NodeBadge.StartPoint, NodeBadge.Watched, NodeBadge.RequestExported, NodeBadge.FormerlySanctioned];
+
 
     private readonly Harness _harness = new();
 

@@ -3398,3 +3398,37 @@ Jämför med skissen IN5a på canvasen (sidan Grafen, omgång 18).
   soptunnan med trädet. Lägg tillbaka aktören i soptunnans vy medan sökningen står öppen och tryck Enter på raden:
   grafen säger att den inte längre låg så, och soptunnan öppnas.
 
+
+## TRON med USDT (omgång 8, 2026-11-08)
+
+Inga riktiga TRON-adresser står här; ta en adress ur en beställning eller ur TronScan.
+
+- [ ] Ctrl+, → *Källor*: TRON är byggd och har TronGrid (`https://api.trongrid.io/`) med lägena Snabbast, Prioriterad
+      och Av. *Prova alla nu* visar TronGrid i fas med höjden och svarstiden. Läget Av: inga TRON-uppslag görs, och
+      raderna säger det.
+- [ ] Nytt ärende: klistra in en TRON-adress (`T…`) och en adress i TRON:s hex (`41…`, 42 tecken). Båda blir samma
+      rad med TRON:s märke och adressen i `T…`-form; raden hämtar i förväg saldot i TRX och USDT, antal tx (med `+`
+      när det finns fler), aktiviteten och kedjans höjd. Ett tecken fel i adressen: raden känns inte igen.
+- [ ] En TRON-tx (64 tecken) klistras bara som TRON med `tron:` eller länken `chainsaw:tron/<tx>`; annars är den en
+      Bitcoin-tx. Med `tron:` blir den en TRON-startpunkt.
+- [ ] Skapa ärendet och expandera TRON-adressen: linjerna har ₮ först i beloppet för USDT och TRX för TRX, med kronor
+      under, och varje linje säger blockhöjd och blockets id (64 tecken, de första 16 är höjden i hex). Första
+      expansionen av en adress med många USDT-överföringar tar en stund (TronGrid utan nyckel, en fråga i sekunden), och
+      *Väntar på källan* räknar ned.
+- [ ] En adress där USDT ligger kvar efter expansionen får snöflingan *Kan frysas*; Alt + klick visar TRX och USDT.
+- [ ] Inspektören: avgiften i TRX (ofta 0 med låst TRX), *Varför?* på en USDT-linje, och kurserna: TRX via Bitstamps
+      `trxeur` och USDT via `usdteur`, omräknat med Riksbanken.
+- [ ] Sanktion: importera en SDN-lista med en `Digital Currency Address - TRX` eller `USDT` med en `T…`-adress; den
+      adressen får *Sanktionerad* när ärendet skapas, och samma 20 byte som Ethereum-adress får det inte.
+- [ ] Bevaka en TRON-adress (högerklick → *Bevaka …*): formuläret visar TRX och ₮ USDT att välja bland, och vyn
+      Bevakning visar kedjan TRON. En ny överföring syns inom ungefär en minut (höjden läses en gång i minuten).
+- [ ] Bakgrundsbevakningen med Chainsaw stängt: samma bevakning slår till och förs in när ärendet öppnas.
+- [ ] Länk till annan kedja (K) från en Bitcoin-output till en TRON-tx, och från en TRON-linje till en Bitcoin- eller
+      Ethereum-tx; en länk från TRON till TRON vägras.
+- [ ] Offline: ett ärende med TRON öppnas och ritas utan nät, och nya uppslag säger ärligt att de inte går.
+- [ ] `/testdata`: swappen från navet fortsätter på TRON (Bytaren (TRON) betalar USDT till bedragaren), bedragaren och
+      mulan är expanderade, Sydbörsen (TRON) tar emot, och mulan har snöflingan. Inget skickas ut (raderna i ärendet
+      säger *testdata*).
+- [ ] Guiden: avsnittet *TRON* (under TRON) och *USDT på TRON* stämmer med det som syns.
+- [ ] Bevaka en TRON-adress för alla tillgångar och skicka en skräptoken dit: ingen avisering. Kortets baksida visar TRX
+      i stål och USDT i grönt; *Väntar på källan* visar `T` för TRON.

@@ -1,0 +1,13 @@
+{
+ "id": "c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4",
+ "fee": 1000000,
+ "blockNumber": 900,
+ "blockTimeStamp": 1793872800000,
+ "contractResult": [
+  ""
+ ],
+ "receipt": {
+  "energy_fee": 1000000,
+  "result": "REVERT"
+ }
+}

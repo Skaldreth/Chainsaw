@@ -10,7 +10,7 @@ namespace Chainsaw.Modules.Chains;
 
 /// <summary>
 /// Registers the module Chains: one contract per kind of chain, and the sources behind it (Esplora for Bitcoin,
-/// Blockscout for Ethereum).
+/// Blockscout for Ethereum, TronGrid for TRON).
 /// </summary>
 /// <remarks>
 /// The module needs the Network module's <c>IExitHttp</c> (its only way out to the sources), and its
@@ -33,15 +33,20 @@ public static class ChainsModule
     /// <param name="ethereum">
     /// The Ethereum source's settings; by default Blockscout as Ethereum's endpoint until the user changes it.
     /// </param>
+    /// <param name="tron">
+    /// The TRON source's settings; by default TronGrid as TRON's endpoint until the user changes it.
+    /// </param>
     /// <returns>The same container, so that the registrations can be chained.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="services"/> is null.</exception>
     public static IServiceCollection AddChainsModule(
         this IServiceCollection services, BitcoinSourceOptions? options = null,
-        Action<ChainSourcesOptions>? sources = null, EthereumSourceOptions? ethereum = null)
+        Action<ChainSourcesOptions>? sources = null, EthereumSourceOptions? ethereum = null,
+        TronSourceOptions? tron = null)
     {
         ArgumentNullException.ThrowIfNull(services);
         var settings = options ?? new BitcoinSourceOptions();
         var ethereumSettings = ethereum ?? new EthereumSourceOptions();
+        var tronSettings = tron ?? new TronSourceOptions();
         var sourcesOptions = new ChainSourcesOptions();
         sources?.Invoke(sourcesOptions);
         services.TryAddSingleton<IClock, SystemClock>();
@@ -52,6 +57,7 @@ public static class ChainsModule
         // Each sort of API is registered here; another chain (Ethereum, TRON) only adds its own.
         services.AddSingleton<ISourceApi>(new EsploraApi(settings));
         services.AddSingleton<ISourceApi>(new BlockscoutApi(ethereumSettings));
+        services.AddSingleton<ISourceApi>(new TronGridApi(tronSettings));
         services.AddSingleton(provider => new ChainSources(
             provider.GetServices<ISourceApi>(),
             provider.GetRequiredService<IExitHttp>(),
@@ -80,6 +86,12 @@ public static class ChainsModule
             provider.GetRequiredService<IOperatorProfileStore>(),
             provider.GetRequiredService<IClock>(),
             ethereumSettings,
+            TimeZoneInfo.Local,
+            provider.GetRequiredService<ChainSources>()));
+        services.AddSingleton<ITronSource>(provider => new TronGridTronSource(
+            provider.GetRequiredService<IOperatorProfileStore>(),
+            provider.GetRequiredService<IClock>(),
+            tronSettings,
             TimeZoneInfo.Local,
             provider.GetRequiredService<ChainSources>()));
         return services;

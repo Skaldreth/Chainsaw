@@ -97,18 +97,30 @@ internal static class OfacSdnParser
             : null;
 
     /// <summary>
-    /// Gives the key an Ethereum address is looked up by on the list (lower case, as the chain compares it), or none
-    /// when the entry is not for Ethereum or its address is not <c>0x</c> and 40 hex digits. The letters' case is not
-    /// checked: an address the list wrote with a broken EIP-55 checksum still names those 20 bytes, and a sanction
-    /// missed is worse than one shown that the user can look at.
+    /// Gives the key an account is looked up by on the list, or none when the entry is not for an account chain.
+    /// An Ethereum address (<c>0x</c> and 40 hex digits, under <see cref="SanctionCurrency.OnEthereum"/>) is kept in
+    /// lower case, as the chain compares it; the letters' case is not checked, since an address the list wrote with a
+    /// broken EIP-55 checksum still names those 20 bytes, and a sanction missed is worse than one shown that the user
+    /// can look at. A TRON address (Base58Check with its checksum, under <see cref="SanctionCurrency.OnTron"/>) is
+    /// kept as written: its checksum is part of it.
     /// </summary>
     /// <param name="address">The address as the list writes it.</param>
     /// <returns>The parsed address, or <see langword="null"/>.</returns>
-    public static EthereumAddress? EthereumKey(SanctionedAddress address) =>
-        SanctionCurrency.OnEthereum.Contains(address.Currency)
-        && EthereumAddress.TryParse(address.Address.ToLowerInvariant(), out var parsed)
-            ? parsed
+    public static EthereumAddress? EthereumKey(SanctionedAddress address)
+    {
+        ArgumentNullException.ThrowIfNull(address);
+        if (SanctionCurrency.OnEthereum.Contains(address.Currency)
+            && EthereumAddress.TryParse(address.Address.ToLowerInvariant(), out var ethereum))
+        {
+            return ethereum;
+        }
+
+        return SanctionCurrency.OnTron.Contains(address.Currency)
+            && address.Address.StartsWith('T') && EthereumAddress.TryParseTron(address.Address, out var tron, out _)
+            ? tron
             : null;
+    }
+
 
     /// <summary>Reads the publish date.</summary>
     /// <param name="information">The <c>publshInformation</c> element (the list spells it so).</param>

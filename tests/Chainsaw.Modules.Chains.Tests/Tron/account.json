@@ -1,0 +1,22 @@
+{
+ "data": [
+  {
+   "address": "411111111111111111111111111111111111111111",
+   "balance": 5000000,
+   "create_time": 1793872800000,
+   "trc20": [
+    {
+     "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t": "1000000"
+    },
+    {
+     "TGCAjMXComunWZEXCT1LPBdcYbDVuyexBv": "5"
+    }
+   ]
+  }
+ ],
+ "success": true,
+ "meta": {
+  "at": 1793876400000,
+  "page_size": 1
+ }
+}

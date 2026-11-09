@@ -253,6 +253,33 @@ public sealed class MonitoringServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task On_Tron_the_watched_usdt_is_read_through_trons_source_with_its_block()
+    {
+        var node = EthereumAddress.Parse(Chain.Tron, "41" + new string('a', 40));
+        var sender = EthereumAddress.Parse(Chain.Tron, "41" + new string('b', 40));
+        _harness.Service.Add(
+            _harness.Case,
+            new WatchSubject(WatchSubjectKind.Address, node.ToChainAddress(), "T…node"),
+            new WatchFilter(Chain.Tron, WatchDirection.In, [], [sender.ToChainAddress()], KnownTokens.TronUsdt, null));
+        await _harness.Service.CheckAsync(_harness.Case, Chain.Tron, 80_000_000);
+        var block = new EthereumBlockReference(80_000_040, null, new DateTimeOffset(2026, 11, 7, 0, 0, 0, TimeSpan.Zero));
+        var usdt = new AssetAmount(KnownTokens.TronUsdt, 2_500_000_000);
+        _harness.Tron.Holds(node, EthereumHistory.Tokens, new EthereumTransfer(
+            EthereumTxHash.Parse(Chain.Tron, new string('c', 64)), EthereumTransferKind.Token, sender, node, usdt, 0,
+            block));
+        _harness.Tron.BlockHashes[80_000_040] = "0000000004c4b428" + new string('9', 48);
+
+        var run = await _harness.Service.CheckAsync(_harness.Case, Chain.Tron, 80_000_050);
+
+        var hit = Assert.Single(run.Hits);
+        Assert.Equal(usdt, hit.Match.Amount);
+        Assert.Equal(new string('c', 64), hit.Match.Transaction);
+        Assert.Equal(80_000_040, hit.Match.Block.Height);
+        Assert.Equal([EthereumHistory.Tokens], _harness.Tron.Asked.Select(asked => asked.History).Distinct());
+        Assert.Empty(_harness.Ethereum.Asked);
+    }
+
+    [Fact]
     public async Task A_hit_without_a_block_hash_waits_for_a_check_that_has_it()
     {
         var node = Synthetic.Eth("eth-node");
@@ -373,11 +400,12 @@ public sealed class MonitoringServiceTests : IDisposable
         Assert.Equal(900_000, await _harness.Service.GetHeightAsync(_harness.Case, Chain.Bitcoin));
         _harness.Bitcoin.Tip = null;
         Assert.Null(await _harness.Service.GetHeightAsync(_harness.Case, Chain.Bitcoin));
-        Assert.Null(await _harness.Service.GetHeightAsync(_harness.Case, Chain.Tron));
+        Assert.Equal(80_000_100, await _harness.Service.GetHeightAsync(_harness.Case, Chain.Tron));
 
         // Only an endpoint in step gives the height a watch starts or counts from (etapp 26, M5).
         Assert.All(_harness.Bitcoin.TipModes, mode => Assert.Equal(LookupMode.InStep, mode));
         Assert.Equal(2, _harness.Bitcoin.TipModes.Count);
+
     }
 
     [Fact]

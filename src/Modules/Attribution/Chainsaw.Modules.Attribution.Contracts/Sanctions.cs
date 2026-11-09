@@ -52,8 +52,10 @@ public interface ISanctionLists
     SanctionMatch? Find(BitcoinAddress address);
 
     /// <summary>
-    /// Finds an Ethereum address on the current list: entries for ether and for the tokens on Ethereum the list names
-    /// (<see cref="SanctionCurrency.OnEthereum"/>), compared without regard to the letters' case.
+    /// Finds an account on the current list. On Ethereum: entries for ether and for the tokens on Ethereum the list
+    /// names (<see cref="SanctionCurrency.OnEthereum"/>), compared without regard to the letters' case. On TRON: entries
+    /// for TRX and for USDT and USDC written with a TRON address (<see cref="SanctionCurrency.OnTron"/>), compared
+    /// exactly, since Base58Check is case sensitive.
     /// </summary>
     /// <param name="address">The address.</param>
     /// <returns>
@@ -141,6 +143,25 @@ public static class SanctionCurrency
     {
         Ether, "USDT", "USDC",
     };
+
+    /// <summary>The code OFAC's SDN list gives TRX addresses.</summary>
+    public const string Tronix = "TRX";
+
+    /// <summary>
+    /// The codes whose addresses can be TRON addresses: TRX, and USDT and USDC, which the list writes with the address
+    /// that holds them, on TRON a Base58Check address beginning with <c>T</c>. Only an address that is one counts;
+    /// the same code with an Ethereum address is Ethereum's (<see cref="OnEthereum"/>).
+    /// </summary>
+    public static IReadOnlySet<string> OnTron { get; } = new HashSet<string>(StringComparer.Ordinal)
+    {
+        Tronix, "USDT", "USDC",
+    };
+
+    /// <summary>Says whether a code is one of an account chain's (Ethereum's or TRON's).</summary>
+    /// <param name="currency">The code.</param>
+    /// <returns><see langword="true"/> when an account can be listed under it.</returns>
+    public static bool OnAccountChain(string currency) => OnEthereum.Contains(currency) || OnTron.Contains(currency);
+
 }
 
 /// <summary>An imported sanction list.</summary>

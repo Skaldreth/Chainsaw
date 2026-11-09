@@ -199,6 +199,47 @@ public sealed record EthereumAddressPage(
     /// counted now, and keep the page from being final, so that it is asked for again.
     /// </summary>
     public int Unread { get; init; }
+
+    /// <summary>
+    /// Gets how many of the <see cref="Skipped"/> entries are left out because their transaction's final answer holds
+    /// no event they can be read from (TRON's token history, whose entries are placed by each transaction's info): a
+    /// token Chainsaw does not know, with a non-standard event, common among scam tokens. They never make the page
+    /// incomplete. A token Chainsaw knows is never left out this way: it waits (<see cref="Disputed"/>).
+    /// </summary>
+    public int Unplaced { get; init; }
+
+    /// <summary>
+    /// Gets the transactions a page waits for: their entries could not be placed yet (the source did not give the
+    /// transaction's answer now, or its block is still shallow). Such a page is incomplete
+    /// (<see cref="IsIncomplete"/>) and is read again; empty otherwise.
+    /// </summary>
+    public IReadOnlyList<EthereumTxHash> Waiting { get; init; } = [];
+
+    /// <summary>
+    /// Gets the <see cref="Waiting"/> transactions whose final answer lacked the event of a token Chainsaw knows (USDT
+    /// and the others in <see cref="KnownTokens"/>), with the endpoint that gave it. Such an answer is not believed: the
+    /// transaction is asked of another endpoint, and waits until one places the movement. Empty otherwise.
+    /// </summary>
+    public IReadOnlyList<EthereumDisputedAnswer> Disputed { get; init; } = [];
+}
+
+/// <summary>A transaction whose final answer lacked a known token's event, and the endpoint that gave it.</summary>
+/// <param name="Transaction">The transaction.</param>
+/// <param name="Endpoint">The endpoint's name, for example <c>api.trongrid.io</c>.</param>
+public sealed record EthereumDisputedAnswer(EthereumTxHash Transaction, string Endpoint)
+{
+    /// <summary>
+    /// Gets when the same endpoint is asked again, when no other is switched on to ask (after 1, 5 and 15 minutes,
+    /// then every hour); <see langword="null"/> when another endpoint was asked.
+    /// </summary>
+    public DateTimeOffset? AskedAgainAt { get; init; }
+
+    /// <summary>
+    /// Gets <see cref="AskedAgainAt"/> as the user reads it, in Swedish, by one rule for every text: <c>kl. 14:05</c>
+    /// today, <c>den 2026-11-10 kl. 00:05</c> another day, and <c>vid nästa uppslag</c> when the time has passed (the
+    /// case was only read, nothing asked); empty when another endpoint was asked.
+    /// </summary>
+    public string AskedAgainText { get; init; } = string.Empty;
 }
 
 /// <summary>The height of Ethereum's newest block.</summary>

@@ -397,22 +397,20 @@ public sealed partial class CaseWorkflow
         _ => "Det känns inte igen som en adress eller en tx.",
     };
 
-    /// <summary>Gives the Tracing start point for a Bitcoin or Ethereum start point.</summary>
+    /// <summary>Gives the Tracing start point for a Bitcoin, Ethereum or TRON start point.</summary>
     /// <param name="startPoint">The recognised start point.</param>
     /// <returns>The start point, or <see langword="null"/> when its chain is not built.</returns>
     public static TraceStartPoint? ToTrace(ChainStartPoint startPoint)
     {
         ArgumentNullException.ThrowIfNull(startPoint);
-        if (startPoint.Chain == Chain.Ethereum)
+        if (startPoint.Chain is Chain.Ethereum or Chain.Tron)
         {
-            return startPoint.Kind switch
+            if (startPoint.EthereumAccount is { } address)
             {
-                StartPointKind.Address when EthereumAddress.TryParse(startPoint.Value, out var address) =>
-                    TraceStartPoint.ForEthereumAddress(address),
-                StartPointKind.Transaction when EthereumTxHash.TryParse(startPoint.Value, out var hash) =>
-                    TraceStartPoint.ForEthereumTransaction(hash),
-                _ => null,
-            };
+                return TraceStartPoint.ForEthereumAddress(address);
+            }
+
+            return startPoint.AccountTransaction is { } hash ? TraceStartPoint.ForEthereumTransaction(hash) : null;
         }
 
         return startPoint.Bitcoin switch
@@ -506,12 +504,14 @@ public sealed partial class CaseWorkflow
                 () => attribution.CheckSanctions(created, bitcoin));
         }
 
-        var ethereum = startPoints.Select(each => each.EthereumAccount).OfType<EthereumAddress>().ToList();
-        if (ethereum.Count > 0)
+        foreach (var chain in startPoints.Select(each => each.EthereumAccount).OfType<EthereumAddress>()
+            .GroupBy(account => account.Chain))
         {
-            Try(missed, "sanktionslistan kontrollerades inte för Ethereum",
-                () => attribution.CheckSanctions(created, ethereum));
+            var accounts = chain.ToList();
+            Try(missed, $"sanktionslistan kontrollerades inte för {CaseTexts.ChainName(chain.Key)}",
+                () => attribution.CheckSanctions(created, accounts));
         }
+
     }
 
     /// <summary>Runs one step after the creation, and notes it when it fails.</summary>

@@ -360,7 +360,7 @@ public sealed record AssetTransfer(
     {
         ArgumentNullException.ThrowIfNull(transfer);
         return new AssetTransfer(
-            new ChainTransactionRef(Chain.Ethereum, transfer.Transaction.Value), transfer.Amount, block, null)
+            new ChainTransactionRef(transfer.Transaction.Chain, transfer.Transaction.Value), transfer.Amount, block, null)
         {
             Movement = transfer.Kind,
             Position = transfer.Position,

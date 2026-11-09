@@ -414,7 +414,11 @@ public static class HoldingsCards
         _ => asset.Symbol,
     };
 
-    /// <summary>Gives an asset's ring's brush key.</summary>
+    /// <summary>
+    /// Gives an asset's ring's brush key: bitcoin sand, an account chain's own coin (ether, TRX) steel, and the tokens
+    /// green. ETH and TRX share the coin's steel, since a node is on one chain and never holds both; TRX is never drawn
+    /// as a stablecoin.
+    /// </summary>
     /// <param name="asset">The asset.</param>
     /// <returns>The key.</returns>
     private static string Ink(Asset asset)
@@ -424,6 +428,6 @@ public static class HoldingsCards
             return "Brush.Asset.Bitcoin";
         }
 
-        return asset == Asset.Ether ? "Brush.Asset.Ether" : "Brush.Asset.Token";
+        return asset.Kind == AssetKind.Native ? "Brush.Asset.Ether" : "Brush.Asset.Token";
     }
 }

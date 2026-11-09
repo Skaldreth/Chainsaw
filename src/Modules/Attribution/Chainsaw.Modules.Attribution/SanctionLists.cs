@@ -211,6 +211,9 @@ internal sealed class SanctionLists(AttributionOptions options, IClock clock) : 
                 list.Bitcoin.GetValueOrDefault(bitcoin),
             Chain.Ethereum when EthereumAddress.TryParse(address.Value.ToLowerInvariant(), out var account) =>
                 list.Ethereum.GetValueOrDefault(account),
+            // A TRON address is kept on the list as written (OfacSdnParser.EthereumKey), its checksum part of it.
+            Chain.Tron when EthereumAddress.TryParseTron(address.Value, out var tron, out _) =>
+                list.Ethereum.GetValueOrDefault(tron),
             _ => null,
         };
 

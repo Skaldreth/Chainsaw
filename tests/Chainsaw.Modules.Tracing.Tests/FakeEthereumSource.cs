@@ -6,11 +6,12 @@ using Chainsaw.SharedKernel;
 namespace Chainsaw.Modules.Tracing.Tests;
 
 /// <summary>
-/// An Ethereum source without a network: synthetic transactions in memory, paged by block as Blockscout pages them.
+/// An account chain's source without a network: synthetic transactions in memory, paged by block as Blockscout pages
+/// them.
 /// Online it answers from the chain and remembers what it gave, as the case would; with
 /// <see cref="LookupMode.CaseOnly"/> or offline it answers only what it gave before.
 /// </summary>
-internal sealed class FakeEthereumSource : IEthereumSource
+internal abstract class FakeAccountSource
 {
     /// <summary>The page size, small so that paging is tested.</summary>
     public const int PageSize = 3;
@@ -22,6 +23,12 @@ internal sealed class FakeEthereumSource : IEthereumSource
 
     public bool Online { get; set; } = true;
 
+    /// <summary>
+    /// Gets the answers for a transaction read whole that differ from the chain's (one the source could not read whole);
+    /// the histories still answer from the chain.
+    /// </summary>
+    public Dictionary<EthereumTxHash, EthereumTransaction> Whole { get; } = [];
+
     /// <summary>Gets how many times the source itself was asked.</summary>
     public int Lookups { get; private set; }
 
@@ -30,6 +37,12 @@ internal sealed class FakeEthereumSource : IEthereumSource
 
     /// <summary>Whether a block's own lookup fails, so that a hash the history lacked stays unknown.</summary>
     public bool BlocksFail { get; set; }
+
+    /// <summary>
+    /// Gets or sets what the source says a page waits for, which makes every page it answers incomplete;
+    /// <see langword="null"/> for complete pages.
+    /// </summary>
+    public string? WaitingNote { get; set; }
 
     public void Add(params EthereumTransaction[] transactions)
     {
@@ -86,9 +99,10 @@ internal sealed class FakeEthereumSource : IEthereumSource
         long? next = full ? onPage.Min(entry => entry.Height) : null;
         var page = new EthereumAddressPage(
             address, history, atOrBelow, [.. onPage.Select(entry => entry.Transfer).OfType<EthereumTransfer>()],
-            [.. onPage.Select(entry => entry.Fee).OfType<EthereumFee>()], next, false, false);
+            [.. onPage.Select(entry => entry.Fee).OfType<EthereumFee>()], next, false, WaitingNote is not null);
         _givenPages[key] = page;
-        return Task.FromResult(Answer(LookupStatus.Fetched, page));
+        var answer = Answer(LookupStatus.Fetched, page);
+        return Task.FromResult(WaitingNote is { } note ? answer with { Notes = [note] } : answer);
     }
 
     public Task<BitcoinLookup<EthereumTransaction>> GetTransactionAsync(
@@ -103,10 +117,11 @@ internal sealed class FakeEthereumSource : IEthereumSource
         }
 
         Lookups++;
-        if (!_chain.TryGetValue(hash, out var transaction))
+        if (!Whole.TryGetValue(hash, out var transaction) && !_chain.TryGetValue(hash, out transaction))
         {
             return Task.FromResult(Answer<EthereumTransaction>(LookupStatus.NotFound, null));
         }
+
 
         _givenTransactions[hash] = transaction;
         return Task.FromResult(Answer(LookupStatus.Fetched, transaction));
@@ -116,7 +131,7 @@ internal sealed class FakeEthereumSource : IEthereumSource
         ICase @case, long height, LookupMode mode = LookupMode.AsNeeded, CancellationToken cancellationToken = default)
     {
         var block = new EthereumBlockReference(
-            height, HashOf(height), new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero).AddSeconds(12 * height));
+            height, BlockHashOf(height), new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero).AddSeconds(12 * height));
         if (mode == LookupMode.CaseOnly || !Online)
         {
             return Task.FromResult(_givenBlocks.Contains(height)
@@ -137,6 +152,9 @@ internal sealed class FakeEthereumSource : IEthereumSource
     public Task<BitcoinLookup<EthereumTip>> GetTipHeightAsync(
         ICase @case, CancellationToken cancellationToken = default) =>
         Task.FromResult(Answer(LookupStatus.Fetched, new EthereumTip(1_000)));
+
+    /// <summary>Gives a block's hash as the chain writes it.</summary>
+    protected virtual string BlockHashOf(long height) => HashOf(height);
 
     private static bool Kind(EthereumHistory history, EthereumTransferKind kind) => history switch
     {

@@ -137,12 +137,14 @@ internal static class WatcherServices
             provider.GetRequiredService<IEthereumSource>(),
             provider.GetRequiredService<IResponseTransfer>(),
             provider.GetRequiredService<IAlerts>(),
-            provider.GetRequiredService<IClock>())
+            provider.GetRequiredService<IClock>(),
+            provider.GetService<ITronSource>())
         {
             Exit = provider.GetRequiredService<IExitConnection>(),
             Exits = provider.GetRequiredService<IBackgroundExits>(),
             News = provider.GetRequiredService<IBlockNews>(),
         });
+
         services.AddMemoryCases();
         services.AddSingleton<Func<IMemoryCase>>(provider =>
         {

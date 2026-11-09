@@ -136,7 +136,7 @@ internal sealed class GraphBuilder
                 GraphEdgeKind.Transfer,
                 AccountNode(transfer.From).Key,
                 AccountNode(transfer.To).Key,
-                AssetTransfer.OfEthereum(transfer, account.BlockOf(transfer.Block)));
+                AssetTransfer.OfEthereum(transfer, account.BlockOf(transfer.Transaction.Chain, transfer.Block)));
         }
     }
 
@@ -148,7 +148,7 @@ internal sealed class GraphBuilder
         var chainAddress = address.ToChainAddress();
         return AddNode(new NodeDraft(NodeKeys.Account(chainAddress), GraphNodeKind.Address)
         {
-            Chain = Chain.Ethereum,
+            Chain = address.Chain,
             Accounts = [chainAddress],
         });
     }
@@ -311,7 +311,7 @@ internal sealed class GraphBuilder
             GraphEdgeKind.ContinuesOnOtherChain,
             AccountNode(transfer.To).Key,
             target.Key,
-            AssetTransfer.OfEthereum(transfer, _data.Account.BlockOf(transfer.Block)));
+            AssetTransfer.OfEthereum(transfer, _data.Account.BlockOf(transfer.Transaction.Chain, transfer.Block)));
     }
 
     /// <summary>

@@ -4909,3 +4909,112 @@ Byggt efter skissen DX1b (användarens val 2026-11-08). Bara visning i App; spå
 - Markeringen byter inte färg vid hovring (den ritas i scenens linjelager, och hovringen ritar bara lagret över).
 
 **Återstår:** testärendet har ingen Ethereum-källa, så markeringen går inte att se i `/testdata` än.
+## Omgång 8: TRON med USDT (backloggen, 2026-11-08)
+
+- **Byggt:** TRON i kontomodellen bredvid Ethereum. Källan är TronGrid (`TronGridApi`, `TronGridTronSource`):
+  `wallet/gettransactionbyid`, `wallet/gettransactioninfobyid` och `wallet/getblock` (som varje TRON-nod svarar på)
+  och TronGrids index `v1/accounts/:adress[/transactions[/trc20]]`. TRON är en egen kedja på sidan Källor med lägena
+  Snabbast, Prioriterad och Av, TronGrid som förval, nyckeln i huvudet `TRON-PRO-API-KEY`, en fråga i sekunden utan
+  nyckel (Chainsaws eget val) och `429`/`Retry-After` eller TronGrids *request rate exceeded* som väntan. Genesis-blockets
+  id i `ChainLimits`. Grafen, inspektören, startpunkterna (NC2a förhämtar TRX, USDT, antal tx och aktivitet), saldot på
+  kortets baksida, sanktionerna (OFAC:s `TRX`, och `USDT`/`USDC` med en `T…`-adress), kurserna (Bitstamps `trxeur` och
+  `usdteur`, samma marknad som USDT på Ethereum), bevakningen (också i bakgrunden), länkar till och från andra kedjor,
+  etiketter på TRON-konton och testärendet (swappen fortsätter på TRON).
+- **Egna beslut:**
+  - **Typerna:** kontomodellens adress och tx (`EthereumAddress`, `EthereumTxHash`) bär sin kedja i stället för att
+    TRON får egna typer, så att hela kontomodellen (läsaren, spårningen, `IAccountTracingMethod`, grafen, bevakningens
+    flöde) återanvänds utan kopior. TRON:s adress läses i Base58Check eller hex (`41…`, `0x41…`) och hålls i `T…`-form,
+    så att samma adress aldrig blir två; samma 20 byte på Ethereum och TRON är två adresser (`Chain` i likheten).
+    Typerna ligger i Chains.Contracts som Ethereums, inte i SharedKernel som uppdraget föreslog: Base58Check och
+    Keccak finns där, och kontraktet hör till sorten kedja. Namnbytet (`AccountAddress` …) står i BACKLOG.
+  - **Kontraktet:** `IAccountSource` är kontomodellens kontrakt; `IEthereumSource` och `ITronSource` ärver det och
+    namnger bara kedjan, så att containern ger rätt källa. `PageStartOf` säger i vilken enhet en sida börjar (block på
+    Ethereum, blocktid i millisekunder på TRON), så att läsarens golv vid en ny expansion stämmer.
+  - **Historiken efter tid:** TronGrid bläddrar med `max_timestamp` (inklusive), så en sida börjar *vid* en tid och
+    upprepar posterna där, som Ethereums sidor gör vid ett block. Den nyaste sidan hämtas alltid igen; en äldre räknas
+    som slutlig när källans egen klocka (`meta.at`) är tio minuter förbi sidans start (20 block tar en minut).
+  - **Tokenhistoriken** ger varken block eller loggindex, så varje tx:s info hämtas och förseglas, och överföringen tar
+    blocket och händelsens index därifrån. Samma överföring blir då identisk vare sig den kom ur historiken eller ur hela
+    tx:en (`TransferKey`). En post vars händelse inte finns i infon räknas inte och håller sidan öppen.
+  - **Slutgiltigt efter 20 block** (19 av 27 producenter, en minut). Ett blocks id börjar med höjden i 8 byte, och det
+    kontrolleras i varje svar.
+  - **Interna tx** listar TronGrid med tx:en i adressens historik, så historiken *Interna* är tom och frågar inget.
+    TRC-10 räknas inte och sägs. En tx som inte ligger i ett block flyttar inget än.
+  - **En hel tx** räknar bara tokens som Chainsaw känner (USDT), eftersom TRON:s API inte ger andra tokens decimaler
+    utan POST (`triggerconstantcontract`); de andra sägs saknas, och tx:en är ofullständig.
+  - **Bevakningen:** *vid varje nytt block* blir på TRON ungefär en gång i minuten, eftersom kedjans höjd läses en gång
+    i minuten (`WatchRunner.HeightPoll`); ingen egen takt per kedja behövdes. Flödets sidor slutar när sidans äldsta block
+    är under det kontrollen läser till (TRON:s sidor börjar vid en tid).
+  - **TRON:s källa är valfri i konstruktorerna** (`ITronSource? tron = null`) i Tracing, Monitoring och appen, så att
+    en värd utan TRON (testernas) fungerar som förut; `AddChainsModule` registrerar den alltid.
+- **Skriver i ärendet** (granskas oberoende): TRON:s råsvar förseglas som `tron-mainnet` med källan `trongrid` och
+  endpointen; grafens tillstånd lagrar TRON:s startpunkter och expansioner som `tron-address` och `tron-transaction`,
+  och en länk från en TRON-rörelse som `token:<tx>` utan `0x`; etiketter och sanktionsträffar på TRON-konton lagras
+  med adressen i `T…`-form (`LabelStore.Subject` läser den); bevakningar och träffar på TRON som Ethereums.
+- **Avsteg och kvar** (BACKLOG, *TRON efter omgång 8*; TODO avsnitt 3, punkt 8 [skiss]): svartlistan (*Fryst*), andra
+  TRC-20 i en hel tx och i saldot, ett uppslag per tx i tokenhistoriken, sidornas slutlighet efter källans klocka,
+  bevakningens bakåtblick i tid, TronScan och egen nod, typernas namn och kontrollerna på TRON. Chainabuse frågas inte
+  för TRON än. Formerna är provade mot TronGrids riktiga svar (bara formen; inga riktiga adresser eller svar ligger i
+  koden eller testerna, där allt är syntetiskt ur `tests/Chainsaw.Modules.Chains.Tests/Tron/generate.py`).
+- **Rättat efter den oberoende granskningen** (1 C, 3 I, 10 M, alla rättade):
+  - **C1:** en tx:s info som inte kunde hämtas nu (429, ingen svar, `{}`) gör tokensidan ofullständig
+    (`IsIncomplete`), aldrig *oläst*; bara en post utan decimaler är oläst. Bevakningens flöde står kvar där det var
+    på TRON när en sida är ofullständig, eftersom en rörelse utan block kan ligga var som helst på sidan. Test med 429.
+  - **I1:** när en hel tx är ofullständig behålls historikens tokenrörelser på de platser i loggen som tx:en saknar
+    (`AccountData.FromHistory`), så att till exempel USDC inte försvinner ur grafen och spårningen. Test.
+  - **I2:** en token som Chainsaw inte känner blir aldrig en träff på TRON; *alla* betyder TRX och kända tokens. Ett
+    tips i TRX eller en känd token avgörs mot hela tx:en också när den saknar en okänd token (avvisas i stället för att
+    vänta). Test.
+  - **I3:** bevakningen hämtar info bara för tokenrader nyare än blockets tid den läser till
+    (`IAccountSource.GetRecentHistoryAsync`), och stannar vid den tiden. Att behålla svaren mellan bakgrundens varv står
+    i BACKLOG.
+  - **M1:** en sida är full efter antalet poster, också de utan blocktid. **M2:** en full sida i ett block läses om med
+    `limit=200`. **M3:** tx:ens eget svar (och resultatet) är slutligt först när infons block är det. **M4:** att tx:en
+    ligger i blocket kontrolleras inte, och Guiden och BACKLOG säger det. **M5:** *oläst* betyder nu bara saknade
+    decimaler, så läsarens text stämmer. **M6:** `PageStartOf` saknar standard i `IAccountSource`; Ethereums ligger i
+    `IEthereumSource`. **M7:** bevakningsformuläret släpper en vald tillgång från en annan kedja. **M8:** texterna om
+    spårningen och kontrollerna nämner Ethereum och TRON. **M9:** Bitstamp har `trxeur` och `trxusd` (kontrollerat i
+    deras öppna `trading-pairs-info`). **M10:** TRX ritas i myntets stål, inte stablecoinens grönt, och *Väntar på
+    källan* visar `T` för TRON, inte ₮; en egen ton och ett eget märke står i TODO som [skiss].
+- **Andra granskningen (1 I, 3 M, alla rättade):**
+  - **I4:** en tx vars info finns och är slutlig men saknar en läsbar händelse (en skräptoken med egen händelse) räknas
+    som överhoppad och *oplacerad* (`EthereumAddressPage.Unplaced`) och sägs, men gör aldrig sidan ofullständig; bara
+    info som saknas eller ett grunt block gör det (`Waiting` säger vilka tx). En kontroll slår bara upp kända tokens, så
+    en främlings token kan aldrig hålla bevakningen stilla. Tester med en skräptoken följd av riktig USDT.
+  - **M11:** bevakningen säger *Väntar på källan för tx …* och vid vilket block den står, inte att något kan ha missats.
+  - **M13:** en ofullständig hel tx på TRON behåller också historikens TRX och interna TRX på de platser den saknar,
+    utan att räkna något två gånger. Test.
+  - **M8:** *Varför?* nämner inte Ethereum på TRON; avgiftens slut säger nu *gas på Ethereum, energi och bandbredd på
+    TRON*, och Guidens *ERC-20 och tokens* säger att TRC-20 är samma sak.
+- **Tredje granskningen (1 I, 2 M, alla rättade):**
+  - **I5:** en känd token (USDT och de andra i `KnownTokens`) blir aldrig *oplacerad*. Saknar ett slutligt svar dess
+    händelse tros det inte: infon frågas igen, utan det sparade svaret, hos en annan endpoint än den som svarade
+    (`SourceLookups.FetchAsync(..., except)`), och tx:en väntar tills någon placerar överföringen. Den står i
+    `EthereumAddressPage.Disputed` med endpointen, och bevakningen säger det med en egen text. *Oplacerad* gäller bara
+    okända tokens. TRON:s takt i `ChainLimits` är nu 2,8 s (strax under slotten på 3 s, med marginal för att verkliga
+    höjder ligger något under), så att en topp tre gånger för hög inte släpps igenom. Tester: USDT utan händelse i ett
+    slutligt block frågas hos den andra endpointen och placeras där, eller väntar med endpointen när den inte svarar;
+    en okänd token i samma läge hoppas över och frågas aldrig igen.
+  - **M14:** historikens TRX och interna TRX tas på TRON bara när den hela tx:en saknar en rörelse av samma sort mellan
+    samma adresser och med samma belopp, aldrig på platsen ensam. Test med samma och annan plats.
+  - **M15:** väntetexterna förkortar tx-id till åtta tecken och *…*, och efter tre står *och N till*
+    (`EthereumTxHash.Brief` och `BriefList`).
+- **Fjärde granskningen (1 I, 3 M; I6, M16 och M17 rättade, M18 i BACKLOG):**
+  - **I6:** finns ingen annan endpoint att fråga (bara TronGrid, förvalet) frågas samma endpoint igen, utan det
+    sparade svaret, efter 1, 5 och 15 minuter och sedan varje timme, räknat från det senast förseglade svaret, och
+    aldrig oftare än en gång i minuten per tx också när ett försök inte förseglar något. Det sägs ärligt: *ingen annan
+    källa för TRON är påslagen; frågas igen hos … kl. HH:mm* (`EthereumDisputedAnswer.AskedAgainAt`), i källans
+    anteckning och i bevakningens text. Med en annan endpoint frågas den direkt första gången och sedan i samma takt.
+    `TipLookup` avvisar aldrig ett tips i en känd token som ett slutligt svar saknar: det frågar igen genom
+    `ITronSource.GetDoubtedTransactionAsync` och väntar tills svaret ger träffen. Test med en endpoint där nästa svar
+    har händelsen.
+  - **M16:** `except` jämför också värd och port, så att samma server tillagd två gånger inte räknas som en annan källa.
+  - **M17:** en ofullständig sida i en expansion tar med källans anteckningar (vilken tx, vilken endpoint och när den
+    frågas igen) i grafens problem.
+  - **M18:** att räkna slutligt mot TRON:s fastställda block (`walletsolidity/getnowblock`) kräver en egen sorts
+    uppslag och ett eget index; står i BACKLOG.
+- **Femte granskningen (4 M, alla rättade):** **M19:** väntan räknas bara på svar som var slutliga när de kom, inte
+  på de som hämtades om för att blocket var grunt. **M20–M22:** en regel för när något görs nästa gång
+  (`SourceLookups.WhenText`, i `EthereumDisputedAnswer.AskedAgainText`): *kl. HH:mm* samma dag, *den åååå-mm-dd kl.
+  HH:mm* en annan dag och *vid nästa uppslag* när tiden redan passerat (när ärendet bara lästes); bevakningen använder
+  samma text.

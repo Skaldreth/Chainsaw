@@ -96,8 +96,46 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
   adresser som betalar varandras gas, flera insättningar som tas ut tillsammans och tid. De blir streckade kandidater
   som mixerns. Uttagen går till en adress genom poolens kontrakt (eller en relayer), så en pools historik behöver läsas
   också för de uttag som inte rör grafens adresser.
-- **TRON och USDT (TRC-20)**, efter Ethereums andra del: återanvänder kontomodellen, `IAccountTracingMethod`,
-  `KnownTokens.TronUsdt` och *Kan frysas*.
+- **TRON efter omgång 8** (källan, grafen, startpunkterna, sanktionerna, kurserna, bevakningen och testärendet är
+  byggda). Kvar:
+  - **Slutligt mot TRON:s fastställda block** (granskningen, M18): i dag är ett block slutligt 20 block under den
+    högsta höjd Chainsaw känner, och den höjden rimlighetsprövas bara mot TRON:s takt (`ChainLimits`, 2,8 s). TRON
+    säger själv vilket block som är fastställt (`walletsolidity/getnowblock`); att räkna slutligt mot det kräver en egen
+    sorts uppslag och svar i ärendet, ett eget index för den höjden och att varje uppslag som avgör slutligt läser den.
+  - **Tokens utom USDT i en hel tx:** TRON:s API ger en tokens decimaler bara i adressens tokenhistorik, så en hel tx
+    räknar bara de tokens Chainsaw känner (USDT) och säger att de andra saknas. `decimals()` med
+    `wallet/triggerconstantcontract` är kedjans eget svar men kräver POST, som `LookupQuery` inte har; lägg till POST i
+    datalagret (en tolk och ett subjekt per kropp) och fråga kontraktet.
+  - **Saldot för andra TRC-20 än USDT** (`v1/accounts`) visas inte, av samma skäl (inga decimaler); de räknas som
+    överhoppade.
+  - **Tokenhistorikens plats:** TronGrids TRC-20-lista ger varken block eller loggindex, så varje tx:s info hämtas för
+    sig (`gettransactioninfobyid`). Det är ett uppslag per tx och ett per block för hashen, med TronGrids takt utan
+    nyckel (1 i sekunden) en minut eller mer för 50 tx vid en expansion. Bevakningen hämtar bara info för rader nyare
+    än blocket den läser till, men bakgrunden har ett nytt ärende i minnet varje varv, så en ny rad som inte kunde
+    placeras frågas om nästa varv; att behålla svaren mellan varven saknas. TronGrids händelse-API per kontrakt
+    (`v1/contracts/:usdt/events`, med blocknummer och index) eller en egen nod med en indexerare kan ersätta det.
+  - **Tx:en i blocket:** Chainsaw hämtar bara blockets huvud (id, höjd, tid) och kontrollerar att id:t börjar med
+    höjden, inte att tx:en finns i blocket (huvudet har bara transaktionsträdets rot). Samma som på Ethereum; en egen
+    nod, eller blocket med `detail=true` och roten räknad, kan kontrollera det.
+  - **Bevakningens tips i okända tokens:** sedan granskningen blir en token som Chainsaw inte känner aldrig en träff på
+    TRON (skräp och adressförgiftning). Ett tips i en sådan token från en äldre bakgrund väntar; det kunde stängas med en
+    egen journalrad.
+  - **Sidor efter tid:** en sida som går tillbaka från en tid räknas som slutlig när källans klocka (`meta.at`) är
+    tio minuter förbi; en källa som ljuger om sin klocka kunde få en ny sida att räknas som slutlig. Jämför med kedjans
+    höjd när det går (tiden för blocket 20 under toppen).
+  - **Svartlistan:** Tethers kontrakt på TRON har `isBlackListed(address)`. Att läsa den (POST som ovan) och visa
+    *Fryst* bredvid snöflingan kräver en yta (TODO [skiss]) och ett beslut om hur ofta den frågas.
+  - **Tidsfönstret i bevakningen:** `WatchRules.Lookback` är 6 block, 18 sekunder på TRON; TronGrids index kan ligga
+    efter mer än så. Räkna bakåtblicken i tid per kedja.
+  - **Interna tx:** TronGrid listar TRX som ett kontrakt skickar med tx:en i adressens tx-historik (`search_internal`),
+    så historiken *Interna* är tom på TRON; tolkningen av `internal_transactions` i listan är prövad mot TronGrids svar
+    men bara för `call_value._` (TRX). En TRC-10 i ett internt anrop räknas inte.
+  - **TronScan** som andra sorts API (blocknummer i TRC-20-listan, men nyckel krävs för det mesta) och en egen
+    java-tron-nod för `wallet/…` (adressens historik kräver ändå ett index).
+  - **Typernas namn:** `EthereumAddress`, `EthereumTxHash`, `EthereumTransfer` med flera bär nu både Ethereum och TRON
+    (adressen och tx:en vet sin kedja). Byt till `AccountAddress`, `AccountTxHash` och så vidare när ingen annan etapp
+    rör Chains och Tracing; `IAccountSource` är redan kontraktets namn.
+  - **Kontrollerna (KF1a)** och kontoheuristikerna körs inte på TRON, som på Ethereum.
 - **Fler kedjor** efter behov: Litecoin, BSC.
 - **Det som fortfarande är bundet till Bitcoin efter etapp 20** (står i DEV-LOG, etapp 20):
   - **Efter etapp 23b** (Ethereum byggt vid sidan av): grafens noder har `Chain`, `Accounts` och `Addresses`
@@ -107,8 +145,6 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
     heuristikkontraktet för konton (`IAccountHeuristic`) när kluster och bevis kan hålla andra adresser än Bitcoins;
     `ITracingService` med en källa per kedja i stället för `IBitcoinSource` och `IEthereumSource` var för sig;
     `GraphScene.Shown` (Bitcoin-nodernas summor räknar BTC) och *Kontroll* i inspektören (bara Bitcoins tx).
-  - **Med TRON:** kontrakt och adresser skrivs både i base58 (`T…`) och hex (`41…`); de görs om till base58 i källan
-    eller i `Asset` och `ChainAddress`, så att samma kontrakt aldrig blir två tillgångar.
   - **Med nästa UTXO-kedja (Litecoin, Zcash):** `UtxoGraph` får sin kedja och tillgång (i dag räknar
     `TraceCalculator` alltid i BTC), och UTXO-kontraktet en egen tx och egna adresser (eller `BitcoinTransaction` och
     `BitcoinAddress` en kedja), eftersom `BitcoinAddress` inte tar `ltc1` eller `t1`. `CrossChainLink.From` blir ett
@@ -352,18 +388,18 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
 - **EU:s lista (omgång 5, byggd 2026-11-08), det som återstår:** listan har ingen egen sort för kryptoadresser, så
   `EuFsfParser` känner igen en adress på formen (Bitcoin med kontrollsumma, `0x` och 40 hextecken) i identifieringar
   och anmärkningar. Det är inte kontrollerat mot en riktig fil om EU skriver adresser någon annanstans (till exempel i
-  `nameAlias` eller i `regulation`s sammanfattning), och TRON-adresser (`T…`) känns inte igen förrän TRON har en
-  adresstyp i Chains. Fler listor (FN:s, Storbritanniens OFSI) kan läggas till som en ny `ListKind`.
+  `nameAlias` eller i `regulation`s sammanfattning), och TRON-adresser (`T…`) känns igen men slås inte upp än, fast
+  TRON har en adresstyp i Chains sedan omgång 8. Fler listor (FN:s, Storbritanniens OFSI) kan läggas till som en ny
+  `ListKind`.
 - **Ta bort en sanktionslista eller öppen källa i gränssnittet:** `ISanctionLists.Remove` och
   `IOpenSourceLists.Remove` finns (en lista med fel datum i framtiden kan tas bort), men ingen knapp; se TODO [skiss].
-- **Kan frysas** (CLAUDE.md, *Sorterna*): markeringen för adresser med USDT eller USDC hör till Ethereum och TRON. SDN
-  har redan adresser för `USDT`, `ETH` och `TRX`, som etapp 8 läser in och räknar men ännu inte slår upp.
 - **Chainabuse som underleverantör** (användarens beslut 2026-11-08): Chainabuse (TRM Labs,
   https://docs.trmlabs.com/guides/chainabuse/welcome-to-chainabuse-api) samarbetar med brottsbekämpande myndigheter.
   Chainsaw hämtar rapporterna för en adress ur deras API, genom utgången och med nyckeln i valvet; bara adressen
   skickas (princip 4), svaret förseglas i ärendet (princip 1) och rapporterna blir etiketter som är bedömningar med
   källa, aldrig fakta (princip 2), eftersom de skrivs in av allmänheten. **Hämtningen är byggd 2026-11-08**
-  (`IAttributionProviders`, `ChainabuseProvider`): Bitcoin och Ethereum (TRON när etiketter går att sätta där), en
+  (`IAttributionProviders`, `ChainabuseProvider`): Bitcoin och Ethereum (TRON frågas inte än, fast etiketter går att
+  sätta där sedan omgång 8), en
   etikett *Rapporterad* per kategori, varje svar förseglat också vid avslag. **Sidan i inställningarna är byggd
   2026-11-08** (Källor, under *Etiketter*: strömbrytaren, av som förval, och nyckeln i valvet; `AttributionSwitches`
   har namnen på dem som är på, sparade i `settings.json`, för grafen att skicka till `LookupAsync`). Knappen R i
@@ -452,8 +488,8 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
 - **Riksbankens dygnsgräns** räknas sedan omgång 5 över omstarter på den här datorn (`Kurser\riksbank-requests.json`),
   men datorer bakom samma utgång delar gränsen utan att veta om det. En nyckel i valvet (200 anrop i minuten) höjer
   gränsen; den behöver en rad på sidan Källor (skiss).
-- **Fler källor och tokens:** TRX när TRON byggs (ETH sedan etapp 23, USDT och USDC på Ethereum sedan etapp 23b, efter
-  kontraktet och aldrig som en dollar av sig själv; TRON:s USDT har ingen källa än); en
+- **Fler källor och tokens:** (ETH sedan etapp 23, USDT och USDC på Ethereum sedan etapp 23b, TRX och USDT på TRON
+  sedan omgång 8, alla efter kontraktet och aldrig som en dollar av sig själva); en
   andra kryptokälla att jämföra med (till exempel Kraken eller Coinbase för nyare perioder); Riksbankens nyckel (200
   anrop i minuten) i valvet om gränsen på 5 i minuten blir ett problem.
 - **Ett gemensamt lager för råsvar:** Chains, Pricing och nu Attribution (Chainabuse) har var sin tabell och kod för
@@ -619,6 +655,10 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
 
 ## Testärendet (/testdata)
 
+- **Ethereum i testärendet:** sedan omgång 8 fortsätter swappen på TRON (en påhittad TronGrid-källa i Debug, med USDT
+  och snöflingan); Ethereum har ännu ingen påhittad källa (Blockscout går inte lika lätt att fejka: tx, kvitton med
+  Transfer-loggar, tokenuppgifter).
+
 - **Tidigare sanktionerad syns inte i testärendet** sedan omgång 5: en sanktion, en möjlig och en tidigare kommer
   bara ur en lista (aldrig ur en etikett i formuläret), och den påhittade listan har inga borttagna poster. En
   påhittad lista med borttagna poster (som Tornado Cash i Chainsaws kontraktlista) fyller luckan [direkt].
@@ -626,9 +666,6 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
 - **Omgång 5 syns inte i testärendet än:** en träff på EU:s lista, en *Rapporterad* adress ur Ransomwhere och en
   etikett på en tx (en swap som avslutar spåret) behöver påhittade listor på samma sätt som
   `TestDataSanctionLists` och ett steg i berättelsen (`TestStory`) som sätter etiketten på tx:en [direkt].
-- **Kan frysas** syns inte i testärendet: det kräver USDT eller USDC på Ethereum, och Blockscout-källan går inte lika
-  lätt att fejka som Esplora (tx, kvitton med Transfer-loggar, tokenuppgifter). En påhittad Ethereum-källa på samma sätt
-  (en egen `ISourceApi` i Debug) och en del av berättelsen på Ethereum fyller luckan; TRON när den kedjan byggs.
 - **Kollegans etiketter** (Garantitorget, Nordbörsen) ligger kvar i etikettbiblioteket på datorn efter `/testdata`. De
   gäller bara påhittade adresser och kan aldrig träffa en riktig, men biblioteket saknar ännu ett sätt att rensa dem.
 - **Valvyn i testärendet:** Navet (66 tx, många motparter) och gruvbelöningens OP_RETURN finns i testärendet; en

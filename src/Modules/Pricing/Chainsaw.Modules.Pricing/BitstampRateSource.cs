@@ -8,9 +8,9 @@ namespace Chainsaw.Modules.Pricing;
 
 /// <summary>
 /// Bitstamp's public price history (<c>GET /api/v2/ohlc/{market}/</c>), open without an API key, with candles of a
-/// minute, an hour or a day back to 2011 for BTC/USD and BTC/EUR, and for ETH, USDT and USDC (on Ethereum) in dollars
-/// and euro. One request asks for one candle: <c>step</c> is the length in seconds, <c>limit=1</c> and <c>start</c>
-/// the candle's start as Unix time.
+/// minute, an hour or a day back to 2011 for BTC/USD and BTC/EUR, and for ETH, TRX, USDT and USDC (on Ethereum, and USDT
+/// on TRON) in dollars and euro. One request asks for one candle: <c>step</c> is the length in seconds,
+/// <c>limit=1</c> and <c>start</c> the candle's start as Unix time.
 /// </summary>
 /// <param name="baseUri">The API's base address, for example <c>https://www.bitstamp.net/api/v2/</c>.</param>
 internal sealed class BitstampRateSource(Uri baseUri) : ICryptoRateSource
@@ -29,18 +29,21 @@ internal sealed class BitstampRateSource(Uri baseUri) : ICryptoRateSource
 
     /// <summary>
     /// The tokens Bitstamp has markets for, recognised by chain and contract (never by symbol), with Bitstamp's code
-    /// for each: USDT and USDC on Ethereum, the stablecoins it lists against dollars and euro
-    /// (<c>usdtusd</c>, <c>usdteur</c>, <c>usdcusd</c>, <c>usdceur</c>).
+    /// for each: USDT and USDC on Ethereum and USDT on TRON, the stablecoins it lists against dollars and euro
+    /// (<c>usdtusd</c>, <c>usdteur</c>, <c>usdcusd</c>, <c>usdceur</c>). Bitstamp's USDT is Tether's token whatever
+    /// chain it is issued on, so the same market prices it on Ethereum and on TRON.
     /// </summary>
     private static readonly Dictionary<Asset, string> Tokens = new()
     {
         [KnownTokens.EthereumUsdt] = "USDT",
         [KnownTokens.EthereumUsdc] = "USDC",
+        [KnownTokens.TronUsdt] = "USDT",
     };
 
     /// <inheritdoc/>
     public bool Supports(Chain chain, FiatCurrency quote) =>
-        chain is Chain.Bitcoin or Chain.Ethereum && HasQuote(quote);
+        chain is Chain.Bitcoin or Chain.Ethereum or Chain.Tron && HasQuote(quote);
+
 
     /// <inheritdoc/>
     public bool Supports(Asset asset, FiatCurrency quote)

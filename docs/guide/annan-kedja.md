@@ -34,4 +34,5 @@ som kom ut på den andra kedjan strax efter. Många swap-tjänster visar dessuto
 en begäran till tjänsten kan ge svaret.
 
 Att Chainsaw själv hittar fortsättningen ur belopp och tid, eller ur bryggornas egna händelser, är **inte byggt än**.
-Spårning vidare på TRON är inte heller byggd än; Ethereum går att följa.
+Ethereum och TRON går att följa vidare: knyt fortsättningen och expandera den på den andra kedjan.
+

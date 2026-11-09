@@ -866,15 +866,14 @@ public sealed record GraphScene(
             rows.Add(read ? row : Unread(row, unknown));
         }
 
-        if (!rows.Any(row => row.Name == Asset.Ether.Symbol) && node.Chain == Chain.Ethereum)
+        if (node.Chain.Model() == LedgerModel.Account && fees.Count > 0
+            && node.Chain.NativeAsset() is var coin && !rows.Any(row => row.Name == coin.Symbol))
         {
-            if (fees.Count > 0)
-            {
-                var paid = fees.Aggregate(AssetAmount.Zero(Asset.Ether), (sum, fee) => sum + fee.Amount);
-                var row = TokenMarks.Balance(AssetAmount.Zero(Asset.Ether), paid);
-                rows.Insert(0, read ? row : Unread(row, unknown));
-            }
+            var paid = fees.Aggregate(AssetAmount.Zero(coin), (sum, fee) => sum + fee.Amount);
+            var row = TokenMarks.Balance(AssetAmount.Zero(coin), paid);
+            rows.Insert(0, read ? row : Unread(row, unknown));
         }
+
 
         return rows;
     }

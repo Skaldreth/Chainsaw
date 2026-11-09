@@ -352,8 +352,9 @@ internal sealed class AttributionService(
 
     /// <summary>Says whether an address is on a chain the sanction lists are read for.</summary>
     /// <param name="address">The address with its chain.</param>
-    /// <returns><see langword="true"/> for Bitcoin and Ethereum.</returns>
-    private static bool IsSanctionChain(ChainAddress address) => address.Chain is Chain.Bitcoin or Chain.Ethereum;
+    /// <returns><see langword="true"/> for Bitcoin, Ethereum and TRON.</returns>
+    private static bool IsSanctionChain(ChainAddress address) =>
+        address.Chain is Chain.Bitcoin or Chain.Ethereum or Chain.Tron;
 
     /// <summary>Says whether a hit's currency is a chain's, so that a hit is never taken for another chain.</summary>
     /// <param name="chain">The address's chain.</param>
@@ -363,7 +364,9 @@ internal sealed class AttributionService(
     {
         Chain.Bitcoin => currency == SanctionCurrency.Bitcoin,
         Chain.Ethereum => SanctionCurrency.OnEthereum.Contains(currency),
+        Chain.Tron => SanctionCurrency.OnTron.Contains(currency),
         _ => false,
+
     };
 
     /// <summary>Gives the hits the case has not had from the same list, with their origins.</summary>

@@ -154,7 +154,17 @@ byggt ur BACKLOG; det som skriver i ärendet granskas oberoende.
    - [skiss] **Ta tillbaka en egen yta i Historik** (KF1b, Z): samma rad och formulär som för en etikett.
    - Resterna i BACKLOG under Exponering, Begäran, Låsskärmen, Historik, Testärendet och *Vyerna efter 1.0* står kvar
      där, med varför.
-8. **TRON med USDT**, sedan **Litecoin**, **BSC**, **Solana** och den genomskinliga delen av **Zcash**.
+8. **TRON med USDT** är byggt (omgång 8, DEV-LOG, resterna i BACKLOG under *TRON efter omgång 8*); kvar **Litecoin**,
+   **BSC**, **Solana** och den genomskinliga delen av **Zcash**. TRON:s ytor som väntar:
+   - [skiss] **Fryst:** Tethers kontrakt på TRON har en svartlista (`isBlackListed`); en adress som står där kunde få
+     en markering *Fryst* bredvid snöflingan *Kan frysas*, med när den lästes och ur vilket svar. Hur den skiljer sig
+     från snöflingan (som bara säger att utgivaren *kan* frysa) och hur ofta den frågas skissas först.
+   - [skiss] **TRON:s brickor i den tomma startpunktsnoden (GR6c):** brickorna Bitcoin-adress, Ethereum-adress,
+     Bitcoin-tx och Ethereum-tx lyser när texten passar, men TRON har ingen bricka än; en TRON-adress läggs ändå till.
+   - [skiss] **TRX:s egen färg på kortets baksida:** TRX har stålets färg som ether (en nod har aldrig båda), och
+     *Väntar på källan* visar `T` för TRON; en egen ton och ett eget märke skissas om det behövs.
+   - [skiss] **TRX:s avgift i inspektören:** TRON bränner TRX för energi och bandbredd (ofta noll med låst TRX);
+     inspektören visar avgiften som på Ethereum, men skillnaden mellan energi och bandbredd syns inte.
 9. **Egen nod och eget index**, hitta fortsättningen på en annan kedja själv, och mönsterigenkänning som analys
    (utan språkmodell, princip 5).
 

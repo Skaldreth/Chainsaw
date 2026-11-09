@@ -44,12 +44,16 @@ public sealed record SourceWait(Chain Chain, IReadOnlyList<SourceWaitRow> Rows, 
     /// <summary>Why an endpoint that failed is not asked.</summary>
     public const string SilentText = "svarar inte";
 
-    /// <summary>Gets the chain's mark in the ring, for example <c>₿</c>.</summary>
+    /// <summary>
+    /// Gets the chain's mark in the ring, for example <c>₿</c>: <c>T</c> for TRON, whose coin TRX has no sign of its
+    /// own (₮ is USDT, a token, not the chain).
+    /// </summary>
     public string Glyph => Chain switch
     {
         Chain.Bitcoin => "₿",
         Chain.Ethereum => "Ξ",
-        _ => "₮",
+        Chain.Tron => "T",
+        _ => string.Empty,
     };
 
     /// <summary>

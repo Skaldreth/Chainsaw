@@ -639,7 +639,7 @@ internal static class AccountTraceCalculator
                 foreach (var fee in _graph.Account.Fees.Where(fee => fee.Payer.Value == account.Value))
                 {
                     entries.Add((null, new AccountEntry(
-                        new AssetTransfer(new ChainTransactionRef(Chain.Ethereum, fee.Transaction.Value), fee.Amount,
+                        new AssetTransfer(new ChainTransactionRef(fee.Transaction.Chain, fee.Transaction.Value), fee.Amount,
                             null, null),
                         TransferDirection.Fee,
                         AssetAmount.Zero(_asset))));
@@ -766,7 +766,9 @@ internal static class AccountTraceCalculator
                 if (taint is { Fees.Units.Sign: > 0 })
                 {
                     ends.Add(End(TrailEndReason.MinerFee, Amount(taint.Fees.Units, [], behind), key,
-                        "Gick till avgifter (gas) som adressen betalade.", [], outdated));
+                        "Gick till avgifter som adressen betalade (gas på Ethereum, energi och bandbredd på TRON).",
+                        [], outdated));
+
                 }
             }
 
@@ -893,7 +895,7 @@ internal static class AccountTraceCalculator
                 ThroughOther =
                 [
                     .. through.Distinct().OrderBy(hash => hash.Value, StringComparer.Ordinal)
-                        .Select(hash => new ChainTransactionRef(Chain.Ethereum, hash.Value)),
+                        .Select(hash => new ChainTransactionRef(hash.Chain, hash.Value)),
                 ],
                 Swaps = swaps,
             };

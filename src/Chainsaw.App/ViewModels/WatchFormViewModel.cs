@@ -104,14 +104,26 @@ public sealed partial class WatchFormViewModel : ObservableObject
             new WatchChoice("Ut", WatchDirection.Out),
             new WatchChoice("Båda", WatchDirection.Both),
         ];
-        Assets =
+        _ethereumAssets =
         [
             new WatchChoice("Alla", null),
             new WatchChoice("ETH", SharedKernel.Asset.Ether),
             new WatchChoice("₮ USDT", KnownTokens.EthereumUsdt),
             new WatchChoice("USDC", KnownTokens.EthereumUsdc),
         ];
+        _tronAssets =
+        [
+            new WatchChoice("Alla", null),
+            new WatchChoice("TRX", SharedKernel.Asset.Tronix),
+            new WatchChoice("₮ USDT", KnownTokens.TronUsdt),
+        ];
     }
+
+    /// <summary>The assets to choose from on Ethereum.</summary>
+    private readonly IReadOnlyList<WatchChoice> _ethereumAssets;
+
+    /// <summary>The assets to choose from on TRON.</summary>
+    private readonly IReadOnlyList<WatchChoice> _tronAssets;
 
     /// <summary>Raised on the UI thread after a watch was saved, with it.</summary>
     public event EventHandler<Watch>? Saved;
@@ -122,8 +134,8 @@ public sealed partial class WatchFormViewModel : ObservableObject
     /// <summary>Gets how often the watch can ask the source.</summary>
     public IReadOnlyList<WatchChoice> Paces { get; }
 
-    /// <summary>Gets the assets to choose from on Ethereum.</summary>
-    public IReadOnlyList<WatchChoice> Assets { get; }
+    /// <summary>Gets the assets to choose from on the watch's account chain (Ethereum's, or TRON's).</summary>
+    public IReadOnlyList<WatchChoice> Assets => Chain == SharedKernel.Chain.Tron ? _tronAssets : _ethereumAssets;
 
     /// <summary>Gets the receivers.</summary>
     public ObservableCollection<WatchPartyChip> Receivers { get; } = [];
@@ -147,6 +159,7 @@ public sealed partial class WatchFormViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(Chain), nameof(ChainName), nameof(IsEthereum), nameof(IsBitcoin))]
     [NotifyPropertyChangedFor(nameof(ShowsAssets), nameof(CanHaveMinimum), nameof(MinimumHint), nameof(Sentence))]
+    [NotifyPropertyChangedFor(nameof(Assets), nameof(IsAccountChain))]
     public partial string AddressText { get; set; } = string.Empty;
 
     /// <summary>Gets the watched direction.</summary>
@@ -168,7 +181,7 @@ public sealed partial class WatchFormViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(Sentence))]
     public partial string MinimumInput { get; set; } = string.Empty;
 
-    /// <summary>Gets the chosen asset on Ethereum, or <see langword="null"/> for all.</summary>
+    /// <summary>Gets the chosen asset on an account chain, or <see langword="null"/> for all.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanHaveMinimum), nameof(MinimumHint), nameof(Sentence), nameof(ShowsAssets))]
     public partial Asset? Asset { get; private set; }
@@ -192,8 +205,11 @@ public sealed partial class WatchFormViewModel : ObservableObject
     [ObservableProperty]
     public partial bool ShowsPace { get; private set; }
 
-    /// <summary>Gets whether there are assets to choose from: only on Ethereum, where there is more than one.</summary>
-    public bool ShowsAssets => IsEthereum;
+    /// <summary>
+    /// Gets whether there are assets to choose from: only on an account chain (Ethereum, TRON), where there is more
+    /// than one.
+    /// </summary>
+    public bool ShowsAssets => IsAccountChain;
 
     /// <summary>
     /// Gets what the watch does, in one sentence with what is chosen filled in (sketch BV3a), for example
@@ -251,10 +267,13 @@ public sealed partial class WatchFormViewModel : ObservableObject
     public Chain? Chain => _subject?.Anchor.Chain ?? ChainOf(AddressText);
 
     /// <summary>Gets the chain's name for the form's chip.</summary>
-    public string ChainName => Chain?.ToString() ?? string.Empty;
+    public string ChainName => Chain is { } chain ? CaseTexts.ChainName(chain) : string.Empty;
 
-    /// <summary>Gets whether the watch is on Ethereum, where the asset is chosen.</summary>
+    /// <summary>Gets whether the watch is on Ethereum.</summary>
     public bool IsEthereum => Chain == SharedKernel.Chain.Ethereum;
+
+    /// <summary>Gets whether the watch is on an account chain (Ethereum, TRON), where the asset is chosen.</summary>
+    public bool IsAccountChain => Chain is SharedKernel.Chain.Ethereum or SharedKernel.Chain.Tron;
 
     /// <summary>Gets whether the watch is on Bitcoin, where BTC is the only asset.</summary>
     public bool IsBitcoin => Chain == SharedKernel.Chain.Bitcoin;
@@ -271,8 +290,8 @@ public sealed partial class WatchFormViewModel : ObservableObject
     /// <summary>Gets whether a Ctrl+click adds a sender.</summary>
     public bool PicksSenders => Picking == WatchPartyList.Senders;
 
-    /// <summary>Gets whether a minimum can be given: on Bitcoin, or on Ethereum with one asset chosen.</summary>
-    public bool CanHaveMinimum => !IsEthereum || Asset is not null;
+    /// <summary>Gets whether a minimum can be given: on Bitcoin, or on an account chain with one asset chosen.</summary>
+    public bool CanHaveMinimum => !IsAccountChain || Asset is not null;
 
     /// <summary>Gets the minimum's placeholder.</summary>
     public string MinimumHint => CanHaveMinimum ? "Valfritt" : MinimumNeedsAssetText;
@@ -341,13 +360,27 @@ public sealed partial class WatchFormViewModel : ObservableObject
             : direction == WatchDirection.Out ? WatchPartyList.Receivers : Picking;
     }
 
-    /// <summary>Chooses the asset on Ethereum; <see langword="null"/> for all.</summary>
+    /// <summary>
+    /// Drops a chosen asset of another chain when the typed address moves the watch to another chain, so that the
+    /// asset shown chosen is always one of the chain's (an ETH chosen for an Ethereum address never stays chosen for a
+    /// TRON address).
+    /// </summary>
+    /// <param name="value">The typed address.</param>
+    partial void OnAddressTextChanged(string value)
+    {
+        if (Asset is { } chosen && chosen.Chain != Chain)
+        {
+            ChooseAsset(null);
+        }
+    }
+
+    /// <summary>Chooses the asset on an account chain; <see langword="null"/> for all.</summary>
     /// <param name="asset">The asset.</param>
     [RelayCommand]
     public void ChooseAsset(Asset? asset)
     {
         Asset = asset;
-        WatchChoiceMark(Assets, asset);
+        WatchChoiceMark(_ethereumAssets.Concat(_tronAssets), asset);
         if (!CanHaveMinimum)
         {
             MinimumInput = string.Empty;
@@ -511,7 +544,7 @@ public sealed partial class WatchFormViewModel : ObservableObject
             return null;
         }
 
-        var asset = chain == SharedKernel.Chain.Ethereum ? Asset : null;
+        var asset = IsAccountChain && Asset?.Chain == chain ? Asset : null;
         AssetAmount? minimum = null;
         var typed = MinimumInput.Replace(" ", string.Empty, StringComparison.Ordinal)
             .Replace(' '.ToString(), string.Empty, StringComparison.Ordinal).Replace(',', '.');
@@ -558,7 +591,15 @@ public sealed partial class WatchFormViewModel : ObservableObject
             return SharedKernel.Chain.Bitcoin;
         }
 
-        return EthereumAddress.TryParse(trimmed, out _) ? SharedKernel.Chain.Ethereum : null;
+        if (EthereumAddress.TryParse(trimmed, out _))
+        {
+            return SharedKernel.Chain.Ethereum;
+        }
+
+        // Only TRON's own written form: hex (41…) is how its API writes an address, not how a user types one.
+        return EthereumAddress.TryParseTron(trimmed, out var tron, out _) && tron.Value == trimmed
+            ? SharedKernel.Chain.Tron
+            : null;
     }
 
     /// <summary>Says whether a text is an address on a chain.</summary>
@@ -628,7 +669,10 @@ public sealed partial class WatchFormViewModel : ObservableObject
         ShowsMinimum = false;
         ShowsPace = false;
         OnPropertyChanged(nameof(Chain));
+        OnPropertyChanged(nameof(Assets));
+        OnPropertyChanged(nameof(IsAccountChain));
         OnPropertyChanged(nameof(ShowsAssets));
+
         OnPropertyChanged(nameof(ChainName));
         OnPropertyChanged(nameof(IsEthereum));
         OnPropertyChanged(nameof(IsBitcoin));

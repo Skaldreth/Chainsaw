@@ -106,4 +106,16 @@ public sealed class OwnAreaTests
         Assert.Null(CheckRules.AddressOf(CheckRules.MemberOf(Txid("t"))));
         Assert.True(harness.Verify().IsIntact);
     }
+
+    [Fact]
+    public void An_area_holds_a_tron_account_with_its_chain()
+    {
+        using var harness = new Harness();
+        var tron = Chainsaw.Modules.Chains.Contracts.EthereumAddress.Parse(
+            Chainsaw.SharedKernel.Chain.Tron, "41" + new string('a', 40)).ToChainAddress();
+
+        var area = harness.Service.AddArea(harness.Case, Draft() with { Members = [CheckRules.MemberOf(tron)] });
+
+        Assert.Equal(tron, CheckRules.AddressOf(Assert.Single(area.Members)));
+    }
 }
