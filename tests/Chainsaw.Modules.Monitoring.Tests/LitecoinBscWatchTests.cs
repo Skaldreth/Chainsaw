@@ -70,6 +70,30 @@ public sealed class LitecoinBscWatchTests : IDisposable
     }
 
     [Fact]
+    public async Task On_bsc_a_token_that_calls_itself_usdt_is_no_hit_and_the_real_one_is()
+    {
+        var node = EthereumAddress.Parse(Chain.Bsc, "0x" + new string('a', 40));
+        var sender = EthereumAddress.Parse(Chain.Bsc, "0x" + new string('b', 40));
+        _harness.Service.Add(
+            _harness.Case,
+            new WatchSubject(WatchSubjectKind.Address, node.ToChainAddress(), "0x…node"),
+            new WatchFilter(Chain.Bsc, WatchDirection.In, [], [], null, null));
+        await _harness.Service.CheckAsync(_harness.Case, Chain.Bsc, 21_000_000);
+        var block = new EthereumBlockReference(21_000_040, Synthetic.EthBlockHash(21_000_040), DateTimeOffset.UnixEpoch);
+        var fake = Asset.Token(Chain.Bsc, "0x" + new string('4', 40), "USDT", 18);
+        var usdt = new AssetAmount(KnownTokens.BscUsdt, BigInteger.Pow(10, 21));
+        _harness.Bsc.Holds(node, EthereumHistory.Tokens,
+            new EthereumTransfer(EthereumTxHash.Parse(Chain.Bsc, "0x" + new string('d', 64)),
+                EthereumTransferKind.Token, sender, node, new AssetAmount(fake, BigInteger.Pow(10, 22)), 0, block),
+            new EthereumTransfer(EthereumTxHash.Parse(Chain.Bsc, "0x" + new string('e', 64)),
+                EthereumTransferKind.Token, sender, node, usdt, 1, block));
+
+        var run = await _harness.Service.CheckAsync(_harness.Case, Chain.Bsc, 21_000_050);
+
+        Assert.Equal(usdt, Assert.Single(run.Hits).Match.Amount);
+    }
+
+    [Fact]
     public void A_bitcoin_address_is_not_a_litecoin_node()
     {
         var bitcoin = Synthetic.Wpkh("bitcoin");

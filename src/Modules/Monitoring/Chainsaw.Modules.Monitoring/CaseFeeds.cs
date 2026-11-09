@@ -411,16 +411,17 @@ internal sealed class EthereumCaseFeed(IAccountSource source, ICase @case) : IWa
     }
 
     /// <summary>
-    /// Says whether a movement can be a hit. On TRON a token Chainsaw does not know (<see cref="KnownTokens"/>) is
-    /// left out: anyone can make a contract send one to any address (spam, address poisoning, both common there), and
-    /// a whole transaction does not give its decimals, so a hit on it could never be checked. A watch for every asset
-    /// there means TRX and the tokens Chainsaw knows, as the node's holdings do.
+    /// Says whether a movement can be a hit: the chain's own coin, or a token Chainsaw knows by its contract
+    /// (<see cref="KnownTokens"/>: USDT and USDC on Ethereum, TRON and BSC, whether their issuer can freeze them or
+    /// not). On every account chain a token Chainsaw does not know is left out: anyone can make a contract send one
+    /// to any address (spam, address poisoning, a token that calls itself USDT), and on TRON a whole transaction does
+    /// not give its decimals, so a hit on it could never be checked. A watch for every asset means the coin and the
+    /// tokens Chainsaw knows, as the node's holdings do.
     /// </summary>
     /// <param name="transfer">The movement.</param>
     /// <returns><see langword="true"/> when it is watched.</returns>
-    private bool IsWatched(EthereumTransfer transfer) =>
-        source.Chain != Chain.Tron || transfer.Amount.Asset.Kind == AssetKind.Native
-        || KnownTokens.IssuerOf(transfer.Amount.Asset) is not null;
+    private static bool IsWatched(EthereumTransfer transfer) =>
+        transfer.Amount.Asset.Kind == AssetKind.Native || KnownTokens.IsKnown(transfer.Amount.Asset);
 
     /// <summary>
     /// Gives the time of the block a check reads back to, on a chain whose sources page by time (TRON), so that the

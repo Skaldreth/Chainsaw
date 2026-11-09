@@ -111,7 +111,7 @@ internal static class TipLookup
     /// <param name="transaction">The answer.</param>
     /// <returns><see langword="true"/> when it may be doubted.</returns>
     private static bool IsDoubted(WatchTip tip, LookupStatus status, WatchTransaction? transaction) =>
-        tip.Chain == Chain.Tron && KnownTokens.IssuerOf(tip.Match.Amount.Asset) is not null
+        tip.Chain == Chain.Tron && KnownTokens.IsKnown(tip.Match.Amount.Asset)
         && status is LookupStatus.Fetched or LookupStatus.FromCase && transaction?.Block is not null;
 
     /// <summary>Runs the watch's check on an answer and finds the tip's hit in it.</summary>
@@ -194,7 +194,7 @@ internal static class TipLookup
 
         var asset = match.Amount.Asset;
         var countedWhole = source.Chain == Chain.Tron && value.Outcome != EthereumOutcome.Pending
-            && (asset.Kind == AssetKind.Native || KnownTokens.IssuerOf(asset) is not null);
+            && (asset.Kind == AssetKind.Native || KnownTokens.IsKnown(asset));
         return (lookup.Status, transaction, Sequences(lookup.Origins), lookup.Problem,
             value.IsComplete || countedWhole);
 

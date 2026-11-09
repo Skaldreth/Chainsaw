@@ -137,8 +137,11 @@ public sealed class GraphChainState(
         IReadOnlyList<BlockChange> onTron = tron is null
             ? []
             : await tron.GetBlockChangesAsync(@case, cancellationToken).ConfigureAwait(false);
+        IReadOnlyList<BlockChange> onBsc = bsc is null
+            ? []
+            : await bsc.GetBlockChangesAsync(@case, cancellationToken).ConfigureAwait(false);
         var tip = await bitcoin.GetTipAsync(@case, LookupMode.CaseOnly, cancellationToken).ConfigureAwait(false);
-        return new ChainMarksReading([.. onBitcoin, .. onEthereum, .. onTron], tip.Value);
+        return new ChainMarksReading([.. onBitcoin, .. onEthereum, .. onTron, .. onBsc], tip.Value);
     }
 
     /// <summary>

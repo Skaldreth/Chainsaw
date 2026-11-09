@@ -38,6 +38,7 @@ internal sealed class CaseHeights(BitcoinSourceOptions bitcoin) : ICaseHeights
         {
             Chain.Bitcoin => RawResponseStore.NameOf(bitcoin.Network),
             Chain.Ethereum => BlockscoutEthereumSource.ChainName,
+            Chain.Tron => TronGridTronSource.ChainName,
             Chain.Litecoin => RawResponseStore.LitecoinChainName,
             Chain.Bsc => BlockscoutBscSource.ChainName,
             _ => null,

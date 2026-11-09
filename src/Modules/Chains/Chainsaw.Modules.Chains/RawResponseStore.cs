@@ -434,7 +434,6 @@ internal sealed class RawResponseStore(TimeZoneInfo timeZone, string chainName)
             """);
         Add(command, "$chain", ChainName);
         Add(command, "$at", at.ToUnixTimeSeconds());
-        var fastest = (long)pace.Fastest.TotalSeconds;
         long? lowest = null;
         using var rows = command.ExecuteReader();
         while (rows.Read())
@@ -445,13 +444,22 @@ internal sealed class RawResponseStore(TimeZoneInfo timeZone, string chainName)
             }
 
             var received = rows.GetInt64(1);
-            var height = Math.Min(rows.GetInt64(0), (received - pace.Made.ToUnixTimeSeconds()) / fastest);
-            var made = ((received - at.ToUnixTimeSeconds()) / fastest) + 1 + Burst;
+            var height = Math.Min(rows.GetInt64(0), BlocksIn(received - pace.Made.ToUnixTimeSeconds(), pace.Fastest));
+            var made = BlocksIn(received - at.ToUnixTimeSeconds(), pace.Fastest) + 1 + Burst;
             lowest = Math.Max(lowest ?? 0, Math.Max(0, height - made));
         }
 
         return lowest;
     }
+
+    /// <summary>
+    /// Gives how many blocks a chain can make at most in some seconds at its fastest pace, counted in ticks, so that a
+    /// pace under a second (BSC's) is never rounded to zero.
+    /// </summary>
+    /// <param name="seconds">The seconds.</param>
+    /// <param name="fastest">The shortest time between blocks.</param>
+    /// <returns>The blocks.</returns>
+    private static long BlocksIn(long seconds, TimeSpan fastest) => seconds * TimeSpan.TicksPerSecond / fastest.Ticks;
 
     /// <summary>
     /// Gives the highest block the indexes show. The indexes are not sealed, so a height only counts when its row
@@ -507,7 +515,7 @@ internal sealed class RawResponseStore(TimeZoneInfo timeZone, string chainName)
                         continue;
                     }
 
-                    var most = (rows.GetInt64(1) - known.Made.ToUnixTimeSeconds()) / (long)known.Fastest.TotalSeconds;
+                    var most = BlocksIn(rows.GetInt64(1) - known.Made.ToUnixTimeSeconds(), known.Fastest);
                     height = Math.Min(height, Math.Max(0, most));
                 }
 
