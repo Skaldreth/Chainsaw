@@ -14,14 +14,17 @@ namespace Chainsaw.App.TestData;
 /// Some parts are expanded from the start and some are left for the user to expand: the hub (more than 50
 /// transactions, so some are held back, and many counterparties), the victim's address (paid out from an exchange),
 /// the CoinJoin's outputs and the scammer's second wallet (the new victim's payment that the watch caught). The
-/// user's own work is there too, so that its marks and history can be seen at once: a split, decided suggestions, an
-/// approved wallet, an edited comment, and a comment and an area in the trash. Everything is made up and nothing goes
-/// out: the chain, the rates and the sanction list are answered on this computer.
+/// obfuscation the checks recognise is there: dust, a look-alike of Sydbörsen's deposit, many hops with a pause, a
+/// split whose parts meet, a possible PayJoin, a spend that is gone and replaced, and Sydbörsen's sweeps into a hot
+/// wallet without a label. The user's own work is there too, so that its marks and history can be seen at once: a
+/// split, decided suggestions, an approved wallet, an edited comment, a label on a transaction, and a comment and an
+/// area in the trash. Everything is made up and nothing goes out: the chain, the rates, the sanction lists and the
+/// open source are answered on this computer.
 /// </remarks>
 public static class TestStory
 {
     /// <summary>The story's version, in the journal and as the made-up labels' source version.</summary>
-    public const string Version = "3";
+    public const string Version = "4";
 
     /// <summary>The made-up open source the test case's labels come from.</summary>
     public const string LabelSource = "testdata (påhittad)";
@@ -61,11 +64,17 @@ public static class TestStory
         [
             new StartPointStep(TestStoryChain.VictimPayment),
 
+            // Before anything is looked up, so that the newest block comes between the answers that a spend is gone.
+            new LagStep(),
+
             // Before anything else looks the cash-out up, so that the first answer is the orphaned block's.
             new ReorganisationStep(TestStoryChain.PeelHops[^1], actors.Exchange),
+            new ReplacedStep(TestStoryChain.ReplacedSpend),
             .. Labels(actors),
             .. Expansions(),
             new SanctionCheckStep(),
+            new OpenSourceCheckStep(),
+            new TransactionLabelStep(TestStoryChain.Join, LabelKind.SwapBridge, "Bytaren (samlad insättning)"),
             new ShareLabelsStep(),
             new LinkOtherChainStep(
                 TestStoryChain.HubPayment, SwapOutput,
@@ -154,7 +163,9 @@ public static class TestStory
     /// <summary>
     /// Gives the expansions made from the start: the money from the victim through the consolidation, the change, the
     /// distribution (which brings the mixer's payout, the CoinJoin and the hub's payment), the mixer's payout (on to an
-    /// exchange and into a second mixer), the whole peel chain, and the miner's reward with the shared transaction.
+    /// exchange and into a second mixer), the whole peel chain, the miner's reward with the shared transaction, the
+    /// hops after the CoinJoin with the split and the parts that meet, the dust, the poisoning, and the customers'
+    /// payments into Sydbörsen with the sweeps that empty them.
     /// </summary>
     /// <returns>The steps.</returns>
     private static IEnumerable<ITestStep> Expansions() =>
@@ -166,6 +177,11 @@ public static class TestStory
         new ExpandStep(TestStoryChain.MixerPayout),
         .. TestStoryChain.PeelHops.SkipLast(1).Select(hop => new ExpandStep(hop)),
         new ExpandStep(TestStoryChain.MinerReward),
+        .. TestStoryChain.PostMixHops.Select(hop => new ExpandStep(hop)),
+        new ExpandStep(TestStoryChain.Split),
+        new ExpandStep(TestStoryChain.Dusting),
+        new ExpandStep(TestStoryChain.Poisoning),
+        .. TestStoryChain.SouthPayments.Select(payment => new ExpandStep(payment)),
     ];
 }
 #endif

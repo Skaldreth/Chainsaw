@@ -66,8 +66,17 @@ public sealed class TestChain
     /// <summary>Guards the orphaned blocks and which transaction is shown in one.</summary>
     private readonly Lock _gate = new();
 
+    /// <summary>
+    /// The transactions that are answered only while shown in an orphaned block, by label: replaced ones that never
+    /// made it into the chain.
+    /// </summary>
+    private readonly Dictionary<string, TestTransaction> _replaced = new(StringComparer.Ordinal);
+
     /// <summary>The transaction shown in an orphaned block for the moment, or <see langword="null"/>.</summary>
     private string? _orphaned;
+
+    /// <summary>How many blocks behind the tip the source says it is for the moment.</summary>
+    private int _behind;
 
     /// <summary>Creates an empty chain.</summary>
     /// <param name="firstHeight">The lowest block the chain has.</param>
@@ -90,6 +99,34 @@ public sealed class TestChain
     /// <summary>Gets the transactions in the order they were added.</summary>
     public IReadOnlyList<TestTransaction> Transactions => _transactions;
 
+    /// <summary>
+    /// Gets or sets how many blocks behind the tip the source says it is: a source that has not seen the newest blocks
+    /// yet, so that a new block can come between two answers. Only <c>/testdata</c> sets it, while it builds the test
+    /// case, so that a replaced transaction can be seen to be gone (sketch GR9a); it is 0 otherwise.
+    /// </summary>
+    public int Behind
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _behind;
+            }
+        }
+
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfNegative(value);
+            lock (_gate)
+            {
+                _behind = value;
+            }
+        }
+    }
+
+    /// <summary>Gets the height the source answers as the newest: the tip, less <see cref="Behind"/>.</summary>
+    public long AnsweredTip => Tip - Behind;
+
     /// <summary>Gives a block's time.</summary>
     /// <param name="height">The height.</param>
     /// <returns>The time.</returns>
@@ -99,12 +136,28 @@ public sealed class TestChain
     /// <param name="label">The label.</param>
     /// <returns>The transaction.</returns>
     /// <exception cref="KeyNotFoundException">The scenario has no such transaction.</exception>
-    public TestTransaction this[string label] => _byLabel[label];
+    public TestTransaction this[string label] =>
+        _byLabel.TryGetValue(label, out var transaction) ? transaction : _replaced[label];
 
-    /// <summary>Finds a transaction by txid.</summary>
+    /// <summary>
+    /// Finds a transaction by txid: one in the chain, or a replaced one while <see cref="Orphaning"/> shows it.
+    /// </summary>
     /// <param name="txid">The txid.</param>
     /// <returns>The transaction, or <see langword="null"/>.</returns>
-    public TestTransaction? Find(string txid) => _byTxid.GetValueOrDefault(txid);
+    public TestTransaction? Find(string txid)
+    {
+        if (_byTxid.TryGetValue(txid, out var transaction))
+        {
+            return transaction;
+        }
+
+        lock (_gate)
+        {
+            return _orphaned is { } shown && _replaced.TryGetValue(shown, out var replaced) && replaced.Txid == txid
+                ? replaced
+                : null;
+        }
+    }
 
     /// <summary>Finds who spent a coin.</summary>
     /// <param name="txid">The coin's transaction.</param>
@@ -168,6 +221,7 @@ public sealed class TestChain
 
         return new OrphaningEnd(this);
     }
+
 
     /// <summary>Gives the orphaned block at a height, made the first time it is asked for.</summary>
     /// <param name="height">The height.</param>
@@ -248,13 +302,31 @@ public sealed class TestChain
         }
     }
 
+    /// <summary>
+    /// Adds a transaction that never made it into the chain: one that another, spending the same coins, replaced (RBF).
+    /// It is in no block, no address's list and no answer of who spends a coin, and is answered only while
+    /// <see cref="Orphaning"/> shows it, in an orphaned block at its height.
+    /// </summary>
+    /// <param name="transaction">The transaction.</param>
+    /// <returns>The same transaction.</returns>
+    /// <exception cref="InvalidOperationException">The label is taken.</exception>
+    internal TestTransaction AddReplaced(TestTransaction transaction)
+    {
+        if (_byLabel.ContainsKey(transaction.Label) || !_replaced.TryAdd(transaction.Label, transaction))
+        {
+            throw new InvalidOperationException($"The label {transaction.Label} is taken.");
+        }
+
+        return transaction;
+    }
+
     /// <summary>Adds a finished transaction and notes which coins it spends.</summary>
     /// <param name="transaction">The transaction.</param>
     /// <returns>The same transaction.</returns>
     /// <exception cref="InvalidOperationException">The label is taken, or a coin is spent twice.</exception>
     internal TestTransaction Add(TestTransaction transaction)
     {
-        if (!_byLabel.TryAdd(transaction.Label, transaction))
+        if (_replaced.ContainsKey(transaction.Label) || !_byLabel.TryAdd(transaction.Label, transaction))
         {
             throw new InvalidOperationException($"The label {transaction.Label} is taken.");
         }
@@ -290,6 +362,8 @@ public sealed class TestChain
             .ToList();
         if (other is not null)
         {
+            // The orphaned block also held the replaced transactions at its height, as the source answered them.
+            txids.AddRange(_replaced.Values.Where(each => each.Height == height).Select(each => each.Txid));
             txids.Insert(0, TestTransaction.DisplayHash(TestAddress.Hash(other)));
         }
         else if (!_transactions.Any(transaction => transaction.Height == height && transaction.IsCoinbase))
@@ -403,7 +477,20 @@ public sealed class TestDraft(TestChain chain, string label, long height)
     /// <summary>Finishes the transaction and adds it to the chain.</summary>
     /// <returns>The transaction.</returns>
     /// <exception cref="InvalidOperationException">It spends nothing, pays nothing or pays more than it spends.</exception>
-    public TestTransaction Done()
+    public TestTransaction Done() => chain.Add(Finish());
+
+    /// <summary>
+    /// Finishes the transaction as one that another replaced before it was mined (RBF): it is answered only while
+    /// shown in an orphaned block (<see cref="TestChain.Orphaning"/>), and spends nothing in the chain.
+    /// </summary>
+    /// <returns>The transaction.</returns>
+    /// <exception cref="InvalidOperationException">It spends nothing, pays nothing or pays more than it spends.</exception>
+    public TestTransaction Replaced() => chain.AddReplaced(Finish());
+
+    /// <summary>Checks that the transaction adds up, and makes it.</summary>
+    /// <returns>The transaction.</returns>
+    /// <exception cref="InvalidOperationException">It spends nothing, pays nothing or pays more than it spends.</exception>
+    private TestTransaction Finish()
     {
         if (_inputs.Count == 0 || _outputs.Count == 0 || _outputs.Any(output => output.Value < 0)
             || _outputs.Sum(output => output.Value) > _inputs.Sum(input => input.Spent!.Value))
@@ -411,7 +498,7 @@ public sealed class TestDraft(TestChain chain, string label, long height)
             throw new InvalidOperationException($"{label} does not add up.");
         }
 
-        return chain.Add(new TestTransaction(label, height, [.. _inputs], [.. _outputs]));
+        return new TestTransaction(label, height, [.. _inputs], [.. _outputs]);
     }
 }
 #endif

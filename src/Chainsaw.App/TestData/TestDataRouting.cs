@@ -176,11 +176,23 @@ public sealed class TestDataSanctionLists(ISanctionLists inner, TestActors actor
     /// <summary>The made-up entry of the story's dark market, a sanction beside its own sort.</summary>
     public const string DarknetEntryName = "Skuggtorget";
 
+    /// <summary>The made-up list in the EU's form, whose one entry is uncertain.</summary>
+    public const string UncertainListName = "Påhittad EU-lista (testdata)";
+
+    /// <summary>The made-up uncertain entry's name: the OTC desk, a possible sanction.</summary>
+    public const string UncertainEntryName = "Torgväxlaren (påhittad)";
+
     /// <summary>The made-up entry's id on the list.</summary>
     private const string EntryUid = "testdata-1";
 
     /// <summary>The made-up sanctions programme.</summary>
     private const string Programme = "TESTDATA";
+
+    /// <summary>Where on the made-up uncertain entry the address stood, as the EU's list says it.</summary>
+    private const string UncertainListedAs = "Anmärkning (påhittad)";
+
+    /// <summary>The made-up uncertain entry's id on the list.</summary>
+    private const string UncertainUid = "testdata-eu-1";
 
     /// <summary>The made-up list, the same in every run.</summary>
     private static readonly SanctionListInfo MadeUp = new(
@@ -190,6 +202,18 @@ public sealed class TestDataSanctionLists(ISanctionLists inner, TestActors actor
         new DateTimeOffset(2026, 10, 1, 12, 0, 0, TimeSpan.Zero),
         new Dictionary<string, int>(StringComparer.Ordinal) { [SanctionCurrency.Bitcoin] = 2 },
         0);
+
+    /// <summary>The made-up list in the EU's form, the same in every run.</summary>
+    private static readonly SanctionListInfo MadeUpUncertain = new(
+        UncertainListName,
+        Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(UncertainListName))),
+        new DateOnly(2026, 10, 1),
+        new DateTimeOffset(2026, 10, 1, 12, 0, 0, TimeSpan.Zero),
+        new Dictionary<string, int>(StringComparer.Ordinal) { [SanctionCurrency.Bitcoin] = 1 },
+        0)
+    {
+        Uncertain = 1,
+    };
 
     /// <inheritdoc/>
     public SanctionListInfo? Current => inner.Current;
@@ -253,6 +277,18 @@ public sealed class TestDataSanctionLists(ISanctionLists inner, TestActors actor
             return null;
         }
 
+        if (address == actors.Otc.Address)
+        {
+            // As on the EU's list, where an address in a remark does not say its chain for certain: a possible sanction.
+            var uncertain = new SanctionedAddress(
+                SanctionCurrency.Bitcoin, address.Value, UncertainUid, UncertainEntryName, [Programme])
+            {
+                ListedAs = UncertainListedAs,
+                IsUncertain = true,
+            };
+            return new SanctionMatch(MadeUpUncertain, [uncertain]);
+        }
+
         var name = (address == actors.Sanctioned.Address, address == actors.Darknet.Address) switch
         {
             (true, _) => EntryName,
@@ -263,6 +299,66 @@ public sealed class TestDataSanctionLists(ISanctionLists inner, TestActors actor
             ? null
             : new SanctionMatch(
                 MadeUp, [new SanctionedAddress(SanctionCurrency.Bitcoin, address.Value, EntryUid, name, [Programme])]);
+    }
+
+    /// <inheritdoc/>
+    public bool Remove(string sha256) => inner.Remove(sha256);
+}
+
+/// <summary>
+/// Gives the open sources a made-up hit while <c>/testdata</c> builds the test case: the scammer's second address is a
+/// ransomware payment address on a made-up source in Ransomwhere's form, so that the test case has a <em>Rapporterad</em>
+/// label from an open source without a real file being imported. Every other time, and for every other address, the
+/// sources are the real ones.
+/// </summary>
+/// <param name="inner">The real sources.</param>
+/// <param name="actors">The story's actors.</param>
+public sealed class TestDataOpenSources(IOpenSourceLists inner, TestActors actors) : IOpenSourceLists
+{
+    /// <summary>The made-up source's name, as the label names it.</summary>
+    public const string SourceName = "Påhittad öppen källa (testdata)";
+
+    /// <summary>The made-up entry's name.</summary>
+    public const string EntryName = "Ransomware: Påhittad";
+
+    /// <summary>The made-up source, the same in every run.</summary>
+    private static readonly OpenSourceListInfo MadeUp = new(
+        SourceName,
+        "Påhittad i testärendet, ingen licens",
+        Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(SourceName))),
+        new DateOnly(2026, 10, 1),
+        new DateTimeOffset(2026, 10, 1, 12, 0, 0, TimeSpan.Zero),
+        new Dictionary<string, int>(StringComparer.Ordinal) { [nameof(Chain.Bitcoin)] = 1 },
+        0);
+
+    /// <inheritdoc/>
+    public IReadOnlyList<OpenSourceListInfo> CurrentLists => inner.CurrentLists;
+
+    /// <inheritdoc/>
+    public OpenSourceListInfo Import(Stream content) => inner.Import(content);
+
+    /// <inheritdoc/>
+    public IReadOnlyList<OpenSourceListInfo> List() => inner.List();
+
+    /// <inheritdoc/>
+    public OpenSourceLookup Find(IReadOnlyCollection<ChainAddress> addresses)
+    {
+        ArgumentNullException.ThrowIfNull(addresses);
+        var lookup = inner.Find(addresses);
+        var reported = actors.Scammer2.Address?.ToChainAddress();
+        if (!TestDataScope.IsBuilding || reported is null || !addresses.Contains(reported))
+        {
+            return lookup;
+        }
+
+        var entry = new OpenSourceEntry(
+            reported, LabelKind.Reported, EntryName,
+            "Påhittad post i testärendet: en adress som offer för utpressningsprogram betalade till.");
+        var matches = new Dictionary<ChainAddress, IReadOnlyList<OpenSourceMatch>>(lookup.Matches)
+        {
+            [reported] = [new OpenSourceMatch(MadeUp, [entry])],
+        };
+        return lookup with { Lists = [MadeUp, .. lookup.Lists], Matches = matches };
     }
 
     /// <inheritdoc/>

@@ -41,6 +41,9 @@ public sealed class TestCaseTests : IDisposable
         {
             Assert.Equal(transaction.Txid, TestTransaction.DisplayHash(transaction.Bytes));
             Assert.True(transaction.Fee >= 0, transaction.Label);
+            Assert.All(
+                transaction.Inputs.Where(input => !input.IsCoinbase),
+                input => Assert.True(chain.Find(input.PreviousTxid!)!.Height <= transaction.Height, transaction.Label));
         });
         Assert.Equal(TestStoryChain.Tip, chain.Tip);
         Assert.NotNull(chain.BlockAt(TestStoryChain.First));

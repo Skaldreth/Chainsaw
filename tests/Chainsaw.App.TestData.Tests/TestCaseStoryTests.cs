@@ -173,6 +173,67 @@ public sealed class TestCaseStoryTests : IDisposable
         Assert.Equal(0, _harness.Outside.Attempts);
     }
 
+    [Fact]
+    public async Task The_obfuscation_checks_and_the_service_from_behaviour_are_in_the_test_case()
+    {
+        using var @case = await OpenAsync();
+        var actors = _harness.Get<TestActors>();
+        var chain = _harness.Get<TestChain>();
+        var graph = await _harness.Get<ITracingService>().LoadAsync(@case);
+
+        var checks = _harness.Get<ICheckService>().Run(@case, graph).Checks;
+
+        Assert.Contains(checks, check => check.Finding.Key == "dust:" + chain[TestStoryChain.Dusting].Txid);
+        var poison = Assert.Single(checks, check => check.Finding.Key == "poison:" + actors.LookAlike.Address!.Value);
+        Assert.Contains(actors.SouthExchange.Address!, poison.Finding.Addresses);
+        Assert.Contains(checks, check => check.Analysis.Name == "pass-through"
+            && check.Finding.Key == chain[TestStoryChain.PostMixHops[0]].Txid
+            && check.Finding.Title.Contains("fördröjning", StringComparison.Ordinal));
+        var merge = checks.Where(check => check.Analysis.Name == "split-merge").ToList();
+        Assert.True(merge.Count >= 2, "The split and the parts that meet.");
+        Assert.Contains(checks, check => check.Analysis.Name == "payjoin-hint"
+            && check.Finding.Key == chain[TestStoryChain.PayJoin].Txid && check.Finding.Title == "Möjlig PayJoin");
+        Assert.Contains(checks, check => check.Analysis.Name == "service-behaviour"
+            && check.Finding.Addresses.Contains(actors.SouthHot.Address!));
+    }
+
+    [Fact]
+    public async Task The_replaced_spend_is_gone_and_replaced_by_the_one_with_the_higher_fee()
+    {
+        using var @case = await OpenAsync();
+        var chain = _harness.Get<TestChain>();
+        var txid = Txid.Parse(chain[TestStoryChain.ReplacedSpend].Txid);
+        var source = _harness.Get<IBitcoinSource>();
+
+        var change = Assert.Single(await source.GetBlockChangesAsync(@case), each => each.TransactionId == txid.Value);
+        var replacement = await source.GetReplacementAsync(@case, txid);
+
+        Assert.Equal(BlockChangeKind.Gone, change.Kind);
+        Assert.Equal(ReplacementKind.Replaced, replacement.Value!.Kind);
+        Assert.Equal(chain[TestStoryChain.ReplacingSpend].Txid, Assert.Single(replacement.Value.Replacers).Value);
+        Assert.Equal(0, _harness.Outside.Attempts);
+    }
+
+    [Fact]
+    public async Task A_possible_sanction_a_reported_address_and_a_label_on_a_transaction_are_there()
+    {
+        using var @case = await OpenAsync();
+        var actors = _harness.Get<TestActors>();
+        var attribution = _harness.Get<IAttributionService>();
+        var join = _harness.Get<TestChain>()[TestStoryChain.Join].Txid;
+
+        var possible = attribution.GetLabels(@case, actors.Otc.Address!);
+        var reported = attribution.GetLabels(@case, actors.Scammer2.Address!);
+        var onTransaction = _harness.Get<ITransactionLabels>().For(@case, Chain.Bitcoin, join);
+
+        Assert.Contains(possible, label => label.Kind == LabelKind.PossiblySanctioned
+            && label.Name == TestDataSanctionLists.UncertainEntryName);
+        Assert.Contains(reported, label => label.Kind == LabelKind.Reported
+            && label.Name == TestDataOpenSources.EntryName);
+        Assert.Equal(LabelKind.SwapBridge, Assert.Single(onTransaction).Kind);
+        Assert.Equal(0, _harness.Outside.Attempts);
+    }
+
     private async Task<ICase> OpenAsync()
     {
         var builder = _harness.Get<TestCaseBuilder>();

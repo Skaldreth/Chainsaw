@@ -61,6 +61,8 @@ public static class TestDataServices
                 provider.GetRequiredService<IPriceDefaults>()))));
         Decorate<ISanctionLists>(services, (provider, real) => new TestDataSanctionLists(
             real, provider.GetRequiredService<TestActors>()));
+        TryDecorate<IOpenSourceLists>(services, (provider, real) => new TestDataOpenSources(
+            real, provider.GetRequiredService<TestActors>()));
         Decorate<IWatchGate>(services, (_, real) => new TestDataWatchGate(real));
         Decorate<IBackgroundWatches>(services, (_, real) => new TestDataBackgroundWatches(real));
         services.AddSingleton(provider => new TestServices(
@@ -75,6 +77,7 @@ public static class TestDataServices
             Trash = provider.GetService<IGraphTrash>(),
             Clustering = provider.GetService<IClusteringService>(),
             Bitcoin = provider.GetRequiredService<IBitcoinSource>(),
+            TransactionLabels = provider.GetService<ITransactionLabels>(),
         });
         services.AddSingleton<TestCaseBuilder>();
         services.AddSingleton<IShellCommand, TestDataCommand>();
