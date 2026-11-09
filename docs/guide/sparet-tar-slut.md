@@ -21,6 +21,8 @@ Tre orsaker betyder att pengarna **går att följa vidare**:
   flyttats sedan.
 - **Uppgifterna går inte ihop.** Källan säger att en viss tx spenderar myntet, men tx:en själv säger något annat.
   Chainsaw gissar inte vilken som har rätt och stannar här. Att expandera igen, eller en annan källa, kan reda ut det.
+- **Tx:en kanske inte finns.** Bara en endpoint har sagt att den inte känner tx:en, eller källans svar om mynten går
+  inte ihop med det. Spåret stannar tills det är bekräftat; se [En tx som inte finns längre](ersatt-tx.md).
 
 På Ethereum finns en fjärde: **Följer med genom en swap.** Pengarna byttes mot en annan tillgång, och det spårade
 värdet fortsätter i den nya (se [Spåret genom en swap](swappar.md)). Har du valt att värdet inte följer med är det i
@@ -45,6 +47,9 @@ Ett slut som bygger på en obekräftad tx, eller på ett svar som inte kunde fr�
 - **Okänd tjänst.** Pengarna gick in i en tjänst som flyttar dem internt på sätt som kedjan inte visar.
 - **Avgift till minerare.** Den del av avgiften som var spårade pengar.
 - **Kan aldrig spenderas.** En OP_RETURN-utgång med ett belopp: pengarna är borta för alla.
+- **Tx:en finns inte längre.** Pengarna spenderades in i en tx som källan inte längre känner till, och det som kom
+  efter den räknas inte. Rutan vid linjen säger vilken tx som spenderar samma mynt i stället, och du kan välja att
+  följa den. Se [En tx som inte finns längre](ersatt-tx.md).
 
 ## Var kommer orsaken ifrån?
 
@@ -56,3 +61,4 @@ Slutet är en **bedömning**, inte ett faktum, och säger alltid vad det bygger 
   eller något okänt avslutar inte spåret: pengarna går att följa vidare.
 - *Inte expanderad ännu*, *Ligger kvar*, *Uppgifterna går inte ihop*, *Avgift* och *Kan aldrig spenderas* avgör
   spåret självt ur kedjan.
+- *Tx:en finns inte längre* kommer från analysen `gone-tx v1`, som läser källans förseglade svar om tx:en.

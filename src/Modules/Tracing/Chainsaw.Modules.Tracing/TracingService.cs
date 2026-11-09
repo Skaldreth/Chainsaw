@@ -390,6 +390,129 @@ internal sealed class TracingService : ITracingService
         return @case.Read(SwapStopStore.ReadHistory);
     }
 
+    /// <inheritdoc/>
+    public async Task<ReplacementFollow> FollowReplacementAsync(
+        ICase @case, Txid gone, Txid replacer, string? reason, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(gone);
+        ArgumentNullException.ThrowIfNull(replacer);
+        reason = OptionalReason(reason);
+
+        // Only a transaction the case's sealed answers show gone, and a replacer they show spending its coins, is
+        // chosen for, so that no choice is sealed about something the case does not hold.
+        var changes = await _source.GetBlockChangesAsync(@case, cancellationToken).ConfigureAwait(false);
+        if (!changes.Any(change => change is { Chain: Chain.Bitcoin, Kind: BlockChangeKind.Gone }
+            && Txid.TryParse(change.TransactionId, out var txid) && txid == gone))
+        {
+            throw new ArgumentException(
+                "The source still knows the transaction, as far as the case says.", nameof(gone));
+        }
+
+        var replacement = await _source.GetReplacementAsync(@case, gone, LookupMode.CaseOnly, cancellationToken)
+            .ConfigureAwait(false);
+        if (replacement.Value is not { Kind: not ReplacementKind.Conflicting } known
+            || !known.Replacers.Contains(replacer))
+        {
+            throw new ArgumentException(
+                "The case does not show the transaction spending the coins, or its answers do not agree.",
+                nameof(replacer));
+        }
+
+        // The replacer comes into the graph like an expanded transaction: fetched through the exit and sealed, with
+        // where its outputs went, so that the trace can go on through it.
+        var fetched = await _source.GetTransactionAsync(@case, replacer, LookupMode.AsNeeded, cancellationToken)
+            .ConfigureAwait(false);
+        if (fetched.Value is null)
+        {
+            throw fetched.Problem is { } problem
+                ? new ReplacementUnavailableException(problem)
+                : new ReplacementUnavailableException();
+        }
+
+        var goneTransaction = await _source.GetTransactionAsync(@case, gone, LookupMode.CaseOnly, cancellationToken)
+            .ConfigureAwait(false);
+        if (goneTransaction.Value is not { } read || !Agrees(read, known, fetched.Value))
+        {
+            throw new ArgumentException(
+                "The replacer's inputs do not spend the gone transaction's coins as the source said.", nameof(replacer));
+        }
+
+        await FetchSpendsAsync(@case, [replacer], cancellationToken).ConfigureAwait(false);
+        return @case.Write(transaction =>
+        {
+            // One choice in force per replacer; choosing again leaves the one there, so that a double click seals once.
+            if (ReplacementFollowStore.ReadInForce(transaction)
+                .FirstOrDefault(follow => follow.Gone == gone && follow.Replacer == replacer) is { } already)
+            {
+                return already;
+            }
+
+            var journal = transaction.AppendJournal(new JournalDraft(
+                TracingJournalKinds.ReplacementFollowed,
+                string.Format(
+                    CultureInfo.InvariantCulture,
+                    "Spåret följer tx:en som ersatte en som inte finns längre: {0} i stället för {1}",
+                    replacer.Value,
+                    gone.Value),
+                JsonSerializer.Serialize(new
+                {
+                    gone = gone.Value, replacer = replacer.Value, analysis = GoneTransaction.Source, reason,
+                })));
+            return ReplacementFollowStore.Seal(transaction, gone, replacer, reason, journal);
+        });
+    }
+
+    /// <summary>
+    /// Says whether a replacer's own inputs spend the gone transaction's coins as the answers about the coins say: the
+    /// same coin, with the same amount, at the input named (<see cref="SpendRules.IsConflicting"/>).
+    /// </summary>
+    /// <param name="gone">The gone transaction.</param>
+    /// <param name="replacement">What the case knows spends its coins.</param>
+    /// <param name="replacer">The replacer as fetched.</param>
+    /// <returns><see langword="true"/> when every coin it is said to spend agrees.</returns>
+    private static bool Agrees(BitcoinTransaction gone, TransactionReplacement replacement, BitcoinTransaction replacer)
+    {
+        var coins = replacement.Coins.Where(coin => coin.SpentBy?.Txid == replacer.Txid).ToList();
+        return coins.Count > 0 && coins.All(coin =>
+        {
+            var input = gone.Inputs[coin.InputIndex];
+            var output = new BitcoinOutput(
+                coin.PreviousIndex, input.ScriptType ?? BitcoinScriptType.NonStandard, input.Address,
+                input.Amount ?? Satoshi.Zero, string.Empty, null);
+            return !SpendRules.IsConflicting(
+                replacer, coin.SpentBy!.InputIndex, new Outpoint(coin.PreviousTxid, coin.PreviousIndex), output);
+        });
+    }
+
+    /// <inheritdoc/>
+    public bool TakeBackReplacement(ICase @case, ReplacementFollow follow, string? reason)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(follow);
+        reason = OptionalReason(reason);
+        return @case.Write(transaction =>
+        {
+            // The stored choice is what is taken back, whatever the caller's copy says.
+            var stored = ReplacementFollowStore.ReadInForce(transaction)
+                .FirstOrDefault(current => current.Sequence == follow.Sequence);
+            if (stored is null)
+            {
+                return false;
+            }
+
+            var journal = transaction.AppendJournal(new JournalDraft(
+                TracingJournalKinds.ReplacementTakenBack,
+                string.Format(
+                    CultureInfo.InvariantCulture,
+                    "Spåret följer inte längre tx:en som ersatte {0}; det slutar vid den igen",
+                    stored.Gone.Value),
+                JsonSerializer.Serialize(new { follow = stored.Sequence, replacer = stored.Replacer.Value, reason })));
+            ReplacementFollowStore.SealTakeBack(transaction, stored, reason, journal);
+            return true;
+        });
+    }
+
     /// <summary>Trims an optional reason and checks its length; an empty one is none.</summary>
     /// <param name="reason">The reason, or <see langword="null"/>.</param>
     /// <returns>The reason, or <see langword="null"/>.</returns>
@@ -1036,8 +1159,36 @@ internal sealed class TracingService : ITracingService
         var account = state.EthereumTransactions.Count > 0 || state.EthereumHistories.Count > 0
             ? await ReadAccountsAsync(@case, state, cancellationToken).ConfigureAwait(false)
             : AccountData.Empty;
+        var gone = await GoneAsync(@case, transactions, cancellationToken).ConfigureAwait(false);
+        return new GraphData(state, transactions, spends, problems) { Account = account, Gone = gone };
+    }
 
-        return new GraphData(state, transactions, spends, problems) { Account = account };
+    /// <summary>
+    /// Reads which of the graph's Bitcoin transactions the source no longer knows (sketch GR9a), and what the case
+    /// knows spends their coins now, from the case only.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="transactions">The graph's transactions.</param>
+    /// <param name="cancellationToken">Stops the work.</param>
+    /// <returns>The gone transactions, by txid.</returns>
+    private async Task<Dictionary<Txid, GoneTransaction>> GoneAsync(
+        ICase @case, IReadOnlyDictionary<Txid, GraphTransaction> transactions, CancellationToken cancellationToken)
+    {
+        var gone = new Dictionary<Txid, GoneTransaction>();
+        var changes = await _source.GetBlockChangesAsync(@case, cancellationToken).ConfigureAwait(false);
+        foreach (var change in changes.Where(change => change is { Chain: Chain.Bitcoin, Kind: BlockChangeKind.Gone }))
+        {
+            if (!Txid.TryParse(change.TransactionId, out var txid) || !transactions.ContainsKey(txid))
+            {
+                continue;
+            }
+
+            var replacement = await _source.GetReplacementAsync(@case, txid, LookupMode.CaseOnly, cancellationToken)
+                .ConfigureAwait(false);
+            gone[txid] = new GoneTransaction(txid, change, replacement.Value);
+        }
+
+        return gone;
     }
 
     /// <summary>
@@ -1079,12 +1230,22 @@ internal sealed class TracingService : ITracingService
             address => addresses.Contains(address)
                 ? ends.GetValueOrDefault(address) ?? []
                 : [.. _classifiers.SelectMany(classifier => classifier.ClassifyAddress(@case, address))],
-            transaction => [.. _classifiers.SelectMany(
-                classifier => classifier.ClassifyTransaction(@case, transaction))])
+            transaction => [.. GoneEnds(data, transaction.Txid).Concat(_classifiers.SelectMany(
+                classifier => classifier.ClassifyTransaction(@case, transaction)))])
         {
             AccountEnds = account => accountEnds.GetValueOrDefault(account) ?? [],
         });
     }
+
+    /// <summary>
+    /// Gives the end of the trail at a transaction the source no longer knows, first among its ends, since nothing
+    /// after a transaction that is not in the chain can be followed, whatever else is said about it.
+    /// </summary>
+    /// <param name="data">The data.</param>
+    /// <param name="txid">The transaction.</param>
+    /// <returns>The end, or nothing when the transaction is not gone.</returns>
+    private static IEnumerable<TrailEndHint> GoneEnds(GraphData data, Txid txid) =>
+        data.Gone.TryGetValue(txid, out var gone) && gone.Hint is { } hint ? [hint] : [];
 
     /// <summary>
     /// Asks every classifier once about the Ethereum addresses the graph shows, and joins their hints per address.

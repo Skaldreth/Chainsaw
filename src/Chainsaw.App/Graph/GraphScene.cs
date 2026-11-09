@@ -665,8 +665,10 @@ public sealed record GraphScene(
     {
         var amount = traced?.Amount.Amount ?? AssetAmount.Zero(edge.Amount.Asset);
         var otherChain = edge.Kind == GraphEdgeKind.ContinuesOnOtherChain;
-        // A line whose traced money rests on a swap's value following is a judgement (sketch SW1a): dashed.
+        // A line whose traced money rests on a swap's value following (sketch SW1a), or on following the replacer of a
+        // gone transaction (sketch GR9a), is a judgement: dashed.
         var uncertain = traced?.MayBeOutdated == true || traced?.Amount.RestsOnSwap == true
+            || traced?.Amount.RestsOnReplacement == true
             || edge.Transfers.Any(transfer => transfer.Block is null);
         var dash = (otherChain, uncertain) switch
         {

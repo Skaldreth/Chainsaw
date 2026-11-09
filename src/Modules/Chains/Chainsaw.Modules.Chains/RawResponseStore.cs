@@ -349,6 +349,63 @@ internal sealed class RawResponseStore(TimeZoneInfo timeZone, string chainName)
         return found;
     }
 
+    /// <summary>
+    /// Gives the hosts of the sealed answers the lookup took as the source not knowing a transaction, after an answer,
+    /// read from the sealed addresses, so that what the case knew then is what counts.
+    /// </summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <param name="txid">The transaction.</param>
+    /// <param name="after">The answer they came after.</param>
+    /// <returns>The hosts, each once, in lower case.</returns>
+    public IReadOnlyList<string> NotFoundHosts(ICaseReader reader, Txid txid, long after)
+    {
+        using var command = reader.CreateCommand(
+            $"""
+            SELECT DISTINCT r.url FROM chains_not_found n
+                JOIN {ChainsSchema.RawResponsesTable} r ON r.sequence = n.sequence AND r.chain = n.chain
+                    AND r.kind = n.kind AND r.subject = n.subject AND r.status_code = $gone
+            WHERE n.chain = $chain AND n.kind = $kind AND n.subject = $txid AND n.sequence > $after
+            """);
+        Add(command, "$chain", ChainName);
+        Add(command, "$kind", ResponseKinds.Transaction);
+        Add(command, "$txid", txid.Value);
+        Add(command, "$gone", NotFoundStatus);
+        Add(command, "$after", after);
+        return HostsOf(command);
+    }
+
+    /// <summary>
+    /// Gives the hosts every sealed answer on the chain came from, read from the sealed addresses: the sources the case
+    /// has heard from, whatever is switched on now.
+    /// </summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <returns>The hosts, each once, in lower case.</returns>
+    public IReadOnlyList<string> AnsweringHosts(ICaseReader reader)
+    {
+        using var command = reader.CreateCommand(
+            $"SELECT MIN(url) FROM {ChainsSchema.RawResponsesTable} WHERE chain = $chain GROUP BY endpoint_id");
+        Add(command, "$chain", ChainName);
+        return HostsOf(command);
+    }
+
+    /// <summary>Reads the hosts of the addresses a command gives in its first column.</summary>
+    /// <param name="command">The command.</param>
+    /// <returns>The hosts, each once, in lower case.</returns>
+    private static List<string> HostsOf(DbCommand command)
+    {
+        var hosts = new HashSet<string>(StringComparer.Ordinal);
+        using var rows = command.ExecuteReader();
+        while (rows.Read())
+        {
+            if (Uri.TryCreate(rows.GetString(0), UriKind.Absolute, out var url))
+            {
+                hosts.Add(url.Host.ToLowerInvariant());
+            }
+        }
+
+        return [.. hosts.Order(StringComparer.Ordinal)];
+    }
+
     /// <summary>Says whether a lookup took a sealed answer as the source not knowing what was asked.</summary>
     /// <param name="reader">The case's reader.</param>
     /// <param name="sequence">The answer's number.</param>

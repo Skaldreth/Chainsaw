@@ -164,7 +164,7 @@ public sealed partial class GraphCanvas
     /// <returns>The text.</returns>
     private string? HeldTipAt(GraphPoint surface) =>
         HeldMarkAt(surface) is { } node && _model!.HeldBackOf(node) is { } held
-            ? string.Join(Environment.NewLine, GraphViewModel.HeldBackLines(held))
+            ? string.Join(Environment.NewLine, GraphViewModel.HeldBackLines(held, _model.HeldReplacers))
             : null;
 
     /// <summary>Takes a press on a held back ring: the node is chosen and its history opens (sketch HB1a).</summary>

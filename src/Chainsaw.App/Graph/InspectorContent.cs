@@ -844,6 +844,15 @@ public sealed record InspectorContent(
         }
 
         why.Add(TracedWhy(scene, edge));
+        if (edge.TracedEdge?.Amount.Replaced is [_, ..] replaced)
+        {
+            var gone = string.Join(", ", replaced.Select(txid => GraphScene.Shorten(txid.Value)));
+            why.Add(new WhyLine(
+                $"Följer ersättaren: tx {gone} finns inte längre, och du valde att spåret följer tx:en som spenderar "
+                + "samma mynt i stället. Det är din bedömning, inte ett faktum på kedjan.",
+                GuideTopic.GoneTransaction));
+        }
+
         if (edge.Dash == EdgeDash.Uncertain)
         {
             why.Add(new WhyLine(

@@ -54,4 +54,24 @@ public sealed record BlockChange(string TransactionId, BlockChangeKind Kind, Blo
 
     /// <summary>Gets the chain the transaction is on: Bitcoin unless said otherwise.</summary>
     public Chain Chain { get; init; } = Chain.Bitcoin;
+
+    /// <summary>
+    /// Gets, for <see cref="BlockChangeKind.Gone"/>, whether the answers that the source does not know the
+    /// transaction come from endpoints on at least two hosts, or from the only endpoint switched on for the chain; one
+    /// endpoint's word alone, while others could be asked, is weaker (an endpoint can lie or be broken). Always
+    /// <see langword="true"/> for the other kinds and for a source that cannot tell.
+    /// </summary>
+    public bool IsCorroborated { get; init; } = true;
+
+    /// <summary>
+    /// Gets, for <see cref="BlockChangeKind.Gone"/>, the hosts whose sealed answers said the source does not know the
+    /// transaction since the case last saw it in a block, in lower case; empty for the other kinds.
+    /// </summary>
+    public IReadOnlyList<string> GoneHosts { get; init; } = [];
+
+    /// <summary>
+    /// Gets whether every sealed answer on the chain in the case came from one host, so that a lone word is all there
+    /// can be: an end that rests on it says it rests on a single source.
+    /// </summary>
+    public bool IsSingleSource { get; init; }
 }

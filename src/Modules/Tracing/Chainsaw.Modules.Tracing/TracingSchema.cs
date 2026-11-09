@@ -64,6 +64,24 @@ internal sealed class TracingSchema : ICaseSchemaContributor
         "recorded_utc",
     ];
 
+    /// <summary>
+    /// The sealed chain of the user's choices to follow the transaction that replaced a gone one (sketch GR9a).
+    /// </summary>
+    public const string ReplacementFollowsChain = "tracing.replacement_follows";
+
+    /// <summary>The table of the user's choices to follow a replacer.</summary>
+    public const string ReplacementFollowsTable = "tracing_replacement_follows";
+
+    /// <summary>
+    /// The sealed columns of a choice or its taking back, in order: <c>action</c> is <c>follow</c> or
+    /// <c>take-back</c>, <c>follow_sequence</c> names the choice a taking back concerns, <c>gone_txid</c> the
+    /// transaction the source no longer knows and <c>replacer_txid</c> the one the trace follows in its place.
+    /// </summary>
+    public static readonly IReadOnlyList<string> ReplacementFollowColumns =
+    [
+        "action", "follow_sequence", "gone_txid", "replacer_txid", "reason", "journal_sequence", "recorded_utc",
+    ];
+
     /// <summary>The first version of the tables.</summary>
     private const string Version1 = """
         CREATE TABLE tracing_start_points (
@@ -194,6 +212,24 @@ internal sealed class TracingSchema : ICaseSchemaContributor
         ) STRICT;
         """;
 
+    /// <summary>
+    /// The seventh version: the user's choices to follow the transaction that replaced one the source no longer knows,
+    /// and their taking back (sketch GR9a), sealed with who and when like the choices about swaps.
+    /// </summary>
+    private const string Version7 = """
+        CREATE TABLE tracing_replacement_follows (
+            sequence INTEGER PRIMARY KEY,
+            action TEXT NOT NULL,
+            follow_sequence INTEGER,
+            gone_txid TEXT NOT NULL,
+            replacer_txid TEXT NOT NULL,
+            reason TEXT NOT NULL,
+            journal_sequence INTEGER NOT NULL,
+            recorded_utc TEXT NOT NULL,
+            hash BLOB NOT NULL
+        ) STRICT;
+        """;
+
     /// <inheritdoc/>
     public string Module => ModuleName;
 
@@ -206,6 +242,8 @@ internal sealed class TracingSchema : ICaseSchemaContributor
         new(4, "Utplockade tx ur det som hölls tillbaka, och när en expansion gjordes första gången", Version4),
         new(5, "Kommentarer i grafen, förseglade med vem och när, och var de står", Version5),
         new(6, "Val att spåret inte följer med genom en swap, förseglade med vem och när", Version6),
+        new(7, "Val att spåret följer tx:en som ersatte en som inte finns längre, förseglade med vem och när",
+            Version7),
     ];
 
     /// <inheritdoc/>
@@ -214,5 +252,6 @@ internal sealed class TracingSchema : ICaseSchemaContributor
         new(CrossChainChain, CrossChainTable, CrossChainColumns),
         new(CommentsChain, CommentsTable, CommentColumns),
         new(SwapStopsChain, SwapStopsTable, SwapStopColumns),
+        new(ReplacementFollowsChain, ReplacementFollowsTable, ReplacementFollowColumns),
     ];
 }

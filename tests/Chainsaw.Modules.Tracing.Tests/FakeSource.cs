@@ -195,6 +195,22 @@ internal sealed class FakeSource : IBitcoinSource
         ICase @case, CancellationToken cancellationToken = default) =>
         throw new NotSupportedException();
 
+    /// <summary>The block changes the case has seen, as Chains reads them from the sealed answers.</summary>
+    public List<BlockChange> Changes { get; } = [];
+
+    /// <summary>What the case knows spends the coins of a gone transaction, by the gone transaction.</summary>
+    public Dictionary<Txid, TransactionReplacement> Replacements { get; } = [];
+
+    public Task<IReadOnlyList<BlockChange>> GetBlockChangesAsync(
+        ICase @case, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<BlockChange>>([.. Changes]);
+
+    public Task<BitcoinLookup<TransactionReplacement>> GetReplacementAsync(
+        ICase @case, Txid txid, LookupMode mode = LookupMode.CaseOnly, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Replacements.TryGetValue(txid, out var replacement)
+            ? Answer(LookupStatus.FromCase, replacement, null)
+            : Answer<TransactionReplacement>(LookupStatus.NotInCase, null, null));
+
     private BitcoinSpend? SpenderOf(Txid txid, int index)
     {
         foreach (var transaction in _chain.Values)

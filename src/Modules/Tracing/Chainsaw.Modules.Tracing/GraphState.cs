@@ -23,13 +23,19 @@ internal sealed record GraphState(
     public IReadOnlyList<SwapStop> SwapStops { get; init; } = [];
 
     /// <summary>
-    /// Gets every transaction the graph holds: the start points' transactions and those the expansions brought in,
-    /// each once, in the order they came.
+    /// Gets the user's choices in force to follow the replacer of a gone transaction (sketch GR9a), oldest first.
+    /// </summary>
+    public IReadOnlyList<ReplacementFollow> Replacements { get; init; } = [];
+
+    /// <summary>
+    /// Gets every transaction the graph holds: the start points' transactions, those the expansions brought in and
+    /// the replacers the user chose to follow, each once, in the order they came.
     /// </summary>
     public IReadOnlyList<Txid> Transactions =>
     [
         .. StartPoints.Where(start => start.Txid is not null).Select(start => start.Txid!)
             .Concat(Expansions.SelectMany(expansion => expansion.Transactions))
+            .Concat(Replacements.Select(follow => follow.Replacer))
             .Distinct(),
     ];
 

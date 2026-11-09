@@ -176,12 +176,16 @@ internal sealed class SourceLookups
     /// The response of an answer that is not believed (a final TRON answer without a known token's event): its
     /// endpoint, and any other at the same host and port, is not asked (<see cref="IsOther"/>); <see langword="null"/>
     /// to ask any.
+    /// <param name="preferNotHosts">
+    /// Hosts whose endpoints are passed over while another can be asked, as when what they said is to be confirmed
+    /// elsewhere; when every endpoint is on them, they are asked all the same.
     /// </param>
     /// <returns>The answer.</returns>
     public async Task<BitcoinLookup<T>> FetchAsync<T>(
         ICase @case, LookupQuery<T> query, (T Value, StoredResponse Response)? stored,
         CancellationToken cancellationToken, bool inStep = false, bool preferInStep = false, Guid? except = null,
-        ResponseOrigin? doubted = null)
+        ResponseOrigin? doubted = null,
+        IReadOnlySet<string>? preferNotHosts = null)
         where T : class
     {
         var fetchedBy = CurrentOperator(out var noOperator);
@@ -200,6 +204,12 @@ internal sealed class SourceLookups
         {
             // Another endpoint than the one whose answer is to be confirmed.
             plan = plan with { Endpoints = [.. plan.Endpoints.Where(each => each.Endpoint.Id != passedOver)] };
+        }
+
+        if (preferNotHosts is { Count: > 0 } hosts
+            && plan.Endpoints.Where(each => !hosts.Contains(each.Endpoint.Address.Host)).ToList() is [_, ..] others)
+        {
+            plan = plan with { Endpoints = others };
         }
 
         if (plan.Off)

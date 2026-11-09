@@ -786,6 +786,12 @@ internal sealed class TestTracing : ITracingService
 
     public IReadOnlyList<SwapStopHistoryEntry> GetSwapStopHistory(ICase @case) => SwapHistory;
 
+    public Task<ReplacementFollow> FollowReplacementAsync(
+        ICase @case, Txid gone, Txid replacer, string? reason, CancellationToken cancellationToken = default) =>
+        Task.FromResult(new ReplacementFollow(1, gone, replacer, reason, 1, DateTimeOffset.UnixEpoch));
+
+    public bool TakeBackReplacement(ICase @case, ReplacementFollow follow, string? reason) => true;
+
     public void SavePosition(ICase @case, string nodeKey, GraphLayout layout, NodePosition position) =>
         throw new NotSupportedException();
 

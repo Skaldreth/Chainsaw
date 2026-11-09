@@ -1649,6 +1649,34 @@ Kräver samma sorts Ethereum-ärende som SW1a, med en swap genom en känd router
       *Nästa försök kl. 14:02:31* litet under, samma tid som titelradens tips; *Försöker nu* medan ett försök pågår.
       Ringen och linjerna är fortfarande röda och streckade, eftersom inga uppslag går. Ansluten igen: utgångens namn.
 
+### Spåret vid en tx som inte finns och Ersatt av (GR9a, 2026-11-09)
+Svårt att framkalla på huvudnätet; lättast på testnät med en obekräftad tx som ersätts med RBF, eller ett ärende där
+källan svarat `404` två gånger efter att ha visat tx:en i ett block.
+- [ ] Spåra pengar in i en tx som källan inte längre känner: linjen in till den bär det spårade beloppet överstruket,
+      ingenting efter den får spårat belopp (linjerna efter är grå och streckade), och *Spårat* räknas inte genom den.
+      Inspektörens slut säger *Tx:en finns inte längre* med `gone-tx v1`, blocket ärendet såg den i och svarets nummer.
+- [ ] Öppna det röda märket: rutan har en tredje rad *Ersatt av 3f2a…9b1c* när en annan tx spenderar samma mynt, och
+      foten säger RBF eller dubbelspendering. Föll tx:en bort utan ersättare säger foten att pengarna ligger kvar och
+      raden saknas. Rutans *?* öppnar Guiden på *En tx som inte finns längre*.
+- [ ] Med utgången ansluten frågas det en gång per ärende och session vad som spenderar mynten (en fråga per tx
+      som mynten kom ur, förseglad som `bitcoin.replaced-outspends`, och `/verify` klarar sig); offline skickas inget,
+      rutan säger att det inte är hämtat ännu, länken *Följ ersättaren* syns inte, och frågan ställs när utgången är
+      ansluten igen.
+- [ ] Klicka *Följ ersättaren*: toasten *Spåret följer ersättaren* med *Ångra*, ersättaren kommer in i grafen och
+      spåret går vidare genom den med streckade accentlinjer; *Varför?* på beloppet säger att det är din bedömning.
+      Journalen har en rad om valet. *Ta tillbaka* i rutan, eller *Ångra*, gör att spåret slutar vid den borta tx:en
+      igen och ersättaren lämnar grafen.
+- [ ] Raden *Ersatt av …* visar ersättarens blockhöjd eller *obekräftad*; vid en dubbelspendering med flera
+      ersättare har var och en sin rad och sin länk.
+- [ ] Med två endpoints som båda svarat i ärendet och bara den ena som svarat `404`: spåret stannar med *Tx:en
+      kanske inte finns; uppgifterna går inte ihop* (inget slut), och frågan om mynten går till den andra värden. Svarar
+      den att mynten är spenderade eller fria slutar spåret. Med bara en endpoint säger rutan och *Varför?* att slutet
+      vilar på en enda källa, med värden.
+- [ ] Hovra en slutsats som hålls tillbaka (HB1a) som byggde på en ersatt tx: raden *Ersatt av …* står under
+      *Byggde på …*.
+- [ ] Exponering från en aktör vars pengar gick in i en borta tx: det räknas som *Spåret tar slut*, och efter *Följ
+      ersättaren* räknas vägen genom ersättaren.
+
 ## Kontroller och förslag
 
 ### Kontroller, förslag och områden (KF2b och KF1b)

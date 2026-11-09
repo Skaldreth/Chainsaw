@@ -99,6 +99,12 @@ public enum GuideTopic
 
     /// <summary><em>Ankaret och flera datorer</em>: why an anchor was replaced (sketch AK1a).</summary>
     Anchors,
+
+    /// <summary>
+    /// <em>En tx som inte finns längre</em>: a transaction the source no longer knows, where the trail ends, and what
+    /// replaced it (sketch GR9a).
+    /// </summary>
+    GoneTransaction,
 }
 
 /// <summary>Reads <see cref="GuideTopic"/>.</summary>
@@ -148,6 +154,7 @@ public static class GuideTopics
         GuideTopic.PayJoin => "payjoin",
         GuideTopic.TimePattern => "tidsmonster",
         GuideTopic.Anchors => "ankaret",
+        GuideTopic.GoneTransaction => "ersatt-tx",
         _ => "utxo-modellen",
     };
 
@@ -186,6 +193,7 @@ public static class GuideTopics
         GuideTopic.PayJoin => "PayJoin",
         GuideTopic.TimePattern => "Tidsmönster",
         GuideTopic.Anchors => "Ankaret och flera datorer",
+        GuideTopic.GoneTransaction => "En tx som inte finns längre",
         _ => "UTXO-modellen",
     };
 

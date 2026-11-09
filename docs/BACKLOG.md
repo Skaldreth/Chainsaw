@@ -328,6 +328,11 @@ tidsmönster (`active-hours`) och tjänster ur beteende (`service-behaviour`). K
   förseglat, och ett nytt beslut om samma kandidat ersätter det förra.
 
 ## Spårning (Tracing)
+- **Efter tredje granskningen av en borta tx (2026-11-09, M):** slutet vilar på en enda källa också när en annan
+  endpoint är påslagen men aldrig har svarat (ge hellre `GoneUncertain`, eller säg det i texten); ett sparat svar om
+  mynten från lögnaren frågas aldrig om hos en annan värd (`Settled` bör kräva en värd som inte sa 404); mellan
+  404-svaren och den andra värdens svar slutar spåret tillfälligt på en källa (beloppen hoppar); långa rader i
+  `docs/guide/ersatt-tx.md`.
 - **Efter slutkontrollen av SW1a (2026-11-09, M):** det utfällda valet *Följer / Följer inte* ritas inuti linjens
   toning, så det tonas ned när en annan nod är vald (prova på Windows, och att pillrets öppna läge ritas om när
   linjelagret är cachat); ett ovanligt specialfall i Exponering (länkad insättning till ämnet i en köpt tillgång,

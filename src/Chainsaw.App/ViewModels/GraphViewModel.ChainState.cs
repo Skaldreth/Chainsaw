@@ -146,9 +146,22 @@ public sealed partial class GraphViewModel
     /// <summary>The Guide's heading that explains a reorganisation of the chain.</summary>
     public const string ReorganisationHeading = "Omorganisation av kedjan";
 
-    /// <summary>Opens the Guide on a reorganisation of the chain (the <em>?</em> in a block mark's box).</summary>
-    public void OpenBlockMarkGuide() => GuideWanted?.Invoke(
-        this, GuideRequest.ForTopic(GuideTopic.ChainCheck) with { Heading = ReorganisationHeading, IsChoice = true });
+    /// <summary>
+    /// Opens the Guide from the <em>?</em> in a block mark's box: on a transaction that is gone, or else on a
+    /// reorganisation of the chain.
+    /// </summary>
+    public void OpenBlockMarkGuide()
+    {
+        var key = OpenBlockMark ?? string.Empty;
+        if (BlockMarksByLine.TryGetValue(key, out var mark) && mark.IsGone)
+        {
+            OpenGoneGuide();
+            return;
+        }
+
+        var request = GuideRequest.ForTopic(GuideTopic.ChainCheck);
+        GuideWanted?.Invoke(this, request with { Heading = ReorganisationHeading, IsChoice = true });
+    }
 
     /// <summary>
     /// Reads the waits anew and moves the countdown on; the view calls it every second while a wait is shown, and a
@@ -217,6 +230,7 @@ public sealed partial class GraphViewModel
         _turnIds.Clear();
         _marksVersion++;
         _changes = [];
+        _askedReplacements.Clear();
         BlockMarksByLine = new Dictionary<string, BlockMark>();
         OpenBlockMark = null;
         OpenSwap = null;
@@ -270,6 +284,7 @@ public sealed partial class GraphViewModel
         BlockMarksByLine = BlockMarks.ForLines(Scene, _changes, _clock.UtcNow, Zone);
         Timeline.ShowNewestBlock(reading.Tip);
         Redraw?.Invoke(this, EventArgs.Empty);
+        await AskReplacementsAsync();
     }
 
     /// <summary>

@@ -146,6 +146,12 @@ public static class TestDataBitcoin
             ICase @case, CancellationToken cancellationToken = default) =>
             inner.GetBlockChangesAsync(@case, cancellationToken);
 
+        /// <inheritdoc/>
+        public Task<BitcoinLookup<TransactionReplacement>> GetReplacementAsync(
+            ICase @case, Txid txid, LookupMode mode = LookupMode.CaseOnly,
+            CancellationToken cancellationToken = default) =>
+            inner.GetReplacementAsync(@case, txid, mode, cancellationToken);
+
         /// <summary>Tries the endpoint the first time it is needed in step, and never again.</summary>
         /// <param name="cancellationToken">Stops the wait.</param>
         /// <returns>A task that completes when the endpoint has been tried.</returns>

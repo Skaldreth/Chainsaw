@@ -84,6 +84,16 @@ public sealed record TraceGraph(
     /// </summary>
     public IReadOnlyList<GraphPile> Piles { get; init; } = [];
 
+    /// <summary>
+    /// Gets the graph's transactions that the source no longer knows (sketch GR9a, <em>Finns inte längre</em>), with
+    /// what spends their coins now as far as the case knows; the trail ends at each (<see
+    /// cref="TrailEndReason.TransactionGone"/>) unless the user chose to follow its replacer.
+    /// </summary>
+    public IReadOnlyDictionary<Txid, GoneTransaction> Gone { get; init; } = new Dictionary<Txid, GoneTransaction>();
+
+    /// <summary>Gets the user's choices in force to follow the replacer of a gone transaction, oldest first.</summary>
+    public IReadOnlyList<ReplacementFollow> FollowedReplacements { get; init; } = [];
+
     /// <summary>Gets what the expansions held back, one clue per actor (sketch EX1).</summary>
     public IReadOnlyList<HeldBackClue> HeldBack { get; init; } = [];
 

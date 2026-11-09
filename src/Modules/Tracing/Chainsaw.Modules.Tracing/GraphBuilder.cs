@@ -107,6 +107,8 @@ internal sealed class GraphBuilder
                 RefusedSwaps = refused,
             },
             SwapStops = _data.State.SwapStops,
+            Gone = _data.Gone,
+            FollowedReplacements = _data.State.Replacements,
         };
         var (piles, clues) = PileRules.Arrange(graph, _data.State);
         return graph with { Piles = piles, HeldBack = clues };

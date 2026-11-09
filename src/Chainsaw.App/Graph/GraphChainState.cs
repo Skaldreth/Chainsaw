@@ -70,6 +70,32 @@ public interface IGraphChainState
     /// <param name="cancellationToken">Stops the reading.</param>
     /// <returns>The reading.</returns>
     Task<ChainMarksReading> ReadMarksAsync(ICase @case, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Asks which transaction spends the coins of a gone Bitcoin transaction now (sketch GR9a, <em>Ersatt av</em>):
+    /// only the coins go out, through the exit, and every answer is sealed in the case (principles 1 and 4).
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="txid">The gone transaction.</param>
+    /// <param name="cancellationToken">Stops the lookups.</param>
+    /// <returns>
+    /// How the lookup went: <see cref="LookupStatus.Fetched"/> when a new answer was sealed, so that the graph is read
+    /// again; <see cref="LookupStatus.FromCase"/> when the case already knew; otherwise why nothing could be asked.
+    /// </returns>
+    Task<LookupStatus> AskReplacementAsync(ICase @case, Txid txid, CancellationToken cancellationToken) =>
+        Task.FromResult(LookupStatus.Failed);
+
+    /// <summary>
+    /// Reads from the case which transactions spend the coins of some transactions now, sending nothing: what replaced
+    /// each, as far as the sealed answers say.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="txids">The transactions.</param>
+    /// <param name="cancellationToken">Stops the reading.</param>
+    /// <returns>The replacers of each transaction that has any.</returns>
+    Task<IReadOnlyDictionary<Txid, IReadOnlyList<Txid>>> ReadReplacersAsync(
+        ICase @case, IReadOnlyCollection<Txid> txids, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyDictionary<Txid, IReadOnlyList<Txid>>>(new Dictionary<Txid, IReadOnlyList<Txid>>());
 }
 
 /// <summary>The graph's way to the chains' balances, rates and block changes (<see cref="IGraphChainState"/>).</summary>
@@ -135,6 +161,35 @@ public sealed class GraphChainState(
             : await tron.GetBlockChangesAsync(@case, cancellationToken).ConfigureAwait(false);
         var tip = await bitcoin.GetTipAsync(@case, LookupMode.CaseOnly, cancellationToken).ConfigureAwait(false);
         return new ChainMarksReading([.. onBitcoin, .. onEthereum, .. onTron], tip.Value);
+    }
+
+    /// <inheritdoc/>
+    public async Task<IReadOnlyDictionary<Txid, IReadOnlyList<Txid>>> ReadReplacersAsync(
+        ICase @case, IReadOnlyCollection<Txid> txids, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(txids);
+        var replacers = new Dictionary<Txid, IReadOnlyList<Txid>>();
+        foreach (var txid in txids)
+        {
+            var lookup = await bitcoin.GetReplacementAsync(@case, txid, LookupMode.CaseOnly, cancellationToken)
+                .ConfigureAwait(false);
+            if (lookup.Value is { Replacers.Count: > 0 } replacement)
+            {
+                replacers[txid] = replacement.Replacers;
+            }
+        }
+
+        return replacers;
+    }
+
+    /// <inheritdoc/>
+    public async Task<LookupStatus> AskReplacementAsync(ICase @case, Txid txid, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        var lookup = await bitcoin.GetReplacementAsync(@case, txid, LookupMode.AsNeeded, cancellationToken)
+            .ConfigureAwait(false);
+        return lookup.Status;
     }
 
     /// <summary>
