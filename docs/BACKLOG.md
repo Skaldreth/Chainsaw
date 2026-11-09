@@ -49,9 +49,11 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
   - **Kontoheuristiker** (`IAccountHeuristic`): börsens insättningsadresser som töms till samma hot wallet, och
     adresser som betalar varandras gas. Kräver att kluster och bevis kan hålla `ChainAddress`.
 - **Ethereum-källan, det som återstår** (etapp 23):
-  - **Etherscan med API-nyckel:** Etherscan tar nyckeln bara som `apikey` i adressen, som förseglas i ärendet (CLAUDE.md:
-    nycklar aldrig i ärendet). Byggs först när Network kan skicka en nyckel i adressen och adressen förseglas utan den.
-    Blockscouts nyckel skickas som `Authorization: Bearer`, vilket inte är kontrollerat mot en Blockscout med nyckel.
+  - **Etherscan, efter E1:** en hel tx (Blockscouts `gettxinfo`), en adress tokens och en tokens decimaler frågas
+    inte hos Etherscan (gratisnyckeln ger dem inte), så de kräver en Blockscout bredvid; Etherscans `eth_getTransaction*`
+    genom proxyn kunde ge en hel tx. BSC genom Etherscan (`chainid=56`) kräver en betald nyckel (fråga 20). Inte prövat
+    mot Etherscan på riktigt. Blockscouts nyckel skickas som `Authorization: Bearer`, vilket inte är kontrollerat mot
+    en Blockscout med nyckel.
   - **Blockets hash för en tx** hämtas ur `v2/blocks/:höjd` (Blockscouts eget API), eftersom `gettxinfo` saknar den.
     Byts blocket på höjden mellan uppslagen (en omorganisation) kan hashen höra till ett annat block; ovanligt när
     blocket är slutgiltigt efter 64 block. En egen nod (JSON-RPC `eth_getTransactionReceipt`) ger hashen direkt.

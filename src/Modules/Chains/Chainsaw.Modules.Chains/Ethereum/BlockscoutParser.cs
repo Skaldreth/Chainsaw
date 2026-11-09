@@ -117,6 +117,14 @@ internal static class BlockscoutParser
     /// <exception cref="FormatException">The list has no block, or its first does not add up.</exception>
     public static ChainTip ParseNewestBlock(byte[] body) => Read(body, root =>
     {
+        if (root.TryGetProperty("result", out var rpc) && rpc.ValueKind == JsonValueKind.Object)
+        {
+            var latest = RpcBlockFrom(rpc, null);
+            return latest.Height > 0
+                ? new ChainTip(latest.Height, latest.Hash!, latest.Time)
+                : throw new FormatException("The newest block is not above zero.");
+        }
+
         if (!root.TryGetProperty("items", out var items) || items.ValueKind != JsonValueKind.Array
             || items.GetArrayLength() == 0)
         {
@@ -203,6 +211,11 @@ internal static class BlockscoutParser
     /// <exception cref="FormatException">It is not that block, or does not add up.</exception>
     private static EthereumBlockReference BlockFrom(JsonElement block, long? height)
     {
+        if (block.TryGetProperty("result", out var rpc) && rpc.ValueKind == JsonValueKind.Object)
+        {
+            return RpcBlockFrom(rpc, height);
+        }
+
         var hash = String(block, "hash");
         var number = block.TryGetProperty("height", out var h) && h.TryGetInt64(out var n)
             ? n
@@ -215,6 +228,29 @@ internal static class BlockscoutParser
         var time = DateTimeOffset.Parse(String(block, "timestamp"), CultureInfo.InvariantCulture,
             DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal);
         return new EthereumBlockReference(number, hash.ToLowerInvariant(), time);
+    }
+
+    /// <summary>
+    /// Reads a block as JSON-RPC gives it (<c>eth_getBlockByNumber</c>, through Etherscan's <c>module=proxy</c>): the
+    /// height and the time as hex quantities, the time in seconds since 1970.
+    /// </summary>
+    /// <param name="block">The call's result.</param>
+    /// <param name="height">The height asked for, or <see langword="null"/> when any will do.</param>
+    /// <returns>The block's height, hash and time.</returns>
+    /// <exception cref="FormatException">It is not that block.</exception>
+    private static EthereumBlockReference RpcBlockFrom(JsonElement block, long? height)
+    {
+        var hash = String(block, "hash");
+        var number = Quantity(String(block, "number"));
+        var seconds = Quantity(String(block, "timestamp"));
+        if (!EthereumTxHash.IsHash(hash) || number > long.MaxValue || seconds > long.MaxValue
+            || (height is { } asked && asked != number))
+        {
+            throw new FormatException("The block is not the one asked for.");
+        }
+
+        var time = DateTimeOffset.FromUnixTimeSeconds((long)seconds);
+        return new EthereumBlockReference((long)number, hash.ToLowerInvariant(), time);
     }
 
     /// <summary>Reads a transaction from <c>module=transaction&amp;action=gettxinfo</c>.</summary>

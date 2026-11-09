@@ -6132,3 +6132,17 @@ insättning i en borta tx i Begäran, Flöde).
   (`GraphScene.Balances`); de räknas inte längre, som i spåret. Samma sak för vad som ligger kvar att frysa i
   Begäran (`RequestExits.Total`): en adress vars enda insättning är borta får ingen frysning. Tester i App.
 - **M2:** en för lång rad i `RawResponseStore` är bruten.
+
+## E1 (2026-11-09): Etherscan för Ethereum
+
+- **Nyckeln i adressen:** `ExitCredential.Query("apikey", …)` (Network). Utgången lägger till parametern bara i
+  meddelandet den skickar; svaret behåller begärans adress, så det som förseglas i ärendet saknar nyckeln. En nyckel i
+  adressen får bara innehålla tecken som inte behöver kodas, och en adress som redan har parametern vägras.
+- **`EtherscanApi`** (Chains, sorten `etherscan`): samma vägar och samma tolk som Blockscout, med `chainid=1` först.
+  Höjden och blocken går genom JSON-RPC-proxyn (`eth_blockNumber`, `eth_getBlockByNumber`), och tolken läser nu också
+  ett block i JSON-RPC-form. Saldot får `tag=latest`. `gettxinfo`, `tokenlist` och `module=token` svarar Etherscan inte
+  på med gratisnyckel, så `Answers` lämnar dem till kedjans andra endpoints.
+- **Förvalet:** en endpoint *Etherscan* som är av tills nyckeln finns, med nyckeln `Etherscan` ur valvet och takten
+  350 ms (gratisnyckelns tre anrop i sekunden). Ett befintligt `sources.json` får den inte av sig själv; den läggs till
+  med *Lägg till endpoint …* och sorten Etherscan.
+- **Kvar:** raden för nycklar i valvet (NY1a eller NY1b väntar på val), och det under *Etherscan, efter E1* i BACKLOG.

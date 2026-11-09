@@ -211,6 +211,11 @@ public sealed record EthereumSourceOptions
     /// <summary>Blockscout's API for Ethereum, the default: open without a key, and it can be run in-house.</summary>
     public static readonly Uri Blockscout = new("https://eth.blockscout.com/api/");
 
+    /// <summary>
+    /// Etherscan's API (version 2) for Ethereum: it needs a key, so its endpoint is off until the key is in the vault.
+    /// </summary>
+    public Uri Etherscan { get; init; } = new("https://api.etherscan.io/v2/api");
+
     /// <summary>Gets Ethereum's endpoints until the user changes them in the settings (sketch KL1a).</summary>
     public IReadOnlyList<Uri> DefaultEndpoints { get; init; } = [Blockscout];
 

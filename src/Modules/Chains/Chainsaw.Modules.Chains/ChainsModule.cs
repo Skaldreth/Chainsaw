@@ -77,6 +77,7 @@ public static class ChainsModule
         services.AddSingleton<ISourceApi>(new EsploraApi(settings));
         services.AddSingleton<ISourceApi>(new BitcoinCoreApi(settings));
         services.AddSingleton<ISourceApi>(new BlockscoutApi(ethereumSettings));
+        services.AddSingleton<ISourceApi>(new EtherscanApi(ethereumSettings));
         services.AddSingleton<ISourceApi>(new TronGridApi(tronSettings));
         services.AddSingleton<ISourceApi>(new EsploraApi(litecoinSettings));
         services.AddSingleton<ISourceApi>(new BlockscoutApi(bscSettings));

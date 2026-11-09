@@ -193,6 +193,12 @@ internal sealed class ExitHttp(
         {
             throw new ArgumentException("The key's header is not allowed or its value cannot be sent.", nameof(request));
         }
+
+        if (request.Credential is { InQuery: true } inQuery && HasParameter(uri, inQuery.Header))
+        {
+            // The address already names the parameter: a second one could be read in its place, or leak the key.
+            throw new ArgumentException("The address already has the key's parameter.", nameof(request));
+        }
     }
 
     /// <summary>
@@ -231,7 +237,7 @@ internal sealed class ExitHttp(
     internal static HttpRequestMessage BuildMessage(ExitRequest request)
     {
         var method = request.Method == ExitMethod.Post ? HttpMethod.Post : HttpMethod.Get;
-        var message = new HttpRequestMessage(method, request.Uri)
+        var message = new HttpRequestMessage(method, AddressToSend(request))
         {
             // HTTP/1.1 exactly: HTTP/3 runs over UDP (QUIC), which neither the proxy nor the socket guard would carry.
             Version = HttpVersion.Version11,
@@ -244,7 +250,7 @@ internal sealed class ExitHttp(
             message.Headers.Accept.Add(type);
         }
 
-        if (request.Credential is { } credential)
+        if (request.Credential is { InQuery: false } credential)
         {
             message.Headers.TryAddWithoutValidation(credential.Header, credential.Value);
         }
@@ -260,6 +266,35 @@ internal sealed class ExitHttp(
 
         return message;
     }
+
+    /// <summary>
+    /// Gives the address the message is sent to: the request's own, with a key that goes in the address added as the
+    /// last query parameter. Only the message carries it; the response keeps the request's address, which is the one
+    /// sealed in a case, so the key never reaches the case.
+    /// </summary>
+    /// <param name="request">The checked request.</param>
+    /// <returns>The address to send to.</returns>
+    internal static Uri AddressToSend(ExitRequest request)
+    {
+        if (request.Credential is not { InQuery: true } credential)
+        {
+            return request.Uri;
+        }
+
+        var builder = new UriBuilder(request.Uri);
+        var query = builder.Query.TrimStart('?');
+        var parameter = credential.Header + "=" + credential.Value;
+        builder.Query = query.Length == 0 ? parameter : query + "&" + parameter;
+        return builder.Uri;
+    }
+
+    /// <summary>Tells whether an address's query already has a parameter, whatever its case.</summary>
+    /// <param name="uri">The address.</param>
+    /// <param name="name">The parameter.</param>
+    /// <returns><see langword="true"/> when it has.</returns>
+    internal static bool HasParameter(Uri uri, string name) =>
+        uri.Query.TrimStart('?').Split('&').Any(pair =>
+            string.Equals(pair.Split('=')[0], name, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
     /// Reads how long the source asks Chainsaw to wait (<c>Retry-After</c>), as a delay or a date counted from when

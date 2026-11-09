@@ -2391,6 +2391,14 @@ Grafen för Ethereum är inte byggd än; det som går att prova är källan, sta
 - `sources.json`: endpointen har `"Local": true` och `"IntervalMilliseconds": 0`. Ändra för hand en privat adress till
   `"Local": false`: den endpointen används inte efter omstart.
 
+## Ethereum med Etherscan (E1, 2026-11-09)
+
+- Lägg Etherscan-nyckeln i valvet (när NY1 är byggd) och slå på endpointen *Etherscan* under Inställningar › Källor ›
+  Ethereum. *Prova alla nu* ska ge höjd och hash för Etherscan.
+- Expandera en Ethereum-adress med bara Etherscan påslagen: historiken kommer från Etherscan. I ärendets råsvar ska
+  adressen ha `chainid=1&module=…` men aldrig `apikey`.
+- En hel tx och tokens frågas av Blockscout även när Etherscan står först.
+
 ## Ethereum, andra delen: grafen och inspektören (etapp 23b, TK1a)
 
 Kräver en ansluten utgång (eller Windows som utgång) och Ethereum i läget *Snabbast* eller *Prioriterad* i Källor.

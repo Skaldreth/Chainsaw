@@ -275,9 +275,9 @@ public sealed class EthereumSourceTests
         harness.Answer(EthereumHarness.Url("?module=block&action=eth_block_number"), "tip.json");
 
         Assert.Contains(Chain.Ethereum, harness.Sources.Chains);
-        Assert.Equal("blockscout", Assert.Single(harness.Sources.Apis(Chain.Ethereum)).Code);
+        Assert.Equal(["blockscout", "etherscan"], harness.Sources.Apis(Chain.Ethereum).Select(api => api.Code).Order());
         Assert.Equal(ProbeRun.Probed, await harness.Sources.ProbeAsync(Chain.Ethereum));
-        var probe = harness.Sources.Get(Chain.Ethereum).Endpoints.Single().Probe!;
+        var probe = harness.Sources.Get(Chain.Ethereum).Endpoints.Single(e => e.Endpoint.Api == "blockscout").Probe!;
         Assert.Equal(1000, probe.Height);
         Assert.Empty(harness.Rows());
     }
@@ -304,7 +304,7 @@ public sealed class EthereumSourceTests
         var lookup = await harness.Source.GetTransactionAsync(harness.Case, EthereumHarness.H1);
 
         Assert.Equal(LookupStatus.NotFound, lookup.Status);
-        Assert.False(harness.Sources.Get(Chain.Ethereum).Endpoints.Single().FailedSince);
+        Assert.False(harness.Sources.Get(Chain.Ethereum).Endpoints.Single(e => e.Endpoint.Api == "blockscout").FailedSince);
         Assert.Single(harness.Rows());
     }
 
@@ -340,7 +340,7 @@ public sealed class EthereumSourceTests
 
         Assert.False(lookup.Value!.IsComplete);
         Assert.Equal(3, lookup.Value.Transfers.Count);
-        Assert.False(harness.Sources.Get(Chain.Ethereum).Endpoints.Single().FailedSince);
+        Assert.False(harness.Sources.Get(Chain.Ethereum).Endpoints.Single(e => e.Endpoint.Api == "blockscout").FailedSince);
     }
 
     [Fact]
@@ -357,7 +357,7 @@ public sealed class EthereumSourceTests
         Assert.Equal(KnownTokens.EthereumUsdt, Assert.Single(lookup.Value!.Transfers).Amount.Asset);
         Assert.False(lookup.Value.IsComplete);
         Assert.Contains(lookup.Notes, note => note.StartsWith("2 Transfer-händelser", StringComparison.Ordinal));
-        Assert.False(harness.Sources.Get(Chain.Ethereum).Endpoints.Single().FailedSince);
+        Assert.False(harness.Sources.Get(Chain.Ethereum).Endpoints.Single(e => e.Endpoint.Api == "blockscout").FailedSince);
     }
 
     [Fact]

@@ -176,6 +176,54 @@ public sealed class ExitHttpTests
         Assert.DoesNotContain("s3cret", request.RequestUri!.AbsoluteUri, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task A_key_for_the_address_is_added_to_what_is_sent_but_never_to_the_response_s_address()
+    {
+        await _harness.ConnectedExitAsync();
+        var address = new Uri("https://chain.example/v2/api?chainid=1&module=account");
+
+        var response = await _harness.Http.SendAsync(ExitRequest.Get(address) with
+        {
+            Credential = ExitCredential.Query("apikey", "S3cretKey"),
+        });
+
+        var request = Assert.Single(_harness.Handlers.Handlers[0].Requests);
+        Assert.Equal("?chainid=1&module=account&apikey=S3cretKey", request.RequestUri!.Query);
+        Assert.Equal(["User-Agent"], request.Headers.NonValidated.Select(h => h.Key));
+        Assert.Equal(address, response.Uri);
+        Assert.DoesNotContain("S3cretKey", response.Uri.AbsoluteUri, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("apikey", "a&module=x")]
+    [InlineData("apikey", "a b")]
+    [InlineData("apikey", "")]
+    [InlineData("token", "abc")]
+    public async Task A_key_for_the_address_that_would_change_the_query_is_refused(string parameter, string value)
+    {
+        await _harness.ConnectedExitAsync();
+        var credential = ExitCredential.Query(parameter, value);
+
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => _harness.Http.SendAsync(ExitRequest.Get(Address) with { Credential = credential }));
+
+        Assert.Empty(_harness.Handlers.Handlers[0].Requests);
+    }
+
+    [Fact]
+    public async Task A_key_for_the_address_is_refused_when_the_address_already_names_its_parameter()
+    {
+        await _harness.ConnectedExitAsync();
+        var address = new Uri("https://chain.example/v2/api?ApiKey=other");
+
+        await Assert.ThrowsAsync<ArgumentException>(() => _harness.Http.SendAsync(ExitRequest.Get(address) with
+        {
+            Credential = ExitCredential.Query("apikey", "abc"),
+        }));
+
+        Assert.Empty(_harness.Handlers.Handlers[0].Requests);
+    }
+
     [Theory]
     [InlineData("Cookie", "a=b")]
     [InlineData("Referer", "https://case.example/")]
