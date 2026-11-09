@@ -22,6 +22,12 @@ public sealed class TestActors
     /// <summary>How many parts the CoinJoin output is split into after the hops.</summary>
     public const int PartCount = 6;
 
+    /// <summary>How many ways go alike through the mixer to Sydbörsen.</summary>
+    public const int PatternWays = 2;
+
+    /// <summary>How many mules each of the alike ways passes through.</summary>
+    public const int PatternMulesPerWay = 2;
+
     /// <summary>Gets the exchange's hot wallet that paid the victim out.</summary>
     public TestAddress ExchangeHot { get; } = TestAddress.Wsh("nordborsen-hot");
 
@@ -127,6 +133,15 @@ public sealed class TestActors
     /// <summary>Gets the exchange without customer checks.</summary>
     public TestAddress NoKycExchange { get; } = TestAddress.Wpkh("snabbvaxlaren");
 
+    /// <summary>
+    /// Gets the exchange without customer checks' new deposit address, which the gone spend paid first and a later
+    /// payment pays again.
+    /// </summary>
+    public TestAddress NoKycDeposit { get; } = TestAddress.Wpkh("snabbvaxlaren-ny-insattning");
+
+    /// <summary>Gets the change of the later payment to <see cref="NoKycDeposit"/>.</summary>
+    public TestAddress ReusedDepositChange { get; } = TestAddress.Wpkh("insattningen-igen-vaxel");
+
     /// <summary>Gets the hub: an address with many transactions and many counterparties.</summary>
     public TestAddress Hub { get; } = TestAddress.Wpkh("navet");
 
@@ -201,5 +216,43 @@ public sealed class TestActors
 
     /// <summary>Gets the payer's change in the possible PayJoin.</summary>
     public TestAddress PayJoinChange { get; } = TestAddress.Wpkh("payjoin-vaxel");
+
+    /// <summary>
+    /// Gets the two victims whose money takes the same way through the mixer to Sydbörsen (the pattern
+    /// <em>Samma väg</em>).
+    /// </summary>
+    public IReadOnlyList<TestAddress> PatternVictims { get; } =
+        [.. Enumerable.Range(1, PatternWays).Select(index => TestAddress.Wpkh($"monster-offer-{index}"))];
+
+    /// <summary>Gets the scammers' addresses the two victims pay, each depositing into the mixer.</summary>
+    public IReadOnlyList<TestAddress> PatternScammers { get; } =
+        [.. Enumerable.Range(1, PatternWays).Select(index => TestAddress.Wpkh($"monster-bedragare-{index}"))];
+
+    /// <summary>Gets the mixer's two ways out that the two victims' money takes, one per victim.</summary>
+    public IReadOnlyList<TestAddress> PatternOuts { get; } =
+        [.. Enumerable.Range(1, PatternWays).Select(index => TestAddress.Wpkh($"monster-blandat-ut-{index}"))];
+
+    /// <summary>
+    /// Gets the mules each way passes through after the mixer, two per way: the first way's first, the first way's
+    /// second, then the second way's.
+    /// </summary>
+    public IReadOnlyList<TestAddress> PatternMules { get; } =
+    [
+        .. Enumerable.Range(1, PatternWays).SelectMany(way => Enumerable.Range(1, PatternMulesPerWay)
+            .Select(mule => TestAddress.Wpkh($"monster-mula-{way}-{mule}"))),
+    ];
+
+    /// <summary>
+    /// Gets Sydbörsen's deposit address that both ways end at, and that the run of alike amounts is paid into.
+    /// </summary>
+    public TestAddress PatternDeposit { get; } = TestAddress.Wpkh("sydborsen-insattning-monster");
+
+    /// <summary>
+    /// Gets the mixer's way out that pays Sydbörsen alike amounts in a row (the pattern <em>Likadana belopp</em>).
+    /// </summary>
+    public TestAddress Structurer { get; } = TestAddress.Wpkh("uppdelaren");
+
+    /// <summary>Gets the mixer's way out that pays the swap service, whose continuation on Ethereum is suggested.</summary>
+    public TestAddress BridgePayer { get; } = TestAddress.Wpkh("till-bryggan");
 }
 #endif

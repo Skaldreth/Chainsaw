@@ -6,8 +6,9 @@ namespace Chainsaw.App.TestData;
 /// coinbase with OP_RETURN spent in a shared transaction, the distribution to a mixer, a CoinJoin, a peel chain through
 /// shops to an exchange, a hub with many transactions, services of every sort and a new victim in the newest block;
 /// and the obfuscation the checks recognise: dust, a look-alike address, many hops with a pause, a split whose parts
-/// meet, a possible PayJoin, an exchange's sweeps into its hot wallet, and a spend replaced by a higher fee. Each
-/// transaction's label is how the steps name it.
+/// meet, a possible PayJoin, an exchange's sweeps into its hot wallet, a spend replaced by a higher fee, two victims'
+/// money going the same way, a run of alike amounts and a payment to a swap service. Each transaction's label is how
+/// the steps name it.
 /// </summary>
 public static class TestStoryChain
 {
@@ -19,6 +20,12 @@ public static class TestStoryChain
     /// the money can lie still for days between two hops.
     /// </summary>
     public const long Tip = Start + 720;
+
+    /// <summary>
+    /// The block of the payment to the swap service whose continuation is suggested: two hours before the swap on
+    /// Ethereum pays out ether (<see cref="TestEthereumChain.Swap"/>), within the analysis's window.
+    /// </summary>
+    public const long BridgeHeight = Start + 488;
 
     /// <summary>The lowest block: the coinbases that give everyone their first money come before the story.</summary>
     public const long First = Start - 200;
@@ -72,13 +79,24 @@ public static class TestStoryChain
     public const string PayJoin = "mojlig-payjoin";
 
     /// <summary>
-    /// The scammer's spend of a CoinJoin output to the exchange without KYC with a low fee, seen in a block that fell
-    /// out of the chain and then replaced by <see cref="ReplacingSpend"/> (RBF): a transaction that is gone.
+    /// The scammer's spend of a CoinJoin output to a new deposit address at the exchange without KYC with a low fee,
+    /// seen in a block that fell out of the chain and then replaced by <see cref="ReplacingSpend"/> (RBF): a
+    /// transaction that is gone.
     /// </summary>
     public const string ReplacedSpend = "efter-whirlpool-forsta";
 
-    /// <summary>The spend that replaced <see cref="ReplacedSpend"/>, the same coin with a higher fee.</summary>
+    /// <summary>
+    /// The spend that replaced <see cref="ReplacedSpend"/>: the same coin with a higher fee, to the exchange's address
+    /// the scammer used before.
+    /// </summary>
     public const string ReplacingSpend = "efter-whirlpool";
+
+    /// <summary>
+    /// The scammer's later payment from another CoinJoin output to the deposit address the gone spend paid first,
+    /// with change to a new address: the clustering takes the new address as change because the deposit address was
+    /// seen before, in the gone spend, so that the conclusion rests on a transaction that is gone (sketch HB1a).
+    /// </summary>
+    public const string ReusedDeposit = "insattningen-igen";
 
     /// <summary>The peel chain's hops, each peeling a payment off and passing the rest on.</summary>
     public static readonly IReadOnlyList<string> PeelHops =
@@ -94,6 +112,33 @@ public static class TestStoryChain
 
     /// <summary>The two sweeps of Sydbörsen's deposits into its hot wallet.</summary>
     public static readonly IReadOnlyList<string> SouthSweeps = ["sydborsen-svep-1", "sydborsen-svep-2"];
+
+    /// <summary>The mixer's payout to the two alike ways, the run of alike amounts and the payment to the swap.</summary>
+    public const string PatternPayout = "monster-blandarens-utbetalning";
+
+    /// <summary>The way out's payment to the swap service, whose continuation on Ethereum is suggested.</summary>
+    public const string BridgePayment = "till-bryggan-betalar";
+
+    /// <summary>The two victims' payments to the scammers whose money takes the same way.</summary>
+    public static readonly IReadOnlyList<string> PatternVictimPayments =
+        [.. Enumerable.Range(1, TestActors.PatternWays).Select(way => $"monster-offer-{way}-betalar")];
+
+    /// <summary>
+    /// Each alike way's hops after the mixer, way by way: the way out pays the first mule, the first mule the second,
+    /// and the second pays Sydbörsen's deposit.
+    /// </summary>
+    public static readonly IReadOnlyList<IReadOnlyList<string>> PatternHops =
+    [
+        .. Enumerable.Range(1, TestActors.PatternWays).Select(way => (IReadOnlyList<string>)
+            [.. Enumerable.Range(1, TestActors.PatternMulesPerWay + 1).Select(hop => $"monster-vag-{way}-hopp-{hop}")]),
+    ];
+
+    /// <summary>The alike amounts, in satoshi: within 1 % of the first and not round, as the rule reads them.</summary>
+    private static readonly long[] StructuringAmounts = [9_480_000, 9_475_000, 9_490_000, 9_470_000];
+
+    /// <summary>The run of alike amounts the way out pays into Sydbörsen's deposit, each spending the last's change.</summary>
+    public static readonly IReadOnlyList<string> StructuringPayments =
+        [.. Enumerable.Range(1, StructuringAmounts.Length).Select(index => $"likadana-belopp-{index}")];
 
     /// <summary>The first block's time.</summary>
     private static readonly DateTimeOffset FirstTime = new(2026, 10, 19, 12, 0, 0, TimeSpan.Zero);
@@ -116,6 +161,7 @@ public static class TestStoryChain
         SouthExchangeSweeps(chain, funding, actors);
         HopsAndParts(chain, funding, actors);
         Replacement(chain, actors);
+        AlikeWays(chain, funding, actors);
         chain.Seal(Tip);
         return chain;
     }
@@ -372,16 +418,79 @@ public static class TestStoryChain
     }
 
     /// <summary>
-    /// The scammer spends a CoinJoin output to the exchange without KYC with too low a fee, and replaces it with a
-    /// higher one (RBF) in the block before the newest. The first spend was seen in a block that fell out of the chain,
-    /// so that it is gone and replaced (sketch GR9a, <em>Ersatt av</em>).
+    /// The scammer spends a CoinJoin output to a new deposit address at the exchange without KYC with too low a fee,
+    /// and replaces it with a higher one (RBF) to the address used before, in the block before the newest. The first
+    /// spend was seen in a block that fell out of the chain, so that it is gone and replaced (sketch GR9a,
+    /// <em>Ersatt av</em>). In the newest block the scammer pays the new deposit address after all, from another
+    /// CoinJoin output, with change: the change conclusion rests on the gone spend, where the address was first seen,
+    /// and is held back once a run no longer knows it (sketch HB1a).
     /// </summary>
     /// <param name="chain">The chain.</param>
     /// <param name="actors">The actors.</param>
     private static void Replacement(TestChain chain, TestActors actors)
     {
-        chain.Tx(ReplacedSpend, Tip - 1).From(CoinJoin, 0).Rest(actors.NoKycExchange, 300).Replaced();
+        chain.Tx(ReplacedSpend, Tip - 1).From(CoinJoin, 0).Rest(actors.NoKycDeposit, 300).Replaced();
         chain.Tx(ReplacingSpend, Tip - 1).From(CoinJoin, 0).Rest(actors.NoKycExchange, 3_000).Done();
+        chain.Tx(ReusedDeposit, Tip).From(CoinJoin, 2).Pay(actors.NoKycDeposit, 500_000)
+            .Rest(actors.ReusedDepositChange).Done();
+    }
+
+    /// <summary>
+    /// The patterns <c>pattern v1</c> recognises, and a payment to a swap service whose continuation is suggested
+    /// (<c>cross-chain v1</c>): two more victims pay two scammers, who deposit into the mixer; the mixer pays out from
+    /// its own coins, and the two victims' money (less 2 %) goes the same way, through two mules each, to the same
+    /// deposit address at Sydbörsen (<em>Samma väg</em>). The same payout gives a third way out that pays Sydbörsen's
+    /// deposit four alike amounts in a row (<em>Likadana belopp</em>), and a fourth that pays the swap service about
+    /// two hours before the swap on Ethereum pays out ether of about the same value.
+    /// </summary>
+    /// <param name="chain">The chain.</param>
+    /// <param name="funding">Gives fresh money.</param>
+    /// <param name="actors">The actors.</param>
+    private static void AlikeWays(TestChain chain, Funding funding, TestActors actors)
+    {
+        long[] deposited = [50_000_000, 45_000_000];
+        for (var way = 0; way < TestActors.PatternWays; way++)
+        {
+            var victim = actors.PatternVictims[way];
+            var money = funding.Give(victim, 60_000_000);
+            chain.Tx(PatternVictimPayments[way], Start + 170 + (5 * way)).From(money.Label)
+                .Pay(actors.PatternScammers[way], deposited[way]).Rest(victim).Done();
+            chain.Tx($"monster-bedragare-{way + 1}-till-blandaren", Start + 180 + (5 * way))
+                .From(PatternVictimPayments[way]).Rest(actors.Mixer).Done();
+        }
+
+        // From the mixer's own coins: each way out is its deposit less 2 %, as a mixer's fee.
+        var pool = funding.Give(actors.Mixer, 150_000_000);
+        var payout = chain.Tx(PatternPayout, Start + 215).From(pool.Label);
+        for (var way = 0; way < TestActors.PatternWays; way++)
+        {
+            payout.Pay(actors.PatternOuts[way], deposited[way] * 98 / 100);
+        }
+
+        payout.Pay(actors.Structurer, 38_120_000).Pay(actors.BridgePayer, 10_200_000).Rest(actors.Mixer).Done();
+        for (var way = 0; way < TestActors.PatternWays; way++)
+        {
+            var (previous, index) = (PatternPayout, way);
+            var hops = PatternHops[way];
+            for (var hop = 0; hop < hops.Count; hop++)
+            {
+                var to = hop < TestActors.PatternMulesPerWay
+                    ? actors.PatternMules[(way * TestActors.PatternMulesPerWay) + hop]
+                    : actors.PatternDeposit;
+                chain.Tx(hops[hop], Start + 230 + (15 * hop) + (5 * way)).From(previous, index).Rest(to).Done();
+                (previous, index) = (hops[hop], 0);
+            }
+        }
+
+        var (spent, output) = (PatternPayout, TestActors.PatternWays);
+        for (var index = 0; index < StructuringPayments.Count; index++)
+        {
+            chain.Tx(StructuringPayments[index], Start + 280 + (20 * index)).From(spent, output)
+                .Pay(actors.PatternDeposit, StructuringAmounts[index]).Rest(actors.Structurer).Done();
+            (spent, output) = (StructuringPayments[index], 1);
+        }
+
+        chain.Tx(BridgePayment, BridgeHeight).From(PatternPayout, TestActors.PatternWays + 1).Rest(actors.Swap).Done();
     }
 
     /// <summary>Gives fresh money, each as a coinbase in a block of its own before the story.</summary>

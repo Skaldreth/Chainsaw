@@ -15,8 +15,10 @@ namespace Chainsaw.App.TestData;
 /// transactions, so some are held back, and many counterparties), the victim's address (paid out from an exchange),
 /// the CoinJoin's outputs and the scammer's second wallet (the new victim's payment that the watch caught). The
 /// obfuscation the checks recognise is there: dust, a look-alike of Sydbörsen's deposit, many hops with a pause, a
-/// split whose parts meet, a possible PayJoin, a spend that is gone and replaced, and Sydbörsen's sweeps into a hot
-/// wallet without a label. The user's own work is there too, so that its marks and history can be seen at once: a
+/// split whose parts meet, a possible PayJoin, a spend that is gone and replaced (with a change conclusion that rests on
+/// it and is held back), Sydbörsen's sweeps into a hot wallet without a label, two victims' money going the same way
+/// through the mixer to Sydbörsen, a run of alike amounts, and a payment to the swap service whose continuation on
+/// Ethereum is suggested. The user's own work is there too, so that its marks and history can be seen at once: a
 /// split, decided suggestions, an approved wallet, an edited comment, a label on a transaction, and a comment and an
 /// area in the trash. Everything is made up and nothing goes out: the chain, the rates, the sanction lists and the
 /// open source are answered on this computer.
@@ -24,7 +26,7 @@ namespace Chainsaw.App.TestData;
 public static class TestStory
 {
     /// <summary>The story's version, in the journal and as the made-up labels' source version.</summary>
-    public const string Version = "4";
+    public const string Version = "5";
 
     /// <summary>The made-up open source the test case's labels come from.</summary>
     public const string LabelSource = "testdata (påhittad)";
@@ -37,6 +39,9 @@ public static class TestStory
 
     /// <summary>The colleague's case's title.</summary>
     public const string ColleagueTitle = "Kollegans ärende: påhittade data";
+
+    /// <summary>The names of the two victims whose money goes the same way through the mixer to Sydbörsen.</summary>
+    private static readonly string[] PatternVictimNames = ["Fjärde offret", "Femte offret"];
 
     /// <summary>The output of the hub's payment that goes to the swap service.</summary>
     private const int SwapOutput = 4;
@@ -84,7 +89,7 @@ public static class TestStory
             new WatchStep(actors.Consolidated, "Bedragarens andra plånbok", WatchDirection.In),
             new WatchCheckStep(),
             new ChecksStep(),
-            new DecideStep(actors.MixerOut1, LabelReason),
+            new DecideStep(actors.MixerOut1, TestStoryChain.Distribution, LabelReason),
             new SplitStep(actors.TopUp, "Påhittad uppbrytning: påfyllnaden kom från en tx som delades med andra."),
             new OwnAreaStep(
                 "Uttagsvägar", [actors.Exchange, actors.NoKycExchange],
@@ -95,6 +100,9 @@ public static class TestStory
                 "Påhittad kommentar som slängts: *gammal tanke om Sydbörsen*.", new NodePosition(360, -200)),
             new ThrownAreaStep(
                 "Spelsajterna", [actors.Gambling, actors.GiftCard], "Påhittad egen yta som slängts i soptunnan."),
+
+            // Last, since every expansion runs the clustering again on everything in the graph.
+            new HeldBackStep(TestStoryChain.ReusedDeposit),
         ];
     }
 
@@ -129,6 +137,7 @@ public static class TestStory
         new LabelStep(actors.SouthExchange, LabelKind.Exchange, "Sydbörsen"),
         new LabelStep(actors.SouthExchange2, LabelKind.Exchange, "Sydbörsen"),
         new LabelStep(actors.NoKycExchange, LabelKind.NoKycExchange, "Snabbväxlaren"),
+        new LabelStep(actors.NoKycDeposit, LabelKind.NoKycExchange, "Snabbväxlaren"),
         new LabelStep(actors.Nested, LabelKind.NestedService, "Inbäddade tjänsten"),
         new LabelStep(actors.Otc, LabelKind.OtcP2P, "Torgväxlaren"),
         new LabelStep(actors.Atm, LabelKind.CryptoAtm, "Automaten Centralen"),
@@ -141,6 +150,11 @@ public static class TestStory
         new LabelStep(actors.SecondMixer, LabelKind.Mixer, "Virveln"),
 
         new LabelStep(actors.Swap, LabelKind.SwapBridge, "Bytaren"),
+
+        // The two victims whose money goes the same way, so that the pattern rules never count them as actors.
+        .. actors.PatternVictims.Select((victim, index) =>
+            new LabelStep(victim, LabelKind.Victim, PatternVictimNames[index]) { Own = true }),
+        new LabelStep(actors.PatternDeposit, LabelKind.Exchange, "Sydbörsen"),
 
         // A supplier's report of fraud (as from Chainabuse): a red mark beside the node's own sort.
         new LabelStep(actors.Scammer, LabelKind.Reported, "Nätfiske"),
@@ -197,6 +211,23 @@ public static class TestStory
         new ExpandStep(TestStoryChain.Dusting),
         new ExpandStep(TestStoryChain.Poisoning),
         .. TestStoryChain.SouthPayments.Select(payment => new ExpandStep(payment)),
+        .. PatternExpansions(),
+        new ExpandStep(TestStoryChain.ReusedDeposit),
+    ];
+
+    /// <summary>
+    /// Gives the expansions of the patterns' part (<see cref="TestStoryChain"/>, <c>AlikeWays</c>): the two victims'
+    /// payments (which bring the deposits into the mixer), the mixer's payout (which brings each way's first hop, the
+    /// first alike amount and the payment to the swap service), the hops before each way's last, and the alike amounts
+    /// before the last.
+    /// </summary>
+    /// <returns>The steps.</returns>
+    private static IEnumerable<ITestStep> PatternExpansions() =>
+    [
+        .. TestStoryChain.PatternVictimPayments.Select(payment => new ExpandStep(payment)),
+        new ExpandStep(TestStoryChain.PatternPayout),
+        .. TestStoryChain.PatternHops.SelectMany(hops => hops.SkipLast(1)).Select(hop => new ExpandStep(hop)),
+        .. TestStoryChain.StructuringPayments.SkipLast(1).Select(payment => new ExpandStep(payment)),
     ];
 }
 #endif

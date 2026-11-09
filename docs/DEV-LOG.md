@@ -5628,3 +5628,28 @@ i KF2b-panelen, och ett godkännande som knyter fortsättningen i samma transakt
 - Testärendet har redan en godkänd plånbok (`DecideStep`), så inget nytt steg behövdes.
 
 **Kvar:** provet på Windows (TESTER-INFOR, *Godkänna en plånbok*).
+
+## Testärendet: mönster, en slutsats som hålls tillbaka och en fortsättning på annan kedja (2026-11-09)
+
+Rester [direkt] ur TODO (punkt 9 och omgång 4), bara i Debug-testärendet (`src/Chainsaw.App/TestData/`); berättelsen
+är version 5.
+
+- **`pattern v1`** (`TestStoryChain.AlikeWays`): två offer till (märkta *Offer*, så att reglerna aldrig räknar dem)
+  betalar var sin bedragare som sätter in i Blandaren. Blandaren betalar ut ur egna mynt (2 % avgift), och varje
+  utgång går genom två mulor till samma insättningsadress hos Sydbörsen: *Samma väg, 2 delar*. En tredje utgång
+  betalar samma insättning fyra lika, inte jämna belopp i följd: *Likadana belopp, 4 i följd*.
+- **`cross-chain v1`:** en fjärde utgång betalar Bytaren (`BridgeHeight`, två timmar före swappen på Ethereum), och
+  `ChecksStep` kör `ICrossChainLookup` (som appens `CheckSource`) före kontrollerna, så att kurserna finns i ärendet;
+  förslaget har swappens utbetalning av 2,95 ETH som bästa kandidat.
+- **HB1a:** den ersatta utgiften betalar nu en ny insättningsadress hos Snabbväxlaren (ersättaren den gamla), och en
+  tx i det nyaste blocket betalar den nya adressen igen med växel. Växelslutsatsen bygger på den borta tx:en (där
+  adressen sågs först). `HeldBackStep` sist i berättelsen kör klustringen på grafen utan de borta tx:erna.
+- **`DecideStep`** godkänner mixerns troligaste utgång för fördelningens insättning (`Deposit`), eftersom mixern nu
+  har fler insättningar.
+- **Tester:** tre nya i `TestCaseStoryTests` (samma väg och likadana belopp, förslaget på Ethereum, slutsatsen som
+  hålls tillbaka med det som saknas); testet om användarens beslut väljer fördelningens insättning.
+
+**Fynd:** en slutsats hålls aldrig tillbaka av sig själv i appen, eftersom Tracing skickar hela grafen till
+klustringen, också borta tx (TODO). Därför gör testärendet körningen själv, och nästa expansion tar tillbaka den.
+
+**Kvar:** *Samma insamling* och *Rundgång* i testärendet (BACKLOG, *Testärendet*).
