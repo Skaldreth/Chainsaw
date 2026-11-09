@@ -71,7 +71,7 @@ internal sealed class AttributionService(
                     name is null ? string.Empty : $" ({name})"),
                 JsonSerializer.Serialize(new
                 {
-                    subject = draft.Subject.Target.Value,
+                    subject = draft.Subject.Stored,
                     subjectKind = draft.Subject.Kind.ToString(),
                     kind = draft.Kind.ToString(),
                     name,
@@ -272,7 +272,7 @@ internal sealed class AttributionService(
         var matches = addresses.Distinct()
             .Select(address => (Address: address.ToChainAddress(), Match: sanctions.Find(address)))
             .ToList();
-        return CheckSanctions(@case, matches, currency => currency == OfacSdnParser.BitcoinCurrency);
+        return CheckSanctions(@case, matches, SanctionCurrency.OnUtxoChain);
     }
 
     /// <inheritdoc/>

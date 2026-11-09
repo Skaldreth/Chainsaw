@@ -3,6 +3,7 @@ using System.Xml;
 using System.Xml.Linq;
 using Chainsaw.Modules.Attribution.Contracts;
 using Chainsaw.Modules.Chains.Contracts;
+using Chainsaw.SharedKernel;
 
 namespace Chainsaw.Modules.Attribution;
 
@@ -90,10 +91,17 @@ internal static class OfacSdnParser
     /// <summary>Gives the key an address is looked up by on the list, or none when it is not valid.</summary>
     /// <param name="address">The address as the list writes it.</param>
     /// <returns>The parsed address, or <see langword="null"/>.</returns>
-    public static BitcoinAddress? BitcoinKey(SanctionedAddress address) =>
-        address.Currency == BitcoinCurrency && BitcoinAddress.TryParse(address.Address, out var parsed)
-            ? parsed
-            : null;
+    public static BitcoinAddress? BitcoinKey(SanctionedAddress address)
+    {
+        ArgumentNullException.ThrowIfNull(address);
+        Chain? chain = address.Currency switch
+        {
+            SanctionCurrency.Bitcoin => Chain.Bitcoin,
+            SanctionCurrency.Litecoin => Chain.Litecoin,
+            _ => null,
+        };
+        return chain is { } on && BitcoinAddress.TryParse(on, address.Address, out var parsed) ? parsed : null;
+    }
 
     /// <summary>
     /// Gives the key an account is looked up by on the list, or none when the entry is not for an account chain.
@@ -112,6 +120,12 @@ internal static class OfacSdnParser
             && EthereumAddress.TryParse(address.Address.ToLowerInvariant(), out var ethereum))
         {
             return ethereum;
+        }
+
+        if (address.Currency == SanctionCurrency.Bsc
+            && EthereumAddress.TryParse(Chain.Bsc, address.Address.ToLowerInvariant(), out var bsc))
+        {
+            return bsc;
         }
 
         return SanctionCurrency.OnTron.Contains(address.Currency)

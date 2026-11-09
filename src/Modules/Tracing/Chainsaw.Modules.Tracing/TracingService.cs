@@ -48,6 +48,9 @@ internal sealed class TracingService : ITracingService
     /// <summary>TRON's facts, read for the graph, or <see langword="null"/> when no TRON source is registered.</summary>
     private readonly EthereumReader? _tron;
 
+    /// <summary>BSC's facts, read for the graph, or <see langword="null"/> when no BSC source is registered.</summary>
+    private readonly EthereumReader? _bsc;
+
     /// <summary>The clock.</summary>
     private readonly IClock _clock;
 
@@ -63,6 +66,9 @@ internal sealed class TracingService : ITracingService
     /// <param name="tron">
     /// TRON's facts, or <see langword="null"/> where TRON is not registered (an expansion on TRON is then refused).
     /// </param>
+    /// <param name="bsc">
+    /// BSC's facts, or <see langword="null"/> where BSC is not registered (an expansion on BSC is then refused).
+    /// </param>
     /// <exception cref="ArgumentException">
     /// The methods are not registered properly (see <see cref="TracingMethods"/>).
     /// </exception>
@@ -73,7 +79,8 @@ internal sealed class TracingService : ITracingService
         IEnumerable<ITrailEndClassifier> classifiers,
         IEnumerable<ITracingMethod> methods,
         IClock clock,
-        ITronSource? tron = null)
+        ITronSource? tron = null,
+        IBscSource? bsc = null)
     {
         _source = source;
         _clustering = clustering;
@@ -83,6 +90,7 @@ internal sealed class TracingService : ITracingService
         _accountMethods = AccountMethodsFor(all, out _accountProblem);
         _ethereum = new EthereumReader(ethereum);
         _tron = tron is null ? null : new EthereumReader(tron);
+        _bsc = bsc is null ? null : new EthereumReader(bsc);
         _clock = clock;
     }
 
@@ -615,6 +623,7 @@ internal sealed class TracingService : ITracingService
     {
         Chain.Ethereum => _ethereum,
         Chain.Tron when _tron is not null => _tron,
+        Chain.Bsc when _bsc is not null => _bsc,
         _ => throw new ArgumentException($"No source for {chain} is registered.", nameof(chain)),
     };
 
@@ -938,7 +947,7 @@ internal sealed class TracingService : ITracingService
 
     /// <summary>
     /// Reads every account chain's facts the graph's state holds, from the case only, and joins them: Ethereum's, and
-    /// TRON's when its source is registered.
+    /// TRON's and BSC's when their sources are registered.
     /// </summary>
     /// <param name="case">The open case.</param>
     /// <param name="state">The graph's state.</param>
@@ -948,9 +957,12 @@ internal sealed class TracingService : ITracingService
         ICase @case, GraphState state, CancellationToken cancellationToken)
     {
         var data = await _ethereum.ReadAsync(@case, state, cancellationToken).ConfigureAwait(false);
-        return _tron is null
-            ? data
-            : data.Merge(await _tron.ReadAsync(@case, state, cancellationToken).ConfigureAwait(false));
+        foreach (var other in new[] { _tron, _bsc }.OfType<EthereumReader>())
+        {
+            data = data.Merge(await other.ReadAsync(@case, state, cancellationToken).ConfigureAwait(false));
+        }
+
+        return data;
     }
 
     /// <summary>Builds the graph with the clusters and the ends of the trail.</summary>

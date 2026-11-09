@@ -70,7 +70,7 @@ internal sealed class GraphBuilder
             .GroupBy(pair => pair.To, StringComparer.Ordinal)
             .ToDictionary(group => group.Key, group => group.Min(pair => pair.Time!.Value), StringComparer.Ordinal);
         _expansions = _data.State.Expansions
-            .GroupBy(expansion => expansion.Subject, StringComparer.Ordinal)
+            .GroupBy(ExpansionKey, StringComparer.Ordinal)
             .ToDictionary(group => group.Key, group => group.Last(), StringComparer.Ordinal);
         var transactionEnds = transactions
             .Select(tx => (tx.Txid, Ends: _knowledge.TransactionEnds(tx)))
@@ -557,6 +557,25 @@ internal sealed class GraphBuilder
         return draft.Accounts.Count == 0 ? node : node with { Chain = draft.Chain, Accounts = draft.Accounts };
     }
 
+    /// <summary>
+    /// Gives the key an expansion is found by: its subject, with the chain before it on an account chain, since the
+    /// same hex on Ethereum and on BSC names two accounts.
+    /// </summary>
+    /// <param name="expansion">The expansion.</param>
+    /// <returns>The key.</returns>
+    private static string ExpansionKey(Expansion expansion) => expansion switch
+    {
+        { EthereumAddress: { } account } => AccountKey(account.Chain, account.Value),
+        { EthereumTransaction: { } hash } => AccountKey(hash.Chain, hash.Value),
+        _ => expansion.Subject,
+    };
+
+    /// <summary>Gives the key of an address or a transaction on an account chain among the expansions.</summary>
+    /// <param name="chain">The chain.</param>
+    /// <param name="value">The address or the transaction, as the chain compares it.</param>
+    /// <returns>The key.</returns>
+    private static string AccountKey(Chain chain, string value) => chain + ":" + value;
+
     /// <summary>Says how far a node has been expanded.</summary>
     /// <param name="draft">The node.</param>
     /// <returns>How far.</returns>
@@ -564,7 +583,7 @@ internal sealed class GraphBuilder
     {
         if (draft.Accounts.Count > 0)
         {
-            return _expansions.GetValueOrDefault(draft.Accounts[0].Value) switch
+            return _expansions.GetValueOrDefault(AccountKey(draft.Accounts[0].Chain, draft.Accounts[0].Value)) switch
             {
                 null => NodeExpansion.NotExpanded,
                 { IsComplete: true } => NodeExpansion.Expanded,

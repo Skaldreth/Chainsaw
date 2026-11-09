@@ -87,11 +87,27 @@ public static class SanctionCurrency
         Tronix, "USDT", "USDC",
     };
 
-    /// <summary>Says whether a code is one of an account chain's (Ethereum's or TRON's).</summary>
+    /// <summary>
+    /// The code OFAC's SDN list gives BSC addresses (<c>0x</c> and 40 hex digits). The list writes USDT and USDC with
+    /// an address but not the chain; a token entry with Ethereum's form of address is read as Ethereum's
+    /// (<see cref="OnEthereum"/>), so only the entries the list itself names BSC are BSC's. Its <c>BNB</c> entries are
+    /// addresses on BNB's former Beacon Chain (<c>bnb1…</c>), which is not BSC, and are not counted.
+    /// </summary>
+    public const string Bsc = "BSC";
+
+    /// <summary>The code OFAC's SDN list gives Litecoin addresses (<c>L…</c>, <c>M…</c>, <c>ltc1…</c>).</summary>
+    public const string Litecoin = "LTC";
+
+    /// <summary>Says whether a code is one of an account chain's (Ethereum's, TRON's or BSC's).</summary>
     /// <param name="currency">The code.</param>
     /// <returns><see langword="true"/> when an account can be listed under it.</returns>
-    public static bool OnAccountChain(string currency) => OnEthereum.Contains(currency) || OnTron.Contains(currency);
+    public static bool OnAccountChain(string currency) =>
+        OnEthereum.Contains(currency) || OnTron.Contains(currency) || currency == Bsc;
 
+    /// <summary>Says whether a code is one of a UTXO chain's (Bitcoin's or Litecoin's).</summary>
+    /// <param name="currency">The code.</param>
+    /// <returns><see langword="true"/> for <c>XBT</c> and <c>LTC</c>.</returns>
+    public static bool OnUtxoChain(string currency) => currency is Bitcoin or Litecoin;
 }
 
 /// <summary>An imported sanction list.</summary>

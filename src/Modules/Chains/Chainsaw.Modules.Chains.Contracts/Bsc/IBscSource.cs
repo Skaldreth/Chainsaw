@@ -13,6 +13,15 @@ public interface IBscSource : IAccountSource
 {
     /// <summary>Gets the chain: <see cref="SharedKernel.Chain.Bsc"/>.</summary>
     Chain IAccountSource.Chain => Chain.Bsc;
+
+    /// <summary>Gives where a page that goes back from a block starts: BSC's sources page by block.</summary>
+    /// <param name="block">The block.</param>
+    /// <returns>The block's number.</returns>
+    long IAccountSource.PageStartOf(EthereumBlockReference block)
+    {
+        ArgumentNullException.ThrowIfNull(block);
+        return block.Height;
+    }
 }
 
 /// <summary>The settings of the BSC source.</summary>
