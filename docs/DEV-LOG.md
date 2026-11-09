@@ -6254,3 +6254,11 @@ insättning i en borta tx i Begäran, Flöde).
   peel chain på konton), Tornado-heuristikerna med gaspris och flera insättningar som tas ut tillsammans, och att läsa
   en pools historik kring insättningen.
 
+## E4, första delen (2026-11-09)
+
+- En Ethereum-adress i blandade versaler med fel EIP-55-kontrollsumma säger det, i startpunktsnoden och i raden i
+  *Nytt ärende*, i stället för *känns inte igen* (`ChainStartPoint.HasWrongChecksum`).
+- **Inte byggt, med skäl i BACKLOG:** täckningsregeln för en delvis läst adress (ändrar spårets räkning), fler kända
+  kontrakt och DEX:ar (kräver adresser belagda med en offentlig källa), och det som ska prövas mot en riktig Blockscout
+  eller Etherscan (`transactionIndex`, interna tx under ett återställt anrop, decimaler).
+

@@ -27,7 +27,8 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
     ett block, och inspektörens rad ur källans svar.
   - **Kurs per överföring:** varje rörelse värderas vid sitt blocks tid med Pricings förvalda upplösning; en expansion
     ber om högst 30 kurser, resten hämtas vid nästa.
-  - **En aktiv adress för inte pengarna vidare:** en expansion som hölls tillbaka vid 50 tx gör adressen delvis läst,
+  - **En aktiv adress för inte pengarna vidare** (E4: inte byggd, eftersom en regel om täckning ändrar spårets räkning
+    och kräver att saldot före den första spårade ankomsten är känt, för FIFO; ett eget beslut och en egen etapp): en expansion som hölls tillbaka vid 50 tx gör adressen delvis läst,
     och spårningen stannar där (granskningen av etapp 23b, M2). En regel om täckning (adressen bär när det lästa når
     bakom den första spårade ankomsten och saldot före är känt) eller en högre gräns för startadressen behövs. Att läsa
     grafen går också igenom alla ärendets sidor för varje expanderad adress (M3); gå bara ner till expansionens
@@ -80,8 +81,8 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
     källan; kontrollera mot en riktig trace från Blockscout och räkna bort hela grenen (granskningen av etapp 23).
   - **Blob-gas** (tx av typ 3) ingår inte i avgiften, och validatorernas uttag och dricksen till blockets föreslagare
     finns i ingen av de tre historikerna.
-  - **Startpunkten med fel kontrollsumma** säger bara *känns inte igen*; den borde säga att EIP-55-kontrollsumman inte
-    stämmer. `0X` (stort X) tas inte längre som Ethereum (granskningen av etapp 23, M).
+  - **`0X`** (stort X) tas inte som Ethereum (granskningen av etapp 23, M); en adress med fel EIP-55-kontrollsumma säger
+    det sedan E4.
   - **En Blockscout som ligger efter** kan ge en kort äldre sida som räknas som slutlig, eftersom djupet räknas från
     den högsta höjden ärendet känner (också från en annan endpoint). Samma modell som Bitcoin. Och en sida där en
     tokens decimaler saknades (källan har inte läst tokenen än) blir slutlig med posten överhoppad (`Skipped`).

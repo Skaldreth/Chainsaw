@@ -58,6 +58,11 @@ public sealed partial class GraphStartViewModel : ObservableObject
     /// <summary>What is said when the text is not an address or a tx.</summary>
     public const string NotRecognisedText = "Det känns inte igen som en adress eller en tx.";
 
+    /// <summary>What the field says for an Ethereum address whose EIP-55 checksum does not hold.</summary>
+    public const string WrongChecksumText =
+        "Kontrollsumman (EIP-55) stämmer inte, så en bokstav kan vara fel. Skriv adressen med små bokstäver om den "
+        + "ändå är rätt.";
+
     /// <summary>What the foot says while no exit is connected.</summary>
     public const string OfflineFootText = "Offline: " + OfflineWords.NoExitReason;
 
@@ -348,7 +353,7 @@ public sealed partial class GraphStartViewModel : ObservableObject
         var startPoint = StartPointTextParser(StartPointText);
         if (!startPoint.IsRecognised)
         {
-            ErrorText = NotRecognisedText;
+            ErrorText = ChainStartPoint.HasWrongChecksum(StartPointText) ? WrongChecksumText : NotRecognisedText;
             return;
         }
 

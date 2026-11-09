@@ -178,3 +178,16 @@ public sealed class ChainStartPointTests
         Assert.False(ChainStartPoint.Recognise("ltcmweb1" + new string('b', 112)).IsShielded);
     }
 }
+
+/// <summary>An Ethereum address in mixed case whose EIP-55 checksum does not hold is told apart.</summary>
+public sealed class WrongChecksumTests
+{
+    [Theory]
+    [InlineData("0x5aaeb6053F3E94C9b9A09f33669435E7Ef1BeAed", true)]
+    [InlineData("0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed", false)]
+    [InlineData("0x5aaeb6053f3e94c9b9a09f33669435e7ef1beaed", false)]
+    [InlineData("0x5AAEB6053F3E94C9B9A09F33669435E7EF1BEAED", false)]
+    [InlineData("bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh", false)]
+    public void Only_a_mixed_case_address_with_a_wrong_checksum_is_one(string text, bool wrong) =>
+        Assert.Equal(wrong, ChainStartPoint.HasWrongChecksum(text));
+}

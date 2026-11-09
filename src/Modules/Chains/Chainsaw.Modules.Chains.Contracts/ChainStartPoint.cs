@@ -217,6 +217,22 @@ public sealed record ChainStartPoint(Chain? Chain, StartPointKind Kind, string V
     }
 
     /// <summary>
+    /// Tells whether a text is an Ethereum address in mixed case whose EIP-55 checksum does not hold: <c>0x</c> and 40
+    /// hex digits that are not taken, since a wrong letter makes it another address. The user is told so rather than
+    /// only that it is not recognised.
+    /// </summary>
+    /// <param name="text">The text.</param>
+    /// <returns><see langword="true"/> when it is.</returns>
+    public static bool HasWrongChecksum(string? text)
+    {
+        var trimmed = text?.Trim() ?? string.Empty;
+        return trimmed.Length == 42 && trimmed.StartsWith("0x", StringComparison.Ordinal)
+            && trimmed.Skip(2).All(char.IsAsciiHexDigit)
+            && trimmed.Skip(2).Any(char.IsAsciiLetterUpper) && trimmed.Skip(2).Any(char.IsAsciiLetterLower)
+            && !EthereumAddress.TryParse(trimmed, out _);
+    }
+
+    /// <summary>
     /// Recognises an Ethereum address or transaction hash: <c>0x</c> and 40 or 64 hex digits. An address in mixed case
     /// must carry the right EIP-55 checksum (<see cref="EthereumAddress"/>), since a wrong letter makes it another
     /// address; then the text is not recognised.

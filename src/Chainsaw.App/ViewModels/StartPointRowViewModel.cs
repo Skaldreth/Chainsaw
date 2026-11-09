@@ -97,6 +97,8 @@ public sealed partial class StartPointRowViewModel : ObservableObject
         PreviewState.NotBuilt when StartPoint.IsShielded => CaseWorkflow.ShieldedText(StartPoint),
         PreviewState.NotBuilt => CaseTexts.ChainName(StartPoint.Chain!.Value) + " hämtas inte, inte byggt än",
         PreviewState.Failed => Preview.Problem,
+        PreviewState.NotRecognised when ChainStartPoint.HasWrongChecksum(StartPoint.Value) =>
+            GraphStartViewModel.WrongChecksumText,
         PreviewState.NotRecognised => NotRecognisedText,
         _ => string.Empty,
     };
