@@ -52,6 +52,8 @@ public static class CaseTexts
         Chain.Bitcoin => "BTC",
         Chain.Ethereum => "ETH",
         Chain.Tron => "TRON",
+        Chain.Litecoin => "LTC",
+        Chain.Bsc => "BSC",
         _ => "?",
     };
 
@@ -63,6 +65,8 @@ public static class CaseTexts
         Chain.Bitcoin => "Bitcoin",
         Chain.Ethereum => "Ethereum",
         Chain.Tron => "TRON",
+        Chain.Litecoin => "Litecoin",
+        Chain.Bsc => "BSC",
         _ => chain.ToString(),
     };
 

@@ -1,4 +1,5 @@
 using Chainsaw.Modules.Chains.Contracts;
+using Chainsaw.SharedKernel;
 
 namespace Chainsaw.Modules.Attribution.Contracts;
 
@@ -104,10 +105,19 @@ public static class SanctionCurrency
     public static bool OnAccountChain(string currency) =>
         OnEthereum.Contains(currency) || OnTron.Contains(currency) || currency == Bsc;
 
-    /// <summary>Says whether a code is one of a UTXO chain's (Bitcoin's or Litecoin's).</summary>
+    /// <summary>Says whether a code is one of a chain's own: an address on the chain can be listed under it.</summary>
+    /// <param name="chain">The chain.</param>
     /// <param name="currency">The code.</param>
-    /// <returns><see langword="true"/> for <c>XBT</c> and <c>LTC</c>.</returns>
-    public static bool OnUtxoChain(string currency) => currency is Bitcoin or Litecoin;
+    /// <returns><see langword="true"/> when it is.</returns>
+    public static bool On(Chain chain, string currency) => chain switch
+    {
+        Chain.Bitcoin => currency == Bitcoin,
+        Chain.Litecoin => currency == Litecoin,
+        Chain.Ethereum => OnEthereum.Contains(currency),
+        Chain.Tron => OnTron.Contains(currency),
+        Chain.Bsc => currency == Bsc,
+        _ => false,
+    };
 }
 
 /// <summary>An imported sanction list.</summary>

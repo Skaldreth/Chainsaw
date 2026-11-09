@@ -28,6 +28,7 @@ public sealed class GuideLibrary
         ("Bitcoin", ["utxo-modellen", "adresstyper", "startpunkter", "kontroll-mot-kedjan"]),
         ("Ethereum", ["kontomodellen", "erc-20", "interna-tx", "kan-frysas"]),
         ("TRON", ["tron"]),
+        ("Fler kedjor", ["litecoin", "bsc"]),
         ("Klustring",
             ["common-input-ownership", "vaxeladress", "peel-chain", "coinjoin", "payjoin", "bryta-upp-kluster"]),
         ("Spårning",

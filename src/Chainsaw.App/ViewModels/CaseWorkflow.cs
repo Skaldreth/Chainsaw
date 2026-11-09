@@ -357,17 +357,19 @@ public sealed partial class CaseWorkflow
     /// <returns>The text.</returns>
     public static string NotBuiltText(ChainStartPoint startPoint) => startPoint.Chain switch
     {
+        { } chain when startPoint.CanFetch =>
+            $"{CaseTexts.ChainName(chain)} kan inte spåras i grafen än, så det kan inte bli en startpunkt.",
         { } chain => $"{CaseTexts.ChainName(chain)} är inte byggt än, så det kan inte bli en startpunkt.",
         _ => "Det känns inte igen som en adress eller en tx.",
     };
 
-    /// <summary>Gives the Tracing start point for a Bitcoin, Ethereum or TRON start point.</summary>
+    /// <summary>Gives the Tracing start point for a Bitcoin, Ethereum, TRON or BSC start point.</summary>
     /// <param name="startPoint">The recognised start point.</param>
     /// <returns>The start point, or <see langword="null"/> when its chain is not built.</returns>
     public static TraceStartPoint? ToTrace(ChainStartPoint startPoint)
     {
         ArgumentNullException.ThrowIfNull(startPoint);
-        if (startPoint.Chain is Chain.Ethereum or Chain.Tron)
+        if (startPoint.Chain is Chain.Ethereum or Chain.Tron or Chain.Bsc)
         {
             if (startPoint.EthereumAccount is { } address)
             {

@@ -680,7 +680,7 @@ public sealed class InspectorFormsTests
         var rig = new Rig();
         rig.Graph.Choose(GraphSamples.UKey, null);
         rig.Forms.Open(InspectorForm.CrossChain);
-        var litecoin = rig.Forms.Chains.Single(chain => chain.Name == "Litecoin");
+        var litecoin = rig.Forms.Chains.Single(chain => chain.Name == "Solana");
 
         rig.Forms.ChooseChain(litecoin);
 

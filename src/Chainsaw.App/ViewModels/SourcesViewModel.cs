@@ -75,7 +75,8 @@ public sealed partial class SourcesViewModel : ObservableObject
     /// <summary>The chains as the page lists them, built or not; Solana is not a chain Chainsaw knows yet.</summary>
     private static readonly (string Name, Chain? Chain)[] ChainNames =
     [
-        ("Bitcoin", Chain.Bitcoin), ("Ethereum", Chain.Ethereum), ("TRON", Chain.Tron), ("Solana", null),
+        ("Bitcoin", Chain.Bitcoin), ("Ethereum", Chain.Ethereum), ("TRON", Chain.Tron), ("Litecoin", Chain.Litecoin),
+        ("BSC", Chain.Bsc), ("Solana", null),
     ];
 
     /// <summary>The modes, their words and what they do.</summary>

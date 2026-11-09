@@ -27,6 +27,24 @@ public sealed class LinkTests
         Assert.True(startPoint.IsSupported);
     }
 
+    [Fact]
+    public void A_link_to_bsc_names_bsc_although_it_looks_like_ethereum_and_is_written_back_so()
+    {
+        Assert.True(ChainsawLink.TryParse("chainsaw:bsc/" + Samples.Ethereum, out var startPoint));
+        Assert.Equal(Chain.Bsc, startPoint.Chain);
+        Assert.True(startPoint.IsSupported);
+        Assert.Equal(Chain.Bsc, StartPointText.Parse(StartPointText.Write(startPoint)).Chain);
+    }
+
+    [Fact]
+    public void A_link_to_a_litecoin_tx_names_litecoin_and_is_fetched_but_not_traced()
+    {
+        Assert.True(ChainsawLink.TryParse("chainsaw:litecoin/" + Samples.Txid, out var startPoint));
+        Assert.Equal(Chain.Litecoin, startPoint.Chain);
+        Assert.False(startPoint.IsSupported);
+        Assert.True(startPoint.CanFetch);
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("bitcoin/x")]

@@ -272,7 +272,7 @@ internal sealed class AttributionService(
         var matches = addresses.Distinct()
             .Select(address => (Address: address.ToChainAddress(), Match: sanctions.Find(address)))
             .ToList();
-        return CheckSanctions(@case, matches, SanctionCurrency.OnUtxoChain);
+        return CheckSanctions(@case, matches);
     }
 
     /// <inheritdoc/>
@@ -283,7 +283,7 @@ internal sealed class AttributionService(
         var matches = addresses.Distinct()
             .Select(address => (Address: address.ToChainAddress(), Match: sanctions.Find(address)))
             .ToList();
-        return CheckSanctions(@case, matches, SanctionCurrency.OnAccountChain);
+        return CheckSanctions(@case, matches);
     }
 
     /// <summary>
@@ -293,10 +293,9 @@ internal sealed class AttributionService(
     /// <param name="case">The open case.</param>
     /// <param name="looked">Each address with its chain and what the list said, or <see langword="null"/> without a
     /// list.</param>
-    /// <param name="onChain">Says whether a hit's currency is one of the chain's.</param>
     /// <returns>What was checked and labelled.</returns>
     private SanctionCheck CheckSanctions(
-        ICase @case, IReadOnlyList<(ChainAddress Address, SanctionMatch? Match)> looked, Func<string, bool> onChain)
+        ICase @case, IReadOnlyList<(ChainAddress Address, SanctionMatch? Match)> looked)
     {
         var matches = looked.Where(found => found.Match is not null).ToList();
         if (matches.Count == 0)
@@ -309,7 +308,7 @@ internal sealed class AttributionService(
             .Select(used => used.Version));
         var hits = matches
             .SelectMany(found => found.Match!.Hits
-                .Where(hit => onChain(hit.Currency))
+                .Where(hit => SanctionCurrency.On(found.Address.Chain, hit.Currency))
                 .Select(hit => (found.Address, Hit: hit, found.Match.List)))
             .ToList();
         if (hits.Count == 0)
