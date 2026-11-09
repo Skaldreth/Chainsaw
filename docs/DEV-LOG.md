@@ -4194,4 +4194,14 @@ Byggt ur BACKLOG och TODO (omgång 7, användarens beslut att allt i BACKLOG gö
   att det sker direkt), sanktionslistans import mot grafen (Attribution), testärendets nya delar (en annan omgång
   bygger in kontrollerna i berättelsen), att återuppta förstagångsinställningen efter en låsning, och gasavgifterna i
   plånboksläsningen.
+- **Rättat efter granskningen** (0 C, 1 I, 5 M, alla rättade):
+  - **I:** Enter på en sökrad i soptunnan lägger bara tillbaka det användaren själv slängde, under nodens egen nyckel,
+    och bara när noden då syns igen (`TrashFilter.PlaceOf`); annars öppnas soptunnan med trädet. Tester med
+    granskarens fall (klustret slängt, en adress slängd för sig och sedan sammanslagen).
+  - **M2:** en sökrad vars plats i soptunnan inte längre gäller säger det och öppnar soptunnan
+    (`GraphViewModel.PutBackFoundAsync`). **M3:** en nod som bara följde med en slängning öppnar soptunnan.
+  - **M4:** flera troliga utgångar vid kanten flyttas som en grupp i stället för att klämmas en och en.
+  - **M5:** på sidan *Fått från* heter resten *Kom från en tx som fortsatte på annan kedja*.
+  - **M6:** en tokenmängd som är för stor för `decimal` ger spåret utan värde i stället för ett undantag, och en
+    rapport som inte gick att bygga om säger det i en toast.
 

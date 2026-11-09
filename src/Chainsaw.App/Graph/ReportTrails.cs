@@ -327,7 +327,16 @@ internal sealed class ReportTrails(
             }
 
             var share = Share(edge.Traced.Units, sent);
-            total += priced.Sum(pair => pair.Price.ValueOf(pair.Transfer.Amount).Value * share);
+            try
+            {
+                total += priced.Sum(pair => pair.Price.ValueOf(pair.Transfer.Amount).Value * share);
+            }
+            catch (OverflowException)
+            {
+                // An amount too large for a decimal is never valued: the trail stands without a value, as when a rate
+                // is missing, rather than stopping the whole report.
+                return null;
+            }
         }
 
         return currency is null

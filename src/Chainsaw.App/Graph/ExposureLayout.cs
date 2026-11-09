@@ -303,10 +303,13 @@ public static class ExposureLayout
             var ways = waysOut.Where(way => way.From == service.Key && drawn.Add(way.To)).ToList();
             var radius = service.Hop + 1 < Rings.Count ? Rings[service.Hop + 1] : Beyond;
             var angle = Math.Atan2(service.At.Y - Centre.Y, service.At.X - Centre.X) * 180 / Math.PI;
+            // The group is moved, not each one clamped, so that ways out near the edge never lie on each other.
+            var spread = (ways.Count - 1) * CandidateStep;
+            var last = Math.Max(-CandidateSpan, CandidateSpan - spread);
+            var first = Math.Clamp(angle - (spread / 2), -CandidateSpan, last);
             for (var index = 0; index < ways.Count; index++)
             {
-                var offset = angle + ((index - ((ways.Count - 1) / 2.0)) * CandidateStep);
-                var radians = Math.Clamp(offset, -CandidateSpan, CandidateSpan) * Math.PI / 180;
+                var radians = (first + (index * CandidateStep)) * Math.PI / 180;
                 var at = new GraphPoint(Centre.X + (radius * Math.Cos(radians)), Centre.Y + (radius * Math.Sin(radians)));
                 var key = ways[index].To;
                 var look = graph.LookOf(key);

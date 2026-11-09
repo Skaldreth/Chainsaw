@@ -3126,5 +3126,7 @@ Jämför med skissen IN5a på canvasen (sidan Grafen, omgång 18).
   lappar: skuggorna hackar inte.
 - **Etiketter:** *Visa i grafen* på en etikett vars adress ligger i en hög fäller ut högen.
 - **Sökningen:** släng en aktör, sök på dess adress (Ctrl+K): raden säger *Lägg tillbaka*, och Enter lägger tillbaka
-  den i grafen.
+  den i grafen. En aktör som bara följde med när något annat slängdes säger *Öppna soptunnan*, och Enter öppnar
+  soptunnan med trädet. Lägg tillbaka aktören i soptunnans vy medan sökningen står öppen och tryck Enter på raden:
+  grafen säger att den inte längre låg så, och soptunnan öppnas.
 

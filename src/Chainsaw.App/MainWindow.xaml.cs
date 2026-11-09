@@ -693,7 +693,7 @@ public partial class MainWindow : Window
         {
             // Put back from the row (TODO, Lägg tillbaka direkt på raden I soptunnan): the graph shows it again.
             _shell.Show(AppView.Graph);
-            _ = _graph.RestoreAsync(place.Throw, place.Key);
+            _ = _graph.PutBackFoundAsync(place);
         }
         else if (row.Entry.IsInTrash)
         {

@@ -620,7 +620,7 @@ public sealed partial class ExposureViewModel : ObservableObject
         }
 
         var parts = result.Rest.Select(
-            pair => $"{RestText(pair.Key, result.Depth, subject)}: {AmountText.WithUnit(pair.Value)}");
+            pair => RestText(pair.Key, result.Depth, subject, result.Direction) + ": " + AmountText.WithUnit(pair.Value));
         return string.Join("\n", parts.Prepend("Har inte nått en tjänst · " + AmountText.WithUnit(sum)));
     }
 
@@ -628,9 +628,12 @@ public sealed partial class ExposureViewModel : ObservableObject
     /// <param name="rest">The reason.</param>
     /// <param name="depth">How many hops were followed.</param>
     /// <param name="subject">The word for the subject, <em>klustret</em> or <em>adressen</em>.</param>
+    /// <param name="side">Paid out or got: money got that came over from another chain is said so.</param>
     /// <returns>The words.</returns>
-    public static string RestText(ExposureRest rest, int depth, string subject) => rest switch
+    public static string RestText(
+        ExposureRest rest, int depth, string subject, ExposureDirection side = ExposureDirection.Out) => rest switch
     {
+        ExposureRest.OtherChain when side == ExposureDirection.In => "Kom från en tx som fortsatte på annan kedja",
         ExposureRest.Remains => "Ligger kvar hos en aktör på vägen",
         ExposureRest.NotExpanded => "Aktören är inte expanderad",
         ExposureRest.Fees => "Gick till avgifter",

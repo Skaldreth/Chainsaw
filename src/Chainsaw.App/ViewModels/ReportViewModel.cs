@@ -133,6 +133,12 @@ public sealed partial class ReportViewModel : ObservableObject
     /// <summary>The toast's title after an export.</summary>
     public const string ExportedTitle = "Exporterad och journalförd";
 
+    /// <summary>The toast's title when the report could not be built anew.</summary>
+    public const string BuildFailedTitle = "Rapporten kunde inte byggas";
+
+    /// <summary>The toast's text when the report could not be built anew.</summary>
+    public const string BuildFailedText = "Det som visas är rapporten som den var innan. Ändra markeringen och försök igen.";
+
     /// <summary>The export toast's action, which shows the file in its folder.</summary>
     public const string ShowInFolderText = "Visa i mappen";
 
@@ -518,6 +524,12 @@ public sealed partial class ReportViewModel : ObservableObject
         catch (CaseException)
         {
             // The case closed meanwhile; the next case builds its own.
+        }
+        catch (Exception exception) when (exception is OverflowException or InvalidOperationException
+            or ArgumentException)
+        {
+            // Never silent: the report shown stays, and the toast says that it could not be built anew.
+            _ui.Post(() => _toaster?.Show(ToastKind.Error, BuildFailedTitle, BuildFailedText));
         }
     }
 
