@@ -33,7 +33,27 @@ public interface IClusteringService
     /// <exception cref="CaseException">
     /// <see cref="CaseError.NoOperatorProfile"/> when something new would be stored, or <see cref="CaseError.Closed"/>.
     /// </exception>
-    ClusteringRun Analyse(ICase @case, IReadOnlyCollection<BitcoinTransaction> transactions);
+    ClusteringRun Analyse(ICase @case, IReadOnlyCollection<BitcoinTransaction> transactions) =>
+        Analyse(@case, transactions, []);
+
+    /// <summary>
+    /// Runs every analysis over the transactions, as
+    /// <see cref="Analyse(ICase, IReadOnlyCollection{BitcoinTransaction})"/> does, without the transactions the source
+    /// no longer knows (sketch HB1a): they are left out of what the analyses know, so a conclusion that rests on one is
+    /// held back, and so are the gone transactions' own conclusions, which rest on the transaction itself. Nothing is taken back: a held back conclusion stands, sealed and counting, until
+    /// the user lets it go (<see cref="DecideHeldBack"/>), and a run with the transaction back redoes it as usual.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="transactions">
+    /// The transactions to analyse; one that is also among <paramref name="gone"/> is left out.
+    /// </param>
+    /// <param name="gone">The transactions that are gone, whose conclusions are held back.</param>
+    /// <returns>What was stored, and what was held back.</returns>
+    /// <exception cref="CaseException">
+    /// <see cref="CaseError.NoOperatorProfile"/> when something new would be stored, or <see cref="CaseError.Closed"/>.
+    /// </exception>
+    ClusteringRun Analyse(
+        ICase @case, IReadOnlyCollection<BitcoinTransaction> transactions, IReadOnlyCollection<Txid> gone);
 
     /// <summary>
     /// Stores the user's decision that two addresses do not have the same owner, sealed, with a journal entry.

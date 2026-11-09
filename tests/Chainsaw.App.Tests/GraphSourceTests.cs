@@ -167,6 +167,10 @@ internal sealed class TestClustering : IClusteringService
     public ClusteringRun Analyse(ICase @case, IReadOnlyCollection<BitcoinTransaction> transactions) =>
         throw new NotSupportedException();
 
+    public ClusteringRun Analyse(
+        ICase @case, IReadOnlyCollection<BitcoinTransaction> transactions, IReadOnlyCollection<Txid> gone) =>
+        throw new NotSupportedException();
+
     public ClusterSplit Split(ICase @case, SplitRequest request) => throw new NotSupportedException();
 
     public IReadOnlyList<ClusterSplit> Split(ICase @case, IReadOnlyList<SplitRequest> requests) =>

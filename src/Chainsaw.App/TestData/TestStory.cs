@@ -26,7 +26,7 @@ namespace Chainsaw.App.TestData;
 public static class TestStory
 {
     /// <summary>The story's version, in the journal and as the made-up labels' source version.</summary>
-    public const string Version = "5";
+    public const string Version = "6";
 
     /// <summary>The made-up open source the test case's labels come from.</summary>
     public const string LabelSource = "testdata (påhittad)";
@@ -77,6 +77,11 @@ public static class TestStory
             new ReplacedStep(TestStoryChain.ReplacedSpend),
             .. Labels(actors),
             .. Expansions(),
+
+            // After the expansions, so that the change conclusion of the reused deposit rests on the replaced spend;
+            // the expansion of the spend that replaced it then holds that conclusion back by itself (sketch HB1a).
+            new GoneStep(TestStoryChain.ReplacedSpend),
+            new ExpandStep(TestStoryChain.ReplacingSpend),
             new SanctionCheckStep(),
             new OpenSourceCheckStep(),
             new TransactionLabelStep(TestStoryChain.Join, LabelKind.SwapBridge, "Bytaren (samlad insättning)"),
@@ -100,9 +105,6 @@ public static class TestStory
                 "Påhittad kommentar som slängts: *gammal tanke om Sydbörsen*.", new NodePosition(360, -200)),
             new ThrownAreaStep(
                 "Spelsajterna", [actors.Gambling, actors.GiftCard], "Påhittad egen yta som slängts i soptunnan."),
-
-            // Last, since every expansion runs the clustering again on everything in the graph.
-            new HeldBackStep(TestStoryChain.ReusedDeposit),
         ];
     }
 

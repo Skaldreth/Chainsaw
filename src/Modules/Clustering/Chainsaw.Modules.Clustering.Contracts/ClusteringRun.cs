@@ -18,7 +18,8 @@ namespace Chainsaw.Modules.Clustering.Contracts;
 /// </param>
 /// <param name="HeldBack">
 /// The transactions whose stored conclusions rest on transactions this run did not know; their new results were not
-/// stored, so that a narrower run never takes back what a wider one concluded. Analyse them with the whole case.
+/// stored, so that a narrower run never takes back what a wider one concluded. Analyse them with the whole case. A
+/// transaction the run was told is gone is among them when it has conclusions of its own (sketch HB1a).
 /// </param>
 public sealed record ClusteringRun(
     JournalEntry? Journal,

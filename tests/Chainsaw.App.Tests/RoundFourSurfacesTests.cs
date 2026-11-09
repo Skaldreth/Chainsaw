@@ -194,6 +194,26 @@ public sealed class RoundFourSurfacesTests
         Assert.True(rig.Graph.History.IsShown);
     }
 
+    /// <summary>
+    /// A gone transaction's own conclusions, which the expansions now hold back on the transaction itself, name it as
+    /// such in the hover and in Historik; other missing transactions are named as before.
+    /// </summary>
+    [Fact]
+    public void AGoneTransactionsOwnConclusionNamesItselfAsWhatItWasBuiltOn()
+    {
+        var own = Held() with { Missing = [GraphSamples.Tx[2], GraphSamples.Tx[0]] };
+
+        var lines = GraphViewModel.HeldBackLines(own);
+
+        var itself = $"{HeldBackMatch.ItselfText} ({GraphScene.Shorten(GraphSamples.Tx[2].Value)})";
+        Assert.Equal(
+            $"Byggde på {itself}, {GraphScene.Shorten(GraphSamples.Tx[0].Value)}",
+            lines[2]);
+        Assert.Equal(
+            GraphScene.Shorten(GraphSamples.Tx[0].Value),
+            HeldBackMatch.Basis(GraphSamples.Tx[2], [GraphSamples.Tx[0]]));
+    }
+
     /// <summary>The way between a pair is the steps with their addresses, and the scissors go on the weakest.</summary>
     [Fact]
     public void ThePairsWayHasTheScissorsOnTheWeakestLink()

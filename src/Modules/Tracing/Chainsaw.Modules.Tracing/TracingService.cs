@@ -795,7 +795,7 @@ internal sealed class TracingService : ITracingService
         var data = await ReadDataAsync(@case, cancellationToken).ConfigureAwait(false);
         if (data.Transactions.Count > 0)
         {
-            _clustering.Analyse(@case, [.. data.Transactions.Values.Select(entry => entry.Transaction)]);
+            AnalyseClusters(@case, data);
         }
 
         return new ExpansionResult(
@@ -1026,7 +1026,7 @@ internal sealed class TracingService : ITracingService
         @case.Write(transaction => GraphStateStore.SaveExpansion(transaction, expansion));
         await FetchSpendsAsync(@case, taken, cancellationToken).ConfigureAwait(false);
         var data = await ReadDataAsync(@case, cancellationToken).ConfigureAwait(false);
-        _clustering.Analyse(@case, [.. data.Transactions.Values.Select(entry => entry.Transaction)]);
+        AnalyseClusters(@case, data);
         return new ExpansionResult(
             problem is null ? ExpansionOutcome.Expanded : ExpansionOutcome.Partly,
             [.. taken.Where(txid => !before.Contains(txid))],
@@ -1219,6 +1219,23 @@ internal sealed class TracingService : ITracingService
         var gone = await GoneAsync(@case, transactions, cancellationToken).ConfigureAwait(false);
         return new GraphData(state, transactions, spends, problems) { Account = account, Gone = gone };
     }
+
+    /// <summary>
+    /// Runs the clustering over the graph's UTXO transactions without those the source no longer knows (sketch HB1a):
+    /// a conclusion that rests on a gone transaction, or the gone transaction's own, is then held back until the user
+    /// lets it stand or go, and a later run with the transaction back redoes it. Only a transaction whose answers
+    /// settle that it is gone (<see cref="GoneTransaction.IsSettled"/>, the same rule that ends the trail at it) is
+    /// left out; one only a single host says is gone, while the case has heard from others, or whose answers do not
+    /// agree, stays in, so that one endpoint's word cannot hold conclusions back. Nothing is taken back: a held back
+    /// conclusion stands, sealed and counting, until the user decides.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="data">The graph's data.</param>
+    private void AnalyseClusters(ICase @case, GraphData data) =>
+        _clustering.Analyse(
+            @case,
+            [.. data.Transactions.Values.Select(entry => entry.Transaction)],
+            [.. data.Gone.Values.Where(gone => gone.IsSettled).Select(gone => gone.Txid)]);
 
     /// <summary>
     /// Reads which of the graph's Bitcoin transactions the source no longer knows (sketch GR9a), and what the case

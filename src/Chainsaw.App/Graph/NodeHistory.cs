@@ -802,8 +802,8 @@ public static class NodeHistory
             rows.Add(new HistoryEvent(
                 key, HistoryKind.HeldBack, released.RecordedUtc,
                 "Hölls tillbaka · tx " + GraphScene.Shorten(released.Txid.Value),
-                "Byggde på " + Txids(released.Missing), "Icon.Held", GraphInk.Spent, IsDashed: true, IsFact: false,
-                IsWithdrawn: true, HistoryUndo.None));
+                "Byggde på " + HeldBackMatch.Basis(released.Txid, released.Missing), "Icon.Held", GraphInk.Spent,
+                IsDashed: true, IsFact: false, IsWithdrawn: true, HistoryUndo.None));
             rows.Add(new HistoryEvent(
                 key + "/released", HistoryKind.HeldBack, released.RecordedUtc, "Slutsatsen släppt, också dess fynd",
                 Because(Who(data, released.JournalSequence), released.Reason), "Icon.Undo", GraphInk.Unknown,
@@ -844,7 +844,8 @@ public static class NodeHistory
                 .Max();
         var findings = held.Findings.Count > 0 ? "; ett släpp tar också fynden" : string.Empty;
         var sub = held.IsWaiting
-            ? "Byggde på " + Txids(held.Missing) + ", som inte fanns i senaste körningen" + findings
+            ? "Byggde på " + HeldBackMatch.Basis(held.Txid, held.Missing) + ", som inte fanns i senaste körningen"
+                + findings
             : Because("Står kvar · " + Who(data, held.Decision!.JournalSequence), held.Decision.Reason);
         var waiting = held.IsWaiting ? HistoryUndo.DecideHeldBack : HistoryUndo.ReopenHeldBack;
         return new HistoryEvent(
@@ -856,12 +857,6 @@ public static class NodeHistory
             DecisionSequence = held.Decision?.Sequence ?? 0,
         };
     }
-
-    /// <summary>Writes transactions shortened, as the history names them.</summary>
-    /// <param name="txids">The transactions.</param>
-    /// <returns>The words.</returns>
-    private static string Txids(IReadOnlyList<Txid> txids) =>
-        string.Join(", ", txids.Select(txid => GraphScene.Shorten(txid.Value)));
 
     /// <summary>Writes who, and why when there is a reason.</summary>
     /// <param name="who">Who.</param>

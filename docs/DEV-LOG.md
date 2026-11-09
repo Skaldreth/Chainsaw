@@ -5730,3 +5730,49 @@ klustringen, också borta tx (TODO). Därför gör testärendet körningen själ
   frågar ersättaren av en försvunnen tx hos tx:ens egen kedjas källa; de frågade tx:erna hålls isär per kedja
   (`Txid.Stored`). Vem som spenderade en output på Zcash läses efter fönstren också på adressens nyaste sida, så att
   en spend i mempoolen inte läses som ospenderad.
+
+## En slutsats hålls tillbaka av sig själv, HB1a (2026-11-09)
+
+Fynd ur testärendet (TODO, omgång 4): appens körningar skickade hela grafen till klustringen, också borta tx, så HB1a
+hände aldrig av sig själv.
+
+**Byggt:**
+- **Tracing** (`TracingService.AnalyseClusters`): båda expansionernas körningar lämnar grafens borta tx utanför
+  klustringen, på varje UTXO-kedja med bytta block (Bitcoin och Litecoin; Zcash har inga). Bara en tx vars svar
+  *avgör* att den är borta (`GoneTransaction.IsSettled`, samma regel som avslutar spåret) lämnas utanför.
+- **Clustering:** `IClusteringService.Analyse(case, transactions, gone)` (den gamla tar inga borta). En borta tx
+  analyseras inte och är okänd för de andra, så det som bygger på den hålls tillbaka med den befintliga regeln
+  (`KnowsBasis`). Den borta tx:ens **egna** slutsatser (till exempel common inputs) hålls också tillbaka, med tx:en
+  själv som det som saknas (`GoneOwn`); `DecideHeldBack` godtar därför tx:en själv bland det som saknas, utöver den
+  förseglade grunden.
+- **App:** hovringen och Historik säger *Byggde på tx:en själv (…)* för en borta tx:s egna slutsatser
+  (`HeldBackMatch.Basis`).
+- **Testärendet** (version 6): `ReplacedStep` ger bara det första svaret att utgiften inte finns, och expansionerna
+  bygger växelslutsatsen på den; `GoneStep` efter expansionerna ger det andra svaret efter det nyaste blocket och
+  frågar om ersättaren, och expansionen av ersättaren (`ReplacingSpend`) håller tillbaka slutsatsen av sig själv.
+  `HeldBackStep` är borta.
+- Guiden *En tx som inte finns längre* har avsnittet *Slutsatser som bygger på den*.
+- **Tester:** Clustering 5 (det som vilar på en borta tx, tx:ens egna med *Låt stå*, tillbaka igen, släppt och
+  tillbaka, utan slutsatser), Tracing 6 i `GoneClusteringTests` (Bitcoin och Litecoin, en värds ord, tillbaka, *Låt
+  stå*, *Släpp*), App 1 (texten). Testärendets test om HB1a går nu utan extra körning.
+
+**Egna beslut:**
+- **Osäkert borta:** en tx som bara en värd sagt är borta medan ärendet har fler (`IsCorroborated` falsk utan
+  bekräftelse genom mynten), eller vars svar inte går ihop (`Conflicting`), stannar i klustringen: en endpoints ord ska
+  inte kunna hålla tillbaka slutsatser. En tx som vilar på en **enda källa** (`IsSingleSource`, ärendet har bara hört
+  från en värd) lämnas utanför, som spåret slutar där: att hålla tillbaka tar ingenting bort, slutsatsen räknas tills
+  användaren väljer, så det enda som händer är att frågan ställs.
+- **Den borta tx:ens egna slutsatser** hålls också tillbaka (de bygger på tx:en själv), annars skulle en
+  sammanslagning ur en tx som inte finns räknas tyst.
+- **Avgränsat till klustringens indata:** spårningen, exponeringen och kontrollerna läser redan `Gone` själva och är
+  oförändrade. Att följa ersättaren kör ingen klustring; nästa expansion gör det, och den borta tx:en är fortfarande
+  borta.
+
+**Vad som skrivs i ärendet:** ingenting nytt förseglas av att en tx lämnas utanför. En körning som bara håller
+tillbaka skriver arbetsraden `clustering_held_back` (oförseglad, ersätts av nästa körning) och ingen rad i journalen;
+en körning som också sparar något nytt skriver som förut, med de borta tx:erna i `heldBack` i journalens data. Ny
+grund för en tx som inte vilar på en borta tx sparas som vanligt. *Låt stå* och *Släpp slutsatsen* förseglas som förut
+(`clustering.held_back_decisions`), nu också med tx:en själv i `missing`. Inget tas bort; *Låt stå* respekteras av
+varje senare körning, eftersom det som hålls tillbaka aldrig ersätts.
+
+**Kvar:** provet på Windows (TESTER-INFOR, *HB1a av sig själv*).

@@ -68,11 +68,18 @@ internal sealed class ClusteringService : IClusteringService
     public IReadOnlyList<HeuristicId> Heuristics { get; }
 
     /// <inheritdoc/>
-    public ClusteringRun Analyse(ICase @case, IReadOnlyCollection<BitcoinTransaction> transactions)
+    public ClusteringRun Analyse(ICase @case, IReadOnlyCollection<BitcoinTransaction> transactions) =>
+        Analyse(@case, transactions, []);
+
+    /// <inheritdoc/>
+    public ClusteringRun Analyse(
+        ICase @case, IReadOnlyCollection<BitcoinTransaction> transactions, IReadOnlyCollection<Txid> gone)
     {
         ArgumentNullException.ThrowIfNull(@case);
         ArgumentNullException.ThrowIfNull(transactions);
-        var known = new KnownTransactions(transactions);
+        ArgumentNullException.ThrowIfNull(gone);
+        var goneTxids = gone.ToHashSet();
+        var known = new KnownTransactions([.. transactions.Where(found => !goneTxids.Contains(found.Txid))]);
         var running = Running(@case.Read(EvidenceStore.ReadWithdrawals));
         var failed = new List<Txid>();
         var analysed = new List<(Txid Txid, List<(WeighedResult Result, string Fingerprint)> Results)>();
@@ -94,12 +101,15 @@ internal sealed class ClusteringService : IClusteringService
         return @case.Write(transaction =>
         {
             var latest = EvidenceStore.LatestResults(transaction, txids);
-            var heldBack = analysed.Where(entry => !KnowsBasis(entry.Txid, latest, txids))
+            var resting = analysed.Where(entry => !KnowsBasis(entry.Txid, latest, txids))
                 .Select(entry => entry.Txid)
                 .ToList();
+            var goneOwn = GoneOwn(transaction, goneTxids, txids);
             HeldBackStore.Replace(
-                transaction, [.. heldBack.Select(txid => (txid, MissingBasis(txid, latest, txids)))]);
-            var changed = analysed.Where(entry => !heldBack.Contains(entry.Txid))
+                transaction,
+                [.. resting.Select(txid => (txid, MissingBasis(txid, latest, txids))), .. goneOwn]);
+            List<Txid> heldBack = [.. resting, .. goneOwn.Select(entry => entry.Txid)];
+            var changed = analysed.Where(entry => !resting.Contains(entry.Txid))
                 .SelectMany(entry => entry.Results)
                 .Where(entry => Replaces(entry.Result, entry.Fingerprint, latest))
                 .ToList();
@@ -534,8 +544,10 @@ internal sealed class ClusteringService : IClusteringService
             var (evidence, findings) = EvidenceStore.ReadLatest(transaction, txid);
 
             // The kept row is working state that is not sealed, so what it says was missing is checked against the
-            // sealed conclusions' own basis before anything is sealed from it.
+            // sealed conclusions' own basis before anything is sealed from it. A conclusion always rests on its own
+            // transaction too, which is what is missing when that transaction is gone.
             var basis = SealedBasis(transaction, txid);
+            basis.Add(txid);
             var missing = held.Txid is null ? [] : held.Missing.Where(basis.Contains).ToList();
             if (missing.Count == 0 || (evidence.Count == 0 && findings.Count == 0))
             {
@@ -949,6 +961,34 @@ internal sealed class ClusteringService : IClusteringService
         {
             return null;
         }
+    }
+
+    /// <summary>
+    /// Gives the gone transactions that still have counting stored conclusions, each with what is missing: the
+    /// transaction itself, on which its own conclusions rest, and whatever else they rest on that the run does not
+    /// know (sketch HB1a). A gone transaction with nothing counting (none concluded, or let go) is not held back.
+    /// </summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <param name="gone">The transactions the source no longer knows.</param>
+    /// <param name="known">The transactions the run knows.</param>
+    /// <returns>The gone transactions held back, with what is missing.</returns>
+    private static List<(Txid Txid, IReadOnlyList<Txid> Missing)> GoneOwn(
+        ICaseReader reader, HashSet<Txid> gone, HashSet<Txid> known)
+    {
+        if (gone.Count == 0)
+        {
+            return [];
+        }
+
+        var latest = EvidenceStore.LatestResults(reader, gone);
+        var conclusions = EvidenceStore.ReadLatest(reader, gone);
+        return
+        [
+            .. gone.Where(txid => conclusions[txid] is var own && (own.Evidence.Count > 0 || own.Findings.Count > 0))
+                .OrderBy(txid => txid.Stored, StringComparer.Ordinal)
+                .Select(txid => (txid, (IReadOnlyList<Txid>)[txid, .. MissingBasis(txid, latest, known)
+                    .Where(missing => missing != txid)])),
+        ];
     }
 
     /// <summary>

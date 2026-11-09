@@ -135,7 +135,7 @@ public sealed partial class GraphViewModel
                 .Concat(held.Findings.Select(found => found.Heuristic))
                 .Select(heuristic => heuristic.ToString())
                 .Distinct());
-        var missing = string.Join(", ", held.Missing.Select(txid => GraphScene.Shorten(txid.Value)));
+        var missing = HeldBackMatch.Basis(held.Txid, held.Missing);
         return
         [
             HeldBackTitle,

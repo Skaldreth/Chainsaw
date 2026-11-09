@@ -47,3 +47,21 @@ Chainsaw kontrollerar att ersättarens egna inputs spenderar just de mynten med 
 förseglas med vem och när och står i journalen, och beloppen efter ersättaren ritas **streckade**, som allt som
 bygger på en bedömning. *Ta tillbaka* i rutan (eller *Ångra* i meddelandet) gör att spåret slutar vid den borttagna
 tx:en igen; valet står kvar förseglat.
+
+## Slutsatser som bygger på den
+
+Klustringen räknar inte med en tx som inte finns längre. När grafen expanderas nästa gång körs heuristikerna utan den,
+och en slutsats som bygger på den (tx:ens egna sammanslagningar, eller en växeladress som bedömdes ny för att adressen
+först sågs i den) **hålls tillbaka**. Klustret får då en tyst markering i hörnet, en streckad gul ring med pausmärke,
+och hovringen säger vilken tx slutsatsen byggde på och vad som ersatte den.
+
+Ingenting tas bort och ingenting slutar räknas av sig självt: slutsatsen står kvar, förseglad, tills du väljer i
+*Historik*. **Låt stå** behåller den, och nästa körning respekterar det. **Släpp slutsatsen** gör att den inte räknas
+längre (också dess fynd), men den står kvar förseglad, och nästa körning drar sina slutsatser utan den borta tx:en.
+Båda valen förseglas med vem och när, och kan tas tillbaka.
+
+Bara en tx som det är **bekräftat** att den är borta lämnas utanför, efter samma regel som avgör var spåret slutar. När
+spåret bara stannar, för att en enda värd sagt det medan ärendet har svar från fler eller för att svaren inte går ihop,
+körs klustringen med tx:en som förut. Kommer tx:en tillbaka i ett block körs den med igen, och slutsatserna som hölls
+tillbaka räknas som vanligt. Att följa ersättaren ändrar inte detta: den borta tx:en är fortfarande borta, och
+ersättaren klustras som vilken tx som helst.
