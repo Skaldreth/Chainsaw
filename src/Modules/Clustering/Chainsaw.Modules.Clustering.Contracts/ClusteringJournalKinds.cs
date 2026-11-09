@@ -23,4 +23,7 @@ public static class ClusteringJournalKinds
 
     /// <summary>A withdrawal of a version was taken back, so that the version runs and counts again.</summary>
     public const string WithdrawalTakenBack = "clustering.withdrawal-taken-back";
+
+    /// <summary>The user decided about a conclusion a run held back: let it stand or let it go (sketch HB1a).</summary>
+    public const string HeldBackDecided = "clustering.held-back-decided";
 }

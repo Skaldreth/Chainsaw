@@ -238,10 +238,13 @@ public sealed partial class GraphCanvas : FrameworkElement
         var edges = GraphHitTest.VisibleEdges(scene, _model.Curves, visible).ToList();
         DrawWatchGlows(drawingContext, visible);
         DrawTrashStubs(drawingContext, visible);
+        edges.RemoveAll(edge => _model.IsFoldedAway(edge.Edge.From) || _model.IsFoldedAway(edge.Edge.To));
         foreach (var edge in edges)
         {
             DrawEdge(drawingContext, edge, _model.Curves[edge.Key], nearEdges);
         }
+
+        DrawHopRows(drawingContext);
 
         var taken = new RoomGrid();
         foreach (var edge in edges)
@@ -263,7 +266,7 @@ public sealed partial class GraphCanvas : FrameworkElement
         var nodes = _blast == BlastPhase.None
             ? GraphHitTest.VisibleNodes(scene, _model.Places, visible)
             : scene.Nodes.Where(node => _model.Places.ContainsKey(node.Key));
-        foreach (var node in nodes)
+        foreach (var node in nodes.Where(node => !_model.IsFoldedAway(node.Key)))
         {
             DrawFlying(drawingContext, node, _model.Places[node.Key], nearNodes);
         }
@@ -302,7 +305,8 @@ public sealed partial class GraphCanvas : FrameworkElement
         var at = ToGraph(e.GetPosition(this));
         var surface = _viewport.ToSurface(at);
         _model?.Comments.Select(null);
-        if (_model is not null && (PressHeldBack(at) || PressFan(at, surface) || PressBlockMark(at, surface)
+        if (_model is not null && (PressHeldBack(at) || PressHeldMark(surface) || PressHopPill(surface)
+            || PressFan(at, surface) || PressBlockMark(at, surface)
             || PressCard(surface) || PressThread(surface)
             || PressGuide(surface) || PressForComment(e, surface) || PressArea(surface) || PressToExpand(e, surface)))
         {
@@ -678,7 +682,9 @@ public sealed partial class GraphCanvas : FrameworkElement
         Cursor = hit.Node is not null || hit.Edge is not null || guideTip is not null ? Cursors.Hand : null;
         var chainTip = BlockMarkTipAt(surface) ?? CardTipAt(surface);
         Cursor = chainTip is not null ? Cursors.Hand : Cursor;
-        var text = guideTip ?? chainTip ?? PendingTipAt(surface) ?? model.AmountTipAt(surface)
+        var heldTip = HeldTipAt(surface) ?? HopTipAt(surface);
+        Cursor = heldTip is not null ? Cursors.Hand : Cursor;
+        var text = guideTip ?? chainTip ?? heldTip ?? PendingTipAt(surface) ?? model.AmountTipAt(surface)
             ?? model.Scene?.Node(hit.Node)?.ToolTip;
         if (text == _hoverTip.Content as string)
         {
@@ -828,7 +834,7 @@ public sealed partial class GraphCanvas : FrameworkElement
     /// <returns>The opacity.</returns>
     private double NodeOpacity(NodeView node, IReadOnlySet<string> near)
     {
-        if (_model!.IsFocused && !near.Contains(node.Key))
+        if ((_model!.IsFocused && !near.Contains(node.Key)) || _model.IsDimmedByWithdrawal(node))
         {
             return FadedNodeOpacity;
         }
@@ -836,6 +842,11 @@ public sealed partial class GraphCanvas : FrameworkElement
         if (_model.Timeline.IsLaterNode(node.Key))
         {
             return LaterNodeOpacity;
+        }
+
+        if (_model.IsDusted(node.Key))
+        {
+            return DustOpacity;
         }
 
         if (_model.GoneTrail.Nodes.Contains(node.Key))
@@ -1004,6 +1015,7 @@ public sealed partial class GraphCanvas : FrameworkElement
     private void DrawNode(DrawingContext dc, NodeView node, GraphPoint place, IReadOnlySet<string> near)
     {
         var model = _model!;
+        node = model.Forms.Previewed(node);
         if (node.Look.Sort is NodeSort.Pile or NodeSort.HeldBack)
         {
             DrawFolded(dc, node, place, near);
@@ -1053,6 +1065,7 @@ public sealed partial class GraphCanvas : FrameworkElement
         DrawMarks(dc, node, place);
         DrawWatchMark(dc, node, place);
         DrawWaitGlass(dc, node, place);
+        DrawRoundMarks(dc, node, place);
         if (node.IsStartPoint)
         {
             DrawStartFlag(dc, place);
@@ -1064,6 +1077,7 @@ public sealed partial class GraphCanvas : FrameworkElement
         }
 
         dc.Pop();
+        DrawPoisonMark(dc, node, place);
     }
 
     /// <summary>Draws a pile as its deck or a clue as its pill (sketches EX1 and EX2b), faint like any node.</summary>

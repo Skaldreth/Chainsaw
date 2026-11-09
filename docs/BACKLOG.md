@@ -187,6 +187,11 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
   vem som spenderar en output jämförs inte med det förra.
 
 ## Klustring och heuristiker
+- **Efter omgranskningen av omgång 4:s ytor (2026-11-09, M):** BU1a förseglar en uppbrytning i användarens namn också
+  för en adress som bara föll med när hela förslaget vägrades (förklara det i journalen och *Varför?*, eller bryt bara
+  det valda); KV1a-rutan ska vara streckad (`ClusterWhyView.xaml:164` ritar hel linje); *Ångra* efter *Släpp
+  slutsatsen* återställer inte den gamla slutsatsen om en körning hunnit emellan — säg det eller vägra; HB1a:s
+  `HeldBackMatch.Touches` är O(N·E) per bild; vyn Etiketter kopierar `FullAddress` direkt också för en liknande adress.
 - **PayJoin v2 och en plånbok som byter adresstyp** (slutgranskningen 2026-11-08, M1): en Taproot-plånbok som spenderar
   ett gammalt P2WPKH-mynt och ett P2TR-mynt, betalar till P2WPKH och lägger växeln på P2TR har samma form som BIP78 och
   ger ett förslag i stället för en sammanslagning (sonden i granskningen). Sällsynt och bara falskt negativt; lägg

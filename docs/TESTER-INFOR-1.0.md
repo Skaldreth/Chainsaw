@@ -1699,6 +1699,41 @@ analysen med version och att det är en bedömning; *?* öppnar Guidens avsnitt.
   damm (mynt, sand); tjänst, plånbok och tid har sortens ikon.
 - **Snabbhet:** öppna ett stort ärende och se att *Förslag · N* inte blir märkbart långsammare än förut.
 
+### Ytorna för omgång 4 (KV1a, HB1a, BU1a, DM1a, HP1a och TJ1b, 2026-11-08)
+
+Testärendet visar dem inte än (TODO); prova i ett ärende där mönstren finns.
+- **KV1a:** välj ett kluster. Under *VARFÖR ÄR DE EN PLÅNBOK?* står en rad per heuristik med version, antal adresser
+  och tx. *⋯* på raden fäller ut *… i Guiden F1*, *Bryt upp … U* och, för en version över 1, *Dra tillbaka … …*.
+  Bekräftelsen fälls ut under raderna med en stapel per kluster (före → efter, gult streckat för det som lämnar,
+  grönt för det som kommer tillbaka); grafen tonar ned allt utom de kluster som ändras och ritar en streckad nod under
+  dem med den första adressen och *+N lämnar K1* eller *in i K5*. Esc stänger, Enter drar tillbaka. Efteråt står
+  versionen överstruken med *tillbakadragen*, den äldre med *räknas igen* i grönt, och en toast med *Ångra* tar
+  tillbaka det. I *Historik* står *Tillbakadragen · …* med *Ta tillbaka*.
+- **HB1a:** när en körning saknar en tx som en sparad slutsats bygger på får klustret en streckad gul ring med paus i
+  nedre högra hörnet (till vänster om timglaset om noden väntar). Hovring säger vad som hålls tillbaka och vad det
+  byggde på; ett klick väljer noden och öppnar *Historik*. Där står ett streckat kort *Hålls tillbaka · …*: ett klick
+  fäller ut skälet, *Låt stå* och *Släpp slutsatsen* (Enter). *Låt stå* tar bort ringen och kortet säger *Står kvar*;
+  *Släpp* gör adressen till en egen nod, och kortet står överstruket med *Slutsatsen släppt, också dess fynd* och
+  vem. *Ångra* på det senaste beslutet tar tillbaka det: en släppt slutsats räknas igen, en som fick stå väntar igen.
+- **BU1a:** *Bryt upp* (U) på ett kluster. Bocka en adress och Ctrl+klicka den som inte hör ihop med den: formuläret
+  ritar vägen som en kedja med heuristik, version och tx per länk, saxen på den svagaste (*svagast*), och under vad
+  som händer (*K1 behåller 4 · … blir en egen plånbok*). Ett klick på en annan länk flyttar saxen; *Alla adresser*
+  går tillbaka. Ctrl+klicka två noder i grafen och tryck U: ligger de i olika kluster står de två med en bruten röd
+  linje, varningen och bara *Stäng*.
+- **DM1a:** noder med damm och en trolig förgiftning är nedtonade; förgiftningen har en röd mask i nedre vänstra
+  hörnet i full styrka. Välj den: överst i inspektören står *Adressförgiftning* med de två adresserna tecken för
+  tecken, det som skiljer i rött. Ctrl+C (eller *Kopiera* i listen) kopierar ingenting utan lyser upp jämförelsen;
+  *Kopiera Börs B* (Enter) kopierar den riktiga, *Kopiera ändå* den liknande. Adresserna i full längd visas inte för
+  den liknande, och inspektörens kopieringsknappar frågar också först.
+- **HP1a:** en rad med många hopp ritas som en linje mellan första och sista hoppet med en streckad bricka *N hopp ·
+  tid* och en pärla per hopp efter tiden (långa uppehåll syns som långa mellanrum). Hovring listar hoppen med väntan
+  och block; ett klick fäller ut raden till noderna med *Fäll ihop · …* ovanför, ett klick till fäller ihop. Det
+  ändrar inte spårningen.
+- **TJ1b:** välj en hot wallet som `service-behaviour` hittat ett svep till: *Som etikett …* står bredvid *Varför?*.
+  Etikettformuläret vid noden har brickan *Bedömning · service-behaviour v1*, Börs vald och ingen *Källa*; noden byter
+  namn, färg och ikon, streckad, medan sort och namn väljs. *Sätt etikett* sparar en etikett med källan
+  `service-behaviour v1`, som i *Historik* kan tas tillbaka.
+
 ## Etiketter
 
 ### Etiketterna (etapp 8, Attribution)

@@ -96,6 +96,7 @@ internal static class EvidenceStore
         var withdrawnAt = ReadWithdrawals(reader)
             .Where(withdrawal => withdrawal.IsInForce)
             .ToDictionary(withdrawal => withdrawal.Heuristic, withdrawal => withdrawal.JournalSequence);
+        var releases = HeldBackStore.Releases(reader);
         var weighedWithWithdrawn = new Dictionary<Txid, long>();
         var latest = new Dictionary<(Txid, HeuristicId), (long Journal, StoredResult Result)>();
         using var command = reader.CreateCommand(
@@ -118,6 +119,12 @@ internal static class EvidenceStore
             }
 
             var journal = row.GetInt64(3);
+            if (IsReleased(releases, txid, journal))
+            {
+                // A conclusion the user let go neither counts nor holds a run back (sketch HB1a).
+                continue;
+            }
+
             if (!latest.TryGetValue(key, out var known) || journal > known.Journal)
             {
                 var basis = Deserialize<List<string>>(row.GetString(5)).Select(ParseTxid).ToList();
@@ -185,7 +192,7 @@ internal static class EvidenceStore
     public static (List<ClusterEvidence> Evidence, List<StoredFinding> Findings) ReadLatest(
         ICaseReader reader, Txid? txid = null, bool withFindings = true)
     {
-        var current = CountingRows(reader, txid);
+        var current = CountingRows(reader, txid, null);
         var evidence = current.Where(row => row.Kind == ProposalKind).Select(ToEvidence).ToList();
         var findings = withFindings
             ? current.Where(row => row.Kind == FindingKind).Select(ToFinding).ToList()
@@ -203,7 +210,7 @@ internal static class EvidenceStore
     /// <exception cref="CaseException"><see cref="CaseError.Corrupt"/> when a record cannot be read back.</exception>
     public static Dictionary<Txid, TransactionConclusions> ReadLatest(ICaseReader reader, IReadOnlySet<Txid> txids)
     {
-        var rows = CountingRows(reader, null).Where(row => txids.Contains(row.Txid)).ToLookup(row => row.Txid);
+        var rows = CountingRows(reader, null, null).Where(row => txids.Contains(row.Txid)).ToLookup(row => row.Txid);
         return txids.ToDictionary(
             txid => txid,
             txid => new TransactionConclusions(
@@ -220,8 +227,12 @@ internal static class EvidenceStore
     /// </summary>
     /// <param name="reader">The case's reader.</param>
     /// <param name="txid">The transaction, or <see langword="null"/> for all.</param>
+    /// <param name="alsoWithdrawn">
+    /// A version to count as drawn back after everything stored, for a preview of drawing it back, or
+    /// <see langword="null"/>.
+    /// </param>
     /// <returns>The records.</returns>
-    private static List<EvidenceRow> CountingRows(ICaseReader reader, Txid? txid)
+    private static List<EvidenceRow> CountingRows(ICaseReader reader, Txid? txid, HeuristicId? alsoWithdrawn)
     {
         using var command = reader.CreateCommand(
             EvidenceSelect + " WHERE $txid IS NULL OR txid = $txid ORDER BY sequence");
@@ -238,6 +249,13 @@ internal static class EvidenceStore
         var withdrawnAt = ReadWithdrawals(reader)
             .Where(withdrawal => withdrawal.IsInForce)
             .ToDictionary(withdrawal => withdrawal.Heuristic, withdrawal => withdrawal.JournalSequence);
+        if (alsoWithdrawn is not null)
+        {
+            withdrawnAt.TryAdd(alsoWithdrawn, long.MaxValue);
+        }
+
+        var releases = HeldBackStore.Releases(reader);
+        rows.RemoveAll(row => IsReleased(releases, row.Txid, row.JournalSequence));
         var weighedWithWithdrawn = rows.Where(row => withdrawnAt.ContainsKey(row.Heuristic))
             .GroupBy(row => row.Txid)
             .ToDictionary(group => group.Key, group => group.Max(row => withdrawnAt[row.Heuristic]));
@@ -261,6 +279,28 @@ internal static class EvidenceStore
                 .Select(row => WeighedAgain(row, weighedWithWithdrawn)),
         ];
     }
+
+    /// <summary>
+    /// Reads the proposals that would count with one more version drawn back, for the preview of drawing it back
+    /// (sketch KV1a).
+    /// </summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <param name="withdrawn">The version that would be drawn back.</param>
+    /// <returns>The proposals.</returns>
+    /// <exception cref="CaseException"><see cref="CaseError.Corrupt"/> when a record cannot be read back.</exception>
+    public static List<ClusterEvidence> ReadLatestWithout(ICaseReader reader, HeuristicId withdrawn) =>
+        [.. CountingRows(reader, null, withdrawn).Where(row => row.Kind == ProposalKind).Select(ToEvidence)];
+
+    /// <summary>
+    /// Says whether a record was stored before the user let its transaction's held back conclusions go, so that it
+    /// no longer counts (sketch HB1a).
+    /// </summary>
+    /// <param name="releases">The journal entry of each transaction's latest release.</param>
+    /// <param name="txid">The record's transaction.</param>
+    /// <param name="journal">The record's journal entry.</param>
+    /// <returns><see langword="true"/> when it is let go.</returns>
+    private static bool IsReleased(Dictionary<Txid, long> releases, Txid txid, long journal) =>
+        releases.TryGetValue(txid, out var at) && journal < at;
 
     /// <summary>
     /// Lifts the weighing of a version drawn back off a proposal: one weighed down before the withdrawal, of a
