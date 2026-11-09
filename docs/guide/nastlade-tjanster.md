@@ -31,7 +31,23 @@ etiketten med **L** när du vet eller tror att en insättningsadress tillhör en
 Spåret tar slut där med *Börs, uttag funnet*, men etiketten säger att en begäran till den stora börsen ger tjänsten, och
 att nästa steg är en begäran till tjänsten själv.
 
-Att känna igen mönstret av sig själv är **inte byggt än**.
+## Förslaget Nästlad tjänst
+
+Förslaget `nested-service v1` känner igen mönstret av sig själv, när en börs har en etikett:
+
+- en ägare utan etikett, som [klustringen](common-input-ownership.md) räknar den, tar emot betalningar från **minst
+  åtta olika avsändare** och betalar **minst åtta olika mottagare**, över minst ett dygn;
+- den betalar **in till börsen minst två gånger** och får **uttag tillbaka minst två gånger**;
+- **minst hälften** av det kunderna betalade går vidare in på börsen, och minst hälften av det som betalas ut kom
+  därifrån: tjänsten sköter sin verksamhet genom kontot.
+
+Förslaget ser bara en insättning till börsen när insättningsadressen redan hör till börsen i grafen: klustrad med
+den (börsens svep av adressen finns i grafen) eller med börsens etikett. Saknas svepet syns tjänsten inte; sätt
+etiketten på insättningsadressen, eller expandera den så att svepet kommer med.
+
+Startpunkter och offer räknas aldrig som tjänstens kunder. Förslaget är streckat, med ett blått område, och väntar på
+ditt beslut: godkänn eller avfärda. Ett godkännande är din bedömning, inte ett faktum; sätt gärna etiketten **Nästlad
+tjänst** med L när du är säker.
 
 ## Vad det betyder för begäran
 

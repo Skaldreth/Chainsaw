@@ -138,7 +138,7 @@ public sealed class RoundFourChecksTests : IDisposable
         var parts = Single(run, SplitMergeCheck.Name, "split:");
         Assert.Equal("Uppdelning i 6 delar", parts.Finding.Title);
         Assert.Equal(6, parts.Finding.Addresses.Count);
-        AssertJudgement(parts, "split-merge v1");
+        AssertJudgement(parts, "split-merge v2");
         var joined = Single(run, SplitMergeCheck.Name, "join:");
         Assert.Equal("Delarna samlas igen, 3 av 6", joined.Finding.Title);
         Assert.Contains(joined.Finding.Basis, basis => basis.Txid == hop.Txid);
@@ -164,7 +164,7 @@ public sealed class RoundFourChecksTests : IDisposable
         Assert.Contains("3 dygn", check.Finding.Why, StringComparison.Ordinal);
         Assert.Equal(4, check.Finding.Basis.Count);
         Assert.Equal(5, check.Finding.Addresses.Count);
-        AssertJudgement(check, "pass-through v1");
+        AssertJudgement(check, "pass-through v2");
     }
 
     [Fact]
@@ -264,11 +264,11 @@ public sealed class RoundFourChecksTests : IDisposable
         var check = Single(_harness.Run(spends), ActiveHoursCheck.Name);
 
         Assert.Equal(AreaSort.Time, check.Finding.Area);
-        Assert.Equal("Aktiv kl. 08–22 UTC", check.Finding.Title);
+        Assert.Equal("Aktiv kl. 09–23 svensk tid", check.Finding.Title);
         Assert.Contains("UTC+0", check.Finding.Summary, StringComparison.Ordinal);
         Assert.Equal([Wpkh("worker")], check.Finding.Addresses);
         Assert.Equal("hours:" + Wpkh("worker").Value, check.Finding.Key);
-        AssertJudgement(check, "active-hours v1");
+        AssertJudgement(check, "active-hours v2");
     }
 
     [Fact]

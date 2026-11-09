@@ -120,6 +120,11 @@ public enum GuideTopic
     /// suggested by <c>cross-chain v1</c>.
     /// </summary>
     CrossChain,
+
+    /// <summary>
+    /// <em>Nästlade tjänster</em>: a service with an account at a larger exchange, suggested by <c>nested-service v1</c>.
+    /// </summary>
+    NestedServices,
 }
 
 /// <summary>Reads <see cref="GuideTopic"/>.</summary>
@@ -173,6 +178,7 @@ public static class GuideTopics
         GuideTopic.GoneTransaction => "ersatt-tx",
         GuideTopic.ShieldedPool => "skyddade-pooler",
         GuideTopic.CrossChain => "annan-kedja",
+        GuideTopic.NestedServices => "nastlade-tjanster",
         _ => "utxo-modellen",
     };
 
@@ -215,6 +221,7 @@ public static class GuideTopics
         GuideTopic.GoneTransaction => "En tx som inte finns längre",
         GuideTopic.ShieldedPool => "Ut ur en skyddad pool",
         GuideTopic.CrossChain => "Fortsättningen på en annan kedja",
+        GuideTopic.NestedServices => "Nästlade tjänster",
         _ => "UTXO-modellen",
     };
 

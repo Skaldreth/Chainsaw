@@ -2108,14 +2108,41 @@ analysen med version och att det är en bedömning; *?* öppnar Guidens avsnitt.
 - **PayJoin:** en tx där mottagaren lagt till ett eget mynt av en egen adresstyp ger ett grått område *Möjlig
   PayJoin*, och dess inputs står som förslag i klustret. En vanlig betalning med ett onödigt mynt heter bara *Onödig
   input* och slås ihop som vanligt.
-- **Tidsmönster:** en ägare med minst tjugo tx som bara spenderar på dagtid ger *Aktiv kl. HH–HH UTC* med en trolig
-  tidszon i raden under; *Varför?* säger hur ofta slumpen ger lika lång tystnad.
+- **Tidsmönster:** en ägare med minst tjugo tx som bara spenderar på dagtid ger *Aktiv kl. HH–HH svensk tid* med en
+  trolig tidszon i raden under; *Varför?* säger hur ofta slumpen ger lika lång tystnad.
 - **Tjänst ur beteende** kräver många kunder: minst två svep, tio insättningar från tio avsändare över minst ett dygn.
   Ett ärende där bedragaren sveper några offers betalningar får ingen *Trolig tjänst*.
 - **Damm:** utgångar på 330 eller 546 satoshi heter *Damm eller inskriptioner*.
 - Ikonerna på brickorna: sammanslagna mixade mynt (Join, rött), uppdelning (Split, sand), många hopp (Layers, sand),
   damm (mynt, sand); tjänst, plånbok och tid har sortens ikon.
 - **Snabbhet:** öppna ett stort ärende och se att *Förslag · N* inte blir märkbart långsammare än förut.
+
+### Förvirring, omgång 5 (2026-11-09)
+
+Testärendet visar inte de här kontrollerna än (TODO); prova dem i ett ärende där mönstret finns. Varje rad står i
+*Förslag · N* med sitt område, och *Varför?* säger analysen med version och att det är en bedömning.
+- [ ] **Trolig mixer utan etikett:** en central mixer utan etikett, där många insättningar kommer ut igen minus några
+      procent, ger ett rött område *Trolig mixer utan etikett* under *GJORT AV SIG SJÄLVT*, med mixerns ikon på
+      brickan. *?* öppnar Guidens *Mixer efter mixer och delarna*, avsnittet *En trolig mixer utan etikett*. Sätt
+      etiketten Mixer med L: kontrollen försvinner och insättningarna får mixerns egna förslag.
+- [ ] **Mixer efter mixer genom den:** en utgång ur en mixer med etikett som går in i den troliga mixern och vidare in
+      i en mixer till ger *Mixer efter mixer, 3 steg*; *Varför?* säger *en trolig mixer utan etikett* i steg 2.
+- [ ] **Grenar och delar tillsammans:** godkänn två utgångar ur samma insättning som går in i var sin mixer: titeln
+      får *, 2 grenar* och *Varför?* säger *kedjan delar sig i 2 vägar* och *Steg 3 (efter steg 1)*. Två delar som
+      spenderas i samma tx in i nästa mixer står som *2 troliga delar på sammanlagt …* i ett steg.
+- [ ] **Uppdelning över flera tx:** en ägare som betalar minst fem mottagare lika delar i flera tx inom ett dygn ger
+      *Uppdelning i N delar över k tx*, med området runt delarna. Delar som möts efter många hopp ger *Delarna samlas
+      igen* med *genom N mellanled*.
+- [ ] **Många hopp med avgift:** en rad hopp där varje hopp också betalar en procent till samma adress, eller till en
+      tjänst med etikett, ger *Många hopp, N i rad*; *Varför?* säger avgiften och vart den gick. Hovra över raden när
+      den är ihopfälld (HP1a): tipset säger *pass-through v2*.
+- [ ] **Tidsmönster:** titlarna säger *svensk tid*; en ägare som bara tar emot på dagtid får *Tar emot kl. HH–HH
+      svensk tid*. *Varför?* nämner Benjamini–Hochberg och hur många serier som prövades.
+- [ ] **Nästlad tjänst:** en adress som tar emot från många, betalar många, och flera gånger betalar in till och får
+      uttag från en börs med etikett ger ett **streckat** blått förslag *Trolig nästlad tjänst hos <börsen>* under *ATT
+      AVGÖRA*, med brickorna *Konto hos en börs*, *Genom kontot* och *Din bedömning*. Godkänn och avfärda: förslaget
+      står kvar streckat, och *?* öppnar Guidens *Nästlade tjänster*.
+- [ ] **Snabbhet:** *Förslag · N* blir inte märkbart långsammare i ett stort ärende.
 
 ### Mönster (`pattern v1`, 2026-11-09)
 

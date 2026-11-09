@@ -27,11 +27,13 @@ public static class ChecksModule
         services.AddSingleton<ICheckAnalysis, MixerOutputsCheck>();
         services.AddSingleton<ICheckAnalysis, MixerPartsCheck>();
         services.AddSingleton<ICheckAnalysis, MixerChainCheck>();
+        services.AddSingleton<ICheckAnalysis, MixerBehaviourCheck>();
         services.AddSingleton<ICheckAnalysis, CoinJoinCheck>();
         services.AddSingleton<ICheckAnalysis, PeelChainCheck>();
         services.AddSingleton<ICheckAnalysis, WalletCheck>();
         services.AddSingleton<ICheckAnalysis, CoinJoinMergeCheck>();
         services.AddSingleton<ICheckAnalysis, ServiceBehaviourCheck>();
+        services.AddSingleton<ICheckAnalysis, NestedServiceCheck>();
         services.AddSingleton<ICheckAnalysis, SplitMergeCheck>();
         services.AddSingleton<ICheckAnalysis, PassThroughCheck>();
         services.AddSingleton<ICheckAnalysis, DustCheck>();
