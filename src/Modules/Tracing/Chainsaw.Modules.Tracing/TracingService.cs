@@ -5,6 +5,7 @@ using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Clustering.Contracts;
 using Chainsaw.Modules.Tracing.Contracts;
 using Chainsaw.SharedKernel;
+using static Chainsaw.Modules.Tracing.Lookups;
 
 namespace Chainsaw.Modules.Tracing;
 
@@ -391,31 +392,30 @@ internal sealed class TracingService : ITracingService
     }
 
     /// <inheritdoc/>
-    public TraceResult Trace(TraceGraph graph, TraceRequest request)
-    {
-        ArgumentNullException.ThrowIfNull(graph);
-        ArgumentNullException.ThrowIfNull(request);
-        if (!_methods.TryGetValue(request.Method, out var method))
-        {
-            throw new ArgumentException("The tracing method is not registered.", nameof(request));
-        }
-
-        return TraceCalculator.Trace(graph, method, request.Seeds);
-    }
+    public TraceResult Trace(TraceGraph graph, TraceRequest request) =>
+        TraceCalculator.Trace(graph, MethodFor(graph, request), request.Seeds);
 
     /// <inheritdoc/>
     public Task<TraceResult> TraceAsync(
         TraceGraph graph, TraceRequest request, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(graph);
-        ArgumentNullException.ThrowIfNull(request);
-        if (!_methods.TryGetValue(request.Method, out var method))
-        {
-            throw new ArgumentException("The tracing method is not registered.", nameof(request));
-        }
-
+        var method = MethodFor(graph, request);
         return Task.Run(
             () => TraceCalculator.Trace(graph, method, request.Seeds, cancellationToken), cancellationToken);
+    }
+
+    /// <summary>Checks a UTXO trace's arguments and gives its method.</summary>
+    /// <param name="graph">The graph.</param>
+    /// <param name="request">The request.</param>
+    /// <returns>The registered method the request names.</returns>
+    /// <exception cref="ArgumentException">The method is not registered.</exception>
+    private IUtxoTracingMethod MethodFor(TraceGraph graph, TraceRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(graph);
+        ArgumentNullException.ThrowIfNull(request);
+        return _methods.TryGetValue(request.Method, out var method)
+            ? method
+            : throw new ArgumentException("The tracing method is not registered.", nameof(request));
     }
 
     /// <inheritdoc/>
@@ -1024,17 +1024,6 @@ internal sealed class TracingService : ITracingService
     }
 
     /// <summary>
-    /// Gives why an answer may be outdated, when it came from the case instead of the source; such an answer leaves
-    /// the expansion incomplete. Other texts on a current answer (for example that the case's answer about the spends
-    /// is as of when it was fetched) do not, since the expansion asks about the spends itself.
-    /// </summary>
-    /// <typeparam name="T">What was looked up.</typeparam>
-    /// <param name="lookup">The answer.</param>
-    /// <returns>The text, or <see langword="null"/> when the answer is current.</returns>
-    private static string? Outdated<T>(BitcoinLookup<T> lookup)
-        where T : class => Lookups.Outdated(lookup);
-
-    /// <summary>
     /// Joins an answer's notes (a transaction that left its block, one that could not be checked against its bytes)
     /// to those already gathered; they are said, but do not make the expansion incomplete.
     /// </summary>
@@ -1044,18 +1033,6 @@ internal sealed class TracingService : ITracingService
     /// <returns>The notes with the answer's added.</returns>
     private static string? WithNotes<T>(string? notes, BitcoinLookup<T> lookup)
         where T : class => lookup.Notes.Aggregate(notes, Join);
-
-    /// <summary>Joins two texts for the user, either of which may be missing, each once.</summary>
-    /// <param name="first">The first text.</param>
-    /// <param name="second">The second text.</param>
-    /// <returns>Both, one, or <see langword="null"/>.</returns>
-    private static string? Join(string? first, string? second) => Lookups.Join(first, second);
-
-    /// <summary>Says what went wrong with a lookup, for the user.</summary>
-    /// <param name="status">How it was answered.</param>
-    /// <param name="problem">The source's own text, if any.</param>
-    /// <returns>The text.</returns>
-    private static string Problem(LookupStatus status, string? problem) => Lookups.Problem(status, problem);
 
     /// <summary>What one expansion step brought in.</summary>
     /// <param name="Transactions">The transactions.</param>

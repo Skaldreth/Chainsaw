@@ -9,7 +9,6 @@ namespace Chainsaw.Modules.Chains;
 /// <param name="Path">The path under the source's base address.</param>
 /// <param name="Parse">Reads and checks a fresh response; throws <see cref="EsploraFormatException"/>.</param>
 /// <param name="Index">What a fresh answer adds to the indexes.</param>
-/// <param name="FindStored">Finds the newest answer in the case and reads it, or gives <see langword="null"/>.</param>
 /// <param name="SettledAt">
 /// The height of the shallowest block the answer rests on, when every part of it is in a block; once that block is
 /// deep enough the answer cannot change. <see langword="null"/> when it can still change.
@@ -19,14 +18,18 @@ namespace Chainsaw.Modules.Chains;
 /// Says what differs in a fresh answer from the case's earlier one when that matters to the user (a transaction
 /// that has left its block), or gives <see langword="null"/>; <see langword="null"/> when nothing is compared.
 /// </param>
+/// <param name="FindStored">
+/// Finds the newest answer in the case and reads it, or gives <see langword="null"/>; when <see langword="null"/>,
+/// the newest response of the kind about the subject is read with <paramref name="Parse"/>.
+/// </param>
 internal sealed record LookupQuery<T>(
     string Kind,
     string Subject,
     string Path,
     Func<byte[], T> Parse,
     Func<T, ResponseIndex> Index,
-    Func<ICaseReader, (T Value, StoredResponse Response)?> FindStored,
     Func<T, long?> SettledAt,
     bool NeverChanges = false,
-    Func<T, T, string?>? Changed = null)
+    Func<T, T, string?>? Changed = null,
+    Func<ICaseReader, (T Value, StoredResponse Response)?>? FindStored = null)
     where T : class;

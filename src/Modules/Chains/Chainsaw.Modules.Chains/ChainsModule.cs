@@ -47,6 +47,7 @@ public static class ChainsModule
         services.TryAddSingleton<IClock, SystemClock>();
         services.AddSingleton<ICaseSchemaContributor, ChainsSchema>();
         services.AddSingleton<IResponseTransfer, ResponseTransfer>();
+        services.AddSingleton<ICaseHeights>(new CaseHeights(settings));
 
         // Each sort of API is registered here; another chain (Ethereum, TRON) only adds its own.
         services.AddSingleton<ISourceApi>(new EsploraApi(settings));

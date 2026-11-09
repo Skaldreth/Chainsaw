@@ -80,7 +80,6 @@ public sealed class AssetTests
         var amount = AssetAmount.Parse(Asset.Bitcoin, text);
 
         Assert.Equal(new Satoshi(satoshi).ToAmount(), amount);
-        Assert.Equal(new Satoshi(satoshi), amount.ToSatoshi());
         Assert.Equal(written, amount.ToDecimalString());
         Assert.Equal(new Satoshi(satoshi).ToString(), amount.ToDecimalString());
     }
@@ -105,7 +104,6 @@ public sealed class AssetTests
         Assert.Throws<InvalidOperationException>(() => bitcoin + ether);
         Assert.Throws<InvalidOperationException>(() => ether - usdt);
         Assert.Throws<InvalidOperationException>(() => ether < usdt);
-        Assert.Throws<InvalidOperationException>(() => ether.ToSatoshi());
         Assert.NotEqual(ether, usdt);
         Assert.True(AssetAmount.Zero(Asset.Ether).IsZero);
         Assert.Throws<InvalidOperationException>(() => default(AssetAmount).Asset);

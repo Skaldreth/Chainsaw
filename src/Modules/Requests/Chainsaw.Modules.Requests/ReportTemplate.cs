@@ -127,9 +127,6 @@ internal static class ReportTexts
 /// </summary>
 internal static class ReportTemplate
 {
-    /// <summary>How the time a report is made is written.</summary>
-    private const string MadeFormat = "yyyy-MM-dd HH:mm";
-
     /// <summary>The Swedish words for amounts and times, shared with the requests.</summary>
     private static readonly RequestTexts Words = RequestTexts.Of(RequestLanguage.Swedish);
 
@@ -161,11 +158,9 @@ internal static class ReportTemplate
     /// <returns>The first blocks.</returns>
     private static List<RequestBlock> Head(ReportDraft draft, RequestContext context)
     {
-        var made = $"{ReportTexts.Made} {Moment(context.Utc, draft.TimeZone)}";
-        if (context.Operator is { } person)
+        var made = $"{ReportTexts.Made} {RequestTemplates.Moment(context.Utc, draft.TimeZone)}";
+        if (context.Who is { } who)
         {
-            var who = string.Join(", ", new[] { person.Name, person.Title, person.Organization }
-                .Where(part => !string.IsNullOrWhiteSpace(part)));
             made += $" {ReportTexts.By} {who}";
         }
 
@@ -353,23 +348,13 @@ internal static class ReportTemplate
         }
 
         var local = TimeZoneInfo.ConvertTime(ledger.CheckedUtc, draft.TimeZone)
-            .ToString(MadeFormat, CultureInfo.InvariantCulture);
-        var utc = ledger.CheckedUtc.UtcDateTime.ToString(MadeFormat, CultureInfo.InvariantCulture);
+            .ToString(RequestTemplates.MadeFormat, CultureInfo.InvariantCulture);
+        var utc = ledger.CheckedUtc.UtcDateTime.ToString(RequestTemplates.MadeFormat, CultureInfo.InvariantCulture);
         var format = ledger.IsIntact ? ReportTexts.LedgerIntact : ReportTexts.LedgerBroken;
         blocks.Add(new RequestBlock(
             RequestBlockKind.Paragraph,
             string.Format(CultureInfo.InvariantCulture, format, ledger.Chains, ledger.JournalLine, local, utc)));
         blocks.Add(new RequestBlock(RequestBlockKind.Hash, ledger.Digest));
-    }
-
-    /// <summary>Writes a moment in the local zone with UTC in brackets.</summary>
-    /// <param name="utc">The moment.</param>
-    /// <param name="zone">The local zone.</param>
-    /// <returns>For example <c>2026-11-08 14:40 (13:40 UTC)</c>.</returns>
-    private static string Moment(DateTimeOffset utc, TimeZoneInfo zone)
-    {
-        var local = TimeZoneInfo.ConvertTime(utc, zone).ToString(MadeFormat, CultureInfo.InvariantCulture);
-        return $"{local} ({utc.UtcDateTime.ToString(MadeFormat, CultureInfo.InvariantCulture)} UTC)";
     }
 
     /// <summary>Writes an amount exactly, as a request does.</summary>

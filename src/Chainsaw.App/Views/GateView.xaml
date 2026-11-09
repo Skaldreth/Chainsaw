@@ -280,6 +280,13 @@
                         <TextBlock Text="{x:Static vm:LockViewModel.WatchHitText}" FontSize="13" TextWrapping="Wrap" LineHeight="18"
                                    Margin="0,8,0,0" Foreground="{StaticResource Brush.Text}"
                                    Visibility="{Binding HasWatchHit, Converter={StaticResource Visible}}" />
+                        <!-- A link waits for the unlock (sketch LN1a): only that, never the address. -->
+                        <TextBlock Text="{x:Static vm:LockViewModel.LinkWaitingText}" FontSize="13" TextWrapping="Wrap"
+                                   LineHeight="18" Margin="0,8,0,0" Foreground="{StaticResource Brush.Text}"
+                                   Visibility="{Binding HasWaitingLink, Converter={StaticResource Visible}}" />
+                        <TextBlock Text="{x:Static vm:LockViewModel.LinkWaitingNote}" FontSize="13" TextWrapping="Wrap"
+                                   LineHeight="18" Margin="0,2,0,0" Foreground="{StaticResource Brush.TextMuted}"
+                                   Visibility="{Binding HasWaitingLink, Converter={StaticResource Visible}}" />
                     </StackPanel>
                 </Border>
             </Popup>

@@ -53,6 +53,13 @@ public sealed class CasesOptions
     /// </summary>
     internal int SharingIterations { get; set; } = DefaultSharingIterations;
 
+    /// <summary>
+    /// Gets or sets the fewest iterations a sharing envelope may have to be used. One with fewer (which Chainsaw never
+    /// writes) is refused when the password is tried and removed from the file when the case is opened. Only tests
+    /// lower it, with <see cref="SharingIterations"/>.
+    /// </summary>
+    internal int MinimumSharingIterations { get; set; } = 100_000;
+
     /// <summary>The quiet after a write before an open case saves itself (<see cref="AutosaveQuietPeriod"/>).</summary>
     internal static readonly TimeSpan DefaultAutosaveQuietPeriod = TimeSpan.FromSeconds(5);
 

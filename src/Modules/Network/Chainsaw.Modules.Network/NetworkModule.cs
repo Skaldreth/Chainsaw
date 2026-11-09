@@ -1,5 +1,6 @@
 using Chainsaw.Modules.Network.Contracts;
 using Chainsaw.Modules.Security.Contracts;
+using Chainsaw.SharedKernel;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -8,8 +9,8 @@ namespace Chainsaw.Modules.Network;
 /// <summary>
 /// Registers the module Network: the exits (VPN) and the way out chosen (<see cref="IExitRoute"/>, VPN or Windows)
 /// through which every request Chainsaw makes leaves the computer, <see cref="INetworkPresence"/>, whether the computer
-/// reaches the internet for the way through Windows (probed only while Windows is chosen), <see cref="IExitReconnect"/>, which connects a fallen tunnel again, and
-/// <see cref="IExitHttp"/>, the only way out for
+/// reaches the internet for the way through Windows (probed only while Windows is chosen),
+/// <see cref="IExitReconnect"/>, which connects a fallen tunnel again, and <see cref="IExitHttp"/>, the only way out for
 /// the other modules; and <see cref="ILocalHttp"/>, which reaches only the user's own node on the computer or a private
 /// network; <see cref="IExitWebSocket"/>, a source's news by websocket on the same way out; and
 /// <see cref="IBackgroundExits"/>, the exits the user lets the background watching use. Needs the
@@ -52,18 +53,37 @@ public static class NetworkModule
             provider.GetRequiredService<ExitRecords>(),
             provider.GetRequiredService<ExitConnection>(),
             provider.GetRequiredService<BackgroundExitFile>()));
-        services.AddSingleton<IWindowsHandlerFactory, WindowsHandlerFactory>();
-        services.AddSingleton<ExitRouteChoice>();
+        // The proxy Windows is set up with, and the user's choice to log in to it (sketch PX1a).
+        services.TryAddSingleton<IWindowsProxyReader, WinHttpProxyReader>();
+        services.AddSingleton(provider => new WindowsProxyLogin(
+            provider.GetRequiredService<IWindowsProxyReader>(),
+            provider.GetRequiredService<NetworkOptions>(),
+            provider.GetService<IClock>() ?? new SystemClock()));
+        services.AddSingleton<IWindowsProxy>(provider => provider.GetRequiredService<WindowsProxyLogin>());
+        services.AddSingleton<IWindowsHandlerFactory>(provider => new WindowsHandlerFactory(
+            provider.GetRequiredService<NetworkOptions>(), provider.GetRequiredService<WindowsProxyLogin>()));
+        services.AddSingleton(provider => new ExitRouteChoice(
+            provider.GetRequiredService<NetworkOptions>(),
+            provider.GetRequiredService<IWindowsHandlerFactory>(),
+            provider.GetRequiredService<WindowsProxyLogin>()));
         services.AddSingleton<IExitRoute>(provider => provider.GetRequiredService<ExitRouteChoice>());
         services.TryAddSingleton<INetworkSignals, WindowsNetworkSignals>();
         services.TryAddSingleton<IInternetProbe>(provider => new InternetProbe(
-            provider.GetRequiredService<IWindowsHandlerFactory>(), TimeProvider.System));
+            provider.GetRequiredService<IWindowsHandlerFactory>(),
+            TimeProvider.System,
+            provider.GetRequiredService<WindowsProxyLogin>()));
         services.TryAddSingleton<INetworkPresence>(provider => new NetworkPresence(
             provider.GetRequiredService<INetworkSignals>(),
             provider.GetRequiredService<IInternetProbe>(),
             provider.GetRequiredService<IExitRoute>(),
             TimeProvider.System));
-        services.AddSingleton<IExitHttp, ExitHttp>();
+        services.AddSingleton<IExitHttp>(provider => new ExitHttp(
+            provider.GetRequiredService<ExitConnection>(),
+            provider.GetRequiredService<ExitRouteChoice>(),
+            provider.GetRequiredService<INetworkPresence>(),
+            provider.GetRequiredService<NetworkOptions>(),
+            provider.GetRequiredService<IClock>(),
+            provider.GetRequiredService<WindowsProxyLogin>()));
 
         // A source's own news (a new block) by websocket, on the same way out and nowhere else.
         services.AddSingleton<IExitWebSocket, ExitWebSocket>();

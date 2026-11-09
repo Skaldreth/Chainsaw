@@ -1,4 +1,5 @@
 using System.Globalization;
+using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Requests.Contracts;
 using Chainsaw.Modules.Security.Contracts;
 using Chainsaw.SharedKernel;
@@ -12,7 +13,37 @@ namespace Chainsaw.Modules.Requests;
 /// <param name="CaseNumber">The case's number; never its title, which may name the victim.</param>
 /// <param name="Operator">The operator who makes it, or <see langword="null"/> when the profile is not set.</param>
 /// <param name="Utc">When it is made.</param>
-internal sealed record RequestContext(string CaseNumber, OperatorProfile? Operator, DateTimeOffset Utc);
+internal sealed record RequestContext(string CaseNumber, OperatorProfile? Operator, DateTimeOffset Utc)
+{
+    /// <summary>
+    /// Gets who makes it as the document names them: name, title and organisation, or <see langword="null"/> when
+    /// the profile is not set.
+    /// </summary>
+    public string? Who => Operator is { } person
+        ? string.Join(", ", new[] { person.Name, person.Title, person.Organization }
+            .Where(part => !string.IsNullOrWhiteSpace(part)))
+        : null;
+
+    /// <summary>Gives who makes a document in a case and when: the case's number, never its title.</summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="profiles">The operator profile; none when the vault is locked or no profile is saved.</param>
+    /// <param name="utc">When.</param>
+    /// <returns>The context.</returns>
+    public static RequestContext For(ICase @case, IOperatorProfileStore profiles, DateTimeOffset utc)
+    {
+        OperatorProfile? profile;
+        try
+        {
+            profile = profiles.Get();
+        }
+        catch (VaultException)
+        {
+            profile = null;
+        }
+
+        return new(@case.Info.CaseNumber, profile, utc);
+    }
+}
 
 /// <summary>
 /// The templates: a request for information to the place where the money left the chain, and a freeze to a token's
@@ -24,8 +55,8 @@ internal static class RequestTemplates
     /// <summary>How times are written: the full date and the second, which an exchange searches its logs by.</summary>
     private const string TimeFormat = "yyyy-MM-dd HH:mm:ss";
 
-    /// <summary>How the time a request is made is written.</summary>
-    private const string MadeFormat = "yyyy-MM-dd HH:mm";
+    /// <summary>How the time a request or a report is made is written.</summary>
+    internal const string MadeFormat = "yyyy-MM-dd HH:mm";
 
     /// <summary>The fewest decimals an amount is written with.</summary>
     private const int LeastDecimals = 2;
@@ -134,14 +165,9 @@ internal static class RequestTemplates
     /// <returns>The first blocks.</returns>
     private static List<RequestBlock> Head(string title, RequestContext context, TimeZoneInfo zone, RequestTexts words)
     {
-        var local = TimeZoneInfo.ConvertTime(context.Utc, zone);
-        var localText = local.ToString(MadeFormat, CultureInfo.InvariantCulture);
-        var utcText = context.Utc.UtcDateTime.ToString(MadeFormat, CultureInfo.InvariantCulture);
-        var made = $"{words.CaseWord} {context.CaseNumber} · {words.MadeWord} {localText} ({utcText} UTC)";
-        if (context.Operator is { } person)
+        var made = $"{words.CaseWord} {context.CaseNumber} · {words.MadeWord} {Moment(context.Utc, zone)}";
+        if (context.Who is { } who)
         {
-            var who = string.Join(", ", new[] { person.Name, person.Title, person.Organization }
-                .Where(part => !string.IsNullOrWhiteSpace(part)));
             made += $" {words.ByWord} {who}";
         }
 
@@ -194,6 +220,16 @@ internal static class RequestTemplates
         var sentence = string.Join(" → ", trail.Steps) + ": "
             + string.Format(CultureInfo.InvariantCulture, words.TrailText, trail.Hops, trail.Method);
         blocks.Add(new RequestBlock(RequestBlockKind.Paragraph, sentence));
+    }
+
+    /// <summary>Writes a moment in the local zone with UTC in brackets.</summary>
+    /// <param name="utc">The moment.</param>
+    /// <param name="zone">The local zone.</param>
+    /// <returns>For example <c>2026-11-08 14:40 (13:40 UTC)</c>.</returns>
+    internal static string Moment(DateTimeOffset utc, TimeZoneInfo zone)
+    {
+        var local = TimeZoneInfo.ConvertTime(utc, zone).ToString(MadeFormat, CultureInfo.InvariantCulture);
+        return $"{local} ({utc.UtcDateTime.ToString(MadeFormat, CultureInfo.InvariantCulture)} UTC)";
     }
 
     /// <summary>Writes a block's time in the local zone, with its offset; or that it is unconfirmed.</summary>

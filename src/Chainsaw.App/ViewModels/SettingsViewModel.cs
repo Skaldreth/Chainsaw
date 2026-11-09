@@ -141,6 +141,10 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// is then not shown).
     /// </param>
     /// <param name="exitStore">The exits in the vault, for the selected exit, or <see langword="null"/>.</param>
+    /// <param name="proxy">
+    /// The proxy under Windows and the login to it (sketch PX1a), whose choice is written to the file, or
+    /// <see langword="null"/> where there is none.
+    /// </param>
     public SettingsViewModel(
         AppSettings settings,
         AppSettingsStore store,
@@ -159,7 +163,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         IAlertPreview? alerts = null,
         RatesSummaryViewModel? rates = null,
         IBackgroundExits? backgroundExits = null,
-        IExitStore? exitStore = null)
+        IExitStore? exitStore = null,
+        ProxyLoginViewModel? proxy = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(cases);
@@ -178,6 +183,12 @@ public sealed partial class SettingsViewModel : ObservableObject
         Exits = exits;
         Sources = sources;
         Rates = rates;
+        Proxy = proxy;
+        if (proxy is not null)
+        {
+            proxy.LoginChosen += (_, chosen) => Save(_settings with { ProxyLoginFor = chosen });
+        }
+
         Menu = SettingsMenu.Groups
             .Select(group => new SettingsMenuGroup(group.Name, [.. group.Entries.Select(e => new SettingsMenuItem(e))]))
             .ToList();
@@ -213,6 +224,9 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     /// <summary>Gets the page Källor, or <see langword="null"/> where there is none.</summary>
     public SourcesViewModel? Sources { get; }
+
+    /// <summary>Gets the proxy under Windows on the page Nätverk (sketch PX1a), or <see langword="null"/>.</summary>
+    public ProxyLoginViewModel? Proxy { get; }
 
     /// <summary>Gets the automatic lock's times.</summary>
     public IReadOnlyList<SettingsChoice> LockChoices { get; }
@@ -827,6 +841,11 @@ public sealed partial class SettingsViewModel : ObservableObject
         if (page == SettingsPage.Pricing)
         {
             _ = Rates?.RefreshAsync();
+        }
+
+        if (page == SettingsPage.Network)
+        {
+            Proxy?.Refresh();
         }
 
         foreach (var item in Menu.SelectMany(group => group.Items))

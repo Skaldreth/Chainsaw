@@ -327,17 +327,17 @@
         </DataTemplate>
     </UserControl.Resources>
 
-    <Grid Margin="84,16,20,16">
+    <Grid Margin="84,0,0,0">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="212" />
             <ColumnDefinition Width="16" />
             <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="16" />
+            <ColumnDefinition Width="20" />
             <ColumnDefinition Width="Auto" />
         </Grid.ColumnDefinitions>
 
         <!-- ===== The sources, each a filter, and the library's counts. ===== -->
-        <StackPanel Grid.Column="0" Margin="0,4,0,0">
+        <StackPanel Grid.Column="0" Margin="0,20,0,16">
             <TextBlock Text="KÄLLOR" Style="{StaticResource Caps}" Height="28" Padding="10,8,0,0" />
             <ItemsControl ItemsSource="{Binding Sources}" Focusable="False">
                 <ItemsControl.ItemTemplate>
@@ -402,7 +402,7 @@
         </StackPanel>
 
         <!-- ===== The switch, the filter field and the list. ===== -->
-        <DockPanel Grid.Column="2">
+        <DockPanel Grid.Column="2" Margin="0,16,0,16">
             <DockPanel DockPanel.Dock="Top" Margin="0,0,0,12">
                 <Border DockPanel.Dock="Left" Padding="2" CornerRadius="9" BorderThickness="1" Margin="0,0,10,0"
                         BorderBrush="{StaticResource Brush.BorderStrong}" Background="{StaticResource Brush.Surface}">
@@ -499,9 +499,9 @@
         </DockPanel>
 
         <!-- ===== The chosen label; without one the panel is removed. ===== -->
-        <Border Grid.Column="4" Width="384" CornerRadius="14" BorderThickness="1" ClipToBounds="True"
-                BorderBrush="{StaticResource Brush.Border}" Background="{StaticResource Brush.Surface}"
-                Visibility="{Binding HasSelected, Converter={StaticResource Visible}}">
+        <!-- Under the work, as the graph's inspector (sketch IN5a): 20 px more room on the left than the content's 20. -->
+        <controls:UnderPanel Grid.Column="4" Width="404" Padding="20,0,6,0"
+                             Visibility="{Binding HasSelected, Converter={StaticResource Visible}}">
             <DockPanel DataContext="{Binding Selected}">
                 <!-- The head: the sort, the name, the address with Kopiera, the chips, what it says and its node. -->
                 <StackPanel DockPanel.Dock="Top" Margin="20,20,20,16">
@@ -681,6 +681,6 @@
                     </ScrollViewer>
                 </Border>
             </DockPanel>
-        </Border>
+        </controls:UnderPanel>
     </Grid>
 </UserControl>

@@ -407,6 +407,7 @@ public sealed class BackgroundLink : IDisposable
                     Enabled = settings.WatchInBackground,
                     Route = settings.ExitRoute,
                     Alerts = settings.Alerts,
+                    ProxyLoginFor = settings.ProxyLoginFor,
                 };
 
                 try

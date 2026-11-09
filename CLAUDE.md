@@ -210,6 +210,15 @@ den låses upp, och användaren väljer ärende.
 - Central pakethantering (`Directory.Packages.props`), `TreatWarningsAsErrors`, nullable på. Lösning: `Chainsaw.slnx`.
 - **Allt dokumenteras** (användarens krav 2026-11-06): varje typ och metod, också `internal` och `private`, har
   XML-dokumentation som säger vad den gör och, där det inte är självklart, varför.
+- **Grafens rendering är eventstyrd** (användarens krav 2026-11-08): grafytan har **en enda bildruteslinga**
+  (`FramePump` och `GraphCanvas.Frames.cs`). Indata, vymodellens `Redraw` och rörelserna begär en ändring
+  (`GraphChange`: Scene, View, Overlay), och slingan gör det minsta arbete som rutans ändringar kräver tillsammans.
+  Scenen ritas i tre lager i sin ritordning (linjer, noder, det över noderna) som bara flyttas vid panorering
+  (`SceneWindow`). Varje nod är en egen visual i ordningen, så att ett drag (`GraphMoved`), en hovring
+  (`GraphHovered`) eller ett timglas ritar om bara sina noder. Det som står på skärmen över scenen ritas i ett eget
+  lager. Uppslagen (vad som syns, vad som ligger under pekaren) går genom ett rutnät (`GraphIndex`). **Ingen optimering får sänka kvaliteten** (användarens krav
+  2026-11-08): varje bildruta visar exakt det en hel ritning skulle visa. Ritkoden begär aldrig omritning och startar inga rörelser; ingen annan del håller
+  bildrutor, kör egna timrar eller anropar `InvalidateVisual` (ett test vaktar det).
 - **Varje förmåga är ett steg** med tydlig in- och utdata, som kan köras i bakgrunden och misslyckas för sig, och vars
   resultat vet varifrån det kommer (steg, version, data och tid). Det gör att heuristiker, analyser och senare en lokal
   modell kan läggas till på samma sätt.
@@ -447,7 +456,10 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   arbetet i fönstrets hela höjd, med fönstrets knappar uppe på den; titelraden och grafen är ett lyft blad med rundat
   hörn och skugga mot panelen. Innehållet står som skissernas spalt: sorten som en liten rubrik i accentfärgen och
   versaler, namnet stort, vad som hänt i luftiga meningar, *Varför?* och *Historik* som en rad rundade knappar, och
-  under en tunn linje fakta och adresserna. Texten står 40 px in från bladets kant, fri från skuggan. **Skälet är frivilligt**
+  under en tunn linje fakta och adresserna. Texten står 40 px in från bladets kant, fri från skuggan.
+  **Alla paneler på inspektörens plats ligger under arbetet på samma sätt** (användarens krav 2026-11-08): Guidens
+  panel, förslagen (KF2b) och vyernas valda till höger (Bevakning, Tidslinje, Flöde, Exponering, Etiketter) är
+  `UnderPanel`, med panelens ton, bladets skugga och rundade hörn och 40 px luft, och titelraden slutar där de börjar. **Skälet är frivilligt**
   i alla formulär (användarens beslut 2026-11-07). **Utgångarna är UT2b** (användarens beslut 2026-11-07, ersätter UT1a): utgången i titelraden fäller ut en
   ruta med vägen som en stor bild (Datorn, utgångens namn i en stor ring i lägets färg, Blockkedjor; linjen hel och grön
   när uppslag går, streckad och röd annars), med VPN utgångarna under med en rund knapp för att ansluta, och längst ner

@@ -39,6 +39,12 @@ public enum HistoryKind
 
     /// <summary>A comment was written, changed, tied or thrown in the trash and put back (sketch KN1a).</summary>
     Comment,
+
+    /// <summary>A version of an analysis was drawn back (sketch KV1a).</summary>
+    VersionWithdrawn,
+
+    /// <summary>A conclusion the latest run held back, and the user's decision about it (sketch HB1a).</summary>
+    HeldBack,
 }
 
 /// <summary>What the row's button does, when the row is the user's own and still counts.</summary>
@@ -63,6 +69,17 @@ public enum HistoryUndo
     /// Undoes a merge of the user's own (<em>Ångra</em>); when an approved wallet made it, the approval is taken back.
     /// </summary>
     UndoMerge,
+
+    /// <summary>Takes a version's withdrawal back (<em>Ta tillbaka</em>): the version counts again (sketch KV1a).</summary>
+    TakeBackWithdrawal,
+
+    /// <summary>
+    /// Decides about a conclusion that is held back: <em>Släpp slutsatsen</em>, or <em>Låt stå</em> (sketch HB1a).
+    /// </summary>
+    DecideHeldBack,
+
+    /// <summary>Takes a decision about a held back conclusion back (<em>Ångra</em>), as a new sealed decision.</summary>
+    ReopenHeldBack,
 }
 
 /// <summary>One row in the node's history (sketch AN1b).</summary>
@@ -110,15 +127,29 @@ public sealed record HistoryEvent(
     /// <summary>Gets the merges stored together, for <see cref="HistoryUndo.UndoMerge"/>.</summary>
     public IReadOnlyList<long> MergeSequences { get; init; } = [];
 
+    /// <summary>Gets the withdrawal, for <see cref="HistoryUndo.TakeBackWithdrawal"/>.</summary>
+    public long WithdrawalSequence { get; init; }
+
+    /// <summary>Gets the decision to take back, for <see cref="HistoryUndo.ReopenHeldBack"/>.</summary>
+    public long DecisionSequence { get; init; }
+
+    /// <summary>
+    /// Gets the transaction whose conclusions are held back, for <see cref="HistoryUndo.DecideHeldBack"/>.
+    /// </summary>
+    public Txid? HeldTxid { get; init; }
+
     /// <summary>Gets whether the row has a button: it is the user's own and still counts.</summary>
     public bool CanUndo => Undo != HistoryUndo.None && !IsWithdrawn;
 
     /// <summary>
     /// Gets the button's words: <em>Ångra</em> for a breaking out or a merge, <em>Ta tillbaka</em> otherwise.
     /// </summary>
-    public string UndoText => Undo is HistoryUndo.UndoSplit or HistoryUndo.UndoMerge
-        ? NodeHistory.UndoText
-        : NodeHistory.RetractText;
+    public string UndoText => Undo switch
+    {
+        HistoryUndo.UndoSplit or HistoryUndo.UndoMerge or HistoryUndo.ReopenHeldBack => NodeHistory.UndoText,
+        HistoryUndo.DecideHeldBack => NodeHistory.ReleaseText,
+        _ => NodeHistory.RetractText,
+    };
 
     /// <summary>Gets the time as the row writes it: the day, the month and the time, in local time.</summary>
     public string TimeText => NodeHistory.Short(Utc);
@@ -148,6 +179,15 @@ public sealed record NodeHistoryData(
 
     /// <summary>Gets the user's merges that hold one of the node's addresses, also those undone (Clustering).</summary>
     public IReadOnlyList<MergeHistoryEntry> Merges { get; init; } = [];
+
+    /// <summary>Gets the versions drawn back of the analyses that concern the cluster (sketch KV1a).</summary>
+    public IReadOnlyList<VersionWithdrawal> Withdrawals { get; init; } = [];
+
+    /// <summary>Gets the conclusions about the node's addresses that the latest run held back (sketch HB1a).</summary>
+    public IReadOnlyList<HeldBackConclusion> HeldBack { get; init; } = [];
+
+    /// <summary>Gets the user's decisions about held back conclusions on the node's addresses.</summary>
+    public IReadOnlyList<HeldBackDecision> HeldBackDecisions { get; init; } = [];
 
     /// <summary>Gets the journal entries whose writer the history names for the user's merges.</summary>
     /// <param name="merges">The merges.</param>
@@ -225,6 +265,12 @@ public static class NodeHistory
     /// <summary>The button of a breaking out.</summary>
     public const string UndoText = "Ångra";
 
+    /// <summary>The button that lets a held back conclusion go (sketch HB1a).</summary>
+    public const string ReleaseText = "Släpp slutsatsen";
+
+    /// <summary>The button that lets a held back conclusion stand (sketch HB1a).</summary>
+    public const string KeepText = "Låt stå";
+
     /// <summary>The row of a merge of the user's own, for example an approved wallet.</summary>
     public const string MergeText = "Sammanslagen av användaren";
 
@@ -273,6 +319,8 @@ public static class NodeHistory
         AddMerges(data, rows);
         AddLinks(scene, node, data, rows);
         AddWatches(node, data, rows);
+        AddWithdrawals(data, rows);
+        AddHeldBack(scene, node, data, rows);
 
         // In time order; what happened at the same moment keeps the order above, a taking back after what it concerns.
         return [.. rows.Select((row, index) => (row, index)).OrderBy(pair => pair.row.Utc).ThenBy(pair => pair.index)
@@ -602,6 +650,130 @@ public static class NodeHistory
             }
         }
     }
+
+    /// <summary>
+    /// Adds the versions drawn back of the analyses in the cluster: the withdrawal with <em>Ta tillbaka</em> while it
+    /// is in force, and its taking back as a row of its own (sketches KV1a and AN1b).
+    /// </summary>
+    /// <param name="data">What the modules read.</param>
+    /// <param name="rows">The rows.</param>
+    private static void AddWithdrawals(NodeHistoryData data, List<HistoryEvent> rows)
+    {
+        foreach (var withdrawal in data.Withdrawals)
+        {
+            var key = "withdrawn/" + withdrawal.Sequence.ToString(CultureInfo.InvariantCulture);
+            var who = Who(data, withdrawal.JournalSequence);
+            rows.Add(new HistoryEvent(
+                key, HistoryKind.VersionWithdrawn, withdrawal.RecordedUtc,
+                "Tillbakadragen · " + withdrawal.Heuristic, Because(who, withdrawal.Reason), "Icon.Rollback",
+                GraphInk.Cluster, IsDashed: false, IsFact: false, IsWithdrawn: !withdrawal.IsInForce,
+                HistoryUndo.TakeBackWithdrawal)
+            {
+                WithdrawalSequence = withdrawal.Sequence,
+            });
+            if (withdrawal.Undo is { } undo)
+            {
+                rows.Add(Withdrawal(
+                    key, undo.RecordedUtc, "Tillbakatagen: " + withdrawal.Heuristic + " räknas igen",
+                    Who(data, undo.JournalSequence), undo.Reason));
+            }
+        }
+    }
+
+    /// <summary>
+    /// Adds the conclusions held back that concern the node (sketch HB1a): one that waits as a dashed card with
+    /// <em>Låt stå</em> and <em>Släpp slutsatsen</em>, one let stand with who and when, and one let go struck through
+    /// with who and when; a decision can be taken back with <em>Ångra</em> while it is the latest (AN1b).
+    /// </summary>
+    /// <param name="scene">The scene, for the lines through the node.</param>
+    /// <param name="node">The node.</param>
+    /// <param name="data">What the modules read.</param>
+    /// <param name="rows">The rows.</param>
+    private static void AddHeldBack(GraphScene scene, NodeView node, NodeHistoryData data, List<HistoryEvent> rows)
+    {
+        foreach (var held in data.HeldBack.Where(held => HeldBackMatch.Touches(scene, node, held.Addresses, held.Txid)))
+        {
+            rows.Add(HeldRow(data, held));
+        }
+
+        var concerned = data.HeldBackDecisions
+            .Where(decision => HeldBackMatch.Touches(scene, node, decision.Addresses, decision.Txid))
+            .ToList();
+        var latest = data.HeldBackDecisions.GroupBy(decision => decision.Txid)
+            .Select(group => group.MaxBy(decision => decision.Sequence)!.Sequence)
+            .ToHashSet();
+        foreach (var released in concerned.Where(decision => decision.Choice == ConclusionChoice.Release))
+        {
+            var key = "held/" + released.Txid.Value + "/" + released.Sequence.ToString(CultureInfo.InvariantCulture);
+            rows.Add(new HistoryEvent(
+                key, HistoryKind.HeldBack, released.RecordedUtc,
+                "Hölls tillbaka · tx " + GraphScene.Shorten(released.Txid.Value),
+                "Byggde på " + Txids(released.Missing), "Icon.Held", GraphInk.Spent, IsDashed: true, IsFact: false,
+                IsWithdrawn: true, HistoryUndo.None));
+            rows.Add(new HistoryEvent(
+                key + "/released", HistoryKind.HeldBack, released.RecordedUtc, "Slutsatsen släppt, också dess fynd",
+                Because(Who(data, released.JournalSequence), released.Reason), "Icon.Undo", GraphInk.Unknown,
+                IsDashed: false, IsFact: false, IsWithdrawn: !latest.Contains(released.Sequence),
+                HistoryUndo.ReopenHeldBack)
+            {
+                DecisionSequence = released.Sequence,
+            });
+        }
+
+        foreach (var reopened in concerned.Where(decision => decision.Choice == ConclusionChoice.Reopen))
+        {
+            rows.Add(Withdrawal(
+                "held/" + reopened.Txid.Value + "/" + reopened.Undoes?.ToString(CultureInfo.InvariantCulture),
+                reopened.RecordedUtc, "Beslutet om slutsatsen taget tillbaka", Who(data, reopened.JournalSequence),
+                reopened.Reason));
+        }
+    }
+
+    /// <summary>
+    /// Gives a held back conclusion's card: one that waits with <em>Låt stå</em> and <em>Släpp slutsatsen</em>, and
+    /// one let stand with who, which <em>Ångra</em> takes back.
+    /// </summary>
+    /// <param name="data">What the modules read.</param>
+    /// <param name="held">The conclusion.</param>
+    /// <returns>The row.</returns>
+    private static HistoryEvent HeldRow(NodeHistoryData data, HeldBackConclusion held)
+    {
+        var heuristics = string.Join(
+            ", ",
+            held.Evidence.Select(evidence => evidence.Heuristic)
+                .Concat(held.Findings.Select(found => found.Heuristic))
+                .Select(InspectorForms.ShortName)
+                .Distinct());
+        var since = held.Decision?.RecordedUtc
+            ?? held.Evidence.Select(evidence => evidence.RecordedUtc)
+                .Concat(held.Findings.Select(found => found.RecordedUtc))
+                .Max();
+        var findings = held.Findings.Count > 0 ? "; ett släpp tar också fynden" : string.Empty;
+        var sub = held.IsWaiting
+            ? "Byggde på " + Txids(held.Missing) + ", som inte fanns i senaste körningen" + findings
+            : Because("Står kvar · " + Who(data, held.Decision!.JournalSequence), held.Decision.Reason);
+        var waiting = held.IsWaiting ? HistoryUndo.DecideHeldBack : HistoryUndo.ReopenHeldBack;
+        return new HistoryEvent(
+            "held/" + held.Txid.Value, HistoryKind.HeldBack, since, "Hålls tillbaka · " + heuristics, sub,
+            "Icon.Held", GraphInk.Spent, IsDashed: true, IsFact: false, IsWithdrawn: false,
+            held.Decision is { Choice: ConclusionChoice.Keep } || held.IsWaiting ? waiting : HistoryUndo.None)
+        {
+            HeldTxid = held.Txid,
+            DecisionSequence = held.Decision?.Sequence ?? 0,
+        };
+    }
+
+    /// <summary>Writes transactions shortened, as the history names them.</summary>
+    /// <param name="txids">The transactions.</param>
+    /// <returns>The words.</returns>
+    private static string Txids(IReadOnlyList<Txid> txids) =>
+        string.Join(", ", txids.Select(txid => GraphScene.Shorten(txid.Value)));
+
+    /// <summary>Writes who, and why when there is a reason.</summary>
+    /// <param name="who">Who.</param>
+    /// <param name="reason">Why, or <see langword="null"/>.</param>
+    /// <returns>The words.</returns>
+    private static string Because(string who, string? reason) => reason is null ? who : $"{who} · {reason}";
 
     /// <summary>Gives the row of a taking back.</summary>
     /// <param name="of">The key of the row it concerns.</param>

@@ -113,7 +113,7 @@ public sealed partial class GraphCanvas : FrameworkElement
             }
             else
             {
-                // The frames stop while hidden (OnMovingFrame): a blast, a pile or a glide halfway is taken up again, so
+                // The frames stop while hidden (BlastStep): a blast, a pile or a glide halfway is taken up again, so
                 // that it ends rather than stand still and keep the surface from the pointer. Drawing again also lets
                 // the rings and the cards that moved before move on.
                 KeepMoving();
@@ -121,6 +121,8 @@ public sealed partial class GraphCanvas : FrameworkElement
         };
         FocusVisualStyle = null;
         ClipToBounds = true;
+        HostScene();
+        SetUpFrames();
         SizeChanged += (_, _) => FitIfPending();
     }
 
@@ -130,7 +132,9 @@ public sealed partial class GraphCanvas : FrameworkElement
     {
         ArgumentNullException.ThrowIfNull(model);
         _model = model;
-        model.Redraw += (_, _) => InvalidateVisual();
+        model.Redraw += (_, _) => Redraw();
+        model.Moved += (_, moved) => Touch(moved.Nodes, GraphChange.Lines | GraphChange.OverNodes);
+        model.Hovered += (_, hovered) => Touch(hovered.Nodes, hovered.EdgeChanged ? GraphChange.Lines : default);
         model.PropertyChanged += OnModelChanged;
         AttachComments(model);
         AttachReach(model);
@@ -141,7 +145,7 @@ public sealed partial class GraphCanvas : FrameworkElement
             _fitPending = true;
             FitIfPending();
         };
-        InvalidateVisual();
+        Redraw();
     }
 
     /// <summary>Fits the whole graph to the screen, centred, never larger than its natural size.</summary>
@@ -151,7 +155,7 @@ public sealed partial class GraphCanvas : FrameworkElement
         if (_model is not { Places.Count: > 0 } model)
         {
             _viewport = Viewport.Initial;
-            InvalidateVisual();
+            Request(GraphChange.View);
             return;
         }
 
@@ -164,7 +168,7 @@ public sealed partial class GraphCanvas : FrameworkElement
 
         var bounds = frames.Skip(1).Aggregate(frames[0], (all, frame) => all.Union(frame));
         _viewport = Viewport.Fit(bounds, ActualWidth, ActualHeight);
-        InvalidateVisual();
+        Request(GraphChange.View);
     }
 
     /// <summary>Zooms around the middle of the screen, smoothly unless Windows has animations turned off.</summary>
@@ -195,7 +199,10 @@ public sealed partial class GraphCanvas : FrameworkElement
         return new Rect(corner.X, corner.Y, frame.Width * _viewport.Zoom, frame.Height * _viewport.Zoom);
     }
 
-    /// <summary>Draws what is on screen: the hop columns, the lines, their amounts and the nodes.</summary>
+    /// <summary>
+    /// Draws what is on screen: the scene (the hop columns, the lines, their amounts and the nodes), made again only
+    /// when it has changed or the screen has left the part it was made for, and what stands on the screen over it.
+    /// </summary>
     /// <param name="drawingContext">Where to draw.</param>
     protected override void OnRender(DrawingContext drawingContext)
     {
@@ -205,87 +212,26 @@ public sealed partial class GraphCanvas : FrameworkElement
         // A transparent ground, so that the empty surface takes the pointer too.
         drawingContext.DrawRectangle(Brushes.Transparent, null, new Rect(RenderSize));
         PlaceComments();
+        using var over = _overlayVisual.RenderOpen();
         if (_model?.Scene is not { } scene)
         {
+            ForgetScene();
             KeepRings(false);
             KeepTurning(false);
             return;
         }
 
-        var visible = _viewport.Visible(ActualWidth, ActualHeight);
         if (GraphHidden)
         {
-            DrawHeldBack(drawingContext);
+            ForgetScene();
+            DrawHeldBack(over);
             KeepRings(false);
             KeepTurning(false);
             return;
         }
 
-        drawingContext.PushTransform(new MatrixTransform(
-            _viewport.Zoom, 0, 0, _viewport.Zoom, _viewport.OffsetX, _viewport.OffsetY));
-        drawingContext.PushTransform(FanPush());
-        drawingContext.PushOpacity(HeldBackMotion.LineOpacity(_blast, BlastK));
-        if (_model.IsHopColumns)
-        {
-            DrawLanes(drawingContext, scene, visible);
-        }
-
-        DrawTimeBands(drawingContext, visible);
-        DrawChainHeadings(drawingContext, scene, visible);
-        DrawAreas(drawingContext, visible);
-        DrawCommentThreads(drawingContext, visible);
-        var (nearNodes, nearEdges) = _model.Near;
-        var edges = GraphHitTest.VisibleEdges(scene, _model.Curves, visible).ToList();
-        DrawWatchGlows(drawingContext, visible);
-        DrawTrashStubs(drawingContext, visible);
-        foreach (var edge in edges)
-        {
-            DrawEdge(drawingContext, edge, _model.Curves[edge.Key], nearEdges);
-        }
-
-        var taken = new RoomGrid();
-        foreach (var edge in edges)
-        {
-            DrawSwap(drawingContext, edge, _model.Curves[edge.Key], nearEdges, taken);
-        }
-
-        _model.BeginAmounts();
-        foreach (var edge in AmountOrder(edges, nearEdges))
-        {
-            drawingContext.PushOpacity(LaterAmountOpacity(edge.Key));
-            DrawAmount(drawingContext, edge, _model.Curves[edge.Key], nearEdges, taken);
-            drawingContext.Pop();
-        }
-
-        _ringsOnScreen = false;
-        DrawWatchMarks(drawingContext, visible);
-        drawingContext.Pop();
-        var nodes = _blast == BlastPhase.None
-            ? GraphHitTest.VisibleNodes(scene, _model.Places, visible)
-            : scene.Nodes.Where(node => _model.Places.ContainsKey(node.Key));
-        foreach (var node in nodes)
-        {
-            DrawFlying(drawingContext, node, _model.Places[node.Key], nearNodes);
-        }
-
-        DrawCards(drawingContext, nearNodes);
-
-        DrawTrashPending(drawingContext);
-
-        drawingContext.PushOpacity(HeldBackMotion.LineOpacity(_blast, BlastK));
-        DrawCandidates(drawingContext, visible);
-        DrawAreaChips(drawingContext, visible);
-        DrawGuide(drawingContext);
-        drawingContext.Pop();
-        drawingContext.Pop();
-        DrawFan(drawingContext, visible);
-        DrawFound(drawingContext);
-        drawingContext.Pop();
-        DrawTimeNames(drawingContext);
-        DrawBox(drawingContext);
-        DrawBlockMarkBox(drawingContext);
-        DrawHeldBack(drawingContext);
-        KeepRings(_ringsOnScreen && _blast == BlastPhase.None);
+        ShowScene(scene);
+        DrawOverScene(over);
     }
 
     /// <summary>Presses on the surface: takes hold of a node, or of the surface to pan it.</summary>
@@ -296,13 +242,15 @@ public sealed partial class GraphCanvas : FrameworkElement
         base.OnMouseLeftButtonDown(e);
         StopGlide();
         StopZoom();
+        _pendingHover = null;
         CloseHoverTip();
         Focus();
         _model?.CloseMenu();
         var at = ToGraph(e.GetPosition(this));
         var surface = _viewport.ToSurface(at);
         _model?.Comments.Select(null);
-        if (_model is not null && (PressHeldBack(at) || PressFan(at, surface) || PressBlockMark(at, surface)
+        if (_model is not null && (PressHeldBack(at) || PressHeldMark(surface) || PressHopPill(surface)
+            || PressFan(at, surface) || PressBlockMark(at, surface)
             || PressCard(surface) || PressThread(surface)
             || PressGuide(surface) || PressForComment(e, surface) || PressArea(surface) || PressToExpand(e, surface)))
         {
@@ -343,9 +291,8 @@ public sealed partial class GraphCanvas : FrameworkElement
 
         if (!_gesture.IsPressed)
         {
-            HoverCard(surface);
-            HoverBlockMark(surface);
-            ShowHover(surface);
+            // The pointer can move many times between two frames: what is under it is looked at once per frame.
+            QueueHover(surface);
             return;
         }
 
@@ -416,6 +363,7 @@ public sealed partial class GraphCanvas : FrameworkElement
     protected override void OnMouseLeave(MouseEventArgs e)
     {
         base.OnMouseLeave(e);
+        _pendingHover = null;
         _model?.HoverAt(null, Tolerance);
         CloseHoverTip();
     }
@@ -599,6 +547,12 @@ public sealed partial class GraphCanvas : FrameworkElement
 
         // A pan is stored when the press ends, not on every move.
         _model.ViewportChanged(_viewport);
+        if (end == GestureEnd.DropNode)
+        {
+            // The dragged nodes go back among the others, in one drawing of the whole scene.
+            Redraw();
+        }
+
         if (end == GestureEnd.DropNode && node is not null && !_model.DropOnBin(node))
         {
             _ = _model.DropNodeAsync(node);
@@ -672,13 +626,14 @@ public sealed partial class GraphCanvas : FrameworkElement
     private void ShowHover(GraphPoint surface)
     {
         var model = _model!;
-        model.HoverAt(surface, Tolerance);
-        var hit = model.HitTest(surface, Tolerance);
+        var hit = model.HoverAt(surface, Tolerance);
         var guideTip = GuideTipAt(surface);
         Cursor = hit.Node is not null || hit.Edge is not null || guideTip is not null ? Cursors.Hand : null;
         var chainTip = BlockMarkTipAt(surface) ?? CardTipAt(surface);
         Cursor = chainTip is not null ? Cursors.Hand : Cursor;
-        var text = guideTip ?? chainTip ?? PendingTipAt(surface) ?? model.AmountTipAt(surface)
+        var heldTip = HeldTipAt(surface) ?? HopTipAt(surface);
+        Cursor = heldTip is not null ? Cursors.Hand : Cursor;
+        var text = guideTip ?? chainTip ?? heldTip ?? PendingTipAt(surface) ?? model.AmountTipAt(surface)
             ?? model.Scene?.Node(hit.Node)?.ToolTip;
         if (text == _hoverTip.Content as string)
         {
@@ -745,7 +700,7 @@ public sealed partial class GraphCanvas : FrameworkElement
             {
                 DropZoom();
                 _viewport = stored;
-                InvalidateVisual();
+                Request(GraphChange.View);
                 return;
             }
 
@@ -759,8 +714,8 @@ public sealed partial class GraphCanvas : FrameworkElement
     /// <param name="visible">The visible part of the surface.</param>
     private void DrawLanes(DrawingContext dc, GraphScene scene, GraphRect visible)
     {
-        var lane = GraphPalette.Find(this, "Brush.Graph.Lane");
-        var text = GraphPalette.Find(this, "Brush.Graph.LaneText");
+        var lane = Ink("Brush.Graph.Lane");
+        var text = Ink("Brush.Graph.LaneText");
         foreach (var column in scene.Lanes.Where(l => l.X <= visible.Right && l.X + l.Width >= visible.X))
         {
             var top = Math.Min(0, visible.Y);
@@ -781,26 +736,16 @@ public sealed partial class GraphCanvas : FrameworkElement
         var trail = _model!.GoneTrail;
         var isGone = trail.GoneLines.Contains(edge.Key);
         var isUncertain = isGone || trail.Lines.Contains(edge.Key);
-        var ink = isGone ? GraphPalette.Find(this, "Brush.TextDim") : GraphPalette.Brush(this, edge.Ink);
-        var pen = new Pen(ink, edge.Width)
-        {
-            StartLineCap = PenLineCap.Round,
-            EndLineCap = PenLineCap.Round,
-            DashCap = PenLineCap.Round,
-            DashStyle = LineDash(isUncertain ? EdgeDash.Uncertain : edge.Dash, edge.Width),
-        };
+        var ink = isGone ? Ink("Brush.TextDim") : InkOf(edge.Ink);
+        var dash = LineDash(isUncertain ? EdgeDash.Uncertain : edge.Dash, edge.Width);
         var opacity = LineOpacity(edge, near) * (isUncertain ? GoneTrailLineOpacity : 1);
-        var geometry = new StreamGeometry();
-        using (var context = geometry.Open())
-        {
-            context.BeginFigure(ToPoint(curve.Start), false, false);
-            context.BezierTo(ToPoint(curve.Control1), ToPoint(curve.Control2), ToPoint(curve.End), true, true);
-        }
+        var pen = PenOf(ink, edge.Width, dash, PenLineCap.Round, PenLineCap.Round, PenLineJoin.Miter);
 
-        geometry.Freeze();
-        dc.PushOpacity(opacity);
-        dc.DrawGeometry(null, pen, geometry);
-        dc.Pop();
+        // The faintness stays a layer of its own, as it was drawn: a faint brush would round the colour once instead
+        // of twice and differ by a shade.
+        var faded = PushFade(dc, opacity);
+        dc.DrawGeometry(null, pen, CurveGeometry(curve));
+        PopFade(dc, faded);
     }
 
     /// <summary>Gives how faint a line is: faint away from what is chosen, a little faint without traced money.</summary>
@@ -828,7 +773,7 @@ public sealed partial class GraphCanvas : FrameworkElement
     /// <returns>The opacity.</returns>
     private double NodeOpacity(NodeView node, IReadOnlySet<string> near)
     {
-        if (_model!.IsFocused && !near.Contains(node.Key))
+        if ((_model!.IsFocused && !near.Contains(node.Key)) || _model.IsDimmedByWithdrawal(node))
         {
             return FadedNodeOpacity;
         }
@@ -836,6 +781,11 @@ public sealed partial class GraphCanvas : FrameworkElement
         if (_model.Timeline.IsLaterNode(node.Key))
         {
             return LaterNodeOpacity;
+        }
+
+        if (_model.IsDusted(node.Key))
+        {
+            return DustOpacity;
         }
 
         if (_model.GoneTrail.Nodes.Contains(node.Key))
@@ -877,12 +827,12 @@ public sealed partial class GraphCanvas : FrameworkElement
         }
 
         var ink = edge.Ink == GraphInk.Untraced
-            ? GraphPalette.Find(this, "Brush.TextDim")
-            : GraphPalette.Brush(this, edge.Ink);
-        var text = CachedText(edge.Label, 11, ink, FontWeights.Normal);
+            ? Ink("Brush.TextDim")
+            : InkOf(edge.Ink);
+        var text = Text(edge.Label, 11, ink, FontWeights.Normal);
         var glyphWidth = edge.Glyph.Length > 0 ? AmountLayout.GlyphWidth : 0;
         var value = edge.HasValueLine
-            ? CachedText(edge.ValueLine, 9.5, GraphPalette.Find(this, "Brush.TextDim"), FontWeights.Normal)
+            ? Text(edge.ValueLine, 9.5, Ink("Brush.TextDim"), FontWeights.Normal)
             : null;
         var gap = edge.Value is null ? edge.ValueGap : null;
         var markWidth = gap is null ? 0 : AmountLayout.GapMarkWidth;
@@ -897,7 +847,7 @@ public sealed partial class GraphCanvas : FrameworkElement
 
         // A click on the amount opens Varför? for its value (sketch KU1a): the model hits the box as drawn.
         model.AmountDrawn(edge.Key, room);
-        dc.DrawRoundedRectangle(GraphPalette.Find(this, "Brush.Background"), null, box, 4, 4);
+        dc.DrawRoundedRectangle(Ink("Brush.Background"), null, box, 4, 4);
         var left = middle.X - ((text.Width + glyphWidth) / 2);
         if (glyphWidth > 0)
         {
@@ -914,7 +864,7 @@ public sealed partial class GraphCanvas : FrameworkElement
             {
                 // A missing value (sketch KU1a): a small mark says offline or not fetched yet, and hovering says which.
                 var mark = new Point(valueLeft, valueTop + ((value.Height - GapMarkSize) / 2));
-                DrawGlyph(dc, gap.Icon, GraphPalette.Find(this, "Brush.TextMuted"), mark, GapMarkSize);
+                DrawGlyph(dc, gap.Icon, Ink("Brush.TextMuted"), mark, GapMarkSize);
             }
 
             dc.DrawText(value, new Point(valueLeft + markWidth, valueTop));
@@ -934,12 +884,12 @@ public sealed partial class GraphCanvas : FrameworkElement
     {
         const double Radius = AmountLayout.BadgeSize / 2;
         dc.DrawEllipse(
-            GraphPalette.Find(this, "Brush.SurfaceHover"),
-            new Pen(GraphPalette.Find(this, "Brush.BorderStrong"), 1),
+            Ink("Brush.SurfaceHover"),
+            PenOf(Ink("Brush.BorderStrong"), 1),
             centre,
             Radius - 0.5,
             Radius - 0.5);
-        var mark = CachedText(glyph, 9, GraphPalette.Find(this, "Brush.Text"), FontWeights.SemiBold);
+        var mark = Text(glyph, 9, Ink("Brush.Text"), FontWeights.SemiBold);
         dc.DrawText(mark, new Point(centre.X - (mark.Width / 2), centre.Y - (mark.Height / 2)));
     }
 
@@ -974,14 +924,14 @@ public sealed partial class GraphCanvas : FrameworkElement
 
         taken.Add(box);
         var pill = new Rect(box.X, box.Y, box.Width, box.Height);
-        dc.PushOpacity(LineOpacity(edge, near));
+        var faded = PushFade(dc, LineOpacity(edge, near));
         dc.DrawRoundedRectangle(
-            GraphPalette.Find(this, "Brush.Surface"),
-            new Pen(GraphPalette.Find(this, "Brush.BorderStrong"), 1),
+            Ink("Brush.Surface"),
+            PenOf(Ink("Brush.BorderStrong"), 1),
             pill,
             pill.Height / 2,
             pill.Height / 2);
-        var arrow = GraphPalette.Find(this, "Brush.TextMuted");
+        var arrow = Ink("Brush.TextMuted");
         var left = box.X + AmountLayout.SwapPadding;
         var middle = box.Y + (box.Height / 2);
         foreach (var pair in edge.SwapPairs)
@@ -993,7 +943,7 @@ public sealed partial class GraphCanvas : FrameworkElement
             left += AmountLayout.SwapPairWidth + AmountLayout.SwapPadding;
         }
 
-        dc.Pop();
+        PopFade(dc, faded);
     }
 
     /// <summary>Draws a node: its frame, icon, name, count, marks and the other chain's name.</summary>
@@ -1004,6 +954,7 @@ public sealed partial class GraphCanvas : FrameworkElement
     private void DrawNode(DrawingContext dc, NodeView node, GraphPoint place, IReadOnlySet<string> near)
     {
         var model = _model!;
+        node = model.Forms.Previewed(node);
         if (node.Look.Sort is NodeSort.Pile or NodeSort.HeldBack)
         {
             DrawFolded(dc, node, place, near);
@@ -1018,29 +969,29 @@ public sealed partial class GraphCanvas : FrameworkElement
         var chosen = model.SelectedNode == node.Key;
         var opacity = NodeOpacity(node, near);
         var frame = new Rect(place.X, place.Y, node.Width, GraphSizes.NodeHeight);
-        var ink = GraphPalette.Brush(this, node.Look.Ink);
-        dc.PushOpacity(opacity);
+        var ink = InkOf(node.Look.Ink);
+        var faded = PushFade(dc, opacity);
         if (node.Look.Sort == NodeSort.Cluster || node.Node.ClusterSize > 1)
         {
             var behind = frame;
             behind.Offset(StackOffset, StackOffset);
             dc.DrawRoundedRectangle(
-                GraphPalette.Find(this, "Brush.Background"),
-                new Pen(GraphPalette.Find(this, "Brush.SurfaceSelected"), 1),
+                Ink("Brush.Background"),
+                PenOf(Ink("Brush.SurfaceSelected"), 1),
                 behind,
                 NodeRadius,
                 NodeRadius);
         }
 
         dc.DrawRoundedRectangle(
-            GraphPalette.Find(this, chosen ? "Brush.SurfaceRaised" : "Brush.Surface"),
+            Ink(chosen ? "Brush.SurfaceRaised" : "Brush.Surface"),
             FramePen(node, chosen || model.Checks.IsPicked(node.Key)),
             frame,
             NodeRadius,
             NodeRadius);
         DrawIcon(dc, node.Look, ink, new Point(place.X + NodePadding, place.Y + ((GraphSizes.NodeHeight - IconBox) / 2)));
 
-        var count = Text(node.Count, 11, GraphPalette.Find(this, "Brush.TextDim"), FontWeights.Normal);
+        var count = Text(node.Count, 11, Ink("Brush.TextDim"), FontWeights.Normal);
         var nameLeft = place.X + NodePadding + IconBox + NodeGap;
         var countRoom = node.Count.Length > 0 ? count.Width + NodeGap : 0;
         var nameRight = place.X + node.Width - NodePadding - countRoom;
@@ -1053,6 +1004,7 @@ public sealed partial class GraphCanvas : FrameworkElement
         DrawMarks(dc, node, place);
         DrawWatchMark(dc, node, place);
         DrawWaitGlass(dc, node, place);
+        DrawRoundMarks(dc, node, place);
         if (node.IsStartPoint)
         {
             DrawStartFlag(dc, place);
@@ -1063,7 +1015,8 @@ public sealed partial class GraphCanvas : FrameworkElement
             DrawChain(dc, chain, place, node.Width);
         }
 
-        dc.Pop();
+        PopFade(dc, faded);
+        DrawPoisonMark(dc, node, place);
     }
 
     /// <summary>Draws a pile as its deck or a clue as its pill (sketches EX1 and EX2b), faint like any node.</summary>
@@ -1079,7 +1032,7 @@ public sealed partial class GraphCanvas : FrameworkElement
             return;
         }
 
-        dc.PushOpacity(Math.Min(
+        var faded = PushFade(dc, Math.Min(
             _model!.IsFocused && !near.Contains(node.Key) ? FadedNodeOpacity : 1, LaterFoldedOpacity(node.Key)));
         if (node.Look.Sort == NodeSort.Pile)
         {
@@ -1090,7 +1043,7 @@ public sealed partial class GraphCanvas : FrameworkElement
             DrawClue(dc, node, place);
         }
 
-        dc.Pop();
+        PopFade(dc, faded);
     }
 
     /// <summary>
@@ -1106,16 +1059,13 @@ public sealed partial class GraphCanvas : FrameworkElement
     {
         if (!node.IsNamed)
         {
-            var title = Fitted(node.Subject, 12.5, GraphPalette.Find(this, "Brush.TextMuted"), FontWeights.Medium, room);
+            var title = CachedFitted(node.Subject, 12.5, Ink("Brush.TextMuted"), FontWeights.Medium, room);
             dc.DrawText(title, new Point(left, place.Y + ((GraphSizes.NodeHeight - title.Height) / 2)));
             return;
         }
 
-        var name = Text(node.Name, 12.5, GraphPalette.Find(this, "Brush.Text"), FontWeights.SemiBold);
-        name.MaxTextWidth = room;
-        name.MaxLineCount = 1;
-        name.Trimming = TextTrimming.CharacterEllipsis;
-        var subject = Fitted(node.Subject, 11, GraphPalette.Find(this, "Brush.TextDim"), FontWeights.Normal, room);
+        var name = TrimmedText(node.Name, 12.5, Ink("Brush.Text"), FontWeights.SemiBold, room);
+        var subject = CachedFitted(node.Subject, 11, Ink("Brush.TextDim"), FontWeights.Normal, room);
         var top = place.Y + ((GraphSizes.NodeHeight - name.Height - subject.Height + 2) / 2);
         dc.DrawText(name, new Point(left, top));
         dc.DrawText(subject, new Point(left, top + name.Height - 2));
@@ -1130,7 +1080,7 @@ public sealed partial class GraphCanvas : FrameworkElement
     /// <returns>The formatted text.</returns>
     private FormattedText Fitted(string subject, double size, Brush ink, FontWeight weight, double room)
     {
-        var text = Text(subject, size, ink, weight);
+        var text = NewText(subject, size, ink, weight);
         if (text.Width <= room || subject.Length == 0)
         {
             return text;
@@ -1139,7 +1089,7 @@ public sealed partial class GraphCanvas : FrameworkElement
         var characters = (int)Math.Floor(room / (text.Width / subject.Length));
         do
         {
-            text = Text(SubjectText.Fit(subject, characters), size, ink, weight);
+            text = NewText(SubjectText.Fit(subject, characters), size, ink, weight);
             characters--;
         }
         while (text.Width > room && characters >= SubjectText.Shortest);
@@ -1155,9 +1105,9 @@ public sealed partial class GraphCanvas : FrameworkElement
     /// <param name="place">The node's top-left corner.</param>
     private void DrawStartFlag(DrawingContext dc, GraphPoint place)
     {
-        var (disc, icon) = GraphPalette.Mark(this, NodeBadge.StartPoint);
+        var (disc, icon) = MarkInks(NodeBadge.StartPoint);
         var centre = new Point(place.X - MarkOverhang + (MarkSize / 2), place.Y - MarkOverhang + (MarkSize / 2));
-        dc.DrawEllipse(disc, new Pen(GraphPalette.Find(this, "Brush.Background"), 2), centre, MarkSize / 2, MarkSize / 2);
+        dc.DrawEllipse(disc, PenOf(Ink("Brush.Background"), 2), centre, MarkSize / 2, MarkSize / 2);
         var corner = new Point(centre.X - (MarkIconSize / 2), centre.Y - (MarkIconSize / 2));
         DrawGlyph(dc, VisualLanguage.Of(NodeBadge.StartPoint).Icon, icon, corner, MarkIconSize);
     }
@@ -1170,24 +1120,22 @@ public sealed partial class GraphCanvas : FrameworkElement
     {
         if (chosen)
         {
-            return new Pen(GraphPalette.Find(this, "Brush.Accent"), 1.5);
+            return PenOf(Ink("Brush.Accent"), 1.5);
         }
 
         if (node.Look.IsDashed)
         {
-            return new Pen(GraphPalette.Find(this, "Brush.Graph.DashedFrame"), 1) { DashStyle = FrameDash };
+            return PenOf(Ink("Brush.Graph.DashedFrame"), 1, FrameDash);
         }
 
-        var hovered = _model!.HoveredNode == node.Key;
-        var pen = new Pen(GraphPalette.Find(this, hovered ? "Brush.BorderHover" : "Brush.Border"), 1);
-        if (_model.GoneTrail.Nodes.Contains(node.Key))
+        if (_model!.GoneTrail.Nodes.Contains(node.Key))
         {
             // After a transaction the source no longer knows, the actor is uncertain (sketch GR9a): dashed means so.
-            pen.Brush = GraphPalette.Find(this, "Brush.TextDim");
-            pen.DashStyle = FrameDash;
+            return PenOf(Ink("Brush.TextDim"), 1, FrameDash);
         }
 
-        return pen;
+        var hovered = _model.HoveredNode == node.Key;
+        return PenOf(Ink(hovered ? "Brush.BorderHover" : "Brush.Border"), 1);
     }
 
     /// <summary>Draws a sort's icon in its round or square frame (sketch GR3a).</summary>
@@ -1198,7 +1146,7 @@ public sealed partial class GraphCanvas : FrameworkElement
     private void DrawIcon(DrawingContext dc, SortLook look, Brush ink, Point corner)
     {
         var radius = look.Shape == NodeShape.Round ? IconBox / 2 : 7;
-        var framePen = new Pen(ink, 1.5) { DashStyle = look.IsDashed ? FrameDash : DashStyles.Solid };
+        var framePen = PenOf(ink, 1.5, look.IsDashed ? FrameDash : null);
         dc.DrawRoundedRectangle(null, framePen, new Rect(corner, new Size(IconBox, IconBox)), radius, radius);
         var offset = (IconBox - IconSize) / 2;
         DrawGlyph(dc, look.Icon, ink, new Point(corner.X + offset, corner.Y + offset), IconSize);
@@ -1215,19 +1163,15 @@ public sealed partial class GraphCanvas : FrameworkElement
     /// <param name="size">Its size on the surface.</param>
     private void DrawGlyph(DrawingContext dc, string key, Brush ink, Point corner, double size)
     {
-        if (TryFindResource(key) is not Geometry glyph)
+        if (GlyphOf(key) is not { } glyph)
         {
             return;
         }
 
         var scale = size / GridIcon.GridSize;
-        var pen = new Pen(ink, GridIcon.StrokeFor(size * _viewport.Zoom))
-        {
-            StartLineCap = PenLineCap.Round,
-            EndLineCap = PenLineCap.Round,
-            LineJoin = PenLineJoin.Round,
-        };
-        dc.PushTransform(new MatrixTransform(scale, 0, 0, scale, corner.X, corner.Y));
+
+        var pen = RoundPen(ink, GridIcon.StrokeFor(size * _viewport.Zoom));
+        dc.PushTransform(Frozen(new MatrixTransform(scale, 0, 0, scale, corner.X, corner.Y)));
         dc.DrawGeometry(null, pen, glyph);
         dc.Pop();
     }
@@ -1238,12 +1182,12 @@ public sealed partial class GraphCanvas : FrameworkElement
     /// <param name="place">Its top-left corner.</param>
     private void DrawMarks(DrawingContext dc, NodeView node, GraphPoint place)
     {
-        var ring = new Pen(GraphPalette.Find(this, "Brush.Background"), 2);
+        var ring = PenOf(Ink("Brush.Background"), 2);
         var marks = _model!.MarksOf(node);
         for (var index = 0; index < marks.Count; index++)
         {
             var badge = marks[index];
-            var (disc, icon) = GraphPalette.Mark(this, badge);
+            var (disc, icon) = MarkInks(badge);
             var centre = new Point(
                 place.X + node.Width + MarkOverhang - (MarkSize / 2) - (index * (MarkSize + 2)),
                 place.Y - MarkOverhang + (MarkSize / 2));
@@ -1260,35 +1204,16 @@ public sealed partial class GraphCanvas : FrameworkElement
     /// <param name="width">The node's width.</param>
     private void DrawChain(DrawingContext dc, string chain, GraphPoint place, double width)
     {
-        var text = Text(chain, 10, GraphPalette.Find(this, "Brush.Kind.OtherChain"), FontWeights.SemiBold);
+        var text = Text(chain, 10, Ink("Brush.Kind.OtherChain"), FontWeights.SemiBold);
         var box = new Rect(
             place.X + width - text.Width,
             place.Y + GraphSizes.NodeHeight + 9 - text.Height - 2,
             text.Width + 10,
             text.Height + 2);
         dc.DrawRoundedRectangle(
-            GraphPalette.Find(this, "Brush.Background"), new Pen(GraphPalette.Find(this, "Brush.Graph.ChainFrame"), 1),
+            Ink("Brush.Background"), PenOf(Ink("Brush.Graph.ChainFrame"), 1),
             box, 6, 6);
         dc.DrawText(text, new Point(box.X + 5, box.Y + 1));
-    }
-
-    /// <summary>Makes a text in the UI font.</summary>
-    /// <param name="text">The text.</param>
-    /// <param name="size">The size.</param>
-    /// <param name="ink">The colour.</param>
-    /// <param name="weight">The weight.</param>
-    /// <returns>The formatted text.</returns>
-    private FormattedText Text(string text, double size, Brush ink, FontWeight weight)
-    {
-        var family = TryFindResource("Font.Ui") as FontFamily ?? new FontFamily("Segoe UI");
-        return new FormattedText(
-            text,
-            CultureInfo.GetCultureInfo("sv-SE"),
-            FlowDirection.LeftToRight,
-            new Typeface(family, FontStyles.Normal, weight, FontStretches.Normal),
-            size,
-            ink,
-            VisualTreeHelper.GetDpi(this).PixelsPerDip);
     }
 
     /// <summary>Turns a point of the surface into WPF's point.</summary>

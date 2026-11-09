@@ -127,8 +127,9 @@ public sealed class VerifyCommand(CaseSession session, ICaseVerifier verifier) :
         ArgumentNullException.ThrowIfNull(verifier);
         try
         {
-            var verification = await Task.Run(() => verifier.Verify(openCase), cancellationToken);
-            return VerificationText.Describe(verification);
+            var (verification, replaced) = await Task.Run(
+                () => (verifier.Verify(openCase), AnchorReplacement.LatestIn(openCase)), cancellationToken);
+            return VerificationText.Describe(verification, replaced);
         }
         catch (CaseException exception)
         {

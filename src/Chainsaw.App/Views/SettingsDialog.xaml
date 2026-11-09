@@ -802,6 +802,238 @@
           node, the switch and × on hovering, and the latency large; under it the address and what the latest probe
           answered. No bar under it (the user's decision 2026-11-08).
         -->
+        <!-- A fingerprint as a picture: eight by four cells, one per byte, with its words under it. -->
+        <DataTemplate x:Key="Sources.Art" DataType="{x:Type vm:FingerprintArt}">
+            <StackPanel Margin="0,0,18,0">
+                <Border x:Name="Frame" Padding="5" CornerRadius="8" BorderThickness="1.5" HorizontalAlignment="Left"
+                        Background="{StaticResource Brush.Background}" BorderBrush="{StaticResource Brush.PendingEdge}">
+                    <ItemsControl x:Name="Grid" ItemsSource="{Binding Cells}" Focusable="False" Width="120" Height="60">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <UniformGrid Columns="8" Rows="4" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Rectangle Width="13" Height="13" RadiusX="2.5" RadiusY="2.5" Fill="{Binding}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Border>
+                <TextBlock x:Name="Label" Text="{Binding Label}" FontSize="11.5" Margin="0,7,0,0"
+                           Foreground="{StaticResource Brush.TextMuted}" />
+                <TextBlock x:Name="Short" Text="{Binding Short}" FontSize="11.5" FontFamily="Cascadia Mono, Consolas"
+                           Margin="0,3,0,0" Foreground="{StaticResource Brush.TextMuted}" />
+            </StackPanel>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding Tone}" Value="{x:Static vm:NodePinTone.Good}">
+                    <Setter TargetName="Frame" Property="BorderBrush" Value="{StaticResource Brush.Success}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Tone}" Value="{x:Static vm:NodePinTone.Bad}">
+                    <Setter TargetName="Frame" Property="BorderBrush" Value="{StaticResource Brush.ErrorEdge}" />
+                    <Setter TargetName="Label" Property="Foreground" Value="{StaticResource Brush.Error}" />
+                    <Setter TargetName="Short" Property="Foreground" Value="{StaticResource Brush.Error}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Tone}" Value="{x:Static vm:NodePinTone.Faded}">
+                    <Setter TargetName="Frame" Property="BorderBrush" Value="{StaticResource Brush.Submenu}" />
+                    <Setter TargetName="Grid" Property="Opacity" Value="0.55" />
+                    <Setter TargetName="Label" Property="Foreground" Value="{StaticResource Brush.TextDim}" />
+                    <Setter TargetName="Short" Property="Foreground" Value="{StaticResource Brush.TextDim}" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+
+        <!--
+          The box of the own node's certificate (sketch KL3b): the state with when and by whom, the picture or the two
+          side by side, who issued it and how long it is valid with Kopiera, the note, the question before trusting the
+          new or removing the pin, and the buttons.
+        -->
+        <DataTemplate x:Key="Sources.PinBox" DataType="{x:Type vm:NodePinViewModel}">
+            <Grid Width="456" Margin="0,6,0,24">
+                <Border CornerRadius="12" Background="{StaticResource Brush.Floating}">
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="40" ShadowDepth="16" Direction="270" Opacity="0.5" Color="Black" />
+                    </Border.Effect>
+                </Border>
+                <Border CornerRadius="12" Background="{StaticResource Brush.Floating}" BorderThickness="1.5"
+                        BorderBrush="{StaticResource Brush.BorderStrong}" Padding="18,16">
+                    <StackPanel>
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Right" Text="{Binding WhenText}" FontSize="12"
+                                       Foreground="{StaticResource Brush.TextDim}" VerticalAlignment="Center" />
+                            <StackPanel Orientation="Horizontal">
+                                <controls:GridIcon x:Name="StateIcon" Size="16" Data="{StaticResource Icon.Shield}"
+                                                   Foreground="{StaticResource Brush.Pending}" Margin="0,0,9,0" />
+                                <TextBlock x:Name="StateText" Text="{Binding StatusText}" FontWeight="SemiBold" FontSize="13.5"
+                                           Foreground="{StaticResource Brush.Pending}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </DockPanel>
+
+                        <DockPanel Margin="0,14,0,0">
+                            <ItemsControl DockPanel.Dock="Left" ItemsSource="{Binding Arts}" Focusable="False"
+                                          ItemTemplate="{StaticResource Sources.Art}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                            </ItemsControl>
+                            <StackPanel Visibility="{Binding IsSingle, Converter={StaticResource Visible}}"
+                                        TextElement.FontSize="12.5">
+                                <DockPanel>
+                                    <TextBlock Text="Utfärdare" Width="64" Foreground="{StaticResource Brush.TextDim}" />
+                                    <TextBlock Text="{Binding IssuerText}" TextTrimming="CharacterEllipsis" />
+                                </DockPanel>
+                                <DockPanel Margin="0,8,0,0">
+                                    <TextBlock Text="Giltigt" Width="64" Foreground="{StaticResource Brush.TextDim}" />
+                                    <TextBlock Text="{Binding ValidText}" TextWrapping="Wrap" />
+                                </DockPanel>
+                                <DockPanel Margin="0,8,0,0" Visibility="{Binding HasCopy, Converter={StaticResource Visible}}">
+                                    <TextBlock Text="SHA-256" Width="64" Foreground="{StaticResource Brush.TextDim}" />
+                                    <Button Style="{StaticResource Exit.Ghost}" HorizontalAlignment="Left" Click="OnCopyFingerprint"
+                                            ToolTip="Kopiera hela fingeravtrycket" AutomationProperties.Name="Kopiera fingeravtrycket">
+                                        <StackPanel Orientation="Horizontal">
+                                            <controls:GridIcon Size="12" Data="{StaticResource Icon.Copy}" Margin="0,0,6,0"
+                                                               Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                                            <TextBlock Text="Kopiera" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Button>
+                                </DockPanel>
+                            </StackPanel>
+                            <TextBlock Visibility="{Binding IsPair, Converter={StaticResource Visible}}" Margin="0,22,0,0"
+                                       Text="{x:Static vm:NodePinViewModel.PairText}" FontSize="12.5" TextWrapping="Wrap"
+                                       Foreground="{StaticResource Brush.TextMuted}" LineHeight="19" />
+                        </DockPanel>
+
+                        <TextBlock Text="{Binding Note}" FontSize="12.5" Foreground="{StaticResource Brush.TextMuted}"
+                                   TextWrapping="Wrap" LineHeight="19" Margin="0,14,0,0" />
+                        <TextBlock Text="{Binding ErrorText}" Style="{StaticResource Text.Error}" FontSize="12.5"
+                                   TextWrapping="Wrap" Margin="0,8,0,0"
+                                   Visibility="{Binding HasError, Converter={StaticResource Visible}}" />
+
+                        <Border Margin="0,12,0,0" Padding="14,12" CornerRadius="9" BorderThickness="1"
+                                BorderBrush="{StaticResource Brush.PendingEdge}" Background="{StaticResource Brush.PendingTint}"
+                                Visibility="{Binding IsConfirming, Converter={StaticResource Visible}}">
+                            <TextBlock Text="{Binding Question}" FontSize="13" TextWrapping="Wrap" LineHeight="19" />
+                        </Border>
+
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
+                            <Button Style="{StaticResource Settings.Button}" Content="Avbryt" Height="32" FontSize="13"
+                                    Command="{Binding CancelConfirmCommand}"
+                                    Visibility="{Binding IsConfirming, Converter={StaticResource Visible}}" />
+                            <Button Style="{StaticResource Settings.Button}" Height="32" FontSize="13" Margin="8,0,0,0"
+                                    Foreground="{StaticResource Brush.Pending}" Background="{StaticResource Brush.PendingTint}"
+                                    BorderBrush="{StaticResource Brush.PendingEdge}"
+                                    Command="{Binding ConfirmCommand}"
+                                    Visibility="{Binding IsConfirming, Converter={StaticResource Visible}}">
+                                <StackPanel Orientation="Horizontal">
+                                    <controls:GridIcon Size="14" Data="{StaticResource Icon.Pin}" Margin="0,0,7,0"
+                                                       Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                                    <TextBlock Text="{Binding ConfirmText}" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                            <Button Style="{StaticResource Settings.Button}" Height="32" FontSize="13"
+                                    Command="{Binding AskTrustCommand}"
+                                    Visibility="{Binding CanTrust, Converter={StaticResource Visible}}">
+                                <StackPanel Orientation="Horizontal">
+                                    <controls:GridIcon Size="14" Data="{StaticResource Icon.Pin}" Margin="0,0,7,0"
+                                                       Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                                    <TextBlock Text="Lita på det nya …" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                            <Button Style="{StaticResource Exit.Ghost}" Height="32" FontSize="13"
+                                    Command="{Binding AskUnpinCommand}"
+                                    Visibility="{Binding CanUnpin, Converter={StaticResource Visible}}">
+                                <StackPanel Orientation="Horizontal">
+                                    <controls:GridIcon Size="14" Data="{StaticResource Icon.PinOff}" Margin="0,0,7,0"
+                                                       Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                                    <TextBlock Text="Ta bort fästet …" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                            <Button Style="{StaticResource Button.Primary}" Height="32" Padding="12,0" FontSize="13"
+                                    Command="{Binding PinCommand}"
+                                    Visibility="{Binding CanPin, Converter={StaticResource Visible}}">
+                                <StackPanel Orientation="Horizontal">
+                                    <controls:GridIcon Size="14" Data="{StaticResource Icon.Pin}" Margin="0,0,7,0"
+                                                       Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                                    <TextBlock Text="Fäst certifikatet" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </Grid>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding StatusTone}" Value="{x:Static vm:NodePinTone.Good}">
+                    <Setter TargetName="StateIcon" Property="Data" Value="{StaticResource Icon.ShieldCheck}" />
+                    <Setter TargetName="StateIcon" Property="Foreground" Value="{StaticResource Brush.Success}" />
+                    <Setter TargetName="StateText" Property="Foreground" Value="{StaticResource Brush.Success}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding StatusTone}" Value="{x:Static vm:NodePinTone.Bad}">
+                    <Setter TargetName="StateIcon" Property="Data" Value="{StaticResource Icon.ShieldX}" />
+                    <Setter TargetName="StateIcon" Property="Foreground" Value="{StaticResource Brush.Error}" />
+                    <Setter TargetName="StateText" Property="Foreground" Value="{StaticResource Brush.Error}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding StatusTone}" Value="{x:Static vm:NodePinTone.Faded}">
+                    <Setter TargetName="StateIcon" Property="Foreground" Value="{StaticResource Brush.TextMuted}" />
+                    <Setter TargetName="StateText" Property="Foreground" Value="{StaticResource Brush.TextMuted}" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+
+        <!--
+          The own node's certificate (sketch KL3b): a small pin after the name in the state's colour (amber and struck
+          through when it is not pinned, green when it is, red when the node shows another), with its word on a reserve's
+          row. A click folds out the box with an arrow towards the pin: the fingerprint as a picture, a grid of one cell
+          per byte, so that two certificates compare by eye, and the pinned and the new side by side when it changed.
+        -->
+        <DataTemplate x:Key="Sources.Pin" DataType="{x:Type vm:EndpointRowViewModel}">
+            <Grid Margin="8,0,0,0" VerticalAlignment="Center" Visibility="{Binding HasPin, Converter={StaticResource Visible}}">
+                <Button x:Name="PinButton" Cursor="Hand" ToolTip="{Binding PinTip}" AutomationProperties.Name="{Binding PinTip}"
+                        CommandParameter="{Binding}" Focusable="True"
+                        Tag="{Binding Tag, RelativeSource={RelativeSource AncestorType=ContentPresenter}}"
+                        Command="{Binding DataContext.Sources.OpenPinCommand, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="Pill" Height="22" CornerRadius="11" Padding="7,0" Background="{StaticResource Brush.PendingTint}">
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <controls:GridIcon x:Name="PinIcon" Size="13" Data="{StaticResource Icon.PinOff}"
+                                                       Foreground="{StaticResource Brush.Pending}" />
+                                    <TextBlock x:Name="PinWord" Text="{Binding PinWord}" FontSize="11.5" Margin="5,0,1,0"
+                                               Foreground="{StaticResource Brush.Pending}" VerticalAlignment="Center"
+                                               Visibility="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}, FallbackValue=Collapsed, TargetNullValue=Collapsed}" />
+                                </StackPanel>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <DataTrigger Binding="{Binding Pin}" Value="{x:Static vm:EndpointPin.Pinned}">
+                                    <Setter TargetName="Pill" Property="Background" Value="{StaticResource Brush.SuccessTint}" />
+                                    <Setter TargetName="PinIcon" Property="Data" Value="{StaticResource Icon.Pin}" />
+                                    <Setter TargetName="PinIcon" Property="Foreground" Value="{StaticResource Brush.Success}" />
+                                    <Setter TargetName="PinWord" Property="Foreground" Value="{StaticResource Brush.Success}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Pin}" Value="{x:Static vm:EndpointPin.Changed}">
+                                    <Setter TargetName="Pill" Property="Background" Value="{StaticResource Brush.ErrorTint}" />
+                                    <Setter TargetName="PinIcon" Property="Data" Value="{StaticResource Icon.Pin}" />
+                                    <Setter TargetName="PinIcon" Property="Foreground" Value="{StaticResource Brush.Error}" />
+                                    <Setter TargetName="PinWord" Property="Foreground" Value="{StaticResource Brush.Error}" />
+                                </DataTrigger>
+                                <Trigger Property="IsKeyboardFocused" Value="True">
+                                    <Setter TargetName="Pill" Property="BorderBrush" Value="{StaticResource Brush.Text}" />
+                                    <Setter TargetName="Pill" Property="BorderThickness" Value="1" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Button.Template>
+                </Button>
+                <Popup IsOpen="{Binding DataContext.IsPinOpen, ElementName=PinButton, Mode=TwoWay}" StaysOpen="False"
+                       PlacementTarget="{Binding ElementName=PinButton}" Placement="Bottom" HorizontalOffset="-16"
+                       VerticalOffset="6" AllowsTransparency="True" PopupAnimation="Fade"
+                       DataContext="{Binding DataContext.Sources.NodePin, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                    <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource Sources.PinBox}" />
+                </Popup>
+            </Grid>
+        </DataTemplate>
+
         <DataTemplate x:Key="Sources.Used" DataType="{x:Type vm:EndpointRowViewModel}">
             <Border x:Name="Card" Padding="18,16,18,14" CornerRadius="12" BorderThickness="1.5" Margin="0,8,0,0"
                     Background="{StaticResource Brush.SurfaceRaised}" BorderBrush="{StaticResource Brush.BorderStrong}">
@@ -862,6 +1094,7 @@
                                                Margin="8,0,0,0" VerticalAlignment="Center"
                                                ToolTip="{x:Static vm:EndpointRowViewModel.LocalTip}"
                                                Visibility="{Binding IsLocal, Converter={StaticResource Visible}}" />
+                            <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource Sources.Pin}" Tag="Collapsed" />
                             <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource Sources.Note}" />
                         </StackPanel>
                     </DockPanel>
@@ -937,6 +1170,7 @@
                                            Margin="8,0,0,0" VerticalAlignment="Center"
                                            ToolTip="{x:Static vm:EndpointRowViewModel.LocalTip}"
                                            Visibility="{Binding IsLocal, Converter={StaticResource Visible}}" />
+                        <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource Sources.Pin}" Tag="Visible" />
                         <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource Sources.Note}" />
                         <TextBlock Text="{Binding Address}" FontFamily="Cascadia Mono, Consolas" FontSize="12" Margin="12,0,0,0"
                                    Foreground="{StaticResource Brush.TextDim}" VerticalAlignment="Center" MaxWidth="260"
@@ -1306,6 +1540,216 @@
                                             </Border>
                                         </StackPanel>
                                     </Border>
+
+                                    <!--
+                                      Under Windows: the proxy Windows is set up with, as it is (sketch PX1a). Only a proxy
+                                      set by hand gets the row that logs in with the Windows account; turned on, it folds
+                                      out what is sent, to whom and what never. One found automatically gets no switch,
+                                      only why. The background follows the choice.
+                                    -->
+                                    <StackPanel DataContext="{Binding Proxy}"
+                                                Visibility="{Binding DataContext.IsWindows, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource Visible}}">
+                                        <Border Style="{StaticResource Settings.Row}">
+                                            <DockPanel>
+                                                <StackPanel DockPanel.Dock="Right" HorizontalAlignment="Right">
+                                                    <Border Height="32" CornerRadius="8" Padding="11,0,6,0"
+                                                            Background="{StaticResource Brush.Background}" BorderThickness="1.5"
+                                                            BorderBrush="{StaticResource Brush.BorderStrong}" HorizontalAlignment="Right">
+                                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                            <controls:GridIcon Size="15" Data="{StaticResource Icon.Proxy}"
+                                                                               Foreground="{StaticResource Brush.TextMuted}" Margin="0,0,9,0" />
+                                                            <TextBlock Text="{Binding AddressText}" FontFamily="Cascadia Mono, Consolas"
+                                                                       FontSize="12.5" VerticalAlignment="Center" />
+                                                            <Border CornerRadius="5" Padding="7,0" Height="20" Margin="9,0,0,0"
+                                                                    Visibility="{Binding HasHow, Converter={StaticResource Visible}}">
+                                                                <Border.Style>
+                                                                    <Style TargetType="Border">
+                                                                        <Setter Property="Background" Value="{StaticResource Brush.SurfaceRaised}" />
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding IsAutomatic}" Value="True">
+                                                                                <Setter Property="Background" Value="{StaticResource Brush.PendingTint}" />
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </Border.Style>
+                                                                <TextBlock Text="{Binding HowText}" FontSize="11.5" VerticalAlignment="Center">
+                                                                    <TextBlock.Style>
+                                                                        <Style TargetType="TextBlock">
+                                                                            <Setter Property="Foreground" Value="{StaticResource Brush.TextMuted}" />
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding IsAutomatic}" Value="True">
+                                                                                    <Setter Property="Foreground" Value="{StaticResource Brush.Pending}" />
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </TextBlock.Style>
+                                                                </TextBlock>
+                                                            </Border>
+                                                        </StackPanel>
+                                                    </Border>
+                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,6,0,0"
+                                                                Visibility="{Binding HasProxy, Converter={StaticResource Visible}}">
+                                                        <Ellipse Width="7" Height="7" Margin="0,0,6,0" VerticalAlignment="Center"
+                                                                 Fill="{Binding Foreground, ElementName=NetLine}" />
+                                                        <TextBlock x:Name="NetLine" Text="{Binding NetText}" FontSize="12" VerticalAlignment="Center">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Setter Property="Foreground" Value="{StaticResource Brush.Error}" />
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding NetIsGood}" Value="True">
+                                                                            <Setter Property="Foreground" Value="{StaticResource Brush.Success}" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                    </StackPanel>
+                                                </StackPanel>
+                                                <StackPanel Margin="0,0,16,0">
+                                                    <TextBlock Text="Proxy" Style="{StaticResource Settings.RowTitle}" />
+                                                    <TextBlock Text="Det som är inställt i Windows. Chainsaw läser det och ändrar inget."
+                                                               Style="{StaticResource Settings.RowHint}" />
+                                                </StackPanel>
+                                            </DockPanel>
+                                        </Border>
+
+                                        <!-- The login with the Windows account: only for a proxy set by hand. -->
+                                        <Border Style="{StaticResource Settings.Row}"
+                                                Visibility="{Binding CanLogin, Converter={StaticResource Visible}}">
+                                            <StackPanel>
+                                                <DockPanel>
+                                                    <Button DockPanel.Dock="Right" Style="{StaticResource Settings.TagSwitch}"
+                                                            Command="{Binding ToggleCommand}" Tag="{Binding IsOn}"
+                                                            ToolTip="{Binding SwitchTip}" AutomationProperties.Name="Logga in med Windows-kontot" />
+                                                    <StackPanel Margin="0,0,16,0">
+                                                        <TextBlock Text="Logga in med Windows-kontot" Style="{StaticResource Settings.RowTitle}" />
+                                                        <TextBlock Text="När proxyn kräver inloggning. Bara till proxyn ovan, och bara när den ber om det."
+                                                                   Style="{StaticResource Settings.RowHint}" />
+                                                    </StackPanel>
+                                                </DockPanel>
+
+                                                <!-- The proxy refused: in plain words, red. -->
+                                                <Border Margin="0,12,0,0" Padding="14,12" CornerRadius="10" BorderThickness="1"
+                                                        BorderBrush="{StaticResource Brush.ErrorEdge}" Background="{StaticResource Brush.ErrorTint}"
+                                                        Visibility="{Binding IsRefused, Converter={StaticResource Visible}}">
+                                                    <DockPanel>
+                                                        <controls:GridIcon DockPanel.Dock="Left" Size="18" Data="{StaticResource Icon.Lock}"
+                                                                           Foreground="{StaticResource Brush.Error}" Margin="0,0,12,0"
+                                                                           VerticalAlignment="Center" />
+                                                        <TextBlock DockPanel.Dock="Right" Text="Kerberos eller NTLM" FontSize="12"
+                                                                   Foreground="{StaticResource Brush.TextMuted}" VerticalAlignment="Center"
+                                                                   Margin="12,0,0,0" />
+                                                        <TextBlock Text="{Binding RefusedText}" FontSize="13" TextWrapping="Wrap"
+                                                                   VerticalAlignment="Center" LineHeight="19" />
+                                                    </DockPanel>
+                                                </Border>
+
+                                                <!-- Turned on: what is sent, to whom and what never, folded out in three rows. -->
+                                                <Border Margin="0,12,0,0" CornerRadius="10" BorderThickness="1"
+                                                        BorderBrush="{StaticResource Brush.SubmenuHover}"
+                                                        Background="{StaticResource Brush.Background}"
+                                                        Visibility="{Binding IsOn, Converter={StaticResource Visible}}">
+                                                    <ItemsControl ItemsSource="{Binding Tells}" Focusable="False"
+                                                                  AutomationProperties.Name="Vad som skickas">
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate DataType="{x:Type vm:ProxyTell}">
+                                                                <Border Padding="16,13" BorderThickness="0,0,0,1"
+                                                                        BorderBrush="{StaticResource Brush.Surface}">
+                                                                    <DockPanel>
+                                                                        <Border x:Name="Tile" DockPanel.Dock="Left" Width="30" Height="30"
+                                                                                CornerRadius="8" Background="{StaticResource Brush.SurfaceRaised}"
+                                                                                VerticalAlignment="Top">
+                                                                            <controls:GridIcon x:Name="TellIcon" Size="15"
+                                                                                               Data="{StaticResource Icon.Key}"
+                                                                                               Foreground="{StaticResource Brush.Text}"
+                                                                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                                        </Border>
+                                                                        <TextBlock DockPanel.Dock="Left" Width="74" Margin="14,6,0,0"
+                                                                                   Text="{Binding Label}" FontSize="12"
+                                                                                   Foreground="{StaticResource Brush.TextDim}" />
+                                                                        <TextBlock Margin="0,5,0,0" FontSize="13" TextWrapping="Wrap" LineHeight="20">
+                                                                            <Run Text="{Binding Text, Mode=OneWay}" /><Run
+                                                                                Text="{Binding SubText, Mode=OneWay}"
+                                                                                Foreground="{StaticResource Brush.TextMuted}" />
+                                                                        </TextBlock>
+                                                                    </DockPanel>
+                                                                </Border>
+                                                                <DataTemplate.Triggers>
+                                                                    <DataTrigger Binding="{Binding Kind}" Value="{x:Static vm:ProxyTellKind.To}">
+                                                                        <Setter TargetName="TellIcon" Property="Data" Value="{StaticResource Icon.Proxy}" />
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding Kind}" Value="{x:Static vm:ProxyTellKind.Never}">
+                                                                        <Setter TargetName="TellIcon" Property="Data" Value="{StaticResource Icon.ShieldX}" />
+                                                                        <Setter TargetName="TellIcon" Property="Foreground" Value="{StaticResource Brush.TextMuted}" />
+                                                                        <Setter TargetName="Tile" Property="Background" Value="Transparent" />
+                                                                    </DataTrigger>
+                                                                </DataTemplate.Triggers>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                </Border>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- A proxy Windows finds by itself: no switch, only why, and the way to set it by hand. -->
+                                        <Border Style="{StaticResource Settings.Row}"
+                                                Visibility="{Binding IsAutomatic, Converter={StaticResource Visible}}">
+                                            <Grid>
+                                                <Rectangle RadiusX="10" RadiusY="10" StrokeThickness="1.5" StrokeDashArray="4 3"
+                                                           Stroke="{StaticResource Brush.PendingEdge}" />
+                                                <DockPanel Margin="16,14">
+                                                    <controls:GridIcon DockPanel.Dock="Left" Size="20" Data="{StaticResource Icon.KeyOff}"
+                                                                       Foreground="{StaticResource Brush.Pending}" Margin="0,1,14,0"
+                                                                       VerticalAlignment="Top" />
+                                                    <Button DockPanel.Dock="Right" Style="{StaticResource Settings.Button}" Height="30"
+                                                            Padding="12,0" FontSize="13" Margin="14,0,0,0" VerticalAlignment="Top"
+                                                            Command="{Binding OpenWindowsSettingsCommand}">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <controls:GridIcon Size="13" Data="{StaticResource Icon.Open}" Margin="0,0,7,0"
+                                                                               Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                                                            <TextBlock Text="Proxy i Windows" VerticalAlignment="Center" />
+                                                        </StackPanel>
+                                                    </Button>
+                                                    <StackPanel>
+                                                        <TextBlock Text="Ingen inloggning till en proxy som hittas automatiskt"
+                                                                   FontWeight="SemiBold" />
+                                                        <TextBlock FontSize="12.5" Foreground="{StaticResource Brush.TextMuted}" Margin="0,5,0,0"
+                                                                   TextWrapping="Wrap" LineHeight="19"
+                                                                   Text="Windows letar själv efter proxyn på nätet (WPAD eller ett skript). Vem som helst på samma nät kan svara på den frågan, och då skulle ditt Windows-konto skickas till dem. Ställ in proxyn för hand i Windows, så kommer raden fram här." />
+                                                    </StackPanel>
+                                                </DockPanel>
+                                            </Grid>
+                                        </Border>
+
+                                        <!-- The background follows the same choice through the same proxy. -->
+                                        <Border Style="{StaticResource Settings.Row}"
+                                                Visibility="{Binding HasProxy, Converter={StaticResource Visible}}">
+                                            <DockPanel>
+                                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <controls:GridIcon Size="15" Data="{StaticResource Icon.Eye}" Margin="0,0,7,0"
+                                                                       Foreground="{Binding Foreground, ElementName=WatchLine}" />
+                                                    <TextBlock x:Name="WatchLine" Text="{Binding WatchText}" FontSize="12.5"
+                                                               VerticalAlignment="Center">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Foreground" Value="{StaticResource Brush.TextMuted}" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding WatchWaits}" Value="True">
+                                                                        <Setter Property="Foreground" Value="{StaticResource Brush.Pending}" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </StackPanel>
+                                                <StackPanel Margin="0,0,16,0">
+                                                    <TextBlock Text="Bevakningen när Chainsaw är stängt" Style="{StaticResource Settings.RowTitle}" />
+                                                    <TextBlock Text="Går genom samma proxy och följer valet ovan. Den kör som ditt Windows-konto och får inget eget lösenord."
+                                                               Style="{StaticResource Settings.RowHint}" />
+                                                </StackPanel>
+                                            </DockPanel>
+                                        </Border>
+                                    </StackPanel>
                                     <Border Style="{StaticResource Settings.Row}"
                                             Visibility="{Binding IsVpn, Converter={StaticResource Visible}}">
                                         <DockPanel>

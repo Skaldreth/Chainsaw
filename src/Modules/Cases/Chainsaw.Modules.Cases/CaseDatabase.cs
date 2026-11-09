@@ -147,6 +147,14 @@ internal sealed class CaseDatabase : IDisposable
         return new GuardScope(_guard, previous, set);
     }
 
+    /// <summary>
+    /// Encrypts the whole database anew under another key (SQLite3 Multiple Ciphers' rekey). Used only on a copy, so
+    /// that a rekey that stops halfway never touches a file anything else depends on.
+    /// </summary>
+    /// <param name="newDatabaseKey">The new database key; the caller clears it.</param>
+    /// <exception cref="SqliteException">The database could not be encrypted anew.</exception>
+    public void ChangeKey(ReadOnlySpan<byte> newDatabaseKey) => Rekey(_connection, newDatabaseKey);
+
     /// <summary>Adds sealed tables to the guard, for example those of modules this build does not know.</summary>
     /// <param name="tables">The tables.</param>
     public void AddSealed(IEnumerable<string> tables) => _guard.AddSealed(tables);

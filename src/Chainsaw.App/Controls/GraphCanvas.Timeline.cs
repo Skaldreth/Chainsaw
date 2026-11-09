@@ -151,7 +151,7 @@ public sealed partial class GraphCanvas
         var last = right is null ? axis.DayOf(bands.Last) : axis.DayOf(right.Hours).AddDays(-1);
         var name = first >= last ? TimeAxis.DayName(first) : $"{TimeAxis.DayName(first)} – {TimeAxis.DayName(last)}";
         var later = timeline.Chosen is { } chosen && from > axis.Hours(chosen);
-        var text = Text(name, 11.5, GraphPalette.Find(this, later ? "Brush.BorderStrong" : "Brush.TextDim"),
+        var text = Text(name, 11.5, Ink(later ? "Brush.BorderStrong" : "Brush.TextDim"),
             FontWeights.Normal);
         var (edgeLeft, edgeRight) = TimeBands.BandAt(left, right, y, bands.Actors);
         var screenLeft = _viewport.ToScreen(new GraphPoint(edgeLeft, y)).X;
@@ -176,13 +176,13 @@ public sealed partial class GraphCanvas
     /// <param name="x">The line's place on screen at the pill's height.</param>
     private void DrawFront(DrawingContext dc, string time, double x)
     {
-        var text = Text(time, 11.5, GraphPalette.Find(this, "Brush.Text"), FontWeights.Normal);
+        var text = Text(time, 11.5, Ink("Brush.Text"), FontWeights.Normal);
         var pill = new Rect(
             x - (text.Width / 2) - FrontPadding, FrontMiddle - (FrontHeight / 2), text.Width + (2 * FrontPadding),
             FrontHeight);
         dc.DrawRoundedRectangle(
-            GraphPalette.Find(this, "Brush.SurfaceRaised"),
-            new Pen(GraphPalette.Find(this, "Brush.BorderHover"), 1),
+            Ink("Brush.SurfaceRaised"),
+            PenOf(Ink("Brush.BorderHover"), 1),
             pill,
             FrontHeight / 2,
             FrontHeight / 2);
@@ -300,7 +300,7 @@ public sealed partial class GraphCanvas
     /// <param name="key">The brush's resource key.</param>
     /// <returns>The colour, or a neutral grey when the brush is not a plain colour.</returns>
     private Color BrushColor(string key) =>
-        GraphPalette.Find(this, key) is SolidColorBrush brush ? brush.Color : Colors.Gray;
+        Ink(key) is SolidColorBrush brush ? brush.Color : Colors.Gray;
 
     /// <summary>
     /// The time lines worked out for one arrangement of the graph: the actors with their times, the day lines' natural

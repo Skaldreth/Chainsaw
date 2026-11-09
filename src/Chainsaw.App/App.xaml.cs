@@ -199,6 +199,7 @@ public partial class App : Application
                     options.BackgroundExitsFile = Path.Combine(
                         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Chainsaw",
                         BackgroundNames.Folder, NetworkOptions.BackgroundExitsFileName);
+                    options.ProxyLoginFor = settings.ProxyLoginFor;
                 })
                 .AddChainsModule(sources: options => options.Directory = Path.GetDirectoryName(store.FilePath))
                 .AddClusteringModule()
@@ -229,6 +230,7 @@ public partial class App : Application
                 .AddSingleton<WpfFilePicker>()
                 .AddSingleton<IFilePicker>(provider => provider.GetRequiredService<WpfFilePicker>())
                 .AddSingleton<ISaveFilePicker>(provider => provider.GetRequiredService<WpfFilePicker>())
+                .AddSingleton<IFolderView, WpfFolderView>()
                 .AddSingleton<ICaseFilePicker>(provider => provider.GetRequiredService<WpfFilePicker>())
                 .AddSingleton<SanctionListImport>()
                 .AddSingleton<ExitWay>()
@@ -247,6 +249,11 @@ public partial class App : Application
                 .AddSingleton<IAlertPreview>(provider => new WpfAlertPreview(
                     () => provider.GetRequiredService<ShellViewModel>().Show(AppView.Monitoring)))
                 .AddSingleton<RatesSummaryViewModel>()
+                .AddSingleton(provider => new ProxyLoginViewModel(
+                    provider.GetRequiredService<IWindowsProxy>(),
+                    provider.GetRequiredService<INetworkPresence>(),
+                    provider.GetRequiredService<IUiThread>(),
+                    $"{Environment.UserDomainName}\\{Environment.UserName}"))
                 .AddSingleton<SettingsViewModel>()
                 .AddSingleton<IGraphSource, GraphSource>()
                 .AddSingleton<IGraphChainState, GraphChainState>()

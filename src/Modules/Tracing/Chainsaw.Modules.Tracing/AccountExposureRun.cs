@@ -15,8 +15,8 @@ internal sealed record ExposureEntry(GraphEdge Edge, AssetTransfer Transfer, int
 }
 
 /// <summary>
-/// Reads exposure on an account chain: every actor is a wallet whose transfers of one asset stand in time order, the
-/// incoming before the outgoing within the same moment (and a transaction node's in the transaction's order). The
+/// Reads exposure on an account chain: every actor is a wallet whose transfers of one asset stand in chain order, as
+/// the graph's trace reads them (<see cref="AccountGraph.ChainOrder(AssetTransfer)"/>). The
 /// account method (FIFO or haircut) says, actor by actor, how much of the subject's money goes on with each transfer:
 /// <list type="bullet">
 /// <item>Paid out: the subject's outgoing transfers are the money; an actor on the way carries what came in onto what
@@ -71,6 +71,13 @@ internal sealed class AccountExposureRun
     /// graph's trace.
     /// </summary>
     private readonly Dictionary<AssetTransfer, ExposureEntry> _continues = [];
+
+    /// <summary>
+    /// Read in: the money each actor paid on that came, by the method, from a deposit the user linked to another
+    /// chain, when it was last read. By the trace that money went on to the other chain and not into the wallet, so
+    /// it is counted as continuing there, as on Bitcoin, rather than as before the history or not expanded.
+    /// </summary>
+    private readonly Dictionary<string, BigInteger> _onOtherChain = new(StringComparer.Ordinal);
 
     /// <summary>The actors in the queue, so that one is queued once however much reaches it before it is read.</summary>
     private readonly HashSet<string> _pending = new(StringComparer.Ordinal);
@@ -239,9 +246,16 @@ internal sealed class AccountExposureRun
         _runs[actor] = _runs.GetValueOrDefault(actor) + 1;
         var arrived = Arrived(actor);
         var passed = BigInteger.Zero;
+        var onOtherChain = BigInteger.Zero;
         foreach (var (entry, money, through) in IsOut ? CarryOut(actor) : CarryIn(actor))
         {
             passed += money;
+            if (!IsOut && IsLinked(entry))
+            {
+                onOtherChain += money;
+                continue;
+            }
+
             _through[entry] = through;
             if (money == Money(entry))
             {
@@ -258,6 +272,7 @@ internal sealed class AccountExposureRun
 
         _arrivedAtRead[actor] = arrived;
         _left[actor] = arrived - passed;
+        _onOtherChain[actor] = onOtherChain;
     }
 
     /// <summary>
@@ -317,8 +332,11 @@ internal sealed class AccountExposureRun
     }
 
     /// <summary>
-    /// Writes an actor's wallet as the account model's ledger: its transfers in time order, unconfirmed last, the
-    /// incoming before the outgoing within the same moment, then in the transaction's order.
+    /// Writes an actor's wallet as the account model's ledger: its transfers in chain order, unconfirmed last, as the
+    /// graph's trace orders an account's ledger (<see cref="AccountGraph.ChainOrder(AssetTransfer)"/>), so that FIFO
+    /// gives the same answer in both. Read out, a deposit the user linked to another chain is left out, since its money
+    /// goes on there; read in it stays, so that its share of what the wallet paid on is said to continue on the other
+    /// chain (<see cref="_onOtherChain"/>).
     /// </summary>
     /// <param name="actor">The actor.</param>
     /// <param name="traced">How much of an incoming transfer is traced.</param>
@@ -327,14 +345,12 @@ internal sealed class AccountExposureRun
         string actor, Func<ExposureEntry, BigInteger> traced)
     {
         var asset = _request.Asset;
-        var moves = Of(_in, actor).Where(entry => !IsLinked(entry))
+        var moves = Of(_in, actor).Where(entry => !IsOut || !IsLinked(entry))
             .Select(entry => (Entry: entry, Direction: TransferDirection.In))
             .Concat(Of(_out, actor).Select(entry => (Entry: entry, Direction: TransferDirection.Out)))
-            .OrderBy(move => move.Entry.Transfer.Time ?? DateTimeOffset.MaxValue)
+            .OrderBy(move => AccountGraph.ChainOrder(move.Entry.Transfer))
             .ThenBy(move => move.Direction)
-            .ThenBy(move => move.Entry.Transfer.Transaction.Id, StringComparer.Ordinal)
-            .ThenBy(move => move.Entry.Transfer.Position)
-            .ThenBy(move => move.Entry.Transfer.Coin?.Index ?? move.Entry.Index)
+            .ThenBy(move => move.Entry.Index)
             .ToList();
         var entries = moves.Select(move => new AccountEntry(
                 move.Entry.Transfer,
@@ -370,6 +386,11 @@ internal sealed class AccountExposureRun
         foreach (var (entry, money) in _money)
         {
             _tally.Flow(entry.Edge, money);
+        }
+
+        foreach (var units in _onOtherChain.Values)
+        {
+            _tally.Rest(ExposureRest.OtherChain, units);
         }
     }
 }

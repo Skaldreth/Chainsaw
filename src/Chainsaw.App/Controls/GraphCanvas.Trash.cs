@@ -110,12 +110,8 @@ public sealed partial class GraphCanvas
             return;
         }
 
-        var ink = GraphPalette.Find(this, "Brush.TextFaint");
-        var pen = new Pen(ink, StubWidth)
-        {
-            DashStyle = StubDash, DashCap = PenLineCap.Round, StartLineCap = PenLineCap.Round,
-            EndLineCap = PenLineCap.Round,
-        };
+        var ink = Ink("Brush.TextFaint");
+        var pen = PenOf(ink, StubWidth, StubDash, PenLineCap.Round, PenLineCap.Round);
         foreach (var stub in scene.TrashStubs)
         {
             // A watch's hit into the trash takes the stub's place (DrawTrashHits).
@@ -133,7 +129,7 @@ public sealed partial class GraphCanvas
             // A watch at the node goes on into the trash: the stub says so in the watch's own tone (sketch BV2a).
             var watched = _model.WatchOverlay.MarkOf(stub.NodeKey) is not null;
             var label = watched
-                ? Text(TrashStub.WatchedLabel, StubLabelSize, GraphPalette.Find(this, "Brush.Watch"), FontWeights.Normal)
+                ? Text(TrashStub.WatchedLabel, StubLabelSize, Ink("Brush.Watch"), FontWeights.Normal)
                 : Text(TrashStub.Label, StubLabelSize, ink, FontWeights.Normal);
             var x = stub.IsOut ? end + StubLabelGap : end - StubLabelGap - label.Width;
             dc.DrawText(label, new Point(x, y - (label.Height / 2)));
@@ -167,20 +163,20 @@ public sealed partial class GraphCanvas
                 DrawRings(dc, middle, RingRadius, hit.Idle);
             }
 
-            var ink = GraphPalette.Find(this, hit.Idle ? "Brush.Watch.Idle" : "Brush.Accent");
-            var pen = new Pen(ink, 2.5) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round };
+            var ink = Ink(hit.Idle ? "Brush.Watch.Idle" : "Brush.Accent");
+            var pen = PenOf(ink, 2.5, ends: PenLineCap.Round);
             dc.DrawLine(pen, new Point(port, y), new Point(end, y));
             if (hit.Label is { } amount)
             {
                 var text = Text(amount, 11, ink, FontWeights.SemiBold);
                 var box = new Rect(
                     middle.X - (text.Width / 2) - 5, y - (text.Height / 2) - 1, text.Width + 10, text.Height + 2);
-                dc.DrawRoundedRectangle(GraphPalette.Find(this, "Brush.Background"), null, box, 4, 4);
+                dc.DrawRoundedRectangle(Ink("Brush.Background"), null, box, 4, 4);
                 dc.DrawText(text, new Point(box.X + 5, box.Y + 1));
             }
 
             var label = Text(
-                TrashStub.Label, StubLabelSize, GraphPalette.Find(this, "Brush.TextFaint"), FontWeights.Normal);
+                TrashStub.Label, StubLabelSize, Ink("Brush.TextFaint"), FontWeights.Normal);
             var x = hit.IsOut ? end + StubLabelGap : end - StubLabelGap - label.Width;
             dc.DrawText(label, new Point(x, y - (label.Height / 2)));
         }
@@ -205,8 +201,8 @@ public sealed partial class GraphCanvas
                 continue;
             }
 
-            var ink = GraphPalette.Find(this, row.IsRoot ? "Brush.Text" : "Brush.TextMuted");
-            var pen = new Pen(ink, StubWidth) { DashStyle = PendingDash };
+            var ink = Ink(row.IsRoot ? "Brush.Text" : "Brush.TextMuted");
+            var pen = PenOf(ink, StubWidth, PendingDash);
             frame.Inflate(PendingInset, PendingInset);
             dc.DrawRoundedRectangle(null, pen, frame, NodeRadius + PendingInset, NodeRadius + PendingInset);
         }

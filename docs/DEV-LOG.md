@@ -4214,3 +4214,418 @@ topp.
   - **Omgranskningen** (0 C, 0 I, 4 M): M7 bekräftelsen kräver en annan värd och säger vilken endpoint; M9 en
     hopslagen post får ett nytt id (det äldre kan ha förts in); M10 den första höjden från en socket hålls mot
     provens högsta och knuffar inget utan referens. M8 och resten av M7 står i BACKLOG.
+## Låsskärmens figur flyter (2026-11-08)
+
+Användaren provade på Windows: kedjan ryckte konstigt när den kom in, och rörelsen kändes som 25 bilder i sekunden.
+
+- **Takten:** `ChainFigure` följer nu skärmens bildrutor (`CompositionTarget.Rendering`, ett steg per ny `RenderingTime`)
+  i stället för en `DispatcherTimer` på 16 ms, som i Windows tickar i steg om ungefär 15,6 ms och därför gav ojämna
+  rutor (16 eller 31 ms).
+- **Ingen layout per ruta:** varje ruta spelas in i en `DrawingGroup` som elementet visar en gång, i stället för
+  `InvalidateVisual`, som begär en ny layout.
+- **Färre lager:** partiklarna ritas med styrkan i tecknets egen färg (24 steg, gjorda en gång) i stället för en
+  `PushOpacity` per tecken; länkar, strängar och steg får ett lager bara när de tonar. Pennorna görs en gång per
+  nyans, ton och bredd.
+- **Bandet räknas ut en gång per ruta** (`BandMotion.Current`) och återanvänds när rutan ritas. Modellen tar ungefär
+  0,5 ms per ruta på en sida som är 1920 px bred.
+- **Partiklarna ritas som former**, inte som text: WPF lägger text på hela bildpunkter, så ett tecken som driver några
+  bildpunkter i sekunden hoppade en bildpunkt med några rutors mellanrum och såg ut som 25 bilder i sekunden när den
+  stora animationen var klar. Tecknens former (`FormattedText.BuildGeometry`) görs en gång och står mellan
+  bildpunkterna; styrkan ligger i penseln.
+- **Darret** när den långa länken spänns är lugnare: 8 svängningar i sekunden och 0,9 px i stället för 15 och 1,4 px,
+  som vid 60 bilder i sekunden bara fick fyra bilder per svängning och såg ut som skakigt brus.
+
+## Panelerna under arbetet (2026-11-08)
+
+Användarens krav: allt som står på inspektörens plats ska ligga under arbetet som IN5a.
+
+- **`Controls/UnderPanel`** är en `Decorator` som ritar panelens ton (`Brush.Underlay`), bladets skugga längs
+  vänsterkanten (en toning, inte en effekt, så att texten förblir skarp) och bladets rundade hörn vid foten, och
+  lägger innehållet med 40 px luft till vänster. De paneler som visas räknas, och `UnderPanel.Reach` säger hur långt in
+  från fönstrets högerkant de når; `MainWindow.ShowSheet` tar det största av det och grafens inspektör, så att
+  titelraden slutar där panelen börjar och fönstrets knappar står på den.
+- **Ombyggda:** Guidens panel (GD1b), vyn Bevakningens valda bevakning, Tidslinjens inspektör, Flödets och
+  Exponeringens sidor och Etiketternas valda etikett. Vyernas sidor var kort inne i marginalen; nu står de i kanten i
+  full höjd, och vyns övriga innehåll har kvar sin luft upptill och nedtill. Förslagspanelen (KF2b) står redan i
+  grafens inspektör och har fått panelens ton och luften.
+
+**Egna beslut:** Nytt ärende (NC2a) och dialogerna mörkar resten och ligger över arbetet; de är oförändrade.
+Begärans och Rapportens förhandsvisningar är dokument, inte inspektörer, och står kvar som kort.
+
+
+## Kodgranskningen i sju varv (2026-11-08)
+
+Användaren bad om en fullständig granskning med minst sex varv: semantiska fel, säkerhet och kodkvalitet med *less is
+more*. Varje varv kördes av parallella granskande agenter, som rättade C och I med tester; huvudsessionen byggde och
+testade varje del ovanpå grenen och pushade (commits *Audit round 1 … 6*). Under granskningen pushade en annan session
+drygt 250 commits till samma gren; varv 1 granskade därför den äldre koden och varv 2 hela den nya (ungefär 150 000
+rader).
+
+- **Varv 1, per modul:** bland annat en fientlig kö från bakgrundsprocessen som kunde stoppa ärendets bevakning för
+  gott eller försegla en träff filtret inte kunde ge (C), en sanktionslista daterad i framtiden som skuggade alla
+  senare, en nyare heuristikversion som inte kunde ta tillbaka en äldre sammanslagning, `/verify` som kastade på en
+  ändrad första post och en kvarlämnad SQLite-journal som spelades in i en ny arbetskopia.
+- **Varv 2, per modul på den nya koden:** en endpoint med orimlig höjd eller fel genesis (testnet, eller en som ljuger)
+  som fick alla svar att se djupa ut och dolde omorganiseringar; en Ethereum-expansion med förlorade tx som räknades
+  som läst; exponeringen som vägrade vid en rundtur; grafen som byggdes i O(noder × linjer); Bryt upp som bara sparade
+  den första valda adressen; zoom och panorering som kunde vägras för gott; råa felmeddelanden på ett tiotal ställen.
+- **Varv 3, flöden tvärs över modulerna:** en ny titel som läste om alla vyer, en tillbakatagen etikettkopia som syntes
+  kvar, samma token-träff två gånger under olika symbol, en borttagen bevakning som bakgrunden fortsatte med, uppslag
+  genom Windows med VPN valt när planen inte kunde skrivas, högar på Ethereum i BTC, exporter av token utan kontrakt,
+  och det instabila exporttestets orsak.
+- **Varv 4, användarens tre beslut och säkerhet:** bakgrundens träffar är tips tills Chainsaws eget uppslag ger dem
+  (`monitoring.tips`, grå och streckade medan de väntar); internetkontrollen bara med Windows som väg; en ändrad
+  ärendefil skrivs aldrig över (arbetet sparas som gren); kopior utanför urklippshistoriken och molnet; filer inte i
+  Senaste; planterade utlösare rapporteras av `/verify`; en länk kan inte visa ett falskt bevakningskort.
+- **Varv 5, *less is more* och integritet:** omkring 400 rader död eller dubblerad kod borta med oförändrat beteende;
+  indexhöjder räknas bara med ett förseglat svar bakom sig och under det kedjan kan ha nått; `/verify` prövar varje
+  förseglat svar mot sin SHA-256; bakgrundens lästa höjd begränsas; ett försvagat delningslösenordskuvert vägras och tas
+  bort med journalrad.
+- **Varv 6, granskning av granskningen:** varje rättelse lästes om efter sammanslagningarna. Varv 5:s höjdfråga hade
+  gjort cachade uppslag 100 gånger långsammare (rättad); Tidslinjen kopierade förbi urklippsskyddet (ny kod); bakgrundens
+  starthöjd begränsas som den lästa höjden; exponeringen ordnar en kontos poster som spåret, så Graf och Exponering
+  stämmer; det instabila högtestet berodde på testets trådar, inte produkten.
+- **Varv 7:** varv 6:s gräns för bakgrundens starthöjd tog ärendets gamla höjd, så att ett år gamla pengar kunde
+  bli träffar, eller tappade bakgrundens träff när ärendet inte sett kedjan. Nu väntar en sådan post i kön tills
+  ärendet läst så långt, och rundan tar in kön igen efter höjden. Det instabila BackgroundLink-testet berodde på
+  testets trådar.
+- **Varv 8**, bara bakgrundens höjder, i 19 fall: en förfalskad kontroll med en tid i framtiden fick ärendets egen
+  kontroll att aldrig köras (C). Rättelsen förenklar: bakgrunden flyttar aldrig hur långt ärendet läst eller när det
+  kontrollerades; ärendets kontroll läser från sin egen senaste läsning, och bakgrundens träffar bekräftas som tips.
+  En start golvas också när ärendet inte hade någon höjd då bevakningen gjordes, och väntar medan bevakningen är
+  pausad.
+- **Varv 9:** kontroll av varv 8 utan C eller I. Granskningen avslutades där.
+
+**Användarens beslut under granskningen:** txid:er får stå i bakgrundens plan; bakgrundens träffar kontrolleras mot
+kedjan innan de förseglas; internetkontrollen bara när Windows är vägen.
+
+**Egna beslut:** en ändrad ärendefil på disken räknas som en konflikt (inte som ett beslut för användaren), eftersom
+det säkra valet var givet; bakgrundens start- och lästa höjder följer användarens beslut att bakgrunden bara ger tips.
+
+**Kvar:** frågorna 12–19 i TODO (*Från kodgranskningen*) och de mindre fynden i BACKLOG (*Kodgranskningen
+2026-11-08*). Det som ska provas på Windows står i TESTER-INFOR.
+
+## VT1a, LN1a och AK1a (2026-11-08): byt filnyckel, en länk till ett befintligt ärende och ankaret
+
+Byggt efter skisserna VT1a, LN1a och AK1a (användarens val 2026-11-08).
+
+- **VT1a, byt filnyckel** (`ICase.ReplaceFileKey`, `Case.FileKey.cs`): huvudnyckeln kontrolleras igen
+  (`IVault.VerifyMasterKey`, nytt, med ett förval som kastar `NotSupportedException` så att testernas valv inte
+  behöver ändras), ärendet sparas, arbetskopian kopieras till `.work.rekey` där journalraden
+  `case.file-key-replaced` förseglas under den gamla nyckeln och kopian krypteras om (SQLite3 Multiple Ciphers rekey)
+  under en ny slumpad filnyckel. Den nya filen (nytt huvud med ditt valvs kuvert, den inbyggda återställningsnyckelns
+  och vid behov ett nytt ärendelösenord, kopian och sigillet under den nya nyckeln) skrivs bredvid, arbetskopian
+  flyttas undan till `.work.old-key` och den nya filen tar den gamlas plats i en flytt. Sedan blir kopian
+  arbetskopian och ärendet fortsätter under den nya nyckeln; ankarna flyttas fram som vid varje sparning.
+  - **En krasch** före flytten lämnar den gamla filen hel (arbetskopian tas ut på nytt nästa gång), efter flytten den
+    nya; det som blir kvar (`.rekey`, `.old-key`) tas bort vid nästa öppning. Ett fel före flytten lämnar ärendet
+    öppet under den gamla nyckeln; ett fel efter flytten stänger det, och det öppnas från den nya filen.
+  - **Testerna** (`FileKeyTests`) tar en bild av mappen vid varje steg, som en krasch skulle lämna den, och öppnar
+    den: gamla filen till och med *set-aside*, nya från *replaced*. Kollegans valv, det gamla lösenordet och en
+    ändrad byte (sigillet) öppnar inte; organisationens nyckel, ett nytt lösenord och en tidigare utlämnad kopia gör det.
+  - **Fliken Kuvert:** *Byt filnyckel …* under korten (bara med eget kuvert), korten får *Lindas om* eller *Faller
+    bort* (streckat och överstruket), bekräftelsen fälls ut under korten med huvudnyckeln och strömbrytaren för ett
+    nytt ärendelösenord, och efteråt står en streckad rad med det som drogs tillbaka och journalraden (läst ur
+    journalen, så den står kvar nästa gång).
+- **LN1a:** `LinkInbox` säger när en länk börjar och slutar vänta (`WaitingChanged`), och låsskärmen säger då bara
+  *En länk väntar*. Efter upplåsningen fälls ärendeväljaren ut med länken överst (`CasePickerViewModel.OpenForLink`);
+  Enter eller ett andra klick öppnar ärendet och lägger adressen som startpunkt med raden
+  `app.start-point-from-link` i journalen (`CaseWorkflow.AddLinkedStartPointAsync`), *Nytt ärende med adressen …*
+  (Ctrl+N) öppnar NC2a med adressen, och Esc slänger länken. En länk medan Chainsaw är upplåst går som förut.
+- **AK1a:** `AnchorReplacement` (Contracts) läser raden `case.anchors-replaced`. *Verifiera* säger *Hashkedjan är
+  hel* med rader, tid och topp, och ett bytt ankare som en gul rad med *Troligast: …*; *Varför?* öppnar Guidens panel
+  (`GuideAnchorChange`) med kedjan som prickar, före och efter och orsaken som en streckad bricka. `/verify` säger
+  också att kedjan är hel och ankaret byttes, i stället för ett fel. Guideavsnittet `docs/guide/ankaret.md`.
+
+**Egna beslut och avsteg från skisserna:**
+- **Kuvert som faller bort:** också andra (icke inbyggda) återställningsnycklars och okända kuvert, eftersom Chainsaw
+  inte kan linda den nya nyckeln åt dem; de skulle annars bära en nyckel som inte öppnar något.
+- **Inga steg med förlopp** under bytet (skissens list med fyra steg): Cases säger inte hur långt det kommit, så en
+  rad säger vad som görs och att ärendet är låst under tiden, i stället för påhittade steg.
+- **Länkens ursprung:** skissen säger *Länk från Gawk*, men länken bär inte vilket program som skickade den, så det
+  står *Länk från ett annat program*. Brickan *Etikett härifrån* (etikettbiblioteket per ärende) är inte byggd.
+- **Två datorer** avgörs ur raderna: ett ankare längre fram än filens topp är en äldre kopia, annars två datorer.
+  Raden där de gick isär (*samma rader fram till 402*) står inte, eftersom raden bara sparar ankaret och toppen.
+
+**Granskningen** (oberoende, nyckeln, de gamla sidorna, varje kraschsteg och ankarna): inga C eller I, fyra M:
+- **M1:** `/verify` svarar nu med en gul varning (`CommandReply.Warning`, nytt) när ankaret byttes av ett skäl i filen
+  (`AnchorReplacement.ConcernsTheFile`: Diverged, RolledBack, okänt), och lugnt *klart* bara när det gäller datorn
+  (ankaret saknades eller gick inte att läsa).
+- **M2:** andra fel från valvet blir `CaseError.VaultFailed` (nytt), och ett SQLite-fel när journalraden skrivs i kopian
+  blir `Corrupt`, så att fliken Kuvert säger det i stället för ett ohanterat fel.
+- **M3:** den nya filen som skrivits bredvid (`.cut.tmp`, med den nya nyckeln och ett nytt lösenord) tas bort med de
+  andra resterna. Fanns det rester från ett byte och är journalens sista rad inte bytet, säger öppningen det med raden
+  `case.file-key-replacement-interrupted` och en varning som ligger kvar: filen har kvar sina gamla kuvert.
+- **M4** står i BACKLOG under *Säkerhet* (den gamla databasnyckeln i bibliotekets minne).
+
+**Återstår:** brickan *Etikett härifrån* i LN1a, och att prova allt på Windows.
+
+
+## PX1a, UT4a och KL3b: proxy med inloggning, en ansluten utgång i läget Windows, den egna nodens certifikat (2026-11-08)
+
+Byggt efter skisserna PX1a, UT4a och KL3b (användarens val samma dag). PX1a och KL3b rör princip 4 och väntar på en
+oberoende granskning.
+
+- **PX1a, proxyn under Windows** (`IWindowsProxy`, `WindowsProxyLogin`, `WinHttpProxyReader`, `ProxyLoginViewModel`):
+  Chainsaw läser Windows proxyinställning som .NET själv gör (`WinHttpGetIEProxyConfigForCurrentUser`) och ändrar inget.
+  Automatisk identifiering (WPAD) eller ett skript (PAC) gör inställningen *automatisk*, också när en proxy dessutom är
+  inställd för hand, eftersom Windows då frågar nätet först. Bara en proxy inställd för hand får raden *Logga in med
+  Windows-kontot*. Påslagen sparas adressen (`host:port`) i `settings.json` (`ProxyLoginFor`) och i bakgrundens plan.
+  Röret genom Windows får då `DefaultProxyCredentials` som en grind: den svarar bara när proxyn som frågar (.NET skickar
+  proxyns egen adress till `GetCredential`, provat mot en proxy på loopback) är exakt den adressen, bara medan Windows
+  inställning fortfarande är just den proxyn inställd för hand (läses om vid varje fråga, så att ett byte till WPAD eller
+  en annan adress gäller direkt), och bara för Negotiate, Kerberos och NTLM, där lösenordet aldrig lämnar datorn
+  (Basic och Digest får inget). Källorna får aldrig några uppgifter (`Credentials` är fortsatt `null`). Att slå av,
+  på eller flytta inloggningen bygger röret genom Windows på nytt, så att ingen inloggad anslutning står kvar.
+  En `407` från proxyn noteras (`LoginAskedAt`, också från provet om datorn når internet) och sägs i raden; ett
+  uppslag som får `407` ger `ExitError.ProxyLoginRequired`, som räknas som utgångens fel och aldrig märker en endpoint.
+  Bevakningen i bakgrunden följer valet genom samma grind (`WatcherLoop.FollowProxyLogin`).
+- **UT4a, en ansluten VPN-utgång i läget Windows** (`ExitPanelViewModel.ShowsExits`, `ExitRowViewModel.IsIdle` och
+  `IsToned`): listan visas när en utgång är ansluten, tonad, och bara den anslutna raden har färg, en ihålig grön prick,
+  *Ansluten · används inte* under namnet och strömknappen. Verktygstipset säger sedan när den är ansluten. När den
+  kopplas ner försvinner listan; de andra raderna har ingen knapp.
+- **KL3b, den egna nodens certifikat** (`CertificatePin`, `NodeCertificate`, `EndpointCertificate`,
+  `ILocalHttp.ReadCertificateAsync`, `IChainSources.PinAsync`/`UnpinAsync`/`ReadCertificateAsync`/`CertificateRefused`,
+  `NodePinViewModel`): fingeravtrycket är **SHA-256 av hela certifikatet** i DER-form, eftersom det är det Windows
+  certifikatdialog, webbläsarna och `openssl x509 -fingerprint -sha256` visar, så att användaren kan jämföra det med
+  det noden visar, och eftersom det fäster exakt det certifikat användaren tittade på; ett förnyat certifikat med samma
+  nyckel blir då ett byte som syns och bekräftas, aldrig ett som går tyst. Bara endpoints märkta lokala fästs. Fästet
+  sparas i `sources.json` med endpointen (inställningarna, aldrig ärendet), med vem och när, och de tidigare fästena
+  (högst tio) med när och av vem de byttes. Varje uppslag till noden bär fästet i `ExitRequest.CertificatePin`, och
+  `LocalHttp` har ett eget rör per fäste som godtar exakt det certifikatet, betrott av Windows eller inte, och vägrar
+  alla andra innan något av förfrågan skickas (`ExitError.CertificateChanged`); utan fäste gäller Windows rötter som
+  förut. `IExitHttp` vägrar en förfrågan med fäste. Att läsa certifikatet gör bara TLS-handskakningen, direkt till noden
+  i det egna nätet. Ett byte sägs en gång per endpoint och fäste i toastern (*Egen nod vägras* med *Visa*), noden
+  vägras tills *Lita på det nya …* har bekräftats, och de andra endpointarna används under tiden.
+
+**Egna beslut och avsteg:**
+- PX1a: raden under de tre utfällda raderna (vilken metod proxyn godtog och när) är inte byggd, eftersom .NET inte säger
+  vilken metod som användes; rutan säger *Kerberos eller NTLM*. Utan proxy står bara raden *Proxy* med *Ingen*.
+  Den automatiska proxyns adress visas inte (den blir känd först när en förfrågan frågar efter den); chipet säger
+  *WPAD eller skript*. *Proxy i Windows* öppnar `ms-settings:network-proxy`.
+- PX1a: en inloggning vars proxy har bytts i Windows slås av och sparas som av när sidan Nätverk visas; tills dess
+  gäller den ändå inte (grinden läser om inställningen).
+- KL3b: ett fäst certifikat godtas också när det har gått ut eller har ett annat namn: det är just det certifikatet som
+  användaren litar på. *Ta bort fästet …* frågar först, som *Lita på det nya …*.
+
+**Återstår:** att prova på Windows (`docs/TESTER-INFOR-1.0.md`), särskilt en riktig proxy med Kerberos och NTLM.
+
+## Ytorna för omgång 4 (2026-11-08): KV1a, HB1a, BU1a, DM1a, HP1a och TJ1b
+
+Byggt efter skisserna som valdes 2026-11-08 (andra omgången), på backend från omgång 4.
+
+- **Clustering:** `PreviewWithdraw` räknar ut klustren före och efter ett tillbakadragande ur det som är sparat
+  (`ClusterChanges`), utan att spara något. Det en körning håller tillbaka sparas som arbetsläge i
+  `clustering_held_back` (ersätts av nästa körning som håller tillbaka något annat, inte förseglat eftersom det alltid
+  kan räknas ut igen), och `GetHeldBack` ger slutsatserna med vad som saknades och senaste beslutet.
+  `DecideHeldBack` förseglar *Låt stå* eller *Släpp slutsatsen* i den nya kedjan `clustering.held_back_decisions`
+  (schema version 5) med en rad i journalen; adresserna sparas med beslutet så att historiken kan visa det också
+  efter att slutsatsen släppts. En släppt tx:s slutsatser före beslutet räknas inte längre (som ett tillbakadragande
+  för en tx), och nästa körning sparar det den kommer fram till nu.
+- **KV1a:** `ClusterWhyViewModel` och `ClusterWhyView` i inspektören, `ChangeBarView` för staplarna, spöket under
+  noden och nedtoningen i `GraphCanvas.Rounds`. *Ta tillbaka* i Historik och *Ångra* på toasten.
+- **HB1a:** ringen och hovringen i `GraphCanvas.Rounds`, kortet i Historik (`HistoryUndo.DecideHeldBack`) med *Låt stå*
+  bredvid *Släpp slutsatsen*.
+- **BU1a:** `PairPath` (stegen, den svagaste länken och vad ett snitt bryter ut) och `InspectorFormsViewModel.Pair`.
+  Ett snitt sparas som uppbrytningen av det som lämnar (`InspectorForms.BreakOut`), så att samma regler gäller som
+  för att bryta ut adresser. Två noder valda med Ctrl+klick i grafen ger paret när U öppnas.
+- **DM1a och HP1a:** `ObfuscationMarks` läser `dust v1` och `pass-through v1` ur de sparade kontrollerna;
+  `GraphViewModel.Obfuscation` tonar ned, fäller ihop och frågar före kopiering. Bara visning, inget sparas.
+- **TJ1b:** `InspectorFormsViewModel.Check` öppnar etikettformuläret från kontrollen med källan som
+  `LabelSource.Behaviour` (`service-behaviour`, `v1`), förseglad av Attribution som andra etiketter.
+
+**Egna beslut och avsteg från skisserna:**
+- Enum-namnet `ConclusionChoice` (inte `HeldBackChoice`, som redan finns i appen för EX1).
+- KV1a: bekräftelsen fälls ut under raderna i inspektören, inte fast längst ner; raden längst ner säger när men inte
+  vem. Förhandsvisningen räknar på det som är sparat (TODO).
+- HB1a: hovringen säger vad slutsatsen byggde på, inte vad som ersatte den (väntar på *Ersatt av vilken tx*).
+- BU1a: Ctrl+klick sker i formulärets lista över adresser, eftersom klustret inte öppnas som kort i grafen här;
+  varningen nås genom två valda noder i grafen.
+- DM1a: jämförelsen står överst i inspektören (som skissen säger) och kopiering av den liknande lyser upp den, i
+  stället för en egen ruta vid noden; dammets linjer är oförändrade.
+- HP1a: utfällt står noderna på sina platser och *Fäll ihop* är en bricka ovanför raden.
+- TJ1b: *Som etikett …* står i inspektörens rad, eftersom `service-behaviour` är en kontroll som inte står i
+  KF2b-panelen (fråga i TODO); panelen tonas därför inte.
+- Testärendet fylls inte på än (TODO).
+
+**Tester:** Clustering 6 nya (förhandsvisningen, det som hålls tillbaka, *Låt stå*, *Släpp* och nästa körning),
+App 14 nya i `RoundFourSurfacesTests`. Ett befintligt test räknar en läsning till av klustret (Varför?).
+
+**Granskningens rättelser (4 I, 9 M):**
+- **BU1a:** ett snitt räknas som klustringen gör: uppbrytningen vägrar hela förslaget (alla adresser i det), så
+  klustret delas om tills inget mer faller bort, och allt som inte når adressen som stannar lämnar, i de plånböcker
+  det faller isär i (`PairPath.Cut`).
+- **TJ1b och etiketterna:** en etikett ur en analys av beteende sätts bara när användaren godkänner den, så den är
+  användarens egen (`LabelSources.IsUsersOwn`): den kan tas tillbaka i Historik och överallt i biblioteket och märkas
+  *Sprid inte*. Tre äldre tester som sa motsatsen är ändrade.
+- **DM1a:** inspektörens kopieringsknapp frågar också vid den liknande adressen, och dess id-ruta visas inte.
+- **KV1a:** bekräftelsen säger streckat att tx som den andra versionen aldrig analyserat syns efter nästa körning, och
+  toasten att fler kan följa. *Dra tillbaka* erbjuds när en annan version står kvar. *Ångra* på toasten säger till
+  när det redan var taget tillbaka.
+- **HB1a:** besluten kan tas tillbaka med *Ångra* (`ReopenHeldBack`, ett nytt förseglat beslut med `undoes`). Det som
+  saknades kontrolleras mot de förseglade slutsatsernas grund innan beslutet förseglas, så en ändrad arbetsrad kan
+  inte förseglas. En tx med bara fynd (till exempel CoinJoin) visas också, och ett släpp säger att fynden följer med.
+  Arbetsraden jämförs som mängd, så ordningen ensam skriver inget.
+- **ClusterChanges** räknar också länkar som börjar eller slutar slå ihop utan att förslaget ändras (efter en
+  uppbrytning). **HP1a** fäller bara bort noder vars alla linjer hör till raden.
+
+## Omgång 7: vyerna och appen (2026-11-08)
+
+Byggt ur BACKLOG och TODO (omgång 7, användarens beslut att allt i BACKLOG görs före 1.0).
+
+- **Grafens prestanda vid tusentals noder.** `SceneLayout` håller platserna, kurvorna och beloppen med ett index efter
+  plats (`GraphIndex`, celler på 256 enheter; en linje som når fler än 32 celler hålls åt sidan och prövas alltid).
+  Hovring, klick och det som syns frågar indexet i stället för alla noder och linjer. Under ett drag räknas bara det om
+  som beror på de dragna noderna: deras linjer, i hoppkolumnerna bara de linjer vars väg runt noderna tittade i en cell
+  som noden lämnar eller kommer in i (`LineRouting.Route` säger vilka celler den tittade i), och de linjernas belopp
+  mot ett rutnät som hålls kvar (`RoomGrid.Remove`). Kurvorna blir exakt desamma som när allt räknas om (test), och
+  hela layouten räknas om när draget släpps, så att beloppen hittar sin plats igen. Ytan cachar områdena per
+  platser och scen.
+  - **Mätt** med ett påhittat ärende på 3 000 aktörer och 3 427 linjer (`GraphScaleTests.MeasureLargeGraph`, i
+    molnmiljön, ms per gång, före → efter): ett steg i ett drag 19 → 0,5 på den fria ytan och 123 → 1,3 i
+    hoppkolumnerna; en hovring 2–3 → under 0,5; det som syns 2–3 → 0,1–0,3. Hela layouten när draget släpps: 20 ms
+    fritt och 100 ms i hoppkolumnerna (förut betalades det vid varje steg).
+  - **Eget beslut:** beloppen som inte tillhör de dragna linjerna står kvar under draget, också där den dragna noden
+    nu står, och flyttas först när draget släpps. **Kvar** (BACKLOG): hela layouten efter draget räknas på UI-tråden.
+- **Exponering:**
+  - **Mixerns troliga utgångar** (TODO): en godkänd kandidat (KF2b) ritas bortom tjänsten pengarna betalades till, på
+    nästa ring eller bortom den sista (`ExposureLayout.Beyond`), som en streckad nod med en prickad linje och *förslag*
+    i stället för andelen. Den räknas aldrig och går inte att välja. Kandidaterna läses ur kontrollerna
+    (`ChecksViewModel.ApprovedPayouts`), också när panelen visar annat.
+  - **Kontokedjan och länkade insättningar:** läst bakåt på Ethereum räknas den länkade insättningens del av det
+    plånboken betalade vidare som *Fortsätter på annan kedja*, som på Bitcoin, i stället för *Kom före historiken*.
+  - *Pengar i cirkel i Fått från* var redan rättat och testat (omgång 2) och är struket.
+- **Rapport:** en godkänd trolig utbetalning ur en markerad aktör är en slutsats med analysens namn och version och
+  tx:en, kandidaten med förkortad adress. Toasten efter exporten har *Visa i mappen* (`IFolderView`, Utforskaren med
+  filen vald). *Ändra i grafen* ger *‹ Rapport Esc* i grafens huvud. Utan delen *Hashkedjornas topphash* bär utkastet
+  ingen gammal kontroll, så exporten provar inte om i onödan och journalraden har ingen rad för kontrollen
+  (`ReportService`). Den spårade andelen räknas utan att tokenbelopp görs om till `decimal`.
+- **Kommentarsnoden:** lagret har en och samma transform, skuggan är delad och ritas i en bitmapp
+  (`BitmapCache`), och en lapp som skrivs i när högen eller valvyn fälls ut släpper tangentbordet. En lapp som tappar
+  musgreppet sparas där den står, och soptunnan krymper.
+- **Valvyn:** de prickade guiderna görs en gång per vy och rombens hörnmärke är delat.
+- **Vyerna:** *Visa i grafen* hittar ett kort i en hög och fäller ut högen; Exponering gör plats för Guidens panel.
+- **Sökningen:** Enter på en rad *I soptunnan* lägger tillbaka den direkt (`TrashFilter.PlaceOf`), med tipset
+  *Lägg tillbaka*.
+- **Strukna som redan byggda eller inaktuella:** Nytt → Etikett (kopplad), fältets loop (teckenfältet finns inte
+  längre), äldre ärenden före etapp 21 (schemat får ändras före 1.0).
+- **Skriver i ärendet** (för den oberoende granskningen): rapportens export utan topphashen (journalradens detaljer,
+  `ReportService.TryExport`), och Enter på en rad i soptunnan (en återläggning, samma förseglade väg som soptunnans
+  vy). Exponeringens kontokedja och de godkända kandidaterna i rapporten och ringarna ändrar bara det som visas och
+  exporteras.
+- **Lämnat** (står kvar i BACKLOG med varför): `Compose` i Begäran utanför UI-tråden (testerna och vymodellen bygger på
+  att det sker direkt), sanktionslistans import mot grafen (Attribution), testärendets nya delar (en annan omgång
+  bygger in kontrollerna i berättelsen), att återuppta förstagångsinställningen efter en låsning, och gasavgifterna i
+  plånboksläsningen.
+- **Rättat efter granskningen** (0 C, 1 I, 5 M, alla rättade):
+  - **I:** Enter på en sökrad i soptunnan lägger bara tillbaka det användaren själv slängde, under nodens egen nyckel,
+    och bara när noden då syns igen (`TrashFilter.PlaceOf`); annars öppnas soptunnan med trädet. Tester med
+    granskarens fall (klustret slängt, en adress slängd för sig och sedan sammanslagen).
+  - **M2:** en sökrad vars plats i soptunnan inte längre gäller säger det och öppnar soptunnan
+    (`GraphViewModel.PutBackFoundAsync`). **M3:** en nod som bara följde med en slängning öppnar soptunnan.
+  - **M4:** flera troliga utgångar vid kanten flyttas som en grupp i stället för att klämmas en och en.
+  - **M5:** på sidan *Fått från* heter resten *Kom från en tx som fortsatte på annan kedja*.
+  - **M6:** en tokenmängd som är för stor för `decimal` ger spåret utan värde i stället för ett undantag, och en
+    rapport som inte gick att bygga om säger det i en toast.
+
+## Grafens fart (2026-11-08)
+
+Användaren bad om så många bildrutor som möjligt i grafen. Inget provat på Windows än.
+
+- **Scenen i ett eget lager:** allt som ritas på grafens enheter (hoppkolumner, tidsband, områden, linjer, belopp,
+  bevakningar, noder och kort) ritas i en egen `DrawingVisual` över skärmen och en marginal runt den (en fjärdedel av
+  bredden och höjden åt varje håll). Panorering, glidning och zoom ändrar bara lagrets transform
+  (`GraphCanvas.MoveView`, utan ny layout), så renderingstråden får en matris i stället för hela grafen.
+  `SceneWindow` avgör när scenen ritas om: när något ändras (`Redraw`), när skärmen lämnar det ritade, och när en
+  zoom landar. Under själva zoomen skalas den färdiga ritningen.
+- **Eget lager, inte `OnRender`:** WPF släpper det förra `OnRender` ritade innan det tar emot det nya, så en ritning
+  som sparas mellan rutorna skickas ändå om i sin helhet om den ritas där. Det som står på skärmen över scenen
+  (dygnens namn, rutan, blockmärkets ruta, valvyn) ritas i ett andra lager i varje ruta, och lapparna ligger
+  överst som förut.
+- **Inget görs per ruta som kan göras en gång:** temats penslar slås upp en gång och fryses (`Ink`), ikonerna slås
+  upp en gång (`GlyphOf`), alla pennor i ritvägen är frysta och sparade (`PenOf`, `RoundPen`), texterna mäts en gång
+  (`Text`, också nodernas namn, som förut mättes om i en slinga i varje ruta), och varje linjes kurva görs en gång.
+  Textcachen rymmer 16 384 texter, så att ett stort ärende inte tömmer den varje ruta.
+- **Avsteg:** en scen ritas om med marginal, så en ändring (hovring, val) ritar lite mer än skärmen. Medan något
+  rör sig av sig självt (ringar, ett kort som vänds, timglaset, valvyn, högen) ritas utan marginal, som förut.
+- **Återstår:** prova på Windows (`docs/TESTER-INFOR-1.0.md`, *Grafens fart*). Räcker det inte är nästa steg
+  grafytan med SkiaSharp på grafikkortet (`docs/TODO.md`).
+
+### Granskningen och den eventstyrda slingan (samma dag)
+
+- **Granskningen** (inga C): lagren tar inte emot träfftester (WPF gick annars igenom hela scenen vid varje
+  musrörelse), en ändring ritas utan marginal (nästa panorering tar den), ringar och timglas håller bildrutor bara
+  när de syns på skärmen, och bevakningens vaktlinje använder den sparade kurvan.
+- **En bildruteslinga** (användarens krav: strukturerat och eventstyrt): `FramePump` samlar det som begärs
+  (`GraphChange`) och rörelserna (`GraphMotion`: glidning, zoom, sökningens glidning, rutans rullning, valvy och hög,
+  ringar, kort). Varje rörelse är ett steg som flyttar sitt läge med tiden sedan förra steget och säger vad som
+  ändrades. Den ersätter fem egna krokar på `CompositionTarget.Rendering` och två `DispatcherTimer`. Ritkoden noterar
+  bara vad som rör sig, och slingan startar och stoppar rörelserna efter att scenen ritats. Pekarens rörelser under en
+  panorering slås ihop till en per bildruta. Ett test läser källan och vaktar att ingen annan del håller bildrutor,
+  kör timrar eller anropar `InvalidateVisual`.
+- **Smått:** en kurvas gränser räknas utan att fyra punkter läggs i en lista (det görs för varje linje i varje
+  träfftest och varje scen).
+- **Återstår:** när en nod dras ritas hela scenen om i varje ruta. Nästa steg är ett eget draglager för de dragna
+  noderna och deras linjer, så att resten står still.
+
+### Draglagret och ingen förlust i kvalitet (samma dag)
+
+Användarens krav: optimeringarna får inte minska kvaliteten alls.
+
+- **Zoomen ritas exakt i varje ruta igen.** Den skalade förut den färdiga ritningen under svepet, så att ikonernas
+  linjer blev en aning tjockare eller tunnare. Ikonernas linjebredd avrundas inte längre. Bara panorering och
+  glidning flyttar den färdiga ritningen, vilket ger exakt samma bild.
+- **Scenen ligger i fyra lager i sin ritordning:** linjernas lager (hoppkolumner, tidsband, rubriker, områden,
+  lapparnas trådar, linjer, belopp och bevakningar), nodernas lager, det lösa lagret (dragna noder) och lagret över
+  noderna (kort, soptunnans varning, kandidater, områdenas brickor, guiden, högen och sökringen).
+- **Draglagret:** medan noder dras skickar vymodellen `Moved` (de noder som fått ny plats och de dragna) i stället
+  för `Redraw`. Varje ruta ritar linjernas lager, det lösa lagret och lagret över noderna igen, medan de stilla
+  noderna, den dyraste delen, behåller sin ritning. Bilden blir exakt densamma som en hel ritning. Överlappar en
+  dragen nod en nod som ritas efter den, ritas hela scenen, så att den stilla noden ligger kvar ovanpå.
+- **Fler bäckar:** opacitet 1 öppnar inget lager, en linjes opacitet ligger i penseln (samma bildpunkter för en
+  enda stråke), `Near` räknas en gång per ritning i stället för en gång per lager, och kurvor som inte ändrats
+  behåller sin instans, så att deras geometri används igen.
+
+### Musen, animationerna och lagren som kan ritas var för sig (2026-11-09)
+
+- **Musen:** varje rörelse gjorde hela träfftestet två gånger, och dessutom letades tips upp i guiden, korten,
+  blockmärkena och beloppen, upp till 1000 gånger i sekunden med en snabb mus. Nu noteras bara var pekaren är, och
+  slingan tittar en gång per bildruta, med ett enda träfftest (`HoverAt` ger träffen).
+- **Lagren ritas var för sig:** en ändring säger vilka lager den rör (`GraphChange.Lines`, `Loose`, `OverNodes`;
+  ett drag är alla tre). Ringarnas steg ritar linjerna och lagret över noderna, ett korts skimmer bara lagret över
+  noderna, och timglasets andning bara de noder som andas, som görs lösa för den. Förut ritades hela scenen om i
+  varje sådant steg. Ett kort som vänds ritar fortfarande hela scenen, eftersom noden döljs och syns igen.
+- **Ikonerna förblir vektorer:** en bitmapp blir suddig vid zoom, och att göra stråkarna till färdiga ytor ger små
+  avrundningsskillnader. Geometrin, pennorna och penslarna görs redan en gång.
+
+### Varje nod en egen visual, rutnätet och granskningen (2026-11-09)
+
+- **Som en spelmotor:** varje nod är en egen visual i nodlagret, i ritordningen. Ett drag, en hovring eller ett
+  timglas som andas ritar om bara sina noder, som behåller sin plats i ordningen. Det lösa lagret och kontrollen
+  av överlapp behövs inte längre, och bilden är exakt densamma som en hel ritning.
+- **Hovring:** vymodellen skickar `Hovered` (noden som lämnades, noden som nåddes och om linjen bytte) i stället för
+  `Redraw`. En ny nod under pekaren ritar om två noder, och en ny linje ritar om linjernas lager. Hovring på ett
+  kort ritar bara lagret över noderna, och på ett blockmärke bara överlagret.
+- **Rutnätet `GraphIndex`:** noderna och linjerna ligger i celler om 512 enheter, och vad som syns och vad som
+  ligger under pekaren slås upp bara i de celler som berörs. Svaren är exakt desamma som den linjära genomgångens,
+  i samma ordning, vilket ett test visar med 1200 slumpade prov. Långa linjer läggs åt sidan och prövas alltid.
+  Indexet görs om när scen, platser eller kurvor byts.
+- **Granskningen av draglagret** (inga C eller I): en linjes opacitet ligger åter i ett eget lager, eftersom en
+  blekt pensel kan skilja en nyans (1/255) mot förut. Zoomen ritar utan marginal, och pennornas cache rymmer 16 384,
+  så att zoomens pennor inte tömmer den.
+- **Medvetet inte gjort:** LOD (förenklad ritning vid utzoomning), strömning i rutor och bitmappsikoner, eftersom
+  de ändrar bilden. LOD kan bli ett val om användaren vill.
+- **Andra granskningen av nodernas visuals och rutnätet:** ett kort som vändes tillbaka kunde lämna sin nod
+  osynlig (C), och hovring på en linje stoppade sökringen och sonaren (I). Kortens turer avgörs nu innan noderna
+  ritas, en tur som tagit slut ritar hela scenen, och ringarna noteras per lager. Rutnätet räknar celler i `long`,
+  tål NaN och absurda koordinater, slår upp en hårsmån förbi cellgränserna och följer ett drag genom att flytta bara
+  det som flyttats.
+
+### Sammanslagning med omgång 7: grafen vid tusentals aktörer (2026-11-09)
+
+Huvudgrenen fick samtidigt modellsidan av samma arbete från en annan session: `SceneLayout` med ett eget index
+(`GraphIndex`, celler om 256 enheter) och ett drag som räknar om bara de dragna linjerna och placerar beloppen igen
+när draget slutar. Den behölls, och renderingen från denna gren ligger ovanpå: lagren, nodernas egna visuals, den
+eventstyrda slingan och cacharna. Mitt eget rutnät och diffningen av platser (`GraphMoved.Between`,
+`KeepSameCurves`) togs bort; ett drag skickar `Moved` med de dragna noderna i stället för `Redraw`.
+

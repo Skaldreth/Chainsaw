@@ -41,6 +41,9 @@ internal sealed class WatcherLoop
     /// <summary>The gate, which follows the plan's way out.</summary>
     private readonly WatcherGate _gate;
 
+    /// <summary>The login to Windows' proxy, set from the plan (sketch PX1a); none in some tests.</summary>
+    private readonly IWindowsProxy? _proxy;
+
     /// <summary>Makes the case in memory of a round.</summary>
     private readonly Func<IMemoryCase> _scratch;
 
@@ -82,10 +85,12 @@ internal sealed class WatcherLoop
     /// <param name="route">The way out.</param>
     /// <param name="gate">The gate.</param>
     /// <param name="scratch">Makes a case in memory.</param>
-    public WatcherLoop(WatcherParts parts, IExitRoute route, WatcherGate gate, Func<IMemoryCase> scratch)
+    /// <param name="proxy">The login to Windows' proxy, which follows the plan; none in some tests.</param>
+    public WatcherLoop(
+        WatcherParts parts, IExitRoute route, WatcherGate gate, Func<IMemoryCase> scratch, IWindowsProxy? proxy = null)
     {
         ArgumentNullException.ThrowIfNull(parts);
-        (_parts, _route, _gate, _scratch) = (parts, route, gate, scratch);
+        (_parts, _route, _gate, _scratch, _proxy) = (parts, route, gate, scratch, proxy);
         _progress = parts.Progress.Read().ToDictionary(each => (each.CaseId, each.WatchId));
     }
 
@@ -114,6 +119,7 @@ internal sealed class WatcherLoop
         }
 
         _gate.Route = _plan.Route;
+        FollowProxyLogin();
         _route.Choose(_plan.Route);
         if (!await ExitReadyAsync(cancellationToken).ConfigureAwait(false))
         {
@@ -216,6 +222,27 @@ internal sealed class WatcherLoop
         return status.State == ExitState.Connected && status.ExitId == wanted;
     }
 
+    /// <summary>
+    /// Follows the user's choice to log in to Windows' proxy (sketch PX1a), as Chainsaw does: the same gate, so the
+    /// account goes only to that proxy set by hand. An address that cannot be read turns the login off.
+    /// </summary>
+    private void FollowProxyLogin()
+    {
+        if (_proxy is null)
+        {
+            return;
+        }
+
+        try
+        {
+            _proxy.AllowLogin(_plan.ProxyLoginFor);
+        }
+        catch (ArgumentException)
+        {
+            _proxy.AllowLogin(null);
+        }
+    }
+
     /// <summary>Gives what to say after a round.</summary>
     /// <param name="round">The round.</param>
     /// <param name="watches">How many watches it had.</param>
@@ -273,7 +300,8 @@ internal sealed class WatcherLoop
 
         state.NextHeight = now + HeightPoll;
         var mark = scratch.Mark();
-        var height = await HeightAsync(scratch, chain, cancellationToken).ConfigureAwait(false);
+        var height = await WatchSchedule.HeightAsync(_parts.Bitcoin, _parts.Ethereum, scratch, chain, cancellationToken)
+            .ConfigureAwait(false);
         state.HeightFailed = height is null;
         if (height is not { } tip)
         {
@@ -460,28 +488,6 @@ internal sealed class WatcherLoop
                 .Select(sequence => _parts.Transfer.Read(reader, sequence))
                 .OfType<SealedResponse>()
                 .ToList());
-
-    /// <summary>Asks a chain's height through its sources.</summary>
-    /// <param name="scratch">The case in memory.</param>
-    /// <param name="chain">The chain.</param>
-    /// <param name="cancellationToken">Stops the lookup.</param>
-    /// <returns>The height, or <see langword="null"/> when it could not be had.</returns>
-    private async Task<long?> HeightAsync(ICase scratch, Chain chain, CancellationToken cancellationToken)
-    {
-        switch (chain)
-        {
-            case Chain.Bitcoin:
-                var tip = await _parts.Bitcoin.GetTipHeightAsync(scratch, LookupMode.InStep, cancellationToken)
-                    .ConfigureAwait(false);
-                return tip.Status == LookupStatus.Fetched ? tip.Value?.Height : null;
-            case Chain.Ethereum:
-                var height = await _parts.Ethereum.GetTipHeightAsync(scratch, LookupMode.InStep, cancellationToken)
-                    .ConfigureAwait(false);
-                return height.Status == LookupStatus.Fetched ? height.Value?.Height : null;
-            default:
-                return null;
-        }
-    }
 
     /// <summary>
     /// Tries the chain's endpoints when they have not been tried since the process started, or again after a while

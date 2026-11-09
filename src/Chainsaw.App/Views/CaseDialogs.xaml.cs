@@ -73,6 +73,32 @@ public partial class CaseDialogs : UserControl
         {
             FocusLater(PropertiesLayer);
         }
+        else if (e.PropertyName == nameof(CasePropertiesViewModel.IsReplacingFileKey))
+        {
+            // The fields of the file key's confirmation are emptied each time it folds out or in (VT1a).
+            RekeyMasterKey.Clear();
+            RekeyPassword.Clear();
+            RekeyRepeat.Clear();
+            if (_dialogs?.Properties.IsReplacingFileKey == true)
+            {
+                FocusLater(RekeyMasterKey);
+            }
+        }
+    }
+
+    /// <summary>Byt filnyckel: hands the confirmation's fields to the view model, which reads and clears them.</summary>
+    /// <param name="sender">The button.</param>
+    /// <param name="e">The click.</param>
+    private void OnReplaceFileKey(object sender, RoutedEventArgs e) => ReplaceFileKey();
+
+    /// <summary>Replaces the file key with what the confirmation's fields hold (VT1a).</summary>
+    private void ReplaceFileKey()
+    {
+        if (_dialogs is { } dialogs)
+        {
+            _ = dialogs.Properties.ReplaceFileKeyAsync(
+                new PasswordEntry(RekeyMasterKey), new PasswordEntry(RekeyPassword), new PasswordEntry(RekeyRepeat));
+        }
     }
 
     /// <summary>Puts the caret in the new case number when the choice of branch opens.</summary>
@@ -240,6 +266,13 @@ public partial class CaseDialogs : UserControl
             return true;
         }
 
+        if (dialogs.Properties.IsReplacingFileKey && source is PasswordBox inRekey
+            && FindAncestor<Border>(inRekey, nameof(RekeyForm)) is not null)
+        {
+            ReplaceFileKey();
+            return true;
+        }
+
         if (dialogs.Properties.IsOpen && source is PasswordBox box)
         {
             SetPasswordFrom(box);
@@ -262,6 +295,12 @@ public partial class CaseDialogs : UserControl
         if (_dialogs is not { IsAnyOpen: true } dialogs)
         {
             return false;
+        }
+
+        if (dialogs.Properties.IsReplacingFileKey)
+        {
+            dialogs.Properties.CancelReplaceFileKey();
+            return true;
         }
 
         if (dialogs.Properties.EditingCard is not null)

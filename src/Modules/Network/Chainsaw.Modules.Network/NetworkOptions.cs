@@ -58,6 +58,13 @@ public sealed class NetworkOptions
     public bool ExitsFromBackground { get; set; }
 
     /// <summary>
+    /// Gets or sets the proxy set by hand in Windows that the user let Chainsaw log in to with the Windows account, as
+    /// <c>host:port</c> (sketch PX1a), read from the application's settings; <see langword="null"/>, off, by default.
+    /// It is changed afterwards with <see cref="IWindowsProxy.AllowLogin"/>.
+    /// </summary>
+    public string? ProxyLoginFor { get; set; }
+
+    /// <summary>
     /// Gets or sets whether plain <c>http</c> is allowed. Only the tests turn it on, to talk to a proxy on the
     /// loopback address; the application only sends <c>https</c>, so the exit sees no content.
     /// </summary>

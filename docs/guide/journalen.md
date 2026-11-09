@@ -33,7 +33,7 @@ hash, och kedjan bryts just där.
 
 Databasen vägrar dessutom själv att ändra eller ta bort förseglade rader. Chainsaw sparar också kedjornas sista hashar
 **utanför ärendet**, i valvets ankare på datorn, så att en äldre kopia av filen eller en kedja som kortats av märks när
-ärendet öppnas.
+ärendet öppnas. Se [Ankaret och flera datorer](ankaret.md).
 
 ## Kontrollera: /verify
 

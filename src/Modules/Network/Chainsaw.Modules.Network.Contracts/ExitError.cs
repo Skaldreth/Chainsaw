@@ -29,4 +29,16 @@ public enum ExitError
     /// was sent.
     /// </summary>
     Offline,
+
+    /// <summary>
+    /// Windows is the way out and its proxy asked for a login (<c>407</c>) that Chainsaw does not send or that the
+    /// proxy did not accept (sketch PX1a, <see cref="IWindowsProxy"/>). The request did not reach the source.
+    /// </summary>
+    ProxyLoginRequired,
+
+    /// <summary>
+    /// The user's own node showed another certificate than the one pinned for it (sketch KL3b), so the connection was
+    /// refused before anything was sent; the node is refused until the user trusts the new certificate.
+    /// </summary>
+    CertificateChanged,
 }

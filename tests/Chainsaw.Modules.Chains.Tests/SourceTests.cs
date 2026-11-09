@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -628,6 +629,73 @@ public sealed class SourceTests : IDisposable
         var spends = await Source.GetOutputSpendsAsync(_harness.Case, Fixtures.Confirmed);
 
         Assert.Equal(LookupStatus.Offline, spends.Status);
+    }
+
+    [Fact]
+    public async Task A_height_in_the_index_without_a_sealed_answer_behind_it_does_not_make_an_answer_deep()
+    {
+        Http.AnswerBytes(Fixtures.Url("blocks/tip/height"), Encoding.ASCII.GetBytes("800002"), 200);
+        await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
+        // A key-holder writes a height into the unsealed index that no sealed answer gave.
+        _harness.Case.Write(transaction =>
+        {
+            using var command = transaction.CreateCommand(
+                "INSERT INTO chains_lookup VALUES ('bitcoin-mainnet', 'bitcoin.tip-height', 'tip', 0, 1000000000)");
+            return command.ExecuteNonQuery();
+        });
+
+        var second = await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
+
+        Assert.Equal(LookupStatus.Fetched, second.Status);
+    }
+
+    [Fact]
+    public async Task A_height_changed_in_the_index_counts_no_higher_than_the_chain_can_have_come()
+    {
+        Http.AnswerBytes(Fixtures.Url("blocks/tip/height"), Encoding.ASCII.GetBytes("800002"), 200);
+        await Source.GetTipHeightAsync(_harness.Case);
+        _harness.Case.Write(transaction =>
+        {
+            using var command = transaction.CreateCommand("UPDATE chains_lookup SET height = 1000000000");
+            return command.ExecuteNonQuery();
+        });
+        var store = new RawResponseStore(TimeZoneInfo.Utc, "bitcoin-mainnet");
+        var received = _harness.Case.Read(reader =>
+        {
+            using var command = reader.CreateCommand("SELECT received_utc FROM chains_raw_responses");
+            return DateTimeOffset.Parse((string)command.ExecuteScalar()!, CultureInfo.InvariantCulture);
+        });
+
+        var known = _harness.Case.Read(reader => store.KnownHeight(reader));
+
+        var most = ChainLimits.HighestPlausible("bitcoin-mainnet", received)!.Value;
+        Assert.InRange(known!.Value, most - 1, most);
+    }
+
+    [Fact]
+    public async Task The_known_height_reads_past_rows_that_do_not_count_and_takes_the_highest_that_does()
+    {
+        Http.AnswerBytes(Fixtures.Url("blocks/tip/height"), Encoding.ASCII.GetBytes("800002"), 200);
+        await Source.GetTipHeightAsync(_harness.Case);
+        _harness.Case.Write(transaction =>
+        {
+            // The highest row has no sealed answer behind it; the next is in the sealed tip answer.
+            using var command = transaction.CreateCommand(
+                $"""
+                INSERT INTO chains_bitcoin_seen VALUES
+                    ('bitcoin-mainnet', '{new string('a', 64)}', 999, 900000, NULL),
+                    ('bitcoin-mainnet', '{new string('b', 64)}',
+                        (SELECT MAX(sequence) FROM chains_raw_responses), 800005, NULL),
+                    ('bitcoin-mainnet', '{new string('c', 64)}',
+                        (SELECT MAX(sequence) FROM chains_raw_responses), 700000, NULL)
+                """);
+            return command.ExecuteNonQuery();
+        });
+        var store = new RawResponseStore(TimeZoneInfo.Utc, "bitcoin-mainnet");
+
+        var known = _harness.Case.Read(reader => store.KnownHeight(reader));
+
+        Assert.Equal(800005, known);
     }
 
     [Fact]

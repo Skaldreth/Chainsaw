@@ -31,9 +31,6 @@ internal sealed class MonitoringService(
     public const string TooManyAddressesText =
         "Klustret har {0} adresser; en kontroll läser de {1} första, så resten bevakas inte nu.";
 
-    /// <summary>How much earlier than its pace a watch may be checked (<see cref="WatchSchedule.Tolerance"/>).</summary>
-    public static readonly TimeSpan Tolerance = WatchSchedule.Tolerance;
-
     /// <summary>The journal line when Chainsaw's own lookup gave a hit the background said it saw.</summary>
     public const string TipConfirmedText =
         "Bevakningen av {0} slog till (bakgrundens träff, kontrollerad mot kedjan): {1}";
@@ -90,7 +87,7 @@ internal sealed class MonitoringService(
         var latest = new Dictionary<string, WatchHit>(StringComparer.Ordinal);
         foreach (var record in records)
         {
-            var key = WatchCodec.Key(record.WatchId, record.Match);
+            var key = WatchSchedule.Key(record.WatchId, record.Match);
             latest[key] = latest.TryGetValue(key, out var before) && !SameBlock(before.Match.Block, record.Match.Block)
                 ? record with { MovedFrom = before.Match.Block }
                 : record;
@@ -124,7 +121,7 @@ internal sealed class MonitoringService(
 
         return [.. result.Matches.Where(match =>
         {
-            var key = WatchCodec.Key(watch.Id, match);
+            var key = WatchSchedule.Key(watch.Id, match);
             return known.TryGetValue(key, out var block) && !SameBlock(block, match.Block)
                 && now - sealedAt[key] >= MoveDamping;
         })];
@@ -252,8 +249,16 @@ internal sealed class MonitoringService(
             throw new ArgumentException("The reason is too long.", nameof(reason));
         }
 
-        return Update(@case, id, WatchAction.Removed, why, watch => watch with { State = WatchState.Removed })
-            is not null;
+        // Its waiting tips are closed unchecked in the same write: no check of its chain may come again to close them.
+        return Update(@case, id, WatchAction.Removed, why, watch => watch with { State = WatchState.Removed },
+            (transaction, removed) =>
+            {
+                foreach (var tip in WatchStore.ReadTips(transaction)
+                    .Where(tip => tip.WatchId == removed.Id && tip.State == WatchTipState.Pending).ToList())
+                {
+                    CloseTip(transaction, tip, removed, null);
+                }
+            }) is not null;
     }
 
     /// <inheritdoc/>
@@ -263,25 +268,9 @@ internal sealed class MonitoringService(
     public async Task<long?> GetHeightAsync(ICase @case, Chain chain, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(@case);
-        if (gate.For(chain) != WatchGate.Open)
-        {
-            return null;
-        }
-
-        switch (chain)
-        {
-            case Chain.Bitcoin:
-                // Only an endpoint in step: a watch never starts or counts from a height one a block behind gave.
-                var tip = await bitcoin.GetTipHeightAsync(@case, LookupMode.InStep, cancellationToken)
-                    .ConfigureAwait(false);
-                return tip.Status == LookupStatus.Fetched ? tip.Value?.Height : null;
-            case Chain.Ethereum:
-                var height = await ethereum.GetTipHeightAsync(@case, LookupMode.InStep, cancellationToken)
-                    .ConfigureAwait(false);
-                return height.Status == LookupStatus.Fetched ? height.Value?.Height : null;
-            default:
-                return null;
-        }
+        return gate.For(chain) == WatchGate.Open
+            ? await WatchSchedule.HeightAsync(bitcoin, ethereum, @case, chain, cancellationToken).ConfigureAwait(false)
+            : null;
     }
 
     /// <inheritdoc/>
@@ -300,9 +289,9 @@ internal sealed class MonitoringService(
         var outcomes = await CheckTipsAsync(@case, chain, cancellationToken).ConfigureAwait(false);
         var hits = GetHits(@case);
         var known = hits.ToDictionary(
-            hit => WatchCodec.Key(hit.WatchId, hit.Match), hit => hit.Match.Block, StringComparer.Ordinal);
+            hit => WatchSchedule.Key(hit.WatchId, hit.Match), hit => hit.Match.Block, StringComparer.Ordinal);
         var sealedAt = hits.ToDictionary(
-            hit => WatchCodec.Key(hit.WatchId, hit.Match), hit => hit.RecordedUtc, StringComparer.Ordinal);
+            hit => WatchSchedule.Key(hit.WatchId, hit.Match), hit => hit.RecordedUtc, StringComparer.Ordinal);
         var checkedBefore = GetChecked(@case);
         var now = clock.UtcNow;
         var due = watches.Where(watch => watch.StartHeight is not null
@@ -316,7 +305,7 @@ internal sealed class MonitoringService(
                 addresses, watch.Filter, feed, start,
                 WatchSchedule.DownTo(start, checkedBefore.GetValueOrDefault(watch.Id)), cancellationToken)
                 .ConfigureAwait(false);
-            var fresh = result.Matches.Where(match => !known.ContainsKey(WatchCodec.Key(watch.Id, match))).ToList();
+            var fresh = result.Matches.Where(match => !known.ContainsKey(WatchSchedule.Key(watch.Id, match))).ToList();
 
             // A known hit found in another block: the chain was reorganised, and that is sealed and said.
             var moved = MovedHits(watch, result, known, sealedAt, now);
@@ -544,7 +533,7 @@ internal sealed class MonitoringService(
                 var started = watch with { StartHeight = height };
                 var journal = transaction.AppendJournal(new JournalDraft(
                     MonitoringJournalKinds.Started,
-                    $"Bevakningen av {watch.Subject.Name} börjar efter block {Number(height)}",
+                    $"Bevakningen av {watch.Subject.Name} börjar efter block {WatchTexts.Number(height)}",
                     JsonSerializer.Serialize(new { watch = watch.Id, start = height })));
                 WatchStore.Seal(transaction, WatchAction.Started, started with { ChangedUtc = journal.Utc }, null,
                     journal);
@@ -639,7 +628,7 @@ internal sealed class MonitoringService(
         }
 
         var moves = matches.Moved
-            .Select(match => (Match: match, Before: matches.Known[WatchCodec.Key(watch.Id, match)]))
+            .Select(match => (Match: match, Before: matches.Known[WatchSchedule.Key(watch.Id, match)]))
             .ToList();
         var journal = transaction.AppendJournal(new JournalDraft(
             MonitoringJournalKinds.HitMoved,
@@ -676,8 +665,15 @@ internal sealed class MonitoringService(
     /// <param name="action">What the change is.</param>
     /// <param name="reason">Why, for a removal.</param>
     /// <param name="change">Makes the changed watch.</param>
+    /// <param name="then">What else the change writes, in the same write, or <see langword="null"/>.</param>
     /// <returns>The changed watch, or <see langword="null"/> when there is no such watch in force.</returns>
-    private static Watch? Update(ICase @case, string id, WatchAction action, string? reason, Func<Watch, Watch> change)
+    private static Watch? Update(
+        ICase @case,
+        string id,
+        WatchAction action,
+        string? reason,
+        Func<Watch, Watch> change,
+        Action<ICaseTransaction, Watch>? then = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         return @case.Write(transaction =>
@@ -694,6 +690,7 @@ internal sealed class MonitoringService(
                 Details(watch.Id, watch.Subject, changed.Filter, reason)));
             changed = changed with { ChangedUtc = journal.Utc };
             WatchStore.Seal(transaction, action, changed, reason, journal);
+            then?.Invoke(transaction, changed);
             return changed;
         });
     }
@@ -802,9 +799,4 @@ internal sealed class MonitoringService(
             ? subject with { Name = name }
             : throw new ArgumentException("The watched node is not an address on its chain.", nameof(subject));
     }
-
-    /// <summary>Writes a block height with spaces between thousands, as the journal does.</summary>
-    /// <param name="height">The height.</param>
-    /// <returns>For example <c>921 344</c>.</returns>
-    private static string Number(long height) => WatchTexts.Number(height);
 }

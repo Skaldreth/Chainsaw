@@ -188,6 +188,11 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
   först när den första bett om väntan eller dess kö är längre än fem sekunder. I Snabbast sprids uppslagen inom den bästa
   gruppen (de som svarat rätt). Ändras om användaren vill ha spridning också i Prioriterad.
 ## Klustring och heuristiker
+- **Efter omgranskningen av omgång 4:s ytor (2026-11-09, M):** BU1a förseglar en uppbrytning i användarens namn också
+  för en adress som bara föll med när hela förslaget vägrades (förklara det i journalen och *Varför?*, eller bryt bara
+  det valda); KV1a-rutan ska vara streckad (`ClusterWhyView.xaml:164` ritar hel linje); *Ångra* efter *Släpp
+  slutsatsen* återställer inte den gamla slutsatsen om en körning hunnit emellan — säg det eller vägra; HB1a:s
+  `HeldBackMatch.Touches` är O(N·E) per bild; vyn Etiketter kopierar `FullAddress` direkt också för en liknande adress.
 - **PayJoin v2 och en plånbok som byter adresstyp** (slutgranskningen 2026-11-08, M1): en Taproot-plånbok som spenderar
   ett gammalt P2WPKH-mynt och ett P2TR-mynt, betalar till P2WPKH och lägger växeln på P2TR har samma form som BIP78 och
   ger ett förslag i stället för en sammanslagning (sonden i granskningen). Sällsynt och bara falskt negativt; lägg
@@ -284,14 +289,11 @@ tidsmönster (`active-hours`) och tjänster ur beteende (`service-behaviour`). K
 - **LIFO och poison** (etapp 7): kontraktet `ITracingMethod` tar emot fler metoder, men LIFO behöver en definition
   (inom en tx är ordningen redan FIFO:s; LIFO handlar om en adress saldo över tid), och poison ger inga belopp som går
   jämnt ut, så den behöver visas som *berört* i stället för ett belopp. Se `docs/KRYPTOSPARAREN.md`, fråga 1.
-- **Fråga om det som kan ha ändrats** (etapp 7): grafen visas bara ur ärendet (`LookupMode.CaseOnly`). Ett mynt som
-  låg kvar visas som *kan ha flyttats* tills noden expanderas igen. En knapp eller ett kommando som frågar om alla
-  sådana mynt på en gång, och bevakningen som gör det i bakgrunden, behövs.
 - **Tidsfönster för en adress historik** (etapp 7): expansionen tar de nyaste tx upp till gränsen (50 som förval).
   För en adress med lång historik behövs ett tidsfönster runt händelsen i stället.
-- **Grafens prestanda vid tusentals noder** (etapp 12): ytan ritar bara det som syns, men varje drag räknar om alla
-  kurvor och varje hovring prövar alla linjer. Ett rutnät (spatial index) och att bara räkna om linjerna till den
-  dragna noden behövs om graferna blir mycket stora.
+- **Grafens prestanda, efter omgång 7:** när en drag släpps räknas hela layouten om (cirka 100 ms i hoppkolumnerna
+  och 20 ms på den fria ytan vid 3 000 aktörer, `GraphScaleTests`), på UI-tråden. Den kunde räknas utanför UI-tråden
+  och bytas in när den är klar. Under draget står de belopp som inte tillhör de dragna linjerna kvar där de stod.
 - **Hitta fortsättningen på en annan kedja själv** (CLAUDE.md, *Cross-chain*): belopp och tid hos swap-tjänster,
   bryggornas egna händelser. I v1 knyts den för hand.
 
@@ -306,7 +308,6 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
   och beloppen cachas (`DrawCache`) och beloppens krocktest ligger i ett rutnät (`RoomGrid`), bevakade adresser och
   bevakningarnas motparter viks aldrig in i en hög, ledtrådens linje är `GraphEdgeKind.HeldBack`, och högens och
   ledtrådens nycklar följer var de senast flyttades i stället för ankarets representant. Kvar av det:
-  - Valvyns streckade guide och rombens hörnmärke byggs som ny geometri per bildruta; de kan cachas per vy.
   - En bevakad aktör i en hög är kvar som medlem i Tracings hög och ritas bara för sig. Om en sådan ska räknas i
     högens *N mottagare* i modellen (till exempel i en begäran) avgörs när det behövs.
 - **Valvyn finns bara för en Bitcoin-adress:** en tx-expansions mottagare och en Ethereum-adress hämtar fortfarande
@@ -321,13 +322,6 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
 
 ## Kommentarsnoden (KN1a, byggd 2026-11-08)
 
-- **Länkar:** `chainsaw:` till något som inte finns i grafen säger det bara; kanske ska det kunna bli en startpunkt.
-- **Kvar efter granskningen av KN1a 2026-11-08** (tråden och soptunnan står i `docs/TODO.md`): när en hög
-  eller valvy är utfälld döljs lagret med `Opacity=0` men fokus kan ligga kvar i en dold redigerare;
-  `PlaceComments` gör en ny `MatrixTransform` per omritning och `DropShadowEffect` per lapp kostar vid panorering
-  med många lappar.
-- **Fler noder med storlekshandtag** (användarens önskemål 2026-11-07): kommentarsnoden har det; vilka fler som får
-  det (samlingsnoden EX2b, egna ytor) avgörs när de skissas.
 - **En skrivning i kö när ärendet stängs:** lappen som skrivs i förseglas innan ärendet släpps, men en skrivning som
   redan står i kö (till exempel en ändring som väntar på disken) väntas inte in, eftersom den återkommer på UI-tråden.
 
@@ -430,7 +424,18 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
 - **Klartext i minnet:** API-nycklarnas hemligheter och profilen ligger som `string` medan valvet är upplåst och kan inte
   nollställas (valvets JSON skrivs nu i en fäst buffert, omgång 6). `char[]` för hemligheterna ändrar `IApiKeyStore`
   och varje källa som läser en nyckel; görs när ingen annan omgång arbetar i Chains och Attribution.
+- **Den gamla databasnyckeln i SQLite3 Multiple Ciphers minne** (granskningen av VT1a, M4): biblioteket kan ha kvar
+  kopior av en databasnyckel i anslutningens minne (chiffrets tillstånd) efter att anslutningen stängts, också efter
+  ett byte av filnyckeln. Chainsaw nollställer sina egna buffertar men når inte bibliotekets; ta reda på om
+  `sqlite3_close` nollställer chiffrets nyckelmaterial, och annars om en egen allokerare eller en process per ärende
+  behövs.
+
 ## Utgångar (Network)
+- **Efter säkerhetsgranskningen av PX1a och KL3b (2026-11-08, M):** NTLM tillåts för proxyns inloggning (Negotiate kan
+  falla tillbaka till NTLM; en förfalskad proxy kan få ett NTLMv2-svar) — överväg bara Kerberos eller säg det i
+  Inställningar; ett utgånget nålat certifikat godtas för alltid — markera det i KL3b-raden när `NotAfter` passerat;
+  nålen och flaggan *lokal* i `sources.json` saknar integritetsskydd (MAC under en nyckel i valvet); ett förseglat
+  råsvar från en nålad nod säger inte att kontrollen var en nål — ta med fingeravtrycket i härkomsten.
 - **Certifikatkedjor som saknar en mellanliggande nivå** som datorn aldrig sett: de som Windows redan har erbjuds
   (omgång 6), men inget hämtas runt utgången (AIA och spärrlistor), och `IExitHttp` tar bara https. Att hämta en
   mellannivå genom utgången över http är ett beslut för användaren (granskningen etapp 4, C).
@@ -475,14 +480,10 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
 - **Senast öppnade ärendet** föreslås som den `.cut` som sparades senast (filens tid), inte ur en egen lista, så att
   inget om ärenden sparas utanför ärendet. Ett ärende som sparats av en kopia eller synk hamnar då först.
 - **Testklasserna saknar XML-dokumentation** (M10), som i de tidigare testprojekten.
+- **Brickan *Etikett härifrån* i LN1a:** en streckad bricka vid det ärende i listan som etikettbiblioteket har en
+  etikett på länkens adress från. Kräver en fråga till biblioteket per adress och ärende; inte byggd 2026-11-08.
 
 ## Exponering (EP1b)
-
-- **Kontokedjan och länkade insättningar** (omgranskningen 2026-11-08, M): `AccountExposureRun.Ledger` tar bort en
-  länkad insättning helt, så dess del av plånbokens utbetalningar står som *Kom före historiken* eller *Inte
-  expanderat* i stället för *Fortsätter på annan kedja* (`ExposureRest.OtherChain`), som Bitcoin säger. Beloppen stämmer.
-- **Pengar i cirkel i *Fått från*** (M, fanns före): `ReadIn` skriver `_units[coin]` för varje ingång, så ett
-  startmynt som också är ingång i en tx som läses bakåt tappar sitt belopp och analysen vägras. Test saknas.
 
 - **M4 från granskningen:** Ethereums gasavgifter finns inte som poster i grafens linjer, så plånboksläsningen räknar
   dem inte; pengar som betalade gas står som kvar hos aktören.
@@ -496,34 +497,27 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
 - **En fil som inte gick att skriva klart** tas bort (M5), men det finns inget test som framkallar ett skrivfel.
 
 ## Rapport (RP1b)
-- **Godkända förslag i slutsatserna:** en godkänd trolig utgång ur en mixer (KF2b) kommer inte med som slutsats med
-  analysens namn och version; rapporten tar kluster, etiketter och spårningsmetoden.
-- **Tillbaka till rapporten från grafen:** skissen har en knapp *← Rapport Esc* i grafen när man kommit dit med
-  *Ändra i grafen*; nu tar Ctrl+8 tillbaka.
-- **Visa i mappen** i toasten efter exporten (skissen) finns inte; filen står under förhandsvisningen med sökväg och
-  SHA-256 i verktygstipset.
 - **Markeringen** är grafens val med Ctrl+klick eller en ruta, inte Shift-klick som skissen säger, eftersom Shift redan
   används i högen.
 
 ## Undermenyer i pillret (etapp 11b)
-- **Nytt → Etikett** är tonad som inte byggd (en etikett sätts sedan etapp 16 i inspektören med L); ändra
-  `SubmenuNeed` i `Navigation/SubmenuTable.cs` till `OpenCase` och koppla raden i `ShellViewModel` när vyn Etiketter
-  finns. Begäran är kopplad sedan BG1b.
-- **Startpunkt med ett ärende** lägger bara markören i kommandoraden; ett eget fält (som i Nytt ärende) kan skissas.
 - **Sanktionslistan och det öppna ärendet:** en import kontrollerar inte ärendets adresser
-  (`IAttributionService.CheckSanctions`); det görs när grafen byggs.
+  (`IAttributionService.CheckSanctions`, som i dag bara körs för startpunkterna när ärendet skapas); att köra den för
+  grafens adresser efter en import skriver i ärendet och hör till Attribution (omgång 7 lät den vara).
 
 ## Låsskärmen och förstagångsinställningen (etapp 10)
-- **Inställningarna, Utseende:** fältets scen och rörelse (skissens val; nu Drift och stilla kätting) är tonade med
-  *Inte byggt än* i ST1a.
+- **Inställningarna, Utseende:** raden *Kättingen* (*Rör sig* eller *Står still*) är tonad med *Inte byggt än* i
+  ST1a; figuren står still bara när Windows har animeringar avstängda.
 - **Låsning mitt i inställningen** avslutar den: efter upplåsning visas skalet, och utgången och första ärendet erbjuds
   inte igen. En krasch mellan valvet och profilen ger ett valv utan profil, så att ärenden inte går att skapa.
   Inställningen kunde återupptas tills den är klar (granskningen, M).
-- **Fältets loop** stannar tyst om en bildruta kastar ett fel; kunde loggas och startas om. Hela bildrutan kopieras på
-  UI-tråden varje ruta (cirka 33 MB per ruta i 4K); kunde sänka takten på stora ytor (granskningen, M).
 - **WireGuard-filens text** läses som fästa tecken som töms (`Exits/WireGuardFile`, etapp 17), men blir en `string`
   i anropet till `IExitStore.Add`, som tar en (samma sak som *Klartext i minnet*). Kräver ett kontrakt med tecken.
 - **En öppen filväljare** ligger kvar ovanpå låsskärmen om Chainsaw låses medan den är öppen; den visar bara filer.
+- **Instabilt test:** `LinkCaseTests.After_the_unlock_the_picker_folds_out_with_the_link_at_the_top` faller ungefär
+  två gånger av fem i molnmiljön (sett 2026-11-09, efter LN1a), och `Esc_throws_the_link_away` likaså: 5 av 20
+  körningar av klassen faller på huvudgrenen utan grafens ändringar. Felen är dubbla eller tomma rader i
+  `CasePickerViewModel` (`Chosen`), troligen en kapplöpning när ärendeväljarens lista fylls efter upplåsningen.
 
 ## Bevakning (etapp 26)
 - **Mycket aktiva adresser:** en kontroll läser högst fem sidor bakåt. Har en adress fler nya tx än så går kontrollen
@@ -572,8 +566,6 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
 - **Hämtad i historiken:** en adress visar *Först in* med blocket men inte när den hämtades, eftersom
   `IBitcoinSource.GetAddressTransactionsAsync` inte kan läsa ur ärendet utan att fråga källan. Ett läge bara ur ärendet
   (som för tx) skulle ge raden *Hämtad · block · källa*.
-- **Ta tillbaka en egen yta** (KF1b, Z) när ytorna finns (etapp 22): samma rad och samma formulär i historiken.
-- **Äldre ärenden** (före etapp 21) har en journalrad per uppbrytning och visar en rad per länk.
 - **Test saknas** för en omläsning av grafen medan en ångring sparas (granskningen omgång 3, M4).
 - En adressnod visar inte en klusteretikett som sitter på en annan adress i ett kluster den inte är en del av i grafen
   (granskningen omgång 1, M5).
@@ -607,27 +599,68 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
 - **Tidslinje och Flöde, efter bygget 2026-11-08:** flödet läser aktörerna som plånböcker; på Bitcoin kan det följa
   mynten som spåret i grafen gör, så att siffrorna aldrig skiljer sig. LIFO och poison läggs i metodens val när
   Tracing har dem (fråga 1 till kryptospåraren). Avgifterna kan bli en egen grå tråd *Avgift* som i skissen. Tidslinjen
-  kan gruppera banorna när grafen har hundratals aktörer, och ett klick på en bana kan välja aktören. Exponeringens
-  `MakeRoom` anropas inte när Guidens panel öppnas (Tidslinje och Flöde gör det).
+  kan gruppera banorna när grafen har hundratals aktörer, och ett klick på en bana kan välja aktören.
 - **Plånböcker, efter granskningen 2026-11-08:** en avfärdad plånbok dras inte av som en godkänd, så en ny adress i
   samma grupp föreslås aldrig (`WalletCheck.KeyOf`); ett godkänt fynd utan tx i grafen har tomt underlag (prova på
   Windows); `PreviewUndoMerges` visar inte heuristiklänkar som slutar slå ihop efter en senare uppbrytning.
 - **Soptunnan för lappar och högar, efter granskningen 2026-11-08:** en lapp som töms precis före Ctrl+W slängs inte
   (`SealBeforeClose` väntar inte på köade skrivningar); en lapp som redan slängts från ett annat fönster läser inte om
-  soptunnan; en slängd hög kommer tillbaka till hälften när ett av dess ärenden sparas igen (`ForgetRewritten`); en
-  lapp som tappar musgreppet lämnar soptunnan förstorad (`LostMouseCapture`); historiken säger *en nod utanför
-  grafen* för en nod i soptunnan; `IGraphCommentService.RemoveComment` saknar anropare.
+  soptunnan; en slängd hög kommer tillbaka till hälften när ett av dess ärenden sparas igen (`ForgetRewritten`);
+  historiken säger *en nod utanför grafen* för en nod i soptunnan; `IGraphCommentService.RemoveComment` saknar anropare.
 - **Etiketter, efter omgranskningen 2026-11-08:** skäl och anteckning följer med kopior, så en mening vid fältet
   Anteckning borde varna för att skriva offrets namn där; `HeldBack` gäller bara på den egna datorn (en kollegas
-  bibliotek kan sprida en kopia tills ursprungsärendet öppnats där); *Visa i grafen* på en sanktionsträff i en hög
-  hittar inte högen (`GraphViewModel.ShowNode`); vyn räknar *nära ett offer* på aktören, biblioteket på hela klustret.
+  bibliotek kan sprida en kopia tills ursprungsärendet öppnats där); vyn räknar *nära ett offer* på aktören, biblioteket på hela klustret.
 - **Grafens kort och markeringar, efter omgranskningen 2026-11-08:** en grund tx hämtas inte om när den endpoint
   som är i fas väntar eller fallerar, och *i fas* bygger bara på provet vid start; schemasteg 1 ändrades på plats
   (`block_hash`, `chains_not_found`), så äldre testärenden ska slängas.
-- **Rapporten, efter omgranskningen 2026-11-08:** med delen Kontroll avslagen bär utkastet en gammal kontroll, så
-  exporten provar om i onödan (sätt `Ledger = null`); provet mellan kontroll och försegling ser bara journalen; ett
-  slut som nås genom en CoinJoin utan markerad avsändare blir *Börs A → Börs A*; `(decimal)` i `ReportTrails` kan
-  kasta för mycket stora tokenbelopp.
+- **Rapporten, efter omgranskningen 2026-11-08:** provet mellan kontroll och försegling ser bara journalen; ett
+  slut som nås genom en CoinJoin utan markerad avsändare blir *Börs A → Börs A*.
 - **Ärendets kuvert, efter omgranskningen 2026-11-08:** kraschar Chainsaw mellan att grenen öppnats och att
   grenraden skrivits blir `/verify` röd för grenen (skriv raden under ett tillfälligt namn först); en ovanlig dubbel
   felväg i `OpenSettingAsideWorkingCopy` kan lämna arbetskopian i *Återställda* utan journalrad.
+
+## Kodgranskningen 2026-11-08 (mindre fynd som inte rättades)
+
+Rapporterna per varv ligger inte i repot; det som står kvar är detta.
+- **Virtualisering som kräver skiss:** kontrollpanelens tre listor (*Att avgöra*, *Gjort av sig självt*, *Beslutade*)
+  och papperskorgsvyns grupper är inte virtualiserade; ett stort ärende bygger en rad per post.
+- **Rapportens aktörsbrickor** ligger i en `WrapPanel` utan tak; en lasso över en stor graf gör en bricka per aktör
+  (förslag: tak på ungefär 50 och "+N till"). `TrashWarningViewModel.CountBelow`/`IsLast` är O(n²) på en stor kastning.
+- **Endpoint före startprovet:** ett uppslag kan gå till en endpoint som inte har provats än; en fel kedja med lägre
+  höjd (testnet4, Sepolia) fångas först när startprovet körs. Svar som redan ligger i äldre ärenden med orimliga höjder
+  räknas inte längre (varv 5) men ligger kvar.
+- **`/verify` och indexen:** indexen byggs inte om ur de förseglade svaren vid `/verify`; höjderna räknas bara med ett
+  förseglat svar bakom sig och under det kedjan kan ha nått (varv 5), men en ändrad höjd upp till den gränsen syns
+  inte.
+- **CoinJoin v2:** en CoinJoin vars alla inputs kommer från en och samma tidigare tx känns inte igen (`funding < 2`).
+- **Exponeringen på konton** tar inte med avgifterna, så FIFO och haircut kan skilja något från grafens spår.
+- **Bevakningen:** en tips vars Ethereum-svar aldrig blir komplett frågas en gång i minuten utan slut; om importen inte
+  kan läsa kön just nu kan rundans egen kontroll starta en ostartad bevakning högre än bakgrunden gjorde; planens skrivning
+  vid stängning görs på UI-tråden; `CaseHolds.IsHeld` kan krocka med `Hold` (bara en extra avisering).
+- **Ärendet:** en `schema_version` ändrad för hand ger `InvalidOperationException`, inte `Corrupt`; journalvyn kastar på
+  en post vars tid ändrats med nyckeln (`/verify` rapporterar den); efter *behåll båda* kan lösenord och kuvert ändå
+  journalföras i arbetskopian; ett lösenordskuvert utan `iterations` tas inte bort som svagt.
+- **Bakgrundsprocessens namn:** mutex och stopphändelse är `Local\Chainsaw.Watcher[.Stop]` och kan tas först av en annan
+  användares process i samma session (en privat objektnamnrymd vore rätt); samma för appens egen mutex.
+- **Länkröret** börjar lyssna först efter värdens start; en länk under en start längre än 3 s tappas tyst.
+- **Uppslag och kurser:** leverantörens Retry-After läser `UtcNow` i stället för `IClock` och visas i UTC; en 429 från
+  Bitstamp eller Riksbanken läser inte Retry-After (avkylningen täcker det); `BlockscoutApi.ReadHash` kontrollerar inte
+  blockets höjd; varje adressbyte i Windows nollställer återanslutningens väntan.
+- **Begäran:** insättningarnas belopp nämner en token bara med symbolen; rapportens del heter "Belopp i SEK" också med
+  en annan valuta; exponeringens förklaring skriver BTC i annat format än resten; en etikett som ser ut som en
+  webbadress blir en länk i en GFM-förhandsvisning av exporten; rapportens toppvakt jämför bara journalraden.
+- **Grafen:** "Uppbruten · N ut" räknar för lågt när en vald adress bara är länkad till en annan vald; animationer som
+  redan rullar stoppas först vid nästa omritning när Windows animeringar stängs av; ett kort som hämtar ritar om hela
+  grafen 60 gånger i sekunden.
+- **Bakgrundens höjder (varv 8 och 9):** när ärendet inte hade någon höjd då bevakningen gjordes golvas en
+  bakgrundsstart bara med tiden, så en förfalskad start kan ligga upp till ungefär dubbla tiden sedan bevakningen
+  gjordes under den verkliga höjden; en ovanligt snabb följd av Bitcoin-block, eller en klocka som gick fel när
+  bevakningen gjordes, kan i teorin lyfta golvet över en ärlig start; sätts alla bakgrundens poster för en bevakning
+  undan som oläsliga startar ärendets kontroll vid toppen; en förfalskad väntande post håller indikatorn för köade
+  träffar tänd tills bevakningen startas, återupptas eller tas bort; `MonitoringService.Start` läser inte om
+  starthöjden i sin skrivning; upptagna bevakningar når `MaximumPages` oftare (ärligt märkt som delvis); `LowestAt`
+  saknar ett eget test.
+- **Instabilt test i LN1a:** `LinkCaseTests.After_the_unlock_the_picker_folds_out_with_the_link_at_the_top` fallerar
+  ungefär en gång av fyra i hela sviten (också utan granskningens ändringar); troligen samma trådmönster som
+  `PileTests` och `BackgroundLinkTests` hade (rättat med `UiThread` i `Fakes.cs`).
+

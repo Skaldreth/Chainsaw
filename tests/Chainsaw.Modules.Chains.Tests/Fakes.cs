@@ -199,8 +199,27 @@ internal sealed class FakeLocalHttp(FakeClock clock) : ILocalHttp
 
     public void AnswerBytes(string url, byte[] body, int status) => _answers[url] = (status, body);
 
+    /// <summary>Gets or sets the fingerprint of the certificate the node shows; a pin must match it.</summary>
+    public string Shows { get; set; } = new('A', CertificatePin.Length);
+
+    /// <summary>Gets the addresses whose certificate was read.</summary>
+    public List<Uri> CertificatesRead { get; } = [];
+
+    public Task<NodeCertificate> ReadCertificateAsync(Uri address, CancellationToken cancellationToken = default)
+    {
+        CertificatesRead.Add(address);
+        var now = clock.UtcNow;
+        return Task.FromResult(new NodeCertificate(
+            Shows, "CN=esplora.lan", "CN=esplora.lan", now.AddDays(-1), now.AddYears(2), TrustedByWindows: false));
+    }
+
     public Task<ExitResponse> SendAsync(ExitRequest request, CancellationToken cancellationToken = default)
     {
+        if (request.CertificatePin is { } pin && pin != Shows)
+        {
+            throw new ExitException(ExitError.CertificateChanged);
+        }
+
         var host = request.Uri.IdnHost;
         var local = LocalAddresses.IsLocal(request.Uri) || host.EndsWith(".lan", StringComparison.Ordinal);
         if (!local)

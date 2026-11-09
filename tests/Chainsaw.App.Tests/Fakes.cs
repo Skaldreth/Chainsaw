@@ -12,6 +12,78 @@ using Chainsaw.SharedKernel;
 
 namespace Chainsaw.App.Tests;
 
+/// <summary>
+/// One thread that runs posted work in turn, as the WPF dispatcher does. A view model goes off the UI thread with
+/// <c>await Task.Run</c> and comes back to it; under xUnit's own context (several threads) the work coming back can run
+/// at the same time as the test and as other work, so that a test can see a view model half way through showing a
+/// scene. A test that waits for such work runs here instead.
+/// </summary>
+internal sealed class UiThread : SynchronizationContext
+{
+    /// <summary>The work posted, run in turn.</summary>
+    private readonly System.Threading.Channels.Channel<(SendOrPostCallback Work, object? State)> _queue =
+        System.Threading.Channels.Channel.CreateUnbounded<(SendOrPostCallback, object?)>(
+            new System.Threading.Channels.UnboundedChannelOptions { SingleReader = true });
+
+    /// <summary>Runs a test on its own UI thread, and the work it starts that comes back to that thread.</summary>
+    /// <param name="test">The test.</param>
+    /// <returns>A task that completes as the test does.</returns>
+    public static Task RunAsync(Func<Task> test)
+    {
+        var context = new UiThread();
+        var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var thread = new Thread(() =>
+        {
+            SetSynchronizationContext(context);
+            context.Post(async _ =>
+            {
+                try
+                {
+                    await test();
+                    done.SetResult();
+                }
+                catch (Exception exception)
+                {
+                    done.SetException(exception);
+                }
+                finally
+                {
+                    // Work still coming back after the test is dropped, as a closed window's would be.
+                    context._queue.Writer.TryComplete();
+                }
+            }, null);
+            while (context._queue.Reader.WaitToReadAsync().AsTask().GetAwaiter().GetResult())
+            {
+                while (context._queue.Reader.TryRead(out var item))
+                {
+                    item.Work(item.State);
+                }
+            }
+        })
+        {
+            IsBackground = true,
+        };
+        thread.Start();
+        return done.Task;
+    }
+
+    /// <inheritdoc/>
+    public override void Post(SendOrPostCallback d, object? state) => _queue.Writer.TryWrite((d, state));
+
+    /// <inheritdoc/>
+    public override void Send(SendOrPostCallback d, object? state) => throw new NotSupportedException();
+
+    /// <inheritdoc/>
+    public override SynchronizationContext CreateCopy() => this;
+}
+
+/// <summary>Posts work to a test's <see cref="UiThread"/>, as the window posts to the dispatcher.</summary>
+/// <param name="context">The test's UI thread.</param>
+internal sealed class PostedUi(SynchronizationContext context) : IUiThread
+{
+    public void Post(Action work) => context.Post(_ => work(), null);
+}
+
 /// <summary>Runs posted work at once, as if the test were the UI thread.</summary>
 internal sealed class InlineUi : IUiThread
 {
@@ -298,7 +370,8 @@ internal sealed class TestCase(string caseNumber) : ICase
         return null!;
     }
 
-    public IReadOnlyList<JournalEntry> ReadJournal(long fromSequence = 1, int maximumCount = int.MaxValue) => [];
+    public IReadOnlyList<JournalEntry> ReadJournal(long fromSequence = 1, int maximumCount = int.MaxValue) =>
+        [.. Entries.Where(entry => entry.Sequence >= fromSequence).Take(maximumCount)];
 
     public bool SetTitle(string title)
     {
@@ -321,6 +394,9 @@ internal sealed class TestCase(string caseNumber) : ICase
 
     /// <summary>Whether this vault has an envelope of its own; a created or opened case has.</summary>
     public bool HasOwnEnvelope { get; set; } = true;
+
+    /// <summary>Whether the opening found an interrupted replacement of the file key, as the test sets it.</summary>
+    public bool FileKeyReplacementInterrupted { get; set; }
 
     /// <summary>When set, <see cref="AddOperatorAccess"/> throws it.</summary>
     public Exception? AccessFailure { get; set; }
@@ -353,6 +429,37 @@ internal sealed class TestCase(string caseNumber) : ICase
         }
 
         return envelopes;
+    }
+
+    /// <summary>The master key the case's vault takes, as the real check against the vault would.</summary>
+    public const string MasterKey = "rätt huvudnyckel, lång nog";
+
+    /// <summary>The sealed lines the journal reads back, for those a test needs; others read none.</summary>
+    public List<JournalEntry> Entries { get; } = [];
+
+    /// <summary>
+    /// Replaces the file key as Cases does as far as the window sees it: the master key is checked, every envelope but
+    /// this vault's and the built-in recovery key's falls away, and the line is journalled.
+    /// </summary>
+    public FileKeyReplacement ReplaceFileKey(ReadOnlySpan<char> masterKey, ReadOnlySpan<char> sharingPassword)
+    {
+        if (!masterKey.SequenceEqual(MasterKey))
+        {
+            throw new CaseException(CaseError.WrongMasterKey);
+        }
+
+        var dropped = DescribeEnvelopes().Where(envelope => !FileKeyReplacement.Keeps(envelope))
+            .Select(envelope => envelope.Name ?? envelope.Kind.ToString()).ToList();
+        OtherEnvelopes.RemoveAll(envelope => !FileKeyReplacement.Keeps(envelope));
+        SharingPassword = sharingPassword.IsEmpty ? null : sharingPassword.ToString();
+        var details = System.Text.Json.JsonSerializer.Serialize(
+            new FileKeyReplacementDetails(dropped, [], !sharingPassword.IsEmpty));
+        var entry = new JournalEntry(
+            Entries.Count + 1, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, "UTC",
+            new("Testa Testsson", string.Empty, string.Empty), CaseJournalKinds.FileKeyReplaced, "Filnyckeln byttes",
+            details, string.Empty);
+        Entries.Add(entry);
+        return FileKeyReplacement.FromJournal(entry)!;
     }
 
     /// <summary>Gets or sets what <see cref="Save"/> throws, as when the case file cannot be written.</summary>
@@ -765,7 +872,7 @@ internal sealed class TestVerifier : ICaseVerifier
 /// <summary>Everything a window needs, wired as the program wires it, with test doubles for the modules.</summary>
 internal sealed class GateRig
 {
-    public GateRig(VaultState state)
+    public GateRig(VaultState state, bool withCasePicker = false)
     {
         Vault = new TestVault(state);
         AutoLock = new AutoLock(Clock, TimeSpan.FromMinutes(15));
@@ -787,15 +894,22 @@ internal sealed class GateRig
         Settings = new SettingsViewModel(
             new AppSettings(), SettingsStore, Way, ExitPanel, AutoLock, Prices, Profiles, Vault, Cases, Build);
         Toaster = new Toaster(Ui);
+        CasePicker = withCasePicker
+            ? new CasePickerViewModel(Session, Workflow, Verifier, Ui, Clock, TimeZoneInfo.Utc)
+            : null;
         Shell = new ShellViewModel(
-            Session, Commands, NewCase, Workflow, Way, Exits, Sanctions, ExitPanel, Settings, Ui, toaster: Toaster);
-        Links = new LinkInbox(Shell);
+            Session, Commands, NewCase, Workflow, Way, Exits, Sanctions, ExitPanel, Settings, Ui, toaster: Toaster,
+            casePicker: CasePicker);
+        Links = new LinkInbox(Shell, Clock);
         LockScreen = new LockViewModel(Vault, Way, AutoLock, Build);
         FirstRun = new FirstRunViewModel(Vault, Profiles, Exits, Workflow, Way, Settings, Exit);
         Gate = new GateViewModel(Vault, LockScreen, FirstRun, Shell, Session, AutoLock, Links, LockSignal, Ui);
     }
 
     public InlineUi Ui { get; } = new();
+
+    /// <summary>The case picker (sketch ÄV1a), when the rig was asked for one.</summary>
+    public CasePickerViewModel? CasePicker { get; }
 
     /// <summary>The toaster, which says an answer that comes while the command bar is hidden.</summary>
     public Toaster Toaster { get; }

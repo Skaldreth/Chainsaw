@@ -125,8 +125,6 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
             path,
             body => Page(address, after, _parser.ParseAddressTransactions(body, address)),
             page => IndexOf(page.Transactions),
-            reader => SourceLookups.StoredAs(_store.Latest(reader, ResponseKinds.AddressTransactions, subject),
-                body => Page(address, after, _parser.ParseAddressTransactions(body, address))),
             page => after is null || page.Transactions.Count == 0 ? null : Shallowest(page.Transactions));
         return _lookups.LookupAsync(@case, query, mode, cancellationToken);
     }
@@ -143,9 +141,9 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
             $"tx/{txid.Value}",
             body => _parser.ParseTransaction(body, txid),
             transaction => IndexOf([transaction]),
-            reader => StoredTransaction(reader, txid),
             transaction => transaction.Block?.Height,
-            Changed: BlockChange);
+            Changed: BlockChange,
+            FindStored: reader => StoredTransaction(reader, txid));
         var lookup = await _lookups.LookupAsync(@case, query, mode, cancellationToken).ConfigureAwait(false);
         if (lookup.Value is null)
         {
@@ -254,7 +252,6 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
             $"block-height/{height}",
             body => EsploraParser.ParseTipHash(body).Value,
             _ => new ResponseIndex([], block.Height),
-            _ => null,
             _ => null);
         var other = await _lookups.FetchAsync(
                 @case, query, null, cancellationToken, inStep: true, except: answeredBy ?? Guid.Empty)
@@ -321,8 +318,6 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
             $"address/{Uri.EscapeDataString(address.Value)}",
             body => EsploraParser.ParseAddressSummary(body, address),
             _ => ResponseIndex.None,
-            reader => SourceLookups.StoredAs(_store.Latest(reader, ResponseKinds.AddressSummary, address.Value),
-                body => EsploraParser.ParseAddressSummary(body, address)),
             _ => null);
         return _lookups.LookupAsync(@case, query, LookupMode.AsNeeded, cancellationToken);
     }
@@ -353,7 +348,6 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
             $"tx/{txid.Value}/outspends",
             Parse,
             _ => ResponseIndex.None,
-            reader => SourceLookups.StoredAs(_store.Latest(reader, ResponseKinds.OutputSpends, txid.Value), Parse),
             spends => SettledAt(spends, transaction),
             Changed: SpendChange);
         return await _lookups.LookupAsync(@case, query, mode, cancellationToken).ConfigureAwait(false);
@@ -372,8 +366,6 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
             body => EsploraParser.ParseBlock(body, hash),
             // A block at a height says that the chain has come at least that far, as the chain's height does.
             block => new ResponseIndex([], block.Height),
-            reader => SourceLookups.StoredAs(_store.Latest(reader, ResponseKinds.Block, hash.Value),
-                body => EsploraParser.ParseBlock(body, hash)),
             block => block.Height,
             NeverChanges: true);
         var lookup = await _lookups.LookupAsync(@case, query, LookupMode.AsNeeded, cancellationToken)
@@ -385,8 +377,7 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
 
         var header = await _lookups.LookupAsync(@case, HeaderQuery(hash), LookupMode.AsNeeded, cancellationToken)
             .ConfigureAwait(false);
-        var origins = lookup.Origins.Concat(header.Origins).DistinctBy(origin => origin.Sequence)
-            .OrderBy(origin => origin.Sequence).ToList();
+        var origins = SourceLookups.Ordered(lookup.Origins.Concat(header.Origins));
         if (header.Value is null)
         {
             var note = $"Blockets huvud kunde inte hämtas, så blocket är inte kontrollerat mot det. {header.Problem}";
@@ -444,7 +435,7 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
             origins.AddRange(tip.Origins);
             if (tip.Value is not { } hash)
             {
-                return new BitcoinLookup<ChainTip>(tip.Status, null, Ordered(origins), tip.Problem);
+                return new BitcoinLookup<ChainTip>(tip.Status, null, SourceLookups.Ordered(origins), tip.Problem);
             }
 
             var block = await GetBlockAsync(@case, hash, cancellationToken).ConfigureAwait(false);
@@ -452,8 +443,8 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
             if (block.Value is { } newest)
             {
                 return new BitcoinLookup<ChainTip>(
-                    tip.Status, new ChainTip(newest.Height, newest.Hash.Value, newest.Time), Ordered(origins),
-                    tip.Problem)
+                    tip.Status, new ChainTip(newest.Height, newest.Hash.Value, newest.Time),
+                    SourceLookups.Ordered(origins), tip.Problem)
                 {
                     Notes = [.. tip.Notes, .. block.Notes],
                 };
@@ -463,7 +454,7 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
             failed = new BitcoinLookup<ChainTip>(LookupStatus.Failed, null, [], problem);
         }
 
-        return failed! with { Origins = Ordered(origins) };
+        return failed! with { Origins = SourceLookups.Ordered(origins) };
     }
 
     /// <inheritdoc/>
@@ -516,7 +507,7 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
         return new BitcoinLookup<ChainTip>(
             LookupStatus.FromCaseMayBeOutdated,
             new ChainTip(newest.Value.Height, newest.Value.Hash.Value, newest.Value.Time),
-            Ordered([tip.Response.Origin, newest.Response.Origin]),
+            SourceLookups.Ordered([tip.Response.Origin, newest.Response.Origin]),
             $"Det nyaste blocket i ärendet, hämtat {fetched}; kedjan kan ha vuxit sedan.");
     }
 
@@ -571,12 +562,6 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
         return sightings;
     }
 
-    /// <summary>Gives sealed responses once each, in the order they were sealed.</summary>
-    /// <param name="origins">The responses.</param>
-    /// <returns>The responses.</returns>
-    private static List<ResponseOrigin> Ordered(IEnumerable<ResponseOrigin> origins) =>
-        [.. origins.DistinctBy(origin => origin.Sequence).OrderBy(origin => origin.Sequence)];
-
     /// <summary>The lookup of the newest block's hash, which always changes.</summary>
     /// <returns>The query.</returns>
     private LookupQuery<BlockHash> TipHashQuery() => new(
@@ -585,8 +570,6 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
         "blocks/tip/hash",
         body => EsploraParser.ParseTipHash(body),
         _ => ResponseIndex.None,
-        reader => SourceLookups.StoredAs(_store.Latest(reader, ResponseKinds.TipHash, string.Empty),
-            body => EsploraParser.ParseTipHash(body)),
         _ => null);
 
     /// <summary>The lookup of a transaction's own bytes, which never change in the parts its txid commits to.</summary>
@@ -598,8 +581,6 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
         $"tx/{txid.Value}/hex",
         body => RawTransactionReader.ParseHex(body, txid),
         _ => ResponseIndex.None,
-        reader => SourceLookups.StoredAs(_store.Latest(reader, ResponseKinds.TransactionHex, txid.Value),
-            body => RawTransactionReader.ParseHex(body, txid)),
         _ => null,
         NeverChanges: true);
 
@@ -614,8 +595,6 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
         $"tx/{txid.Value}/merkle-proof",
         body => MerkleProof.Parse(body),
         proof => new ResponseIndex([], proof.Height),
-        reader => SourceLookups.StoredAs(_store.Latest(reader, ResponseKinds.MerkleProof, txid.Value),
-            body => MerkleProof.Parse(body)),
         proof => proof.Height);
 
     /// <summary>The lookup of a block's header, which never changes.</summary>
@@ -627,8 +606,6 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
         $"block/{hash.Value}/header",
         body => BlockHeaderReader.ParseHex(body, hash, WorkLimit),
         _ => ResponseIndex.None,
-        reader => SourceLookups.StoredAs(_store.Latest(reader, ResponseKinds.BlockHeader, hash.Value),
-            body => BlockHeaderReader.ParseHex(body, hash, WorkLimit)),
         _ => null,
         NeverChanges: true);
 
@@ -642,8 +619,7 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
     private static BitcoinLookup<BitcoinTransaction> CheckedAgainst(
         BitcoinLookup<BitcoinTransaction> lookup, BitcoinLookup<RawTransaction> bytes)
     {
-        var origins = lookup.Origins.Concat(bytes.Origins).DistinctBy(origin => origin.Sequence)
-            .OrderBy(origin => origin.Sequence).ToList();
+        var origins = SourceLookups.Ordered(lookup.Origins.Concat(bytes.Origins));
         return RawTransactionReader.Compare(lookup.Value!, bytes.Value!) is null
             ? lookup with { Value = lookup.Value! with { BytesVerified = true }, Origins = origins }
             : new BitcoinLookup<BitcoinTransaction>(LookupStatus.Failed, null, origins,
@@ -725,8 +701,6 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
         "blocks/tip/height",
         body => EsploraParser.ParseTipHeight(body),
         tip => new ResponseIndex([], tip.Height),
-        reader => SourceLookups.StoredAs(_store.Latest(reader, ResponseKinds.TipHeight, string.Empty),
-            body => EsploraParser.ParseTipHeight(body)),
         _ => null);
 
     /// <summary>
