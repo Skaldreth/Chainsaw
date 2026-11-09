@@ -107,6 +107,20 @@ internal sealed class MixerOutputsCheck : ICheckAnalysis
     public static double TypeScore(MixerDeposit deposit, BitcoinAddress address) =>
         address.Type == deposit.Type ? 1 : OtherTypeScore;
 
+    /// <summary>
+    /// Weighs a fee's, a time's and an address type's scores into a candidate's score, rounded to two decimals: the
+    /// amount half, the time three tenths and the type a fifth.
+    /// </summary>
+    /// <param name="feeScore">The fee's score (<see cref="FeeScore"/>).</param>
+    /// <param name="timeScore">The time's score (<see cref="TimeScore"/>).</param>
+    /// <param name="typeScore">The address type's score (<see cref="TypeScore"/>).</param>
+    /// <returns>The score, from 0 to 1.</returns>
+    public static double ScoreOf(double feeScore, double timeScore, double typeScore) =>
+        Math.Round(
+            (AmountWeight * feeScore) + (TimeWeight * timeScore) + (TypeWeight * typeScore),
+            2,
+            MidpointRounding.AwayFromZero);
+
     /// <summary>Writes whether a payout's address type is the depositor's, for a candidate's reason.</summary>
     /// <param name="deposit">The deposit.</param>
     /// <param name="address">The payout's address.</param>
@@ -195,11 +209,7 @@ internal sealed class MixerOutputsCheck : ICheckAnalysis
             return null;
         }
 
-        var score = Math.Round(
-            (AmountWeight * feeScore) + (TimeWeight * timeScore)
-                + (TypeWeight * TypeScore(deposit, payout.Address)),
-            2,
-            MidpointRounding.AwayFromZero);
+        var score = ScoreOf(feeScore, timeScore, TypeScore(deposit, payout.Address));
         if (score < LowestScore)
         {
             return null;

@@ -138,6 +138,30 @@ public sealed record SuggestionWords(
         "ADRESS",
         "TID");
 
+    /// <summary>The words of a likely mixer without a label (<c>mixer-behaviour</c>).</summary>
+    public static SuggestionWords MixerBehaviour { get; } = new(
+        [
+            new("Icon.Kind.Mixer", "Många in, många ut", "Insättningar från många avsändare och utbetalningar till "
+                + "många mottagare"),
+            new("Icon.Amounts", "Belopp − avgift", "De flesta insättningarna kommer ut igen minus 0,5–5 procent"),
+            new("Icon.Split", "Andra mynt", "Utbetalningen görs med andra mynt än insättningens egna"),
+        ],
+        "Insättningen",
+        "ADRESS",
+        "TID");
+
+    /// <summary>The words of a likely nested service (<c>nested-service</c>).</summary>
+    public static SuggestionWords NestedService { get; } = new(
+        [
+            new("Icon.Kind.Bank", "Konto hos en börs", "Betalar in till börsen och får uttag tillbaka, flera gånger"),
+            new("Icon.Amounts", "Genom kontot", "Minst hälften av kundernas pengar går vidare till börsen, och minst "
+                + "hälften av utbetalningarna kommer därifrån"),
+            new("Icon.Check", "Din bedömning", "Godkänner du står det som din bedömning, aldrig ett faktum"),
+        ],
+        "Tjänsten",
+        "ADRESS",
+        "TID");
+
     /// <summary>Gives an analysis's words.</summary>
     /// <param name="analysis">The analysis's name.</param>
     /// <returns>Its words, or <see cref="Plain"/>.</returns>
@@ -146,6 +170,8 @@ public sealed record SuggestionWords(
         "mixer-outputs" => MixerOutputs,
         "mixer-parts" => MixerParts,
         "mixer-chain" => MixerChain,
+        "mixer-behaviour" => MixerBehaviour,
+        "nested-service" => NestedService,
         CheckAnalysisNames.Wallets => Wallets,
         CheckAnalysisNames.CrossChain => CrossChain,
         _ => Plain,

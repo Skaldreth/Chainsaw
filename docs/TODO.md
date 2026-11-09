@@ -149,6 +149,12 @@ byggt ur BACKLOG; det som skriver i ärendet granskas oberoende.
    BACKLOG med en notering om beslutet det väntar på, och ytorna nedan.
 4. **Klustring, förvirring och kontroller:** tjänster ur beteende, fler tecken för växeln, CoinJoin och peel chain,
    centrala mixers, damm och adressförgiftning, jämna belopp och tidsmönster, och fynden under *Kontroller*.
+   Omgång 5 (2026-11-09, DEV-LOG) byggde trolig mixer, mixer efter mixer med grenar, uppdelning över flera tx, hopp
+   med avgift, tidsmönstret i svensk tid och nästlade tjänster. Kvar:
+   - **Testärendet** [direkt]: `/testdata` visar inte omgång 5:s mönster (en central mixer utan etikett, grenar, en
+     uppdelning över flera tx, hopp med avgift, en nästlad tjänst hos en börs).
+   - **Jämna belopp i fiat** [etapp]: kräver ett synkront kontrakt för ärendets kurser i `Pricing.Contracts` (BACKLOG,
+     *Förvirringstekniker*).
 5. **Attribution och kurser:** EU:s sanktionslista, öppna källor (efter licens), etiketter på tx, och fynden under
    *Attribution* och *Kurser*.
 6. **Säkerhet, ärenden och utgångar:** byggt 2026-11-08 (DEV-LOG, *Omgång 6*). Kvar, som behöver ritas först:

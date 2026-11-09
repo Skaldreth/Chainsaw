@@ -32,8 +32,11 @@ En [peel chain](peel-chain.md) är ett närliggande mönster, där en liten del 
 
 ## Kontrollen Många hopp
 
-Kontrollen `pass-through v1` känner igen **minst tre hopp i rad** där varje tx tar ett mynt och skickar nästan allt
-(högst två procent bort, avgiften) vidare till en ny adress. Den lägger ett område runt hoppen och säger hur länge
+Kontrollen `pass-through v2` känner igen **minst tre hopp i rad** där varje tx tar ett mynt och skickar nästan allt
+(högst två procent bort, avgiften) vidare till en ny adress. Ett hopp får också betala en **liten avgift till en
+tjänst** (högst tre procent), som en tjänst för många hopp tar för varje hopp: till en tjänst med etikett, eller till
+samma avgiftsadress i flera hopp. En peel chain, som betalar små belopp till olika mottagare, räknas inte. Mynt under
+10 000 satoshi är damm och räknas inte som hopp. Den lägger ett område runt hoppen och säger hur länge
 pengarna var på väg. Låg de still **minst tre dygn** mellan två hopp säger titeln *med fördröjning*, och *Varför?* säger
 det längsta uppehållet.
 

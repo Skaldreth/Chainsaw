@@ -16,6 +16,7 @@ namespace Chainsaw.App.Graph;
 /// <param name="Beads">Each hop's place on the line after its time, from 0 to 1.</param>
 /// <param name="Text">The pill's words, for example <c>7 hopp · 3 d 4 h</c>.</param>
 /// <param name="Lines">The hops as hovering lists them: each address, how long it waited and when it went on.</param>
+/// <param name="Analysis">The analysis and version that found the row, for example <c>pass-through v2</c>.</param>
 public sealed record HopRow(
     string Key,
     string First,
@@ -23,7 +24,8 @@ public sealed record HopRow(
     IReadOnlyList<string> Between,
     IReadOnlyList<double> Beads,
     string Text,
-    IReadOnlyList<string> Lines);
+    IReadOnlyList<string> Lines,
+    string Analysis);
 
 /// <summary>
 /// A likely address poisoning in the graph (sketch DM1a): the address that looks like a genuine one, and the genuine
@@ -36,7 +38,7 @@ public sealed record Poisoning(BitcoinAddress Suspect, BitcoinAddress Genuine, s
 
 /// <summary>
 /// Works out the obfuscation the graph tones down or folds (sketches DM1a and HP1a) from the stored checks
-/// <c>dust v1</c> and <c>pass-through v1</c>. Pure, so that it is tested without WPF.
+/// <c>dust</c> and <c>pass-through</c>. Pure, so that it is tested without WPF.
 /// </summary>
 public static class ObfuscationMarks
 {
@@ -159,7 +161,7 @@ public static class ObfuscationMarks
             var hops = check.Finding.Basis;
             rows.Add(new HopRow(
                 check.Finding.Key, nodes[0], nodes[^1], between, Beads(hops), TextOf(hops),
-                LinesOf(check.Finding.Addresses, hops)));
+                LinesOf(check.Finding.Addresses, hops), check.Analysis.ToString()));
         }
 
         return rows;

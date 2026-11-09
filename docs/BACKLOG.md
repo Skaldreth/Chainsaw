@@ -323,32 +323,42 @@ Allt som används för att förvirra spårningen ska kännas igen och analyseras
 förslag som möjligt (CLAUDE.md, *Förvirring analyseras*). Byggt 2026-11-08 (omgång 4): mixade mynt som slås ihop
 igen (`coinjoin-merge`), peel chain till börs (`peel-chain-area v2`), uppdelning och ihopslagning (`split-merge`),
 många hopp och fördröjning (`pass-through`), damm och adressförgiftning (`dust`), möjlig PayJoin (`payjoin-hint`),
-tidsmönster (`active-hours`) och tjänster ur beteende (`service-behaviour`). Kvar av katalogen:
+tidsmönster (`active-hours`) och tjänster ur beteende (`service-behaviour`). Byggt 2026-11-09 (omgång 5): trolig
+mixer ur beteende (`mixer-behaviour v1`), mixer efter mixer genom en trolig mixer, med delar tillsammans och grenar
+(`mixer-chain v2`), uppdelning över flera tx och möten efter många mellanled (`split-merge v2`), hopp med avgift till
+en tjänst (`pass-through v2`), tidsmönster i svensk tid för mottagare och avsändare med korrektion
+(`active-hours v2`) och nästlade tjänster (`nested-service v1`). Kvar av katalogen:
 - **Centrala mixers:** kända adresser och mönster per mixer, och kända avgifter per mixer så att troliga utgångar kan
   räknas ur belopp minus mixerns egen avgift. Kräver en källa för avgifterna (inga påhittade siffror); fråga 8 till
-  kryptospåraren. Också: känna igen en trolig mixer ur beteende (många insättningar från olika avsändare, utbetalningar
-  i andra belopp).
-- **Mixer efter mixer** (byggt 2026-11-08 som `mixer-chain v1`). Återstår: en mixer utan etikett mitt i kedjan syns
-  inte (förslag: känna igen en trolig mixer ur beteende); när flera delar går in i nästa mixer tillsammans följs bara
-  en av dem, och stegets belopp är den delen; kedjan grenar sig inte när två utgångar går till olika mixers.
+  kryptospåraren.
 - **Tornado Cash och andra zk-mixers:** under *Kedjor och data*.
-- **Nästlade tjänster** (en tjänst som har konto hos en börs): beteende som insättningar och uttag i mönster.
 - **Privacy coins och skyddade pooler** (Monero, Zcash, Litecoin MWEB): slut på spåret; förslag på uttag ur poolen ur
   belopp och tid.
 - **Jämna belopp i fiat:** ett belopp som är jämnt i SEK, EUR eller USD vid tx:ens tid som stöd för växeln och för vem
-  som står bakom. Kräver att kontrollerna får kurserna ur ärendet (Pricing är asynkront och Checks synkront).
-- **Uppdelning, kvar:** en uppdelning där delarna skickas i flera tx i stället för en, och delar som möts efter fler än
-  tre mellanled, syns inte. *Följa summan* är en mening i *Varför?*, inget förslag med en knapp.
-- **Många hopp, kvar:** bara hopp med en input och en output räknas; ett hopp som också betalar en liten avgift till
-  en tjänst syns inte.
-- **Tidsmönster, kvar:** bara ägare som spenderar räknas (inte de som tar emot), och mönstret läses i UTC utan hänsyn
-  till sommartid. Testet görs per ägare utan korrektion för att många ägare prövas samtidigt (granskningen omgång 4,
-  M): med hundra ägare kan någon få ett mönster av slumpen; en korrektion (till exempel Bonferroni eller en falsk
-  upptäcktsgrad) behövs.
+  som står bakom. Inte byggt i omgång 5: kontrollerna körs synkront vid varje läsning av grafen, och kurserna ur
+  ärendet nås bara genom `IPriceService.GetPriceAsync`, en tidpunkt i taget. Att fråga per tx i varje körning (som
+  `cross-chain` gör för sina få betalningar, synkront över asynkront) är varken rent eller snabbt. Det rena sättet är
+  ett synkront kontrakt i `Pricing.Contracts` som läser de kurser ärendet redan har för många tidpunkter i en fråga,
+  och som `CheckService` lägger i `CheckInput`. Dessutom skiljer börsens kurs vid köpet sig från Bitstamps vid blocket
+  med upp till några procent, så toleransen gör ett "jämnt" belopp till ett svagt tecken; fråga kryptospåraren.
+- **Uppdelning, kvar:** *Följa summan* är en mening i *Varför?*, inget förslag med en knapp.
 - **Tjänst ur beteende, kvar** (granskningen omgång 4, M): en bedragare med tio eller fler offer som inte är märkta
   (varken startpunkt eller etikett) och betalningar över mer än ett dygn ser fortfarande ut som en tjänst. Fler
   tecken behövs, till exempel insättningsadresser som bara används en gång, utbetalningar i batch från samma hot
   wallet, eller att avsändarna själva är vanliga plånböcker.
+- **Efter omgång 5 (2026-11-09, egna fynd):**
+  - En trolig mixer utan etikett får inga egna förslag (`mixer-outputs`, `mixer-parts`): kedjan går genom den
+    utbetalning som bäst liknar insättningen, och användaren sätter etiketten Mixer för att få förslagen. En kedja kan
+    inte heller börja i en trolig mixer, bara passera den.
+  - `mixer-behaviour` matchar bara en utbetalning per insättning, inte delar; en mixer som alltid betalar ut i delar
+    känns inte igen.
+  - `mixer-chain` på en tät slumpgraf med en mixer med etikett (40 adresser, 1 500 tx) ger ett nittiotal kedjor genom
+    troliga utgångar, eftersom `mixer-outputs` väger varje utbetalning i fönstret; så var det också i v1. Grenar,
+    delar tillsammans och troliga mixrar ger inga fynd där.
+  - `nested-service` kräver en börs med etikett och att minst hälften av pengarna går genom kontot åt båda hållen; en
+    tjänst som bara delvis använder börsen syns inte.
+  - Tidsmönstret läses i svensk tid för alla; en inställning för användarens tidszon finns inte. Korrektionen gör att
+    ett mönster kan försvinna när fler ägare kommer in i ärendet.
 
 ## Kontroller, förslag och områden (etapp 22)
 - **Mixerns kandidater ur kedjan:** `mixer-outputs v1` prövar bara det som finns i grafen. Att söka igenom blocken i

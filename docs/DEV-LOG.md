@@ -5539,3 +5539,57 @@ i KF2b-panelen, och ett godkännande som knyter fortsättningen i samma transakt
 - Testärendet har redan en godkänd plånbok (`DecideStep`), så inget nytt steg behövdes.
 
 **Kvar:** provet på Windows (TESTER-INFOR, *Godkänna en plånbok*).
+
+## Förvirring, omgång 5: Checks och resterna i BACKLOG (2026-11-09)
+
+**Byggt** (modulen Checks, analyser utan nya ytor):
+- **`mixer-behaviour v1`** (*Trolig mixer*, ny, `LikelyMixers.cs` och `MixerBehaviourCheck.cs`): en ägare utan
+  etikett som tar emot från minst åtta avsändare, betalar minst åtta mottagare, och där minst fem insättningar (och
+  två av tre) kommer ut igen inom en vecka till någon som inte satte in, som insättningen minus 0,5–5 %, betalda med
+  andra mynt än insättningens egna. En kontroll med ett rött område; *Varför?* säger att sätta etiketten Mixer.
+- **`mixer-chain v2`**: följer *alla* godkända utgångar som går vidare, annars den troligaste, och är den en del, alla
+  delar i kombinationen som går vidare. Delar som spenderas i samma tx är ett steg med summan (*följs tillsammans*);
+  utgångar in i olika mixrar grenar kedjan (*kedjan delar sig i N vägar*, *Steg 3 (efter steg 1)*, titeln *, N
+  grenar*). En trolig mixer utan etikett passeras genom den utbetalning som bäst liknar insättningen minus avgiften.
+  Högst tio steg över alla grenar. Stegets avgift för flera hela utgångar är insättningen minus deras summa.
+- **`split-merge v2`**: uppdelning över flera tx (samma ägare, minst fem mottagare, lika delar, minst två tx inom ett
+  dygn, och delarna minst hälften av det ägaren betalade under tiden; en tjänst med etikett räknas inte), och delar som
+  möts efter upp till tolv mellanled (förut tre).
+- **`pass-through v2`**: ett hopp får betala en liten avgift (högst 3 %) till en tjänst med etikett eller till samma
+  avgiftsadress i minst två hopp; en peel chain till olika mottagare räknas inte. Mynt under 10 000 satoshi är inga hopp.
+  HP1a:s tips säger nu analysens version ur kontrollen (`HopRow.Analysis`) i stället för en fast `v1`.
+- **`active-hours v2`**: serierna för den som spenderar och den som tar emot prövas var för sig; timmarna läses i
+  svensk tid (Europe/Stockholm, med sommartid); chansen räknas exakt (fördelningen av antalet upptagna timmar och
+  antalet uppsättningar utan lång tystnad) i stället för med 2 000 slumpdragningar; och serierna behålls med
+  Benjamini–Hochberg vid högst 1 % falska fynd över alla serier som prövas.
+- **`nested-service v1`** (*Nästlad tjänst*, ny): en ägare utan etikett med minst åtta avsändare och åtta mottagare
+  över minst ett dygn, som minst två gånger betalar in till en börs med etikett och två gånger får uttag tillbaka, och
+  där minst hälften av kundernas pengar går till börsen och minst hälften av utbetalningarna kommer därifrån. Ett
+  **förslag** (streckat, blått område, inga kandidater) som användaren godkänner eller avfärdar.
+- Appen: `AreaLooks` (mixerns ikon för `mixer-behaviour`), Guidens ämne `NestedServices`, `TopicOf` och brickorna i
+  KF2b (`SuggestionWords.MixerBehaviour` och `NestedService`). Guiden: *Mixer efter mixer*, *Uppdelning*,
+  *Fördröjning och hopp*, *Tidsmönster* och *Nästlade tjänster*.
+- Tester: `RoundFiveChecksTests` (25) med facit `Behaviour.cs`: vad varje analys hittar och låter bli (börsen,
+  plånboken med få avsändare, mixern som betalar med insättningens mynt, peel chain, betalningar i olika belopp eller
+  över dagar, kunden hos börsen, offer som kunder), slumpade grafer (20 glesa och 20 täta) utan ett enda nytt fynd,
+  den exakta chansen mot en simulering, sommartiden och 500 slumpade ägare utan tidsmönster efter korrektionen.
+
+**Egna beslut:**
+- **Tidszonen:** Chainsaw har ingen inställning för användarens tidszon, så svensk tid är fast i analysen (samma ärende
+  ger samma fynd på alla datorer). Tidszonsgissningen är svensk normaltid plus avvikelsen.
+- **Korrektionen:** Benjamini–Hochberg i stället för Bonferroni, eftersom Bonferroni med hundra ägare kräver en
+  chans under en på tiotusen och tar bort riktiga mönster. Med exakt chans behövs inga fler slumpdragningar.
+- **Den troliga mixern** blir en kontroll, inte ett förslag: att godkänna den skulle inte göra något som etiketten
+  inte gör bättre. Kedjan kan bara passera den, inte börja i den, och den får inga egna förslag förrän den har etikett.
+- **Den nästlade tjänsten** blir ett förslag (streckat), som uppdraget sa; ett godkännande förseglas bara som
+  användarens bedömning och sätter ingen etikett av sig självt.
+- **Tröskelregler mot falsklarm** lades till efter mätningen på täta slumpgrafer (40 adresser, 1 500 tx): andelen
+  genom kontot för `nested-service` (83 fynd utan den) och mynt under 10 000 satoshi för `pass-through` (172 rader av
+  damm, som v1 också gav).
+- **Jämna belopp i fiat byggdes inte:** kontrollerna körs synkront vid varje läsning av grafen, och ärendets kurser nås
+  bara asynkront en tidpunkt i taget. Ett rent sätt kräver ett nytt kontrakt i `Pricing.Contracts` (BACKLOG och TODO).
+- Ingen oberoende granskning i den här sessionen; ändringarna skriver inte i ärendet utöver de vanliga förseglade
+  fynden och besluten.
+
+**Kvar:** testärendet (TODO), jämna belopp i fiat (TODO, BACKLOG), egna fynd under *Förvirringstekniker* i BACKLOG,
+provet på Windows (TESTER-INFOR, *Förvirring, omgång 5*).
