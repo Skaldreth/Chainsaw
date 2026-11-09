@@ -200,6 +200,14 @@ public sealed class GraphSource(
     public const string NothingToTraceOnEthereumText =
         "Inget att spåra än: grafen visar ingen rörelse till startpunkten. Välj startpunkten och expandera den.";
 
+    /// <summary>
+    /// What the trace says when start points on several UTXO chains have coins: one trace counts in one chain's coin,
+    /// so the first start point's chain is traced and the others' are named.
+    /// </summary>
+    public const string OneUtxoChainText =
+        "Spåret räknas på en UTXO-kedja i taget, den första startpunktens; startpunkterna på {0} spåras inte i samma "
+        + "graf, och deras linjer visas utan spårade belopp.";
+
     /// <summary>What the trace says when the graph does not yet show a coin to start in.</summary>
     public const string NothingToTraceText =
         "Inget att spåra än: startpunktens mynt finns inte i grafen. Välj startpunkten och expandera den.";
@@ -722,12 +730,23 @@ public sealed class GraphSource(
 
         AddAccountLabels(@case, graph, labels);
 
-        var seeds = SeedPicker.Pick(graph);
+        var picked = SeedPicker.Pick(graph);
         var accountSeeds = AccountSeedPicker.Pick(graph);
         TraceResult? trace = null;
         AccountTraceResult? accountTrace = null;
         string? problem = null;
-        if (seeds.Count + accountSeeds.Count == 0 && graph.StartPoints.Count > 0)
+
+        // One trace counts in one chain's coin: the first start point's UTXO chain is traced, and the others named.
+        var traced = picked.FirstOrDefault()?.Coin.Txid.Chain;
+        IReadOnlyList<TraceSeed> seeds = [.. picked.Where(seed => seed.Coin.Txid.Chain == traced)];
+        var others = picked.Select(seed => seed.Coin.Txid.Chain).Where(chain => chain != traced).Distinct().ToList();
+        if (others.Count > 0)
+        {
+            problem = string.Format(
+                CultureInfo.InvariantCulture, OneUtxoChainText, string.Join(", ", others.Select(c => c.DisplayName())));
+        }
+
+        if (picked.Count + accountSeeds.Count == 0 && graph.StartPoints.Count > 0)
         {
             problem = graph.StartPoints.All(start => start.Chain.Model() == LedgerModel.Account)
                 ? NothingToTraceOnEthereumText

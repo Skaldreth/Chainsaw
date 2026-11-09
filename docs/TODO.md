@@ -89,6 +89,12 @@ på grafikkortet** bakom samma `GraphCanvas`, så att inget annat ändras. *Vän
     igen på kontraktet, har **inte** snöflingan *Kan frysas* (inget känt sätt att frysa dem), och kursen tas från
     Bitstamps marknad för den token de står för (USDT, USDC). Stämmer det med hur kryptospåraren ser på dem?
 
+**Från Litecoin i grafen och Zcash 2026-11-09** (DEV-LOG, *Omgång 8c*):
+22. **Zcashs förvalda källa** är Zelcores öppna Blockbook (`blockbook.zec.zelcore.io`), ett plånboksföretags, utan
+    nyckel; det var den enda öppna som svarade (BACKLOG, *Flera UTXO-kedjor efter omgång 8c*). Duger den som förval,
+    eller ska Zcash vara utan endpoint tills en egen eller köpt läggs till (som BSC)?
+23. **Ett ärende med flera UTXO-kedjor** spårar bara den första startpunktens kedja och säger det. Räcker det till 1.0?
+
 **Äldre, där sessionen valt det säkraste:**
 - **Återkallade återställningsnycklar** (etapp 9):
   - När nyckeln byts ligger den gamla nyckelns kuvert kvar. Det tas bort först när nyckeln återkallas med en rad
@@ -167,22 +173,22 @@ byggt ur BACKLOG; det som skriver i ärendet granskas oberoende.
    - [skiss] **Ta tillbaka en egen yta i Historik** (KF1b, Z): samma rad och formulär som för en etikett.
    - Resterna i BACKLOG under Exponering, Begäran, Låsskärmen, Historik, Testärendet och *Vyerna efter 1.0* står kvar
      där, med varför.
-8. **TRON med USDT** är byggt (omgång 8, DEV-LOG, resterna i BACKLOG under *TRON efter omgång 8*), och **Litecoin** och
-   **BSC** (omgång 8b, DEV-LOG); kvar **Solana** och den genomskinliga delen av **Zcash**. Litecoin och BSC, kvar:
-   - **Litecoin i grafen:** grafens UTXO-del (`UtxoGraph`, `TraceCalculator`, `GraphStateStore`, `TracingService`
-     med en källa) räknar i bitcoin och lagrar Bitcoins txid utan kedja. En Litecoin-startpunkt hämtas i förväg och
-     kan bevakas men läggs inte i grafen. Att bära kedjan i UTXO-delen (en källa per kedja, `litecoin-address` och
-     `litecoin-transaction` i grafens läge, belopp i LTC, klustring och kontroller per kedja) är en egen omgång;
-     `MwebTrailEnds` (MWEB som *skyddad pool*) är redan registrerad och tar då över.
-   - **MWEB:s troliga utgångar:** peg-outs ur blockens HogEx som matchar en peg-in på belopp minus avgift och tid, som
-     streckade kandidater (CLAUDE.md, *Privacy coins*).
+8. **TRON med USDT** är byggt (omgång 8, DEV-LOG, resterna i BACKLOG under *TRON efter omgång 8*), **Litecoin** och
+   **BSC** (omgång 8b), och **Litecoin i grafen** och den genomskinliga delen av **Zcash** med förslagen ur de skyddade
+   poolerna (omgång 8c, DEV-LOG, resterna i BACKLOG under *Flera UTXO-kedjor efter omgång 8c*); kvar **Solana**.
+   Litecoin, Zcash och BSC, kvar:
+   - [skiss] **Zcash i ytorna:** startpunktsnodens brickor (GR6c) och ett eget märke; raden i *Nytt ärende* och
+     *Väntar på källan* visar `Z` som text, som `Ł` och `B`.
+   - [skiss] **Summorna på en Litecoin- och Zcash-nod:** grafens summor per aktör räknar bara BTC
+     (`GraphScene.Shown`), som för Ethereum; hur en nod på en annan UTXO-kedja visar sin summa skissas med tokens.
    - [skiss] **Välja kedja för en `0x`-adress:** en BSC-adress skrivs som Ethereums, så i *Nytt ärende*, i formuläret
      *Bevaka* och i kommandoraden blir `0x…` Ethereum om inte `bsc:` står före. En väljare (Ethereum, BSC) vid raden
      eller fältet när texten passar båda.
    - [skiss] **Startpunktsnodens brickor (GR6c)** visar inte Litecoin och BSC.
    - [skiss] **Ett eget märke för Litecoin och BSC:** raden i *Nytt ärende* och *Väntar på källan* visar `Ł` och `B`
      som text, inte en ritad ikon som TRON:s.
-   - **Testärendet** (`/testdata`) har ingen Litecoin- eller BSC-källa än (som TRON:s `TestTronHttp`).
+   - **Testärendet** (`/testdata`) har ingen Litecoin-, Zcash- eller BSC-källa än (som TRON:s `TestTronHttp`), så
+     Litecoin i grafen, Zcashs pooler och `shielded-pool v1` syns inte där.
 
    TRON:s ytor som väntar:
    - [skiss] **Fryst:** Tethers kontrakt på TRON har en svartlista (`isBlackListed`); en adress som står där kunde få

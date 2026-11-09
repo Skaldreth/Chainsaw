@@ -144,9 +144,6 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
     heuristikkontraktet för konton (`IAccountHeuristic`) när kluster och bevis kan hålla andra adresser än Bitcoins;
     `ITracingService` med en källa per kedja i stället för `IBitcoinSource` och `IEthereumSource` var för sig;
     `GraphScene.Shown` (Bitcoin-nodernas summor räknar BTC) och *Kontroll* i inspektören (bara Bitcoins tx).
-  - **Med nästa UTXO-kedja (Litecoin, Zcash):** `BitcoinAddress` bär sin kedja genom nätet (`BitcoinNetwork.Litecoin`,
-    omgång 8b), men `UtxoGraph` saknar fortfarande sin kedja och tillgång (i dag räknar `TraceCalculator` alltid i
-    BTC), och `CrossChainLink.From` blir ett mynt på vilken UTXO-kedja som helst (TODO, *Litecoin i grafen*).
 - **Litecoin och BSC efter omgång 8b:**
   - **Litecoin och Taproot:** Chainsaw skriver Litecoins vittnesversion 1 med Bech32m (BIP 350) och MWEB:s versioner 8
     och 9 med Bech32, som litecoinspace.org gör; att litecoinspace.org skriver en Litecoin-Taproot-adress med Bech32m
@@ -178,12 +175,34 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
   många instruktioner som läses per program (System, Token, DEX-swappar som Jupiter och Raydium), och historiken kräver
   en arkiverande RPC-källa med API-nyckel i valvet. USDC och USDT på Solana får *Kan frysas*. Swappar mellan tokens och
   bryggor (Wormhole, deBridge, Mayan) är vanlig förvirring och hör till *Förvirringstekniker*.
-- **Zcash** (användarens fråga 2026-11-07): den genomskinliga delen (t-adresser) är en UTXO-kedja som Bitcoin och
-  passar efter etapp 20 som de andra UTXO-kedjorna, men Esplora finns inte för Zcash, så källan blir en annan (en
-  tjänst med API-nyckel eller egen nod med Zebra). Tx som går in i den skyddade poolen (Sapling, Orchard) blir *Spåret
-  tar slut här* med orsaken skyddad pool. Senare kan pengar som kommer ut ur poolen föreslås som kandidater ur belopp
-  och tid, streckade som mixerns troliga utgångar.
-- **Privacy coins:** metoderna är beslutade (CLAUDE.md, *Spåret tar slut*) och byggs som förslag i omgång 9.
+- **Flera UTXO-kedjor efter omgång 8c** (Litecoin i grafen, Zcash):
+  - **En spårning per UTXO-kedja:** ett ärende med startpunkter på både Bitcoin och Litecoin (eller Zcash) spårar den
+    första startpunktens kedja och säger att de andras linjer visas utan spårade belopp (`GraphSource`,
+    `OneUtxoChainText`). Ett resultat per kedja, sammanslaget i scenen, är nästa steg.
+  - **CoinJoin, PayJoin och peel chain på Litecoin och Zcash:** mönstren är Bitcoins (Whirlpool, Wasabi, JoinMarket,
+    BIP 78) och körs inte; common-input föreslår i stället för att slå ihop en tx med lika stora utgångar på de
+    kedjorna. Kontrollerna i grafen (mixer, uppdelning, damm …) körs bara på Bitcoin, utom `shielded-pool v1`.
+  - **Bevaka ett kluster på Litecoin och Zcash:** en bevakning på ett kluster gäller bara Bitcoin; på de andra
+    kedjorna bevakas adresserna var för sig.
+  - **Zcash, omorganisationer och ersatta tx:** Blockbook-källan säger inte när en tx bytt block eller försvunnit
+    (`GetBlockChangesAsync` ger inget), som Esplora gör. Tx:en hämtas ändå igen tills blocket är 24 block djupt.
+  - **Zcashs tx mot sina bytes:** id:t är ZIP 244:s BLAKE2b-träd för version 5 (dubbel SHA-256 för version 4), så en
+    Zcash-tx kontrolleras aldrig mot sina bytes; att räkna ZIP 244 själv vore steget dit.
+  - **Zcashs sidor av en adress** hämtas med Blockbooks sidnummer omräknat till blockhöjd (`to=`); tx:er i samma
+    block som den sista på förra sidan kommer igen och hoppas över. En adress med mer än 1 000 tx sedan en tx:s block
+    gör att vem som spenderade en output inte kan läsas (sägs ärligt).
+  - **Zcash på en adress sida** (det som hölls tillbaka, EX1) har inte poolernas del: där är avgiften det
+    genomskinliga överskottet, eftersom zcashd:s svar bara hämtas för tx:er som tas in i grafen.
+  - **Zcashs källa:** Zelcores öppna Blockbook är den enda öppna utan nyckel som hittades (2026-11-09; Trezors
+    `zec1.trezor.io` stängs av Cloudflare för verktyg, Blockchair kräver nyckel för mer än några uppslag, och
+    zcashexplorer.app och zcashblockexplorer.com svarade inte på sitt API). En egen Zebra- eller zcashd-nod med en
+    Blockbook vore stabilare.
+  - **ZEC-kursen:** Bitstamps `zeceur` har historik bara från 2026-03-31 och handlas tunt, som BNB.
+  - **Chainabuse på Zcash** frågas inte (som Litecoin och BSC).
+  - **`shielded-pool v1`, kvar:** bara det som finns i grafen prövas; mönster över flera insättningar som pekar på
+    samma användare (forskningens andra metod), och ett godkänt förslag som blir en egen streckad linje i grafen.
+- **Privacy coins:** metoderna är beslutade (CLAUDE.md, *Spåret tar slut*); skyddade pooler (Zcash, MWEB) är byggda
+  i omgång 8c (`shielded-pool v1`); Monero byggs som förslag i omgång 9.
 - **Cross-chain automatiskt:** hitta fortsättningen på den andra kedjan själv (belopp och tid hos swap-tjänster, bryggornas
   egna händelser). Kanten finns i modellen från början.
 - **Direkt mot kedjan:** egen nod och eget index (Bitcoin Core med `txindex`, Fulcrum eller electrs eller ett eget index;
@@ -299,8 +318,8 @@ tidsmönster (`active-hours`) och tjänster ur beteende (`service-behaviour`). K
 - **Byte av kedja och token** (bryggor, swap-tjänster utan konto, DEX): kända kontrakt och tjänster känns igen som
   *Fortsätter på annan kedja*; förslag på fortsättningen ur belopp och tid (under Spårning).
 - **Nästlade tjänster** (en tjänst som har konto hos en börs): beteende som insättningar och uttag i mönster.
-- **Privacy coins och skyddade pooler** (Monero, Zcash, Litecoin MWEB): slut på spåret; förslag på uttag ur poolen ur
-  belopp och tid.
+- **Privacy coins** (Monero): slut på spåret; förslag ur ringarnas svagheter. Zcashs pooler och Litecoins MWEB är
+  byggda (omgång 8c, `shielded-pool v1`).
 - **Jämna belopp i fiat:** ett belopp som är jämnt i SEK, EUR eller USD vid tx:ens tid som stöd för växeln och för vem
   som står bakom. Kräver att kontrollerna får kurserna ur ärendet (Pricing är asynkront och Checks synkront).
 - **Uppdelning, kvar:** en uppdelning där delarna skickas i flera tx i stället för en, och delar som möts efter fler än

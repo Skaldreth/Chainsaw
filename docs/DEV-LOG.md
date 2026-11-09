@@ -5178,3 +5178,62 @@ offline), App 6 i `ChainStateTests` (rutans rad och fot, länken, en fråga per 
   - **M:** MWEB-raden i Nytt ärende och journalraden ger MWEB-skälet; `RecogniseMweb` säger att bara formen prövas;
     flaggan 08 nämner inte Litecoin, eftersom samma läsare används för Bitcoin.
 
+
+## Omgång 8c: Litecoin i grafen och Zcash (backloggen, 2026-11-09)
+
+- **Byggt:**
+  - **Grafens UTXO-del bär kedjan.** `Txid` har sin kedja (Bitcoin om inget annat sägs, `Txid.On`, `Parse(chain, …)`)
+    och är en annan tx på en annan kedja med samma hex; Esploras tolk och ärendets index stämplar den.
+    `TracingService` frågar varje UTXO-kedjas egen källa (`IBitcoinSource`, `ILitecoinSource`, `IZcashSource`), och
+    grafens läge lagrar Litecoins och Zcashs startpunkter och expansioner som `litecoin-address`,
+    `litecoin-transaction`, `zcash-address` och `zcash-transaction`. Länkar, val om ersatta tx, klustringens bevis och
+    kontrollernas förslag lagrar en txid som `Txid.Stored`: Bitcoins som förut, de andras med kedjan före
+    (`litecoin:…`). Nodnycklar för tx och mynt får kedjan före utom på Bitcoin. Bitcoins lagrade former, nycklar och
+    golden-filer är oförändrade.
+  - **Spårningen räknar i fröets kedja** (`TraceCalculator`): BTC, LTC eller ZEC; en spårning över två kedjor vägras.
+    Exponeringen räknar i den tillgång den frågas om. I appen spåras den första startpunktens UTXO-kedja och de
+    andras sägs (`OneUtxoChainText`).
+  - **Klustringen** kör `common-input-ownership` och `change-address` på Bitcoin, Litecoin och Zcash, varje heuristik
+    bara på tx:er på sina kedjor. CoinJoin, PayJoin och peel chain är Bitcoins mönster och körs inte på de andra; en
+    tx med lika stora utgångar till olika adresser på Litecoin eller Zcash slås därför inte ihop av common-input utan
+    föreslås, med skälet utskrivet.
+  - **Kontrollerna** körs för varje UTXO-kedja, var och en bara på tx:erna på sina kedjor; Bitcoins kontroller ser
+    aldrig en Litecoin- eller Zcash-tx.
+  - **Zcash, den genomskinliga delen:** `Chain.Zcash`, ZEC i zatoshi, `BitcoinNetwork.Zcash` med t1/t3 (två
+    versionsbyte, `0x1cb8` och `0x1cbd`), `IZcashSource` ur Blockbooks API v2 (`BlockbookZcashSource`) förseglat
+    som `zcash-mainnet`, slutligt efter 24 block, genesis och takt i `ChainLimits`. En tx är två förseglade svar,
+    Blockbooks (med vad varje input spenderar) och zcashd:s eget (`tx-specific`, poolernas value balance), som måste
+    stämma; avgiften och flödet in i eller ut ur poolerna räknas ur value balance (`ShieldedFlow`). Vem som spenderade
+    en output läses ur adressens historik från tx:ens block.
+  - **De skyddade poolerna:** t→z och z→t är *Spåret tar slut* med orsaken privacy coin (`zcash-shielded v1`,
+    `ShieldedPoolEnds`) och beloppet som fakta; tx:en får en egen nod, och en genomskinlig växel följs vidare.
+    Spårningsmetoderna ser poolen som flödets sista input eller output (`MethodChecks.Flow`), aldrig som ett mynt.
+  - **NC2a, Källor, länkar:** Litecoin och Zcash är startpunkter som spåras; Zcash hämtas i förväg, står på sidan
+    *Källor* och skrivs `zcash:`/`zec:`. En skyddad Zcash-adress (`zs1…`, `u1…`, `zc…`) känns igen på formen och
+    slutar spåret, som MWEB.
+  - **Sanktioner, etiketter, bevakning, kurser:** OFAC:s `ZEC`; etiketter och tx-etiketter på Zcash; bevakning i ZEC
+    (ett minsta belopp på en UTXO-kedja räknas i kedjans mynt, också på Litecoin); Bitstamps `zeceur`.
+  - **`shielded-pool v1`** (Checks): för pengar in i Zcashs pooler eller en peg-in till MWEB, vägar ut ur samma
+    kedjas pool i grafen (z→t, peg-outs i blockets HogEx) med samma belopp eller högst 1 % mindre inom 7 dygn, med
+    poäng ur belopp och tid; alltid streckade kandidater med *Varför?* i KF2b.
+  - Guiden: *Zcash* och *Ut ur en skyddad pool*; *Litecoin* och *Privacy coins* säger det som är byggt.
+- **Undersökt (2026-11-09):**
+  - **Zcash-källor:** Zelcores Blockbook (`blockbook.zec.zelcore.io`, Blockbook 0.6.0) svarar öppet på `api/`,
+    `api/v2/tx`, `api/v2/tx-specific`, `api/v2/address` och `api/v2/block`. Trezors `zec1.trezor.io` stoppas av
+    Cloudflare, Blockchair svarar men kräver nyckel för mer än några uppslag, `zec.nownodes.io` kräver nyckel, och
+    zcashexplorer.app och zcashblockexplorer.com svarade inte på sitt API.
+  - **Blockbooks svar:** en inputs `vout` utelämnas när den är 0; beloppen är strängar i zatoshi; `fees` räknar inte
+    in poolerna (en z→t-tx hade `fees: 0`), så avgiften räknas ur zcashd:s `valueBalanceZat`, `orchard.valueBalanceZat`
+    och joinsplitarnas `vpub_old`/`vpub_new`. `spentTxId` finns i fälten men är tomt i den här versionen.
+  - **Bitstamp:** `zeceur` och `zecusd` finns; `zeceur` har dagsljus från 2026-03-31 och handlas tunt (dagar med volym 0).
+  - **Zcashs genesis** lästes ur Blockbook (`00040fe8…3dce08`, 2016-10-28).
+- **Egna beslut:**
+  - **Kedjan i `Txid`** i stället för en parallell typ: allt som redan bär en `Txid` (mynt, länkar, förslag, bevis)
+    bär kedjan utan nya fält, och Bitcoins former är oförändrade.
+  - **Zelcores Blockbook som förval** för Zcash, eftersom en öppen källa utan nyckel fanns (TODO, *Väntar på dig* 22).
+  - **Poolen som virtuell input och output** i flödet, så att metoderna (FIFO, haircut) och kontrollen av att inget
+    skapas eller försvinner gäller också Zcash; det som går in i poolen blir ett slut med beloppet, inte en avgift.
+  - **En spårning per kedja** i appen (TODO 23), eftersom ett resultat räknar i en tillgång.
+  - **Zcash kontrolleras inte mot sina bytes** (ZIP 244); tx:en märks aldrig så.
+- **Återstår:** TODO punkt 8 (ytorna för Zcash, summorna på noderna, testärendet) och BACKLOG, *Flera UTXO-kedjor
+  efter omgång 8c*. Oberoende granskning återstår.

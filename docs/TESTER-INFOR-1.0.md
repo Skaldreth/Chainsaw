@@ -3491,3 +3491,31 @@ Inga riktiga adresser står här; ta dem ur en beställning, litecoinspace.org e
 - [ ] Guiden: *Litecoin* och *BSC* under *Fler kedjor* stämmer med det som syns.
 - [ ] Bevaka en Ethereum-adress för *Alla*: ETH, WETH, USDT, USDC, DAI och WBTC ger träffar, en annan token gör det
       inte (nytt sedan omgång 8b). På BSC ger BNB, WBNB, USDT och USDC träffar.
+
+## Litecoin i grafen och Zcash (omgång 8c, 2026-11-09)
+
+Inga riktiga adresser står här; ta dem ur en beställning, litecoinspace.org eller en Zcash-utforskare.
+
+- [ ] Nytt ärende med en Litecoin-adress: raden blir en startpunkt (inte längre *spåras inte i grafen än*). Expandera
+      den: linjerna står i LTC, en tx med flera avsändare blir en tx-nod, och FIFO och haircut räknar i LTC.
+- [ ] Litecoin: en tx med två inputs från olika adresser slår ihop dem till ett kluster; en tx med två lika stora
+      utgångar slår inte ihop inputs men föreslår det. En peg-in till MWEB (`ltc1f…`) slutar spåret i rött.
+- [ ] Ctrl+, → *Källor*: Zcash har *Zelcore Blockbook* (`https://blockbook.zec.zelcore.io/`); *Prova alla nu* visar
+      den i fas.
+- [ ] Nytt ärende med en genomskinlig Zcash-adress (`t1…`, `t3…`): raden får märket `Z` och hämtar saldo i ZEC, antal
+      tx, aktivitet och blockhöjd; `zcash:<txid>` och `chainsaw:zec/<txid>` blir en Zcash-tx. En skyddad adress
+      (`zs1…`, `u1…`) säger *Skyddad Zcash-adress · spåret tar slut här* och hämtar inget.
+- [ ] Expandera en Zcash-adress som har satt in i poolen (t→z): tx:en har en egen nod som slutar spåret i rött med
+      *ZEC gick in i Zcash skyddade pool (Sapling)* och beloppet; den genomskinliga växeln följs vidare. En tx som tar
+      ut ur poolen (z→t) har en nod som säger att pengarna kom ut ur poolen.
+- [ ] Förslag (Ctrl+J): med både en insättning i poolen och ett uttag med nästan samma belopp kort efter i grafen står
+      *Troliga vägar ut ur den skyddade poolen* med kandidaten, *Varför?* öppnar *Ut ur en skyddad pool* i Guiden, och
+      ett godkännande förblir streckat. Samma sak för en peg-in och en peg-out i blockets HogEx på Litecoin.
+- [ ] Ett ärende med startpunkter på både Bitcoin och Litecoin: grafen säger att spåret räknas på den första
+      startpunktens kedja och att den andras linjer visas utan spårade belopp.
+- [ ] OFAC: en `ZEC`-adress (`t1…`) blir *Sanktionerad* på Zcash. Kurser: ZEC i kronor från mars 2026; äldre säger
+      *Bitstamp har ingen ZEC-kurs för perioden …*.
+- [ ] Bevaka en Zcash-adress: kedjan visas som Zcash, ett minsta belopp skrivs i ZEC, och en ny betalning ger en träff.
+- [ ] Annan kedja (K): Zcash går att välja, och en länk från en Litecoin-output till Bitcoin läses tillbaka.
+- [ ] Guiden: *Zcash* under *Fler kedjor*, *Ut ur en skyddad pool* under *Förvirring*, och *Litecoin* och *Privacy
+      coins* säger det som är byggt nu.
