@@ -295,7 +295,7 @@ public sealed class RoundFourSurfacesTests
 
         Assert.Equal([GraphSamples.UKey, GraphSamples.WKey], dusted.Order(StringComparer.Ordinal));
         var poison = Assert.Single(poisonings).Value;
-        Assert.Equal((GraphSamples.U, GraphSamples.E), (poison.Suspect, poison.Genuine));
+        Assert.Equal((GraphSamples.U.ToChainAddress(), GraphSamples.E.ToChainAddress()), (poison.Suspect, poison.Genuine));
         var pairs = ObfuscationMarks.Compare("TQ5nAAmK8e", "TQ5nX7mK8e");
         Assert.Equal([false, false, false, false, true, true, false, false, false, false], pairs.Select(p => p.Differs));
     }

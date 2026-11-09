@@ -25,8 +25,6 @@ internal sealed class AccountPoisoningCheck : ICheckAnalysis
     /// </summary>
     public const int LookAlikeCharacters = 4;
 
-    /// <summary>The most of the chain's own coin that is dust, in its smallest units (0.00001 of a coin).</summary>
-    private static readonly BigInteger NativeDust = BigInteger.Pow(10, 13);
 
     /// <inheritdoc/>
     public HeuristicId Id { get; } = new(Name, 1);
@@ -41,7 +39,12 @@ internal sealed class AccountPoisoningCheck : ICheckAnalysis
     public IReadOnlyList<CheckFinding> Run(CheckInput input)
     {
         ArgumentNullException.ThrowIfNull(input);
-        var transfers = input.Graph?.Account.Transfers ?? [];
+        var transfers = (input.Graph?.Account.Transfers ?? [])
+            .Where(transfer => transfer.Kind != EthereumTransferKind.Internal)
+            .OrderBy(transfer => transfer.Block?.Height ?? long.MaxValue)
+            .ThenBy(transfer => transfer.Transaction.Value, StringComparer.Ordinal)
+            .ThenBy(transfer => transfer.Position)
+            .ToList();
         var real = transfers.Where(transfer => !IsDust(transfer.Amount)).ToList();
         var findings = new Dictionary<string, CheckFinding>(StringComparer.Ordinal);
         foreach (var dust in transfers.Where(transfer => IsDust(transfer.Amount)))
@@ -70,23 +73,31 @@ internal sealed class AccountPoisoningCheck : ICheckAnalysis
     /// </summary>
     /// <param name="amount">The amount.</param>
     /// <returns><see langword="true"/> when it is.</returns>
+    /// <remarks>The coin's dust is 0.00001 of it, counted in its own decimals (18 for ether, 6 for TRX).</remarks>
     internal static bool IsDust(AssetAmount amount) => amount.Units.IsZero || (amount.Asset.Kind == AssetKind.Native
-        ? amount.Units <= NativeDust
+        ? amount.Units * 100_000 <= BigInteger.Pow(10, amount.Asset.Decimals)
         : amount.Units * 1_000 <= BigInteger.Pow(10, amount.Asset.Decimals));
 
     /// <summary>Tells whether two accounts look alike to the eye: the same first and last characters.</summary>
     /// <param name="one">One account's text.</param>
     /// <param name="other">The other's.</param>
     /// <returns><see langword="true"/> when they do.</returns>
+    /// <remarks>
+    /// Hex (<c>0x</c>) is compared without case, since case is only its checksum; Base58 (TRON's <c>T</c>, Solana)
+    /// with case, since there a capital is another character. TRON's and hex addresses have one length; the prefix is
+    /// skipped.
+    /// </remarks>
     internal static bool LookAlike(string one, string other)
     {
-        var start = one.StartsWith("0x", StringComparison.OrdinalIgnoreCase) ? 2 : 1;
-        return one.Length == other.Length && one.Length > start + (LookAlikeCharacters * 2)
+        var hex = one.StartsWith("0x", StringComparison.OrdinalIgnoreCase);
+        var start = hex ? 2 : one.StartsWith('T') && other.StartsWith('T') ? 1 : 0;
+        var comparison = hex ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        var shortest = start + (LookAlikeCharacters * 2) + 1;
+        return one.Length >= shortest && other.Length >= shortest && (start == 0 || one.Length == other.Length)
             && string.Equals(one.Substring(start, LookAlikeCharacters), other.Substring(start, LookAlikeCharacters),
-                StringComparison.OrdinalIgnoreCase)
-            && string.Equals(one[^LookAlikeCharacters..], other[^LookAlikeCharacters..],
-                StringComparison.OrdinalIgnoreCase)
-            && !string.Equals(one, other, StringComparison.OrdinalIgnoreCase);
+                comparison)
+            && string.Equals(one[^LookAlikeCharacters..], other[^LookAlikeCharacters..], comparison)
+            && !string.Equals(one, other, comparison);
     }
 
     /// <summary>Makes the finding of one look-alike.</summary>
@@ -108,7 +119,9 @@ internal sealed class AccountPoisoningCheck : ICheckAnalysis
             key, CheckKind.Check, AreaSort.Obfuscation, "Adressförgiftning troligt", "account-poisoning v1", why,
             [], [], [], [])
         {
-            Accounts = [victim.ToChainAddress(), mimic.ToChainAddress()],
+            // The look-alike, the genuine and the victim, in that order, as the graph's mask (DM1a) reads them.
+            Accounts = [mimic.ToChainAddress(), genuine.ToChainAddress(), victim.ToChainAddress()],
+            Departure = AccountMoves.Of(dust),
         };
     }
 }
@@ -125,11 +138,14 @@ internal sealed class TornadoOutputsCheck : ICheckAnalysis
     /// <summary>The analysis's stable name.</summary>
     public const string Name = "tornado-outputs";
 
-    /// <summary>The largest relayer's fee that is taken from a payout, in thousandths of the pool's amount.</summary>
-    private const int MostFeePerMille = 10;
+    /// <summary>
+    /// The largest relayer's fee and gas that is taken from a payout, in thousandths of the pool's amount: on the
+    /// smallest pool (0.1 ETH) the two are often several percent.
+    /// </summary>
+    private const int MostFeePerMille = 100;
 
-    /// <summary>How many candidates a suggestion lists at most.</summary>
-    private const int MostCandidates = 10;
+    /// <summary>How many candidates a suggestion lists at most, as many as the panel keeps waiting.</summary>
+    private const int MostCandidates = 5;
 
     /// <inheritdoc/>
     public HeuristicId Id { get; } = new(Name, 1);
@@ -144,9 +160,13 @@ internal sealed class TornadoOutputsCheck : ICheckAnalysis
     public IReadOnlyList<CheckFinding> Run(CheckInput input)
     {
         ArgumentNullException.ThrowIfNull(input);
-        var transfers = input.Graph?.Account.Transfers.Where(transfer => transfer.Block is not null).ToList() ?? [];
+        var transfers = input.Graph?.Account.Transfers.Where(transfer => transfer.Block is not null)
+            .OrderBy(transfer => transfer.Block!.Height)
+            .ThenBy(transfer => transfer.Transaction.Value, StringComparer.Ordinal)
+            .ThenBy(transfer => transfer.Position)
+            .ToList() ?? [];
         var findings = new List<CheckFinding>();
-        foreach (var deposit in transfers.Where(transfer => IsPool(transfer.To)))
+        foreach (var deposit in transfers.Select(transfer => DepositOf(transfer, transfers)).OfType<EthereumTransfer>())
         {
             var payouts = transfers
                 .Where(payout => payout.From == deposit.To && payout.To != deposit.To
@@ -167,11 +187,42 @@ internal sealed class TornadoOutputsCheck : ICheckAnalysis
         return findings;
     }
 
-    /// <summary>Tells whether an account is a Tornado Cash pool Chainsaw knows.</summary>
+    /// <summary>Tells whether an account is a Tornado Cash pool Chainsaw knows, not its router or proxy.</summary>
     /// <param name="account">The account.</param>
     /// <returns><see langword="true"/> when it is.</returns>
     private static bool IsPool(EthereumAddress account) =>
-        KnownContracts.Find(account) is { Category: KnownContractCategory.Mixer };
+        KnownContracts.Find(account) is { Category: KnownContractCategory.Mixer } contract && !IsGate(contract);
+
+    /// <summary>Tells whether a mixer's contract is the way in (its router or proxy) rather than a pool.</summary>
+    /// <param name="contract">The contract.</param>
+    /// <returns><see langword="true"/> when it is.</returns>
+    private static bool IsGate(KnownContract contract) =>
+        contract.Name.EndsWith(" router", StringComparison.Ordinal)
+        || contract.Name.EndsWith(" proxy", StringComparison.Ordinal);
+
+    /// <summary>
+    /// Gives a deposit into a pool as the depositor paid it: straight into the pool, or into the router or proxy,
+    /// which passes it on to the pool in the same transaction; the depositor is the one who paid the way in.
+    /// </summary>
+    /// <param name="transfer">A transfer.</param>
+    /// <param name="all">All the transfers read.</param>
+    /// <returns>The deposit, with the pool as its receiver, or <see langword="null"/>.</returns>
+    private static EthereumTransfer? DepositOf(EthereumTransfer transfer, IReadOnlyList<EthereumTransfer> all)
+    {
+        if (IsPool(transfer.To) && KnownContracts.Find(transfer.From) is not { Category: KnownContractCategory.Mixer })
+        {
+            return transfer;
+        }
+
+        if (KnownContracts.Find(transfer.To) is not { } gate || !IsGate(gate))
+        {
+            return null;
+        }
+
+        var passed = all.FirstOrDefault(next => next.Transaction == transfer.Transaction && next.From == transfer.To
+            && IsPool(next.To) && next.Amount.Asset == transfer.Amount.Asset);
+        return passed is null ? null : transfer with { To = passed.To };
+    }
 
     /// <summary>Makes the suggestion of one deposit with its candidate payouts.</summary>
     /// <param name="deposit">The money into the pool.</param>
@@ -180,19 +231,16 @@ internal sealed class TornadoOutputsCheck : ICheckAnalysis
     private static CheckFinding Finding(EthereumTransfer deposit, IReadOnlyList<EthereumTransfer> payouts)
     {
         var pool = KnownContracts.Find(deposit.To)!;
-        var candidates = payouts.Select((payout, index) => new CheckCandidate(
+        var candidates = payouts.Select(payout => new CheckCandidate(
             payout.Transaction.Value + ":" + payout.To.Value,
             null,
             null,
-            index,
+            0,
             null,
-            Score(deposit, payout, index),
+            Score(deposit, payout),
             Reason(deposit, payout))
         {
-            Arrival = new ChainMovement(
-                new ChainTransactionRef(payout.Transaction.Chain, payout.Transaction.Value),
-                payout.From.ToChainAddress(), payout.To.ToChainAddress(), payout.Amount, payout.Block?.Height,
-                payout.Block?.Hash, payout.Block?.Time),
+            Arrival = AccountMoves.Of(payout),
         }).ToList();
         var paid = deposit.Amount.ToDecimalString() + " " + deposit.Amount.Asset.Symbol;
         var why = $"{deposit.From.Value} betalade in {paid} i {pool.Name} ({pool.Provenance()}) i tx "
@@ -209,16 +257,19 @@ internal sealed class TornadoOutputsCheck : ICheckAnalysis
                 deposit.From.ToChainAddress(), deposit.To.ToChainAddress(),
                 .. payouts.Select(payout => payout.To.ToChainAddress()).Distinct(),
             ],
+            Departure = AccountMoves.Of(deposit),
         };
     }
 
-    /// <summary>Scores a candidate: the depositor's own account highest, then the sooner the better.</summary>
+    /// <summary>
+    /// Scores a candidate: the depositor's own account high, every other alike, since nothing but the order in time
+    /// tells them apart and a score must not seem to know more.
+    /// </summary>
     /// <param name="deposit">The deposit.</param>
     /// <param name="payout">The payout.</param>
-    /// <param name="index">Its place among the candidates.</param>
     /// <returns>A score between 0 and 1.</returns>
-    private static double Score(EthereumTransfer deposit, EthereumTransfer payout, int index) =>
-        payout.To == deposit.From ? 0.9 : Math.Max(0.1, 0.6 - (0.05 * index));
+    private static double Score(EthereumTransfer deposit, EthereumTransfer payout) =>
+        payout.To == deposit.From ? 0.9 : 0.3;
 
     /// <summary>Says why a payout is a candidate.</summary>
     /// <param name="deposit">The deposit.</param>
@@ -231,5 +282,21 @@ internal sealed class TornadoOutputsCheck : ICheckAnalysis
         return string.Create(CultureInfo.InvariantCulture, $"Utbetalning{own} till {payout.To.Value} i tx ")
             + string.Create(CultureInfo.InvariantCulture,
                 $"{payout.Transaction.Value}, {hours:0} h efter insättningen.");
+    }
+}
+
+/// <summary>Turns account transfers into the movements a finding is anchored by, with their blocks.</summary>
+internal static class AccountMoves
+{
+    /// <summary>Gives a transfer as a movement on its chain, with its block's height, hash and time.</summary>
+    /// <param name="transfer">The transfer.</param>
+    /// <returns>The movement.</returns>
+    public static ChainMovement Of(EthereumTransfer transfer)
+    {
+        ArgumentNullException.ThrowIfNull(transfer);
+        return new ChainMovement(
+            new ChainTransactionRef(transfer.Transaction.Chain, transfer.Transaction.Value),
+            transfer.From.ToChainAddress(), transfer.To.ToChainAddress(), transfer.Amount, transfer.Block?.Height,
+            transfer.Block?.Hash, transfer.Block?.Time);
     }
 }

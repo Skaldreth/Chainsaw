@@ -1,6 +1,7 @@
 using System.Globalization;
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Checks.Contracts;
+using Chainsaw.SharedKernel;
 
 namespace Chainsaw.App.Graph;
 
@@ -34,7 +35,7 @@ public sealed record HopRow(
 /// <param name="Suspect">The look-alike.</param>
 /// <param name="Genuine">The address it imitates.</param>
 /// <param name="GenuineName">The genuine address's name in the graph, or the address shortened.</param>
-public sealed record Poisoning(BitcoinAddress Suspect, BitcoinAddress Genuine, string GenuineName);
+public sealed record Poisoning(ChainAddress Suspect, ChainAddress Genuine, string GenuineName);
 
 /// <summary>
 /// Works out the obfuscation the graph tones down or folds (sketches DM1a and HP1a) from the stored checks
@@ -44,6 +45,17 @@ public static class ObfuscationMarks
 {
     /// <summary>The analysis that finds dust and address poisoning.</summary>
     public const string DustAnalysis = "dust";
+
+    /// <summary>The check of address poisoning on the account chains.</summary>
+    public const string AccountPoisoningAnalysis = "account-poisoning";
+
+    /// <summary>Tells whether a node holds any of the addresses, on any chain.</summary>
+    /// <param name="node">The node.</param>
+    /// <param name="addresses">The addresses, each with its chain.</param>
+    /// <returns><see langword="true"/> when it does.</returns>
+    private static bool Holds(NodeView node, IReadOnlyCollection<ChainAddress> addresses) =>
+        node.Node.GraphAddresses.Any(address => addresses.Contains(address.ToChainAddress()))
+        || node.Node.Accounts.Any(addresses.Contains);
 
     /// <summary>The analysis that finds many hops.</summary>
     public const string PassThroughAnalysis = "pass-through";
@@ -68,8 +80,11 @@ public static class ObfuscationMarks
             .SelectMany(check => check.Finding.Key.StartsWith(PoisonPrefix, StringComparison.Ordinal)
                 ? check.Finding.Addresses.Take(1)
                 : check.Finding.Addresses)
+            .Select(address => address.ToChainAddress())
+            .Concat(checks.Where(check => check.Analysis.Name == AccountPoisoningAnalysis)
+                .SelectMany(check => check.Finding.Accounts.Take(1)))
             .ToHashSet();
-        return scene.Nodes.Where(node => node.Node.GraphAddresses.Any(addresses.Contains))
+        return scene.Nodes.Where(node => Holds(node, addresses))
             .Select(node => node.Key)
             .ToHashSet(StringComparer.Ordinal);
     }
@@ -84,16 +99,21 @@ public static class ObfuscationMarks
         ArgumentNullException.ThrowIfNull(scene);
         ArgumentNullException.ThrowIfNull(checks);
         var found = new Dictionary<string, Poisoning>(StringComparer.Ordinal);
-        foreach (var check in checks.Where(check => check.Analysis.Name == DustAnalysis
-            && check.Finding.Key.StartsWith(PoisonPrefix, StringComparison.Ordinal)))
+        foreach (var check in checks.Where(check => check.Finding.Key.StartsWith(PoisonPrefix, StringComparison.Ordinal)
+            && check.Analysis.Name is DustAnalysis or AccountPoisoningAnalysis))
         {
-            if (check.Finding.Addresses is not [var suspect, var genuine, ..]
-                || scene.Nodes.FirstOrDefault(node => node.Node.GraphAddresses.Contains(suspect)) is not { } node)
+            // A poisoning on Bitcoin names [look-alike, genuine] among its addresses; one on an account chain among
+            // its accounts, the victim after them.
+            IReadOnlyList<ChainAddress> pair = check.Finding.Accounts.Count > 0
+                ? check.Finding.Accounts
+                : [.. check.Finding.Addresses.Select(address => address.ToChainAddress())];
+            if (pair is not [var suspect, var genuine, ..]
+                || scene.Nodes.FirstOrDefault(node => Holds(node, [suspect])) is not { } node)
             {
                 continue;
             }
 
-            var named = scene.Nodes.FirstOrDefault(other => other.Node.GraphAddresses.Contains(genuine));
+            var named = scene.Nodes.FirstOrDefault(other => Holds(other, [genuine]));
             var name = named is { IsNamed: true } ? named.Name : GraphScene.Shorten(genuine.Value);
             found.TryAdd(node.Key, new Poisoning(suspect, genuine, name));
         }

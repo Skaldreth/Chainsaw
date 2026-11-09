@@ -6245,14 +6245,22 @@ insättning i en borta tx i Begäran, Flöde).
   mynt, eller en tusendel av en token) mellan ett konto och en adress som liknar en verklig motpart i de fyra första
   och fyra sista tecknen. Ett fynd per liknande adress, med kontona i `CheckFinding.Accounts`.
 - **`tornado-outputs v1`** (förslag, Förvirring): efter en insättning i en känd Tornado Cash-pool föreslås poolens
-  utbetalningar av poolens belopp minus högst 1 % (relayer), efter insättningen, med insättarens egen adress först och
-  sedan i tidsordning; högst tio kandidater, var och en med sin utbetalning som rörelse (`Arrival`). Bara det grafen
+  utbetalningar av poolens belopp minus högst 10 % (relayer och gas), efter insättningen, med insättarens egen adress först och
+  sedan i tidsordning; högst fem kandidater, var och en med sin utbetalning som rörelse (`Arrival`). Bara det grafen
   har läst; poolens historik läses inte av sig själv.
 - Båda läser grafens kontoöverföringar och körs med kontrollerna för UTXO-kedjorna, som `cross-chain`. Guiden har fått
   ett stycke om vardera.
 - **Kvar (BACKLOG):** kontrollerna för konton som motsvarar Bitcoins (tidsmönster, jämna belopp i kronor, uppdelning,
   peel chain på konton), Tornado-heuristikerna med gaspris och flera insättningar som tas ut tillsammans, och att läsa
   en pools historik kring insättningen.
+- **Granskningen** (en omgång): dammet räknas i myntets egna decimaler (TRX och SOL), Base58 jämförs med versaler,
+  överföringarna ordnas så att fyndet inte beror på ordningen, interna överföringar räknas inte som damm, och
+  fyndets konton är `[förgiftaren, den riktiga, offret]` med dammet som rörelse. Tornado: avgiften är högst 10 %
+  (relayer och gas), högst fem kandidater som panelen, insättningar genom routern eller proxyn räknas som
+  insättarens, poolens egna kontrakt är aldrig insättare, den egna adressen får 0,9 och andra 0,3, och avfärdade
+  kandidaters adresser lämnar området. Grafens förgiftningsmarkering läser också `account-poisoning`. Regressionstester
+  i `AccountChecksTests`. Kvar i BACKLOG: rollerna åt andra hållet, falska tokens, en BSC-adress som liknar en
+  Ethereum-adress, linjer för konton som inte är ritade och godkända kandidater som vägar ut.
 
 ## E4, första delen (2026-11-09)
 

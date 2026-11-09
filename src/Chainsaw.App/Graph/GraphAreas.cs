@@ -223,8 +223,12 @@ public static class GraphAreas
             return null;
         }
 
+        // A candidate on an account chain is known by its arrival's receiver; a dismissed one leaves the area.
+        var away = finding.Candidates.Where(Dismissed).Select(c => c.Arrival?.To).OfType<ChainAddress>()
+            .Except(finding.Candidates.Where(c => !Dismissed(c)).Select(c => c.Arrival?.To).OfType<ChainAddress>())
+            .ToHashSet();
         var nodes = NodesOf(scene, finding.Addresses.Where(a => !dismissed.Contains(a)).Select(a => a.ToChainAddress())
-            .Concat(finding.Accounts), finding.Transactions);
+            .Concat(finding.Accounts.Where(account => !away.Contains(account))), finding.Transactions);
         var fewest = finding.Area == AreaSort.Wallet ? 2 : 1;
         if (nodes.Count < fewest)
         {

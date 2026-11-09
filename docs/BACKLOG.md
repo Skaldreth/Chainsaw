@@ -99,7 +99,10 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
   heuristikerna med ovanligt gaspris, adresser som betalar varandras gas och flera insättningar som tas ut tillsammans,
   och att läsa poolens historik kring insättningen (uttagen till adresser utanför grafen).
 - **Kontrollerna på kontokedjorna efter E3** (`account-poisoning v1` är byggd): tidsmönstret, jämna belopp i kronor,
-  uppdelning och peel chain finns bara för UTXO-kedjorna.
+  uppdelning och peel chain finns bara för UTXO-kedjorna. Från granskningen av E3: förgiftning där offret skickar
+  dammet (rollerna åt andra hållet) märks som förgiftaren; en falsk token (eget kontrakt med samma symbol) räknas som
+  damm bara efter decimalerna; en BSC-adress som liknar en Ethereum-adress jämförs inte över kedjorna; fyndets konton
+  som inte är ritade i grafen får ingen linje; en godkänd Tornado-kandidat visas ännu inte som väg ut.
 - **TRON efter omgång 8** (källan, grafen, startpunkterna, sanktionerna, kurserna, bevakningen och testärendet är
   byggda). Kvar:
   - **Slutligt mot TRON:s fastställda block** (granskningen, M18): i dag är ett block slutligt 20 block under den
