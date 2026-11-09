@@ -621,9 +621,10 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
             return string.Empty;
         }
 
-        // Every current list is looked on (OFAC SDN and the EU's); the first that names the address is shown.
+        // Every current list is looked on (OFAC SDN and the EU's); a certain hit is shown before an uncertain one.
         var (list, hit) = matches
             .SelectMany(match => match.Hits.Where(each => onChain(each.Currency)).Select(each => (match.List, each)))
+            .OrderBy(found => found.each.IsUncertain)
             .FirstOrDefault();
         if (list is null || hit is null)
         {
@@ -633,7 +634,9 @@ public sealed class StartPointPrefetch : IStartPointPrefetch, IDisposable
         var listedAs = hit.Currency is SanctionCurrency.Bitcoin or SanctionCurrency.Ether
             ? string.Empty
             : $" (listad som {hit.Currency})";
-        return $"Sanktionerad enligt {list.Name} {list.PublishDate:yyyy-MM-dd} · {hit.EntryName}{listedAs}"
+        var what = hit.IsUncertain ? StartPointPreview.PossibleSanctionText : "Sanktionerad enligt";
+        var chain = hit.IsUncertain ? " · listan säger inte säkert vilken kedja" : string.Empty;
+        return $"{what} {list.Name} {list.PublishDate:yyyy-MM-dd} · {hit.EntryName}{listedAs}{chain}"
             + " · en uppgift ur en öppen källa";
     }
 }

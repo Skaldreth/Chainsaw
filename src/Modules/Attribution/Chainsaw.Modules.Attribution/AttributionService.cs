@@ -31,6 +31,13 @@ internal sealed class AttributionService(
             throw new ArgumentException("The label's kind is not known.", nameof(draft));
         }
 
+        if (LabelRules.IsFromListsOnly(draft.Kind))
+        {
+            // A sanction, a possible or a former one comes only from an imported list or Chainsaw's own list of
+            // known contracts, never from a judgement (principle 2).
+            throw new ArgumentException("A sanction comes only from a list, never from a draft.", nameof(draft));
+        }
+
         var name = LabelRules.Optional(draft.Name, LabelRules.MaximumNameLength, nameof(draft));
         var reason = LabelRules.Optional(draft.Reason, LabelRules.MaximumReasonLength, nameof(draft)) ?? string.Empty;
         var note = LabelRules.Optional(draft.Note, LabelRules.MaximumNoteLength, nameof(draft));
@@ -295,7 +302,7 @@ internal sealed class AttributionService(
                 .Where(hit => OnChain(pair.Key.Chain, hit.Currency))
                 .Select(hit => new SanctionHit(pair.Key, hit, match.List))))
             .ToList();
-        var done = new SanctionCheck(list, [], hits.Count) { Unusable = lookup.Unusable };
+        var done = new SanctionCheck(list, [], hits.Count) { Unusable = lookup.Unusable, Missing = lookup.Missing };
 
         // Read first: the graph checks at every reading, and a write transaction would make the case save itself
         // again with nothing new (the review of round 5, I1).
@@ -383,7 +390,11 @@ internal sealed class AttributionService(
         var hits = lookup.Matches.Values
             .SelectMany(matches => matches.SelectMany(match => match.Hits.Select(hit => (match.List, Hit: hit))))
             .ToList();
-        var done = new OpenSourceCheck(lookup.Lists, [], hits.Count) { Unusable = lookup.Unusable };
+        var done = new OpenSourceCheck(lookup.Lists, [], hits.Count)
+        {
+            Unusable = lookup.Unusable,
+            Missing = lookup.Missing,
+        };
         if (hits.Count == 0 || @case.Read(reader => FreshOpenSources(LabelStore.Read(reader), hits)).Count == 0)
         {
             return done;

@@ -532,7 +532,11 @@ public sealed class GraphSource(
         var open = Quietly(() => attribution.CheckOpenSources(@case, addresses), "open sources");
         problems.AddRange(sanctions?.Unusable.Select(list => UnusableListText(
             "Sanktionslistan", list.Name, list.PublishDate)) ?? []);
+        problems.AddRange(sanctions?.Missing.Select(list => MissingListText(
+            "Sanktionslistan", list.Name, list.PublishDate)) ?? []);
         problems.AddRange(open?.Unusable.Select(source => UnusableListText(
+            "Den öppna källan", source.Name, source.DataDate)) ?? []);
+        problems.AddRange(open?.Missing.Select(source => MissingListText(
             "Den öppna källan", source.Name, source.DataDate)) ?? []);
         return ((sanctions?.Added.Count ?? 0) + (open?.Added.Count ?? 0), problems);
     }
@@ -545,6 +549,18 @@ public sealed class GraphSource(
     public static string UnusableListText(string what, string name, DateOnly date) => string.Format(
         CultureInfo.InvariantCulture,
         "{0} {1} {2:yyyy-MM-dd} har ändrats på datorn sedan den importerades och används inte; importera den igen.",
+        what,
+        name,
+        date);
+
+    /// <summary>Says that a list is gone from the computer since it was imported, so it was not used.</summary>
+    /// <param name="what">What kind of list, with its article, for example <c>Sanktionslistan</c>.</param>
+    /// <param name="name">The list's name.</param>
+    /// <param name="date">Its date.</param>
+    /// <returns>The text, in Swedish.</returns>
+    public static string MissingListText(string what, string name, DateOnly date) => string.Format(
+        CultureInfo.InvariantCulture,
+        "{0} {1} {2:yyyy-MM-dd} saknas på datorn och användes inte; importera den igen om den behövs.",
         what,
         name,
         date);

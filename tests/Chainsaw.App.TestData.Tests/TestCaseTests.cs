@@ -24,8 +24,12 @@ public sealed class TestCaseTests : IDisposable
     /// badge, so they are checked on their own below. An exported request's mark is drawn from the case's exports, not
     /// from the scene.
     /// </summary>
+    // A former sanction comes only from a list (round 5), and the made-up list has no removed entries yet (BACKLOG).
     private static readonly NodeBadge[] NotAsBadges =
-        [NodeBadge.CanBeFrozen, NodeBadge.StartPoint, NodeBadge.Watched, NodeBadge.RequestExported];
+    [
+        NodeBadge.CanBeFrozen, NodeBadge.StartPoint, NodeBadge.Watched, NodeBadge.RequestExported,
+        NodeBadge.FormerlySanctioned,
+    ];
 
     private readonly Harness _harness = new();
 

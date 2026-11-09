@@ -617,6 +617,10 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
 
 ## Testärendet (/testdata)
 
+- **Tidigare sanktionerad syns inte i testärendet** sedan omgång 5: en sanktion, en möjlig och en tidigare kommer
+  bara ur en lista (aldrig ur en etikett i formuläret), och den påhittade listan har inga borttagna poster. En
+  påhittad lista med borttagna poster (som Tornado Cash i Chainsaws kontraktlista) fyller luckan [direkt].
+
 - **Omgång 5 syns inte i testärendet än:** en träff på EU:s lista, en *Rapporterad* adress ur Ransomwhere och en
   etikett på en tx (en swap som avslutar spåret) behöver påhittade listor på samma sätt som
   `TestDataSanctionLists` och ett steg i berättelsen (`TestStory`) som sätter etiketten på tx:en [direkt].

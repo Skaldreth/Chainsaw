@@ -165,15 +165,20 @@ internal sealed class SanctionLists(AttributionOptions options, IClock clock) : 
         ArgumentNullException.ThrowIfNull(addresses);
         var usable = new List<LoadedList>();
         var unusable = new List<SanctionListInfo>();
+        var missing = new List<SanctionListInfo>();
         foreach (var list in CurrentLists)
         {
-            if (TryLoaded(list) is { } loaded)
+            switch (TryLoaded(list))
             {
-                usable.Add(loaded);
-            }
-            else
-            {
-                unusable.Add(list);
+                case { Loaded: { } loaded }:
+                    usable.Add(loaded);
+                    break;
+                case { IsMissing: true }:
+                    missing.Add(list);
+                    break;
+                default:
+                    unusable.Add(list);
+                    break;
             }
         }
 
@@ -192,7 +197,7 @@ internal sealed class SanctionLists(AttributionOptions options, IClock clock) : 
             }
         }
 
-        return new SanctionLookup([.. usable.Select(list => list.Info)], unusable, matches);
+        return new SanctionLookup([.. usable.Select(list => list.Info)], unusable, matches) { Missing = missing };
     }
 
     /// <summary>Gives a loaded list's entries for an address on its own chain.</summary>
@@ -210,34 +215,34 @@ internal sealed class SanctionLists(AttributionOptions options, IClock clock) : 
         };
 
     /// <summary>
-    /// Loads a list for lookups, or gives none when its file has lost its hash. Such a list is remembered as broken,
+    /// Loads a list for lookups, or says why it cannot be. A list whose file has lost its hash is remembered as broken,
     /// so that it is never read and hashed again at every lookup (up to 256 MB), until it is imported again or
-    /// removed; the other lists are still looked on (the review of round 5, I4).
+    /// removed; one whose file is gone is not, since the next listing follows the folder. The other lists are still
+    /// looked on (the review of round 5, I4 and M-d).
     /// </summary>
     /// <param name="info">The list.</param>
-    /// <returns>The loaded list, or <see langword="null"/> when it is broken.</returns>
-    private LoadedList? TryLoaded(SanctionListInfo info)
+    /// <returns>The loaded list, or whether it is missing rather than broken.</returns>
+    private (LoadedList? Loaded, bool IsMissing) TryLoaded(SanctionListInfo info)
     {
         lock (_gate)
         {
             if (_broken.Contains(info.Sha256))
             {
-                return null;
+                return (null, false);
             }
 
             try
             {
-                return Loaded(info);
+                return (Loaded(info), false);
             }
             catch (SanctionListException exception) when (exception.Error == SanctionListError.Tampered)
             {
                 _broken.Add(info.Sha256);
-                return null;
+                return (null, false);
             }
             catch (SanctionListException exception) when (exception.Error == SanctionListError.Missing)
             {
-                // Not remembered as broken: the file may be back, and the listing follows the folder.
-                return null;
+                return (null, true);
             }
         }
     }

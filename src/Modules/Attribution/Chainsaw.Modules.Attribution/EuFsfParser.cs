@@ -183,8 +183,9 @@ internal static partial class EuFsfParser
 
     /// <summary>
     /// Reads a word as an address by its form and by the nearest label of a currency or chain before it in the same
-    /// part of the text (split at <c>;</c>, commas and line breaks), as the EU writes several chains in one remark:
-    /// <c>XBT 1A…; ETH 0x…; USDT (TRC-20) T…</c> (the review of round 5, I-a).
+    /// part of the text (split at <c>;</c> and line breaks; a label goes on across commas until another one comes, as
+    /// in <c>Bitcoin: 1A…, 1B…, 3C…</c>), as the EU writes several chains in one remark:
+    /// <c>XBT 1A…; ETH 0x…; USDT (TRC-20) T…</c> (the review of round 5, I-a and M-1).
     /// <list type="bullet">
     /// <item>A label for Bitcoin before a Bitcoin address on the main network, or for Ethereum before <c>0x</c> and 40
     /// hex digits, is a hit.</item>
@@ -243,14 +244,14 @@ internal static partial class EuFsfParser
 
     /// <summary>
     /// Gives the label of a currency or chain nearest before a word, in the same part of the text: from the last
-    /// <c>;</c>, comma or line break before it.
+    /// <c>;</c> or line break before it, so that a label covers a list of addresses separated by commas.
     /// </summary>
     /// <param name="text">The text.</param>
     /// <param name="word">The word.</param>
     /// <returns>The chain the nearest label names, or none.</returns>
     private static ChainLabel LabelBefore(string text, Match word)
     {
-        var start = text.LastIndexOfAny([';', ',', '\n', '\r'], Math.Max(0, word.Index - 1)) + 1;
+        var start = text.LastIndexOfAny([';', '\n', '\r'], Math.Max(0, word.Index - 1)) + 1;
         var labels = Labels().Matches(text[start..word.Index]);
         if (labels.Count == 0)
         {
@@ -306,7 +307,7 @@ internal static partial class EuFsfParser
         @"\b(?:(?<other>bitcoin[\s-]?cash|bch|bitcoin[\s-]?sv|bsv|litecoin|ltc|dogecoin|doge|trx|tron|trc[\s-]?20|"
         + @"bep[\s-]?20|bep2|bsc|bnb|binance[\s-]?smart[\s-]?chain|ethereum[\s-]?classic)"
         + @"|(?<bitcoin>xbt|btc|bitcoin)|(?<ethereum>eth|ethereum|erc[\s-]?20|ether)"
-        + @"|(?<weak>polygon|matic|arbitrum|optimism|avalanche|avax|fantom|ftm|etc|base))\b",
+        + @"|(?<weak>polygon|matic|arbitrum|optimism|avalanche|avax|fantom|ftm))\b",
         RegexOptions.CultureInvariant | RegexOptions.IgnoreCase)]
     private static partial Regex Labels();
 

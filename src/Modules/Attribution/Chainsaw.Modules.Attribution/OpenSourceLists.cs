@@ -121,15 +121,20 @@ internal sealed class OpenSourceLists(AttributionOptions options, IClock clock) 
         ArgumentNullException.ThrowIfNull(addresses);
         var usable = new List<(OpenSourceListInfo Info, ILookup<ChainAddress, OpenSourceEntry> Entries)>();
         var unusable = new List<OpenSourceListInfo>();
+        var missing = new List<OpenSourceListInfo>();
         foreach (var list in CurrentLists)
         {
-            if (TryLoaded(list) is { } entries)
+            switch (TryLoaded(list))
             {
-                usable.Add((list, entries));
-            }
-            else
-            {
-                unusable.Add(list);
+                case { Entries: { } entries }:
+                    usable.Add((list, entries));
+                    break;
+                case { IsMissing: true }:
+                    missing.Add(list);
+                    break;
+                default:
+                    unusable.Add(list);
+                    break;
             }
         }
 
@@ -147,7 +152,7 @@ internal sealed class OpenSourceLists(AttributionOptions options, IClock clock) 
             }
         }
 
-        return new OpenSourceLookup([.. usable.Select(list => list.Info)], unusable, matches);
+        return new OpenSourceLookup([.. usable.Select(list => list.Info)], unusable, matches) { Missing = missing };
     }
 
     /// <summary>
@@ -155,29 +160,29 @@ internal sealed class OpenSourceLists(AttributionOptions options, IClock clock) 
     /// broken, so that it is not read and hashed again at every lookup, until it is imported again or removed.
     /// </summary>
     /// <param name="info">The source.</param>
-    /// <returns>Its entries by address, or <see langword="null"/> when it is broken.</returns>
-    private ILookup<ChainAddress, OpenSourceEntry>? TryLoaded(OpenSourceListInfo info)
+    /// <returns>Its entries by address, or whether it is missing rather than broken.</returns>
+    private (ILookup<ChainAddress, OpenSourceEntry>? Entries, bool IsMissing) TryLoaded(OpenSourceListInfo info)
     {
         lock (_gate)
         {
             if (_broken.Contains(info.Sha256))
             {
-                return null;
+                return (null, false);
             }
 
             try
             {
-                return Loaded(info);
+                return (Loaded(info), false);
             }
             catch (OpenSourceListException exception) when (exception.Error == OpenSourceListError.Tampered)
             {
                 _broken.Add(info.Sha256);
-                return null;
+                return (null, false);
             }
             catch (OpenSourceListException exception) when (exception.Error == OpenSourceListError.Missing)
             {
                 // Not remembered as broken: the file may be back, and the listing follows the folder.
-                return null;
+                return (null, true);
             }
         }
     }

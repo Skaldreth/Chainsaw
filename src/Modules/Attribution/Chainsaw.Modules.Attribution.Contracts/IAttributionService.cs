@@ -177,4 +177,7 @@ public sealed record SanctionCheck(SanctionListInfo? List, IReadOnlyList<LabelEn
     /// Gets the current lists that could not be looked on, since their file has lost its hash; the others were.
     /// </summary>
     public IReadOnlyList<SanctionListInfo> Unusable { get; init; } = [];
+
+    /// <summary>Gets the current lists whose file is gone from the computer, so that they were not looked on.</summary>
+    public IReadOnlyList<SanctionListInfo> Missing { get; init; } = [];
 }

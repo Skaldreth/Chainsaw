@@ -207,7 +207,11 @@ public sealed record SanctionedAddress(
 public sealed record SanctionLookup(
     IReadOnlyList<SanctionListInfo> Lists,
     IReadOnlyList<SanctionListInfo> Unusable,
-    IReadOnlyDictionary<ChainAddress, IReadOnlyList<SanctionMatch>> Matches);
+    IReadOnlyDictionary<ChainAddress, IReadOnlyList<SanctionMatch>> Matches)
+{
+    /// <summary>Gets the current lists whose file is gone from the computer since the folder was read.</summary>
+    public IReadOnlyList<SanctionListInfo> Missing { get; init; } = [];
+}
 
 /// <summary>An address looked up on a list.</summary>
 /// <param name="List">The list.</param>

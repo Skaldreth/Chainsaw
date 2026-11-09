@@ -205,6 +205,39 @@ public sealed class EuSanctionTests : IDisposable
     }
 
     [Fact]
+    public void A_label_covers_a_list_of_addresses_separated_by_commas()
+    {
+        var first = Pkh("comma-1");
+        var second = Pkh("comma-2");
+        _harness.Sanctions.Import(new EuFile()
+            .Remarked("EU.16.1", "A", "RUS", $"Bitcoin addresses: {first.Value}, {second.Value}")
+            .Stream());
+
+        var check = _harness.Labels.CheckSanctions(_harness.Case, [first, second]);
+
+        Assert.Equal(2, check.Added.Count);
+        Assert.All(check.Added, label => Assert.Equal(LabelKind.Sanctioned, label.Kind));
+    }
+
+    [Theory]
+    [InlineData(LabelKind.Sanctioned, LabelSource.Own)]
+    [InlineData(LabelKind.PossiblySanctioned, LabelSource.Behaviour)]
+    [InlineData(LabelKind.FormerlySanctioned, LabelSource.OpenSource)]
+    public void A_sanction_never_comes_from_a_draft(LabelKind kind, LabelSource source)
+    {
+        var draft = new LabelDraft(LabelSubject.ForAddress(Wpkh("claimed")), kind, null, "Påstår")
+        {
+            Source = source,
+            SourceName = "egen källa",
+            SourceVersion = "1",
+        };
+
+        Assert.Throws<ArgumentException>(() => _harness.Labels.Add(_harness.Case, draft));
+        Assert.Throws<ArgumentException>(() => _harness.TransactionLabels.Add(
+            _harness.Case, new TransactionLabelDraft(Chain.Bitcoin, Txid("claimed").Value, kind, null, null, null)));
+    }
+
+    [Fact]
     public void An_address_without_a_label_is_only_a_possible_sanction()
     {
         var legacy = Pkh("unlabelled");

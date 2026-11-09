@@ -4222,3 +4222,14 @@ topp.
   - **M-b** lås runt cachen för etiketter på tx, **M-c** licensen hör till den inbyggda källans ursprung (id som börjar
     med `open/`), aldrig bara namnet, **M-d** en fil som saknas är inte ändrad (`Missing`) och frågas igen; M-a står i
     BACKLOG märkt *prova mot ett riktigt anrop före 1.0*.
+- **Tredje granskningen av omgång 5** (0 C, 2 I, 4 M, alla rättade):
+  - **I-1:** förhandshämtningen i Nytt ärende visar en säker träff först och skriver *Möjlig sanktion enligt …* för en
+    tvetydig; brickan säger då *Möjlig sanktion* och är nedtonad.
+  - **I-2:** vyn Etiketter avgör sanktionen på etikettens sort: `IsSanction` och träffarna överst gäller bara
+    *Sanktionerad*; en möjlig sanktion står streckad med brickan *Möjlig: kedjan står inte säkert*, utanför den röda
+    gruppen. Test.
+  - **M-1** en märkning gäller över kommatecken tills nästa märkning (kedjan delas vid `;` och radbrytning), **M-2**
+    tjänsten vägrar en sanktion, möjlig eller tidigare ur ett utkast (`LabelRules.IsFromListsOnly`, också för
+    etiketter på tx); testärendets sanktion på Skuggtorget kommer nu ur den påhittade listan, och *Tidigare
+    sanktionerad* står i BACKLOG, **M-3** en lista som saknas säger *saknas på datorn* (`Missing`), **M-4** *etc* och
+    *base* är borttagna ur de svaga orden.

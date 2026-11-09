@@ -158,6 +158,9 @@ public sealed class TestDataSanctionLists(ISanctionLists inner, TestActors actor
     /// <summary>The made-up entry's name.</summary>
     public const string EntryName = "Sanktionerad aktör (påhittad)";
 
+    /// <summary>The made-up entry of the story's dark market, a sanction beside its own sort.</summary>
+    public const string DarknetEntryName = "Skuggtorget";
+
     /// <summary>The made-up entry's id on the list.</summary>
     private const string EntryUid = "testdata-1";
 
@@ -170,7 +173,7 @@ public sealed class TestDataSanctionLists(ISanctionLists inner, TestActors actor
         Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(ListName))),
         new DateOnly(2026, 10, 1),
         new DateTimeOffset(2026, 10, 1, 12, 0, 0, TimeSpan.Zero),
-        new Dictionary<string, int>(StringComparer.Ordinal) { [SanctionCurrency.Bitcoin] = 1 },
+        new Dictionary<string, int>(StringComparer.Ordinal) { [SanctionCurrency.Bitcoin] = 2 },
         0);
 
     /// <inheritdoc/>
@@ -186,13 +189,7 @@ public sealed class TestDataSanctionLists(ISanctionLists inner, TestActors actor
     public SanctionMatch? Find(BitcoinAddress address)
     {
         ArgumentNullException.ThrowIfNull(address);
-        if (!TestDataScope.IsBuilding || address != actors.Sanctioned.Address)
-        {
-            return inner.Find(address);
-        }
-
-        var hit = new SanctionedAddress(SanctionCurrency.Bitcoin, address.Value, EntryUid, EntryName, [Programme]);
-        return new SanctionMatch(MadeUp, [hit]);
+        return MadeUpFor(address) ?? inner.Find(address);
     }
 
     /// <inheritdoc/>
@@ -205,9 +202,7 @@ public sealed class TestDataSanctionLists(ISanctionLists inner, TestActors actor
     public IReadOnlyList<SanctionMatch> FindAll(BitcoinAddress address)
     {
         ArgumentNullException.ThrowIfNull(address);
-        return TestDataScope.IsBuilding && address == actors.Sanctioned.Address && Find(address) is { } madeUp
-            ? [madeUp]
-            : inner.FindAll(address);
+        return MadeUpFor(address) is { } madeUp ? [madeUp] : inner.FindAll(address);
     }
 
     /// <inheritdoc/>
@@ -218,19 +213,41 @@ public sealed class TestDataSanctionLists(ISanctionLists inner, TestActors actor
     {
         ArgumentNullException.ThrowIfNull(addresses);
         var lookup = inner.FindMany(addresses);
-        if (actors.Sanctioned.Address is not { } sanctioned)
+        var matches = new Dictionary<ChainAddress, IReadOnlyList<SanctionMatch>>(lookup.Matches);
+        foreach (var address in addresses)
         {
-            return lookup;
+            if (BitcoinAddress.TryParse(address.Value, out var bitcoin) && MadeUpFor(bitcoin) is { } madeUp)
+            {
+                matches[address] = [madeUp];
+            }
         }
 
-        var actor = sanctioned.ToChainAddress();
-        if (!TestDataScope.IsBuilding || !addresses.Contains(actor) || Find(sanctioned) is not { } madeUp)
-        {
-            return lookup;
-        }
-
-        var matches = new Dictionary<ChainAddress, IReadOnlyList<SanctionMatch>>(lookup.Matches) { [actor] = [madeUp] };
         return lookup with { Matches = matches };
+    }
+
+    /// <summary>
+    /// Gives the made-up list's entry for an address while the test case is built: the story's sanctioned actor and
+    /// the dark market (so that a sanction also stands as a mark beside another sort), never any other address.
+    /// </summary>
+    /// <param name="address">The address.</param>
+    /// <returns>The made-up match, or <see langword="null"/>.</returns>
+    private SanctionMatch? MadeUpFor(BitcoinAddress address)
+    {
+        if (!TestDataScope.IsBuilding)
+        {
+            return null;
+        }
+
+        var name = (address == actors.Sanctioned.Address, address == actors.Darknet.Address) switch
+        {
+            (true, _) => EntryName,
+            (_, true) => DarknetEntryName,
+            _ => null,
+        };
+        return name is null
+            ? null
+            : new SanctionMatch(
+                MadeUp, [new SanctionedAddress(SanctionCurrency.Bitcoin, address.Value, EntryUid, name, [Programme])]);
     }
 
     /// <inheritdoc/>

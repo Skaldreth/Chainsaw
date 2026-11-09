@@ -244,8 +244,14 @@ public sealed partial class LabelRowViewModel : ObservableObject
     /// <summary>Gets whether the small node is round: an actor we know nothing about.</summary>
     public bool IsRound => Look.Shape == NodeShape.Round;
 
-    /// <summary>Gets whether the small node's frame is dashed: uncertain, or a suggestion from an analysis.</summary>
-    public bool IsDashed => Look.IsDashed || IsSuggestion;
+    /// <summary>
+    /// Gets whether the small node's frame is dashed: uncertain, a suggestion from an analysis, or only a possible
+    /// sanction.
+    /// </summary>
+    public bool IsDashed => Look.IsDashed || IsSuggestion || IsPossibleSanction;
+
+    /// <summary>Gets what the label says, for telling a sanction from a possible one.</summary>
+    public LabelKind Kind { get; init; } = LabelKind.Unknown;
 
     /// <summary>Gets the source it is listed under.</summary>
     public required LabelFilter Source { get; init; }
@@ -262,8 +268,17 @@ public sealed partial class LabelRowViewModel : ObservableObject
     /// <summary>Gets whether it is a suggestion from an analysis, drawn dashed.</summary>
     public bool IsSuggestion => Source == LabelFilter.Behaviour;
 
-    /// <summary>Gets whether it is a hit on a sanction list, whose source frame is red.</summary>
-    public bool IsSanction => Source == LabelFilter.Sanction;
+    /// <summary>
+    /// Gets whether it is a sanction from a list, whose source frame is red and which stands among the hits at the
+    /// top: decided by what the label says, so that a possible sanction is never shown as one.
+    /// </summary>
+    public bool IsSanction => Source == LabelFilter.Sanction && Kind == LabelKind.Sanctioned;
+
+    /// <summary>
+    /// Gets whether it is only a possible sanction: a list names the address, but not for certain on this chain. It is
+    /// drawn dashed and never among the hits at the top.
+    /// </summary>
+    public bool IsPossibleSanction => Source == LabelFilter.Sanction && Kind == LabelKind.PossiblySanctioned;
 
     /// <summary>Gets whether every one of its labels is taken back: struck through and faint.</summary>
     public bool IsRetracted { get; init; }
@@ -500,6 +515,7 @@ public static class LabelRows
             Address = GraphScene.Shorten(first.Subject.Target.Value),
             FullAddress = first.Subject.Target.Value,
             Look = node?.Look ?? VisualLanguage.Of(VisualLanguage.SortOf(first.Kind)),
+            Kind = first.Kind,
             Source = source,
             Sources = entries.Select(entry => LabelFilters.Of(entry.Label.Origin.Source)).ToHashSet(),
             SourceToolTip = words.SourceToolTip(source),
@@ -510,7 +526,7 @@ public static class LabelRows
             Place = hit.Place,
             IsNearVictim = isNearVictim,
             Origins = Origins(entries, words),
-            Chips = Chips(source, isNoSpread, words),
+            Chips = Chips(source, first.Kind, isNoSpread, words),
             NodeInfo = node is null ? string.Empty : NodeInfo(node),
             RetractedText = active.Count == 0 ? words.Retracted(entries[^1].Retraction!) : string.Empty,
             Retractable = [.. active.Where(entry => entry.CanRetract).Select(entry => entry.Label.Sequence)],
@@ -541,6 +557,7 @@ public static class LabelRows
             Address = GraphScene.Shorten(label.Subject.Target.Value),
             FullAddress = label.Subject.Target.Value,
             Look = node?.Look ?? VisualLanguage.Of(VisualLanguage.SortOf(label.Kind)),
+            Kind = label.Kind,
             Source = source,
             Sources = new HashSet<LabelFilter> { source },
             SourceToolTip = words.SourceName(source),
@@ -549,7 +566,7 @@ public static class LabelRows
             Place = hit.Place,
             Cases = label.CaseNumbers,
             Origins = [origin],
-            Chips = Chips(source, isNoSpread: false, words),
+            Chips = Chips(source, label.Kind, isNoSpread: false, words),
             NodeInfo = node is null ? string.Empty : NodeInfo(node),
             SearchText = string.Join(
                 ' ', title, node?.Name, label.Subject.Target.Value, string.Join(' ', label.CaseNumbers)),
@@ -582,18 +599,24 @@ public static class LabelRows
 
     /// <summary>Gives the chips under the chosen label's name: its source, judgement or list, and Sprid inte.</summary>
     /// <param name="source">The source.</param>
+    /// <param name="kind">What the label says.</param>
     /// <param name="isNoSpread">Whether it stays in the case.</param>
     /// <param name="words">How sources are written.</param>
     /// <returns>The chips.</returns>
-    private static IReadOnlyList<LabelChip> Chips(LabelFilter source, bool isNoSpread, LabelWords words)
+    private static IReadOnlyList<LabelChip> Chips(
+        LabelFilter source, LabelKind kind, bool isNoSpread, LabelWords words)
     {
+        var possible = source == LabelFilter.Sanction && kind == LabelKind.PossiblySanctioned;
         var chips = new List<LabelChip>
         {
             new(words.SourceName(source), LabelFilters.Icon(source), string.Empty, false,
-                source == LabelFilter.Sanction),
+                source == LabelFilter.Sanction && !possible),
         };
         chips.Add(source switch
         {
+            LabelFilter.Sanction when possible => new("Möjlig: kedjan står inte säkert", "Icon.Question",
+                "Listan nämner adressen men säger inte säkert vilken kedja den gäller: en möjlig sanktion att " +
+                "kontrollera, aldrig en sanktion.", true, false),
             LabelFilter.Sanction => new("Står på listan", "Icon.Check",
                 "Listan är en källa. Att ägaren är sanktionerad följer av listan.", false, false),
             LabelFilter.Behaviour => new(

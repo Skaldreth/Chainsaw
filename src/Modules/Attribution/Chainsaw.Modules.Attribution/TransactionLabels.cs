@@ -43,7 +43,8 @@ internal sealed class TransactionLabels : ITransactionLabels
     {
         ArgumentNullException.ThrowIfNull(@case);
         ArgumentNullException.ThrowIfNull(draft);
-        if (!Enum.IsDefined(draft.Kind) || draft.Kind == LabelKind.Victim)
+        if (!Enum.IsDefined(draft.Kind) || draft.Kind == LabelKind.Victim
+            || LabelRules.IsFromListsOnly(draft.Kind))
         {
             // A victim is a person whose money is followed, never what a transaction is.
             throw new ArgumentException("The label's kind is not one a transaction can have.", nameof(draft));

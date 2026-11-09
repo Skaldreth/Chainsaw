@@ -86,6 +86,9 @@ public sealed record OpenSourceCheck(
 {
     /// <summary>Gets the current sources that could not be looked in, since their file has lost its hash.</summary>
     public IReadOnlyList<OpenSourceListInfo> Unusable { get; init; } = [];
+
+    /// <summary>Gets the current sources whose file is gone from the computer, so they were not looked in.</summary>
+    public IReadOnlyList<OpenSourceListInfo> Missing { get; init; } = [];
 }
 
 /// <summary>Many addresses looked up in the current open sources.</summary>
@@ -95,7 +98,11 @@ public sealed record OpenSourceCheck(
 public sealed record OpenSourceLookup(
     IReadOnlyList<OpenSourceListInfo> Lists,
     IReadOnlyList<OpenSourceListInfo> Unusable,
-    IReadOnlyDictionary<ChainAddress, IReadOnlyList<OpenSourceMatch>> Matches);
+    IReadOnlyDictionary<ChainAddress, IReadOnlyList<OpenSourceMatch>> Matches)
+{
+    /// <summary>Gets the current sources whose file is gone from the computer since the folder was read.</summary>
+    public IReadOnlyList<OpenSourceListInfo> Missing { get; init; } = [];
+}
 
 /// <summary>Why an open source could not be imported or read.</summary>
 public enum OpenSourceListError
