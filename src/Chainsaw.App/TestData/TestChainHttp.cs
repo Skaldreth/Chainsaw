@@ -69,7 +69,7 @@ public sealed class TestChainHttp(TestChain chain, IClock clock) : IExitHttp
     {
         var answer = path switch
         {
-            "blocks/tip/height" => Plain(chain.Tip.ToString(CultureInfo.InvariantCulture)),
+            "blocks/tip/height" => Plain(chain.AnsweredTip.ToString(CultureInfo.InvariantCulture)),
             _ when path.StartsWith(HeightPart, StringComparison.Ordinal) => HashAt(path[HeightPart.Length..]),
             _ when path.StartsWith(BlockPart, StringComparison.Ordinal) => BlockAnswer(path[BlockPart.Length..]),
             _ when path.StartsWith(TransactionPart, StringComparison.Ordinal) =>

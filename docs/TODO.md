@@ -130,8 +130,6 @@ Inget sedan etapp 1 är provat på Windows. Användaren provar efter `docs/TESTE
   - **Ethereum** [etapp]: GR9a ritar en borta Ethereum-tx, men kontomodellens spårning räknar fortfarande med den.
   - **En obekräftad tx som aldrig låg i ett block** och försvinner ur mempool räknas inte som borta, eftersom
     regeln (`BlockChangeRule`) jämför med det första svaret i ett block [etapp].
-  - **Testärendet** (`/testdata`) har ingen tx som försvinner med en ersättare: testkedjan behöver svara `404` på
-    tx:en och `/tx/:txid/outspends` på tx:erna mynten kom ur [direkt].
 - **Ångra en godkänd plånbok** (PL1b, vald): Ctrl+Z och *Ångra* i KF2b-panelen bekräftas i grafen.
 - **Sökningen:** en etikett från ett annat ärende kan inte säga vilket, eftersom ursprunget saknar ärendenumret
   [etapp].
@@ -198,11 +196,8 @@ byggt ur BACKLOG; det som skriver i ärendet granskas oberoende.
    (utan språkmodell, princip 5).
 
 **Ur omgång 4, ytorna KV1a, HB1a, BU1a, DM1a, HP1a och TJ1b** (byggda 2026-11-08, rester):
-- **Testärendet** (`/testdata`) visar inte de nya kontrollerna och ytorna än [direkt]: damm, en adressförgiftning
-  (en look-alike till Sydbörsen), ett svep till Sydbörsens hot wallet (för *Som etikett …*), en rad med många hopp
-  (fem hopp med en in och en ut, med ett uppehåll på några dygn), en uppdelning med delar som möts och en möjlig
-  PayJoin behöver läggas in i berättelsen (`TestStoryChain`) med stegen som hämtar dem. En slutsats som hålls tillbaka
-  kräver en obekräftad tx som ersätts, som testkedjan inte kan visa än.
+- **Testärendet** (`/testdata`): en slutsats som hålls tillbaka (HB1a) kräver en obekräftad tx som ersätts; testkedjan
+  har en ersatt tx (RBF) men bara bekräftade, så HB1a syns inte där än [direkt].
 - **Förhandsvisningen av ett tillbakadragande** (KV1a) räknar på det som är sparat: det v1 slår ihop i tx som v1
   aldrig kört syns först efter nästa körning. Raden längst ner säger när, men inte vem (det står i journalen).
 - **Dammets linjer** (DM1a) är inte hårfina och prickade och har kvar beloppet; noderna tonas ned och förgiftningens
