@@ -176,6 +176,7 @@ internal sealed class SourceLookups
     /// The response of an answer that is not believed (a final TRON answer without a known token's event): its
     /// endpoint, and any other at the same host and port, is not asked (<see cref="IsOther"/>); <see langword="null"/>
     /// to ask any.
+    /// </param>
     /// <param name="preferNotHosts">
     /// Hosts whose endpoints are passed over while another can be asked, as when what they said is to be confirmed
     /// elsewhere; when every endpoint is on them, they are asked all the same.
