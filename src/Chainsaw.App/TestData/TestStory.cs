@@ -80,6 +80,7 @@ public static class TestStory
                 TestStoryChain.HubPayment, SwapOutput,
                 new ChainTransactionRef(Chain.Tron, TestTronChain.Id(TestTronChain.SwapPayout))),
             .. OnTron(),
+            .. OnEthereum(),
             new WatchStep(actors.Consolidated, "Bedragarens andra plånbok", WatchDirection.In),
             new WatchCheckStep(),
             new ChecksStep(),
@@ -153,11 +154,25 @@ public static class TestStory
     /// <returns>The steps.</returns>
     private static IEnumerable<ITestStep> OnTron() =>
     [
-        new TronLabelStep(TestTronChain.Swap, LabelKind.SwapBridge, "Bytaren (TRON)"),
-        new TronLabelStep(TestTronChain.Exchange, LabelKind.Exchange, "Sydbörsen (TRON)"),
-        new TronStartPointStep(TestTronChain.Scammer),
-        new TronExpandStep(TestTronChain.Scammer),
-        new TronExpandStep(TestTronChain.Mule),
+        new AccountLabelStep(TestTronChain.Swap, LabelKind.SwapBridge, "Bytaren (TRON)"),
+        new AccountLabelStep(TestTronChain.Exchange, LabelKind.Exchange, "Sydbörsen (TRON)"),
+        new AccountStartPointStep(TestTronChain.Scammer),
+        new AccountExpandStep(TestTronChain.Scammer),
+        new AccountExpandStep(TestTronChain.Mule),
+    ];
+
+    /// <summary>
+    /// Gives the part on Ethereum: the scammer's Ethereum address as a start point, expanded, so that the victim's USDT,
+    /// the swap to ether through Uniswap's router (its pill with the router and the price check) and the ether into
+    /// Tornado Cash can be seen; the known contracts are then labelled, so that Tornado Cash is a mixer and a former
+    /// sanction, and the scammer's USDT left over has its snowflake.
+    /// </summary>
+    /// <returns>The steps.</returns>
+    private static IEnumerable<ITestStep> OnEthereum() =>
+    [
+        new AccountStartPointStep(TestEthereumChain.Scammer),
+        new AccountExpandStep(TestEthereumChain.Scammer),
+        new KnownContractsStep(),
     ];
 
     /// <summary>

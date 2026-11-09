@@ -51,6 +51,15 @@ public static class TestDataServices
                 provider.GetRequiredService<TestTronHttp>(),
                 provider.GetRequiredService<IOperatorProfileStore>(),
                 provider.GetRequiredService<IClock>()))));
+        services.AddSingleton<TestEthereumChain>();
+        services.AddSingleton(provider => new TestEthereumHttp(
+            provider.GetRequiredService<TestEthereumChain>(), provider.GetRequiredService<IClock>()));
+        TryDecorate<IEthereumSource>(services, (provider, real) => new TestDataEthereumRouter(
+            real,
+            new Lazy<IEthereumSource>(() => TestDataEthereum.Create(
+                provider.GetRequiredService<TestEthereumHttp>(),
+                provider.GetRequiredService<IOperatorProfileStore>(),
+                provider.GetRequiredService<IClock>()))));
         services.AddSingleton(provider => new TestRatesHttp(provider.GetRequiredService<IClock>()));
         TryDecorate<IPriceService>(services, (provider, real) => new TestDataPriceRouter(
             real,
@@ -78,6 +87,7 @@ public static class TestDataServices
             Clustering = provider.GetService<IClusteringService>(),
             Bitcoin = provider.GetRequiredService<IBitcoinSource>(),
             TransactionLabels = provider.GetService<ITransactionLabels>(),
+            KnownContracts = provider.GetService<IKnownContractLabels>(),
         });
         services.AddSingleton<TestCaseBuilder>();
         services.AddSingleton<IShellCommand, TestDataCommand>();

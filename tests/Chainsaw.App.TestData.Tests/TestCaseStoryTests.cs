@@ -234,6 +234,26 @@ public sealed class TestCaseStoryTests : IDisposable
         Assert.Equal(0, _harness.Outside.Attempts);
     }
 
+    [Fact]
+    public async Task On_ethereum_the_usdt_is_swapped_through_the_router_into_tornado_cash_and_nothing_goes_out()
+    {
+        using var @case = await OpenAsync();
+
+        var scene = await SceneAsync(@case);
+
+        var swap = Assert.Single(scene.Edges, edge => edge.Swaps.Count > 0
+            && edge.Swaps.Any(each => each.Transaction.Value == TestEthereumChain.HashOf(TestEthereumChain.Swap)));
+        Assert.NotNull(swap.SwapRoute);
+        Assert.False(swap.IsSwapPriceAbsurd);
+        var scammer = scene.Nodes.Single(node =>
+            node.Node.Addresses.Contains(TestEthereumChain.Scammer.ToChainAddress()));
+        Assert.Contains(NodeBadge.CanBeFrozen, scammer.Badges);
+        var tornado = scene.Nodes.Single(node =>
+            node.Node.Addresses.Contains(TestEthereumChain.Tornado.ToChainAddress()));
+        Assert.Contains(NodeBadge.FormerlySanctioned, tornado.Badges);
+        Assert.Equal(0, _harness.Outside.Attempts);
+    }
+
     private async Task<ICase> OpenAsync()
     {
         var builder = _harness.Get<TestCaseBuilder>();
