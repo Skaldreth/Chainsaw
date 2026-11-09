@@ -228,7 +228,14 @@ public interface IGraphEditor
 /// Why the label library could not follow yet (for example a locked vault), or <see langword="null"/>; it follows the
 /// next time the case is opened or closed.
 /// </param>
-public sealed record UndoOutcome(bool Done, string? LibraryProblem = null);
+public sealed record UndoOutcome(bool Done, string? LibraryProblem = null)
+{
+    /// <summary>
+    /// Gets what to say when nothing was done for another reason than that it was already done, or
+    /// <see langword="null"/> for the usual words.
+    /// </summary>
+    public string? Notice { get; init; }
+}
 
 /// <summary>How a breaking out went: the splits stored, and why they were not.</summary>
 /// <param name="Stored">How many splits were stored: all, or none when the case refused the breaking out.</param>
@@ -248,6 +255,13 @@ public sealed class GraphEditor(
     ILabelLibrary library,
     ICheckService checks) : IGraphEditor
 {
+    /// <summary>
+    /// What the inspector says when a held back conclusion no longer waits, since what it was built on came back
+    /// (sketch HB1a); the history is read again, and the next expansion redoes the conclusion.
+    /// </summary>
+    public const string NoLongerHeldText =
+        "Slutsatsen väntar inte längre: tx:en den byggde på finns igen, och nästa expansion gör om den.";
+
     /// <summary>What the inspector says when the label library could not follow a label taken back.</summary>
     public const string LibraryLaterText =
         "Etikettbiblioteket kunde inte uppdateras nu; det följer med när ärendet öppnas eller stängs.";
@@ -571,8 +585,17 @@ public sealed class GraphEditor(
         // transaction can be decided, and no other can claim to be.
         var gone = await tracing.GetSettledGoneAsync(@case).ConfigureAwait(false);
         return await Task.Run(() =>
-            new UndoOutcome(clustering.DecideHeldBack(@case, txid, choice, reason, gone) is not null))
-            .ConfigureAwait(false);
+        {
+            if (clustering.DecideHeldBack(@case, txid, choice, reason, gone) is not null)
+            {
+                return new UndoOutcome(true);
+            }
+
+            // A transaction that came back in between holds nothing back any more; say so, not that it was done.
+            var held = clustering.GetHeldBack(@case).FirstOrDefault(each => each.Txid == txid);
+            var cameBack = held is null || held.Missing.Any(missing => missing == txid && !gone.Contains(missing));
+            return new UndoOutcome(false) { Notice = cameBack ? NoLongerHeldText : null };
+        }).ConfigureAwait(false);
     }
 
     /// <inheritdoc/>

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Clustering.Contracts;
@@ -309,19 +310,69 @@ public sealed class HeldBackAndPreviewTests : IDisposable
     }
 
     [Fact]
-    public void A_new_result_that_would_rest_on_a_gone_transaction_is_not_drawn()
+    public void A_transaction_whose_new_results_would_rest_on_a_gone_one_stores_none_of_them_and_says_so()
     {
         var (seen, payment) = Disagreement();
+        var other = Patterns.PaymentWithChange();
 
-        _harness.Service.Analyse(_harness.Case, [seen, payment], [Txid("seen-earlier")]);
+        var run = _harness.Service.Analyse(_harness.Case, [seen, payment, other], [Txid("seen-earlier")]);
 
-        // Common inputs rest on nothing else and are drawn; the change, told by where bulk was seen, is not.
-        var evidence = _harness.Service.GetConclusions(_harness.Case, Txid("disagree")).Evidence;
-        Assert.Contains(evidence, each => each.Heuristic.Name == HeuristicNames.CommonInputOwnership);
-        Assert.DoesNotContain(evidence, each => each.Heuristic.Name == HeuristicNames.ChangeAddress);
-        Assert.DoesNotContain(
-            _harness.Service.GetConclusions(_harness.Case, Txid("disagree")).Findings,
-            found => found.Heuristic.Name == HeuristicNames.ChangeAddress);
+        // Common inputs rest on nothing else, but the change does: they are weighed together, so neither is stored.
+        var conclusions = _harness.Service.GetConclusions(_harness.Case, Txid("disagree"));
+        Assert.Empty(conclusions.Evidence);
+        Assert.Empty(conclusions.Findings);
+        Assert.Equal([Txid("disagree")], run.NotDrawn);
+        Assert.NotEmpty(_harness.Service.GetConclusions(_harness.Case, other.Txid).Evidence);
+        Assert.Contains(
+            $"\"notDrawn\":[\"{Txid("disagree").Value}\"]", run.Journal!.Details!, StringComparison.Ordinal);
+
+        _harness.Analyse(seen, payment);
+
+        Assert.NotEmpty(_harness.Service.GetConclusions(_harness.Case, Txid("disagree")).Evidence);
+    }
+
+    [Fact]
+    public void A_mixed_set_of_old_results_is_not_partly_redone_while_a_transaction_is_gone()
+    {
+        var (seen, payment) = Disagreement();
+        _harness.Analyse(payment);
+        var before = _harness.Service.GetConclusions(_harness.Case, Txid("disagree"));
+        var stored = _harness.Count("clustering_evidence");
+
+        var run = _harness.Service.Analyse(_harness.Case, [seen, payment], [Txid("seen-earlier")]);
+
+        Assert.Equal([Txid("disagree")], run.NotDrawn);
+        Assert.Equal(stored, _harness.Count("clustering_evidence"));
+        Assert.Equal(
+            before.Evidence.Select(evidence => evidence.Sequence),
+            _harness.Service.GetConclusions(_harness.Case, Txid("disagree")).Evidence.Select(each => each.Sequence));
+    }
+
+    [Fact]
+    public void A_withdrawn_versions_basis_stops_holding_back_once_the_transaction_is_weighed_again()
+    {
+        using var harness = new CaseHarness(services =>
+        {
+            services.AddSingleton<IClusteringHeuristic>(new BasisProbe(1));
+            services.AddSingleton<IClusteringHeuristic>(new BasisProbe(2));
+        });
+        var basis = Tx("probe-basis", 800_000).In(Wpkh("elsewhere"), 1_000).Out(Wpkh("bulk"), 900).Build();
+        var probed = Tx("probed", 900_000).In(Wpkh("probe-a"), 1_000).In(Wpkh("probe-b"), 2_000)
+            .Out(Wpkh("probe-out"), 2_900).Build();
+        harness.Analyse(basis, probed);
+        harness.Service.Withdraw(harness.Case, new HeuristicId(BasisProbe.Name, 2), null);
+
+        // Gone while still weighed against version 2: held back, as what would be re-weighed rests on it.
+        Assert.Contains(probed.Txid, harness.Service.Analyse(harness.Case, [basis, probed], [basis.Txid]).HeldBack);
+
+        // Back: re-weighed with version 1, which rests on nothing.
+        Assert.Empty(harness.Service.Analyse(harness.Case, [basis, probed], []).HeldBack);
+
+        // Gone again: version 2's basis no longer holds anything back.
+        var run = harness.Service.Analyse(harness.Case, [basis, probed], [basis.Txid]);
+
+        Assert.DoesNotContain(probed.Txid, run.HeldBack);
+        Assert.DoesNotContain(harness.Service.GetHeldBack(harness.Case), held => held.Txid == probed.Txid);
     }
 
     [Fact]
@@ -360,7 +411,10 @@ public sealed class HeldBackAndPreviewTests : IDisposable
         _harness.Analyse(seen, payment);
         var other = Patterns.PaymentWithChange();
 
-        var run = _harness.Service.Analyse(_harness.Case, [seen, payment, other], [Txid("seen-earlier")]);
+        _harness.Analyse(seen, payment, other);
+        var further = Patterns.PaymentWithWeakSigns();
+
+        var run = _harness.Service.Analyse(_harness.Case, [seen, payment, other, further], [Txid("seen-earlier")]);
 
         Assert.NotNull(run.Journal);
         Assert.Equal([Txid("seen-earlier")], run.LeftOut);

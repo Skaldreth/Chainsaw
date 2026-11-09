@@ -44,6 +44,24 @@ public sealed class GraphEditorTests
         Assert.Equal([gone], Assert.Single(_clustering.GoneTold));
     }
 
+    /// <summary>
+    /// A conclusion held back on its own gone transaction, which came back before the decision, says that it no
+    /// longer waits instead of that it was already decided.
+    /// </summary>
+    [Fact]
+    public async Task ADecisionAfterTheTransactionCameBackSaysItNoLongerWaits()
+    {
+        var back = Txid.Parse(new string('b', 64));
+        _clustering.Refuses = true;
+        _clustering.HeldBack.Add(new Chainsaw.Modules.Clustering.Contracts.HeldBackConclusion(back, [], [back], null));
+
+        var outcome = await Editor.DecideHeldBackAsync(
+            _case, back, Chainsaw.Modules.Clustering.Contracts.ConclusionChoice.Release, null);
+
+        Assert.False(outcome.Done);
+        Assert.Equal(GraphEditor.NoLongerHeldText, outcome.Notice);
+    }
+
     /// <summary>A label taken back is taken in by the library at once, so that its copies are withdrawn.</summary>
     [Fact]
     public async Task TheLibraryFollowsALabelTakenBack()

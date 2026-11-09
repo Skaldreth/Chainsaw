@@ -236,6 +236,11 @@ byggt ur BACKLOG; det som skriver i ärendet granskas oberoende.
      (värdet jämförs med kurserna, och skälet säger avgiften); en bild med båda tillgångarna och kronorna skissas.
 
 **Ur omgång 4, ytorna KV1a, HB1a, BU1a, DM1a, HP1a och TJ1b** (byggda 2026-11-08, rester):
+- [skiss] **En slutsats som inte dras medan en tx är borta** (HB1a, 2026-11-09): en tx vars nya resultat skulle vila
+  på en borta tx görs inte om (`ClusteringRun.NotDrawn`, `notDrawn` i journalens data när körningen skriver en rad),
+  men i grafen syns det inte. En tyst rad i Historik, *Väntar: byggde på en tx som försvunnit*, eller HB1a-ringen
+  utan beslut, skissas först (det som står kvar är inte byggt på den borta tx:en, så *Låt stå* och *Släpp* passar
+  inte).
 - **Förhandsvisningen av ett tillbakadragande** (KV1a) räknar på det som är sparat: det v1 slår ihop i tx som v1
   aldrig kört syns först efter nästa körning. Raden längst ner säger när, men inte vem (det står i journalen).
 - **Dammets linjer** (DM1a) är inte hårfina och prickade och har kvar beloppet; noderna tonas ned och förgiftningens

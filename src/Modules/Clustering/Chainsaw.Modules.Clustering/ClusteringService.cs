@@ -117,11 +117,17 @@ internal sealed class ClusteringService : IClusteringService
             var goneOwn = GoneOwn(transaction, goneTxids, counting, txids);
             HeldBackStore.Replace(transaction, [.. resting, .. goneOwn]);
             List<Txid> heldBack = [.. resting.Select(entry => entry.Txid), .. goneOwn.Select(entry => entry.Txid)];
-            var notRedone = resting.Select(entry => entry.Txid).ToHashSet();
-            // A new result that would rest on a gone transaction is not drawn: the chain no longer has it.
+            // A transaction whose new results would rest on a gone transaction is not redone this run, none of its
+            // results: they are weighed together, so storing some would seal a weighing that points at nothing.
+            List<Txid> notDrawn =
+            [
+                .. analysed.Where(entry => resting.All(held => held.Txid != entry.Txid)
+                        && entry.Results.Any(result => result.Result.Result.Basis.Any(goneTxids.Contains)))
+                    .Select(entry => entry.Txid),
+            ];
+            var notRedone = resting.Select(entry => entry.Txid).Concat(notDrawn).ToHashSet();
             var changed = analysed.Where(entry => !notRedone.Contains(entry.Txid))
                 .SelectMany(entry => entry.Results)
-                .Where(entry => !entry.Result.Result.Basis.Any(goneTxids.Contains))
                 .Where(entry => Replaces(entry.Result, entry.Fingerprint, latest))
                 .ToList();
             // A run that only holds something back stores nothing, so it writes nothing in the journal either; an app
@@ -129,7 +135,11 @@ internal sealed class ClusteringService : IClusteringService
             // back is still in the run's result.
             if (changed.Count == 0 && failed.Count == 0)
             {
-                return new ClusteringRun(null, known.Count, 0, 0, 0, 0, [], failed, heldBack) { LeftOut = leftOut };
+                return new ClusteringRun(null, known.Count, 0, 0, 0, 0, [], failed, heldBack)
+                {
+                    LeftOut = leftOut,
+                    NotDrawn = notDrawn,
+                };
             }
 
             var proposals = changed.SelectMany(entry => entry.Result.Proposals).ToList();
@@ -157,6 +167,7 @@ internal sealed class ClusteringService : IClusteringService
                     heldBack = heldBack.Select(txid => txid.Value),
                     // Only when something was left out, so that a run told of nothing writes what it always did.
                     leftOut = leftOut.Count > 0 ? leftOut.Select(txid => txid.Value) : null,
+                    notDrawn = notDrawn.Count > 0 ? notDrawn.Select(txid => txid.Value) : null,
                 },
                 SkipNull)));
             foreach (var (result, fingerprint) in changed)
@@ -168,6 +179,7 @@ internal sealed class ClusteringService : IClusteringService
                 journal, known.Count, changed.Count, merges, suggestions, stopped, coinJoins, failed, heldBack)
             {
                 LeftOut = leftOut,
+                NotDrawn = notDrawn,
             };
         });
     }

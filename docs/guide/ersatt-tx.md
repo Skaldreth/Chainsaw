@@ -56,12 +56,16 @@ först sågs i den) **hålls tillbaka**. Klustret får då en tyst markering i h
 och hovringen säger vilken tx slutsatsen byggde på och vad som ersatte den.
 
 Ingenting tas bort och ingenting slutar räknas av sig självt: slutsatsen står kvar, förseglad, tills du väljer i
-*Historik*. Klustringen drar inte heller några **nya** slutsatser av att tx:en saknas: en adress som först syntes i
-den räknas fortfarande som sedd, eftersom den visades för världen där, och en ny slutsats som skulle bygga på den
-borta tx:en dras inte alls. Drar du tillbaka en version av en heuristik medan tx:en är borta görs inte heller det
-som byggde på den om. **Låt stå** behåller den, och nästa körning respekterar det. **Släpp slutsatsen** gör att den inte räknas
-längre (också dess fynd), men den står kvar förseglad, och nästa körning drar sina slutsatser utan den borta tx:en.
+*Historik*. **Låt stå** behåller den, och nästa körning respekterar det. **Släpp slutsatsen** gör att den inte räknas
+längre (också dess fynd), men den står kvar förseglad. Nästa körning drar nya slutsatser om tx:en bara när de inte
+bygger på den borta tx:en; annars väntar den tills tx:en är tillbaka.
 Båda valen förseglas med vem och när, och kan tas tillbaka.
+
+Klustringen drar inte heller några **nya** slutsatser av att tx:en saknas. En adress som först syntes i den räknas
+fortfarande som sedd, eftersom den visades för världen där. En tx vars nya slutsatser skulle bygga på den borta tx:en
+görs inte om alls, inte heller de av dess slutsatser som inte bygger på den, eftersom en tx:s slutsatser vägs ihop:
+det som redan står kvar står kvar, och när tx:en kommer tillbaka görs allt om. Drar du tillbaka en version av en
+heuristik medan tx:en är borta görs inte heller det som byggde på den om.
 
 Bara en tx som det är **bekräftat** att den är borta lämnas utanför, efter samma regel som avgör var spåret slutar. När
 spåret bara stannar, för att en enda värd sagt det medan ärendet har svar från fler eller för att svaren inte går ihop,

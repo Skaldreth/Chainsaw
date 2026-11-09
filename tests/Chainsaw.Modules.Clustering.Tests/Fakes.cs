@@ -120,3 +120,37 @@ internal sealed class UndeclaredFindingHeuristic : IUtxoHeuristic
     public HeuristicResult Analyse(BitcoinTransaction transaction, IHeuristicContext context) =>
         new(Id, transaction.Txid, [], [new UndeclaredFinding("Ny sort.")]);
 }
+
+/// <summary>
+/// A probe in two versions for the holding basis (sketch HB1a, KV1a): both suggest that a transaction's first two
+/// input addresses have one owner, version 2 resting on <see cref="Basis"/> and version 1 on nothing.
+/// </summary>
+/// <param name="version">1 or 2.</param>
+internal sealed class BasisProbe(int version) : IUtxoHeuristic
+{
+    /// <summary>The probe's name.</summary>
+    public const string Name = "basis-probe";
+
+    /// <summary>The transaction version 2 rests on.</summary>
+    public static Txid Basis { get; } = Synthetic.Txid("probe-basis");
+
+    public HeuristicId Id { get; } = new(Name, version);
+
+    public ChainScope Scope { get; } = ChainScope.Only(Chain.Bitcoin);
+
+    public HeuristicResult Analyse(BitcoinTransaction transaction, IHeuristicContext context)
+    {
+        var addresses = transaction.Inputs.Select(input => input.Address).OfType<BitcoinAddress>().Distinct().ToList();
+        if (addresses.Count < 2)
+        {
+            return HeuristicResult.Nothing(Id, transaction.Txid);
+        }
+
+        return new HeuristicResult(
+            Id, transaction.Txid, [new OwnershipProposal([.. addresses.Take(2)], EvidenceStrength.Suggestion, "Prov.")],
+            [])
+        {
+            Basis = version == 2 ? [Basis] : [],
+        };
+    }
+}

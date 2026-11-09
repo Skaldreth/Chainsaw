@@ -5850,6 +5850,21 @@ varje senare körning, eftersom det som hålls tillbaka aldrig ersätts.
   annan tx:s växel vilar på den borta, *går inte ihop*, bekräftad genom mynten, en enda källa, ett bytt block
   `Moved`, beslutet genom samma mängd), App 1 (redigeraren skickar mängden).
 
+**Omgranskningens rättelser (2 I, 3 M):**
+- **I-A:** att inte lagra ett resultat avgjordes per resultat, fast en tx:s resultat vägs ihop (en vägning mot en
+  växel som inte lagrades, eller ett CoinJoin-veto medan den gamla växeln räknades). Nu per tx: har något av en tx:s
+  nya resultat en borta tx i grunden lagras inget av dem den körningen (`notDrawn`).
+- **I-B:** en tillbakadragen versions grund höll tillbaka för alltid. Den räknas nu bara så länge tx:ens resultat
+  fortfarande är vägda mot den, alltså så länge inget räknande resultat är nyare än tillbakadragandet.
+- **M-1/M-2:** `ClusteringRun.NotDrawn` och `notDrawn` i journalens data (bara när det finns några). Hur det syns i
+  grafen skissas först (TODO [skiss]); Guiden säger det. Den djupare rättelsen (en borta tx som bara visar var en
+  adress syntes är en giltig grund) kräver att heuristikerna säger varför de citerar en tx och står i BACKLOG.
+- **M-3:** grundens JSON läses bara för de rader som vinner. *Låt stå* eller *Släpp* när tx:en hunnit komma tillbaka
+  säger *Slutsatsen väntar inte längre …* (`UndoOutcome.Notice`) och historiken läses om, i stället för *redan
+  tillbakataget*.
+- **Tester:** Clustering 3 (en tx med blandade resultat lagrar inget och säger det i journalen, gamla blandade
+  resultat görs inte om till hälften, tillbakadragen → tillbaka → borta igen), App 1 (beskedet).
+
 **Kvar:** provet på Windows (TESTER-INFOR, *HB1a av sig själv*).
 
 ## Förvirring, omgång 5: efter granskningen (2026-11-09)

@@ -37,6 +37,13 @@ public sealed record ClusteringRun(
     /// HB1a); empty for a run told of none.
     /// </summary>
     public IReadOnlyList<Txid> LeftOut { get; init; } = [];
+
+    /// <summary>
+    /// Gets the transactions whose new results would rest on a transaction the source no longer knows, so that none
+    /// of them was stored this run (sketch HB1a): what was stored before stands, and a run with the transaction back
+    /// concludes anew.
+    /// </summary>
+    public IReadOnlyList<Txid> NotDrawn { get; init; } = [];
 }
 
 /// <summary>Everything the analyses concluded about one transaction, as stored in the case.</summary>
