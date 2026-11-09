@@ -193,6 +193,16 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
     tokenkonto som skapas i tx:en får sin ägare ur `initializeAccount` eller ATA-`create` (rättat med I2), men ett äldre
     konto utan ägare faller tillbaka på tokenkontots adress, så samma ägare kan synas som två parter. Ett ägarbyte inne
     i tx:en (`setAuthority`) räknas helt till den nya ägaren. Inget av det sägs eller testas än.
+  - **Token-2022 med avgift** (andra granskningen av omgång 8c, M1): `transferChecked` på en mint med överföringsavgift
+    ritar bruttobeloppet på linjen (1000), medan mottagaren fick 990; tx:en sägs som oförklarad, men spårningen följer
+    hela 1000. Dra av `feeAmount` eller rita linjen streckad med *Varför?*.
+  - **Endpointens sökväg finns inte i ärendet** (M2): en egen nod på `https://node.lan/solana` förseglas som
+    `https://node.lan/#…`; bara `endpoint_id` och namnet säger vilken endpoint det var. Försegla en hash av hela
+    adressen, eller säg det i Guiden.
+  - **Hash-jämförelsen hex eller Base58 står två gånger** (M3): `BlockChangeRule.HashComparison` och
+    `MonitoringService.HashComparison`; en regel i Contracts.
+  - **Ägarbyte inne i tx:en** (M4): `Know` håller ägaren från saldona före, så rörelser efter en `setAuthority` räknas
+    till den gamla ägaren; märk åtminstone tx:en oförklarad när ägaren före och efter skiljer sig.
   - **Stängda tokenkonton:** tokenhistoriken läser ägarens tokenkonton som noden listar dem nu; ett stängt konto finns
     inte där, och dess rörelser hittas bara i tx:er som ägaren själv signerade.
   - **Kända tokens i tokenhistoriken** är USDT och USDC; andra SPL-tokens syns i hela tx:er och i ägarens egna
