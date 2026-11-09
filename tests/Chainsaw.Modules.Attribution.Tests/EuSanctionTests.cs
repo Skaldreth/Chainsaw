@@ -1,6 +1,7 @@
 using Chainsaw.Modules.Attribution.Contracts;
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.SharedKernel;
+using SanctionCurrency = Chainsaw.Modules.Attribution.Contracts.SanctionCurrency;
 using static Chainsaw.Modules.Attribution.Tests.Synthetic;
 
 namespace Chainsaw.Modules.Attribution.Tests;
@@ -155,6 +156,79 @@ public sealed class EuSanctionTests : IDisposable
             path => path.Contains(future.Sha256, StringComparison.Ordinal));
         Assert.False(_harness.Sanctions.Remove(future.Sha256));
         Assert.False(_harness.Sanctions.Remove("../" + older.Sha256));
+    }
+
+    [Fact]
+    public void An_address_near_the_name_of_another_chain_is_skipped_and_counted()
+    {
+        var file = new EuFile()
+            .Remarked("EU.9.1", "A", "RUS", $"BCH: {Pkh("bch-1").Value}")
+            .Remarked("EU.9.2", "B", "RUS", $"https://blockchair.com/litecoin/address/{Wpkh("ltc-1").Value}")
+            .Remarked("EU.9.3", "C", "RUS", "USDT (BEP-20) 0x" + new string('e', 40))
+            .Remarked("EU.9.4", "D", "RUS", "Polygon 0x" + new string('f', 40))
+            .Remarked("EU.9.5", "E", "RUS", "TRC20 TJCnKsPa7y5okkXvQAidZBzqx3QyQ6sxMW")
+            .Remarked("EU.9.6", "F", "RUS", $"Bitcoin {Wpkh("btc-ok").Value}");
+
+        var info = _harness.Sanctions.Import(file.Stream());
+
+        Assert.Equal(1, info.AddressesByCurrency[SanctionCurrency.Bitcoin]);
+        Assert.False(info.AddressesByCurrency.ContainsKey(SanctionCurrency.Ether));
+        Assert.Equal(5, info.Skipped);
+    }
+
+    [Fact]
+    public void A_testnet_address_is_never_a_hit()
+    {
+        var testnet = BitcoinAddress.Parse("tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx");
+
+        var info = _harness.Sanctions.Import(
+            new EuFile().Remarked("EU.10.1", "A", "RUS", "Adress " + testnet.Value).Stream());
+
+        Assert.False(info.AddressesByCurrency.ContainsKey(SanctionCurrency.Bitcoin));
+        Assert.Equal(1, info.Skipped);
+    }
+
+    [Fact]
+    public void The_hit_quotes_what_the_list_says_around_the_address()
+    {
+        var address = Wpkh("excerpt");
+        _harness.Sanctions.Import(new EuFile()
+            .Remarked("EU.11.1", "A", "RUS", $"Gruppen tar emot betalningar till plånboken {address.Value} sedan 2024.")
+            .Stream());
+
+        var label = Assert.Single(_harness.Labels.CheckSanctions(_harness.Case, [address]).Added);
+
+        Assert.Contains("betalningar till plånboken", label.Origin.Reason, StringComparison.Ordinal);
+        Assert.Contains("sedan 2024", label.Origin.Reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void A_changed_list_is_passed_over_and_the_other_list_is_still_looked_on()
+    {
+        var address = Wpkh("one-broken");
+        var ofac = _harness.Sanctions.Import(
+            new SdnFile("11/01/2026").Xbt("9001", "OFAC-NAMN", address.Value).Stream());
+        _harness.Sanctions.Import(new EuFile().Identified("EU.12.1", "EU-NAMN", "RUS", address.Value).Stream());
+        var stored = Directory.GetFiles(Path.Combine(_harness.Directory, "Sanktionslistor"), "ofac-sdn-*.xml").Single();
+        File.AppendAllText(stored, " ");
+
+        var check = _harness.Labels.CheckSanctions(_harness.Case, [address]);
+
+        Assert.Equal("EU FSF", Assert.Single(check.Added).Origin.SourceName);
+        Assert.Equal(ofac.Sha256, Assert.Single(check.Unusable).Sha256);
+    }
+
+    [Fact]
+    public void A_second_check_with_nothing_new_opens_no_write()
+    {
+        var address = Wpkh("no-write");
+        _harness.Sanctions.Import(new EuFile().Identified("EU.13.1", "A", "RUS", address.Value).Stream());
+        var (counted, counter) = WriteCountingCase.Wrap(_harness.Case);
+        _harness.Labels.CheckSanctions(counted, [address]);
+
+        _harness.Labels.CheckSanctions(counted, [address]);
+
+        Assert.Equal(1, counter.Writes);
     }
 
     [Fact]

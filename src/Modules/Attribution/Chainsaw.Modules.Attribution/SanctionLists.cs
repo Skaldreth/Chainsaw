@@ -34,6 +34,9 @@ internal sealed class SanctionLists(AttributionOptions options, IClock clock) : 
     /// <summary>Guards the files and the loaded lists.</summary>
     private readonly Lock _gate = new();
 
+    /// <summary>The lists whose file has lost its hash, not read again until imported or removed.</summary>
+    private readonly HashSet<string> _broken = new(StringComparer.Ordinal);
+
     /// <summary>The lists loaded for lookups, by their hash.</summary>
     private readonly Dictionary<string, LoadedList> _loaded = new(StringComparer.Ordinal);
 
@@ -68,10 +71,13 @@ internal sealed class SanctionLists(AttributionOptions options, IClock clock) : 
         var sha = Convert.ToHexStringLower(SHA256.HashData(bytes));
         lock (_gate)
         {
-            if (Describe(kind, sha, repair: false) is { } existing)
+            if (Describe(kind, sha, repair: false) is { } existing && !_broken.Contains(sha))
             {
                 return existing;
             }
+
+            _broken.Remove(sha);
+            _loaded.Remove(sha);
 
             var info = new SanctionListInfo(
                 parsed.Name, sha, parsed.PublishDate, clock.UtcNow, Counts(parsed), parsed.Skipped);
@@ -114,6 +120,7 @@ internal sealed class SanctionLists(AttributionOptions options, IClock clock) : 
             }
 
             _loaded.Remove(sha256);
+            _broken.Remove(sha256);
             _listing?.Invalidate();
             return removed;
         }
@@ -137,14 +144,94 @@ internal sealed class SanctionLists(AttributionOptions options, IClock clock) : 
     public IReadOnlyList<SanctionMatch> FindAll(BitcoinAddress address)
     {
         ArgumentNullException.ThrowIfNull(address);
-        return [.. CurrentLists.Select(list => Match(list, loaded => loaded.Bitcoin.GetValueOrDefault(address)))];
+        var key = address.ToChainAddress();
+        return FindMany([key]).Matches.GetValueOrDefault(key) ?? [];
     }
 
     /// <inheritdoc/>
     public IReadOnlyList<SanctionMatch> FindAll(EthereumAddress address)
     {
         ArgumentNullException.ThrowIfNull(address);
-        return [.. CurrentLists.Select(list => Match(list, loaded => loaded.Ethereum.GetValueOrDefault(address)))];
+        var key = address.ToChainAddress();
+        return FindMany([key]).Matches.GetValueOrDefault(key) ?? [];
+    }
+
+    /// <inheritdoc/>
+    public SanctionLookup FindMany(IReadOnlyCollection<ChainAddress> addresses)
+    {
+        ArgumentNullException.ThrowIfNull(addresses);
+        var usable = new List<LoadedList>();
+        var unusable = new List<SanctionListInfo>();
+        foreach (var list in CurrentLists)
+        {
+            if (TryLoaded(list) is { } loaded)
+            {
+                usable.Add(loaded);
+            }
+            else
+            {
+                unusable.Add(list);
+            }
+        }
+
+        var matches = new Dictionary<ChainAddress, IReadOnlyList<SanctionMatch>>();
+        foreach (var address in addresses.Distinct())
+        {
+            List<SanctionMatch> found =
+            [
+                .. usable.Select(list => (list.Info, Hits: HitsOn(list, address)))
+                    .Where(pair => pair.Hits is { Count: > 0 })
+                    .Select(pair => new SanctionMatch(pair.Info, pair.Hits!)),
+            ];
+            if (found.Count > 0)
+            {
+                matches[address] = found;
+            }
+        }
+
+        return new SanctionLookup([.. usable.Select(list => list.Info)], unusable, matches);
+    }
+
+    /// <summary>Gives a loaded list's entries for an address on its own chain.</summary>
+    /// <param name="list">The list.</param>
+    /// <param name="address">The address with its chain.</param>
+    /// <returns>The entries, or <see langword="null"/> when the list does not name it.</returns>
+    private static IReadOnlyList<SanctionedAddress>? HitsOn(LoadedList list, ChainAddress address) =>
+        address.Chain switch
+        {
+            Chain.Bitcoin when BitcoinAddress.TryParse(address.Value, out var bitcoin) =>
+                list.Bitcoin.GetValueOrDefault(bitcoin),
+            Chain.Ethereum when EthereumAddress.TryParse(address.Value.ToLowerInvariant(), out var account) =>
+                list.Ethereum.GetValueOrDefault(account),
+            _ => null,
+        };
+
+    /// <summary>
+    /// Loads a list for lookups, or gives none when its file has lost its hash. Such a list is remembered as broken,
+    /// so that it is never read and hashed again at every lookup (up to 256 MB), until it is imported again or
+    /// removed; the other lists are still looked on (the review of round 5, I4).
+    /// </summary>
+    /// <param name="info">The list.</param>
+    /// <returns>The loaded list, or <see langword="null"/> when it is broken.</returns>
+    private LoadedList? TryLoaded(SanctionListInfo info)
+    {
+        lock (_gate)
+        {
+            if (_broken.Contains(info.Sha256))
+            {
+                return null;
+            }
+
+            try
+            {
+                return Loaded(info);
+            }
+            catch (SanctionListException exception) when (exception.Error == SanctionListError.Tampered)
+            {
+                _broken.Add(info.Sha256);
+                return null;
+            }
+        }
     }
 
     /// <summary>Tells the kind of list a file is by its root element, and reads it.</summary>
@@ -163,7 +250,14 @@ internal sealed class SanctionLists(AttributionOptions options, IClock clock) : 
     /// <param name="info">The list.</param>
     /// <param name="hits">Gives the loaded list's entries for the address, or <see langword="null"/>.</param>
     /// <returns>The match, empty when the list does not name the address.</returns>
-    private SanctionMatch Match(SanctionListInfo info, Func<LoadedList, IReadOnlyList<SanctionedAddress>?> hits)
+    private SanctionMatch Match(SanctionListInfo info, Func<LoadedList, IReadOnlyList<SanctionedAddress>?> hits) =>
+        new(info, hits(Loaded(info)) ?? []);
+
+    /// <summary>Gives a list loaded for lookups, loading it when it is not loaded.</summary>
+    /// <param name="info">The list.</param>
+    /// <returns>The loaded list.</returns>
+    /// <exception cref="SanctionListException"><see cref="SanctionListError.Tampered"/>.</exception>
+    private LoadedList Loaded(SanctionListInfo info)
     {
         lock (_gate)
         {
@@ -179,7 +273,7 @@ internal sealed class SanctionLists(AttributionOptions options, IClock clock) : 
                 _loaded[info.Sha256] = loaded;
             }
 
-            return new SanctionMatch(info, hits(loaded) ?? []);
+            return loaded;
         }
     }
 

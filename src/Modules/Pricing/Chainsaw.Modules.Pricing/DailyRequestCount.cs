@@ -48,15 +48,18 @@ internal sealed class DailyRequestCount
 
     /// <summary>Gives how many requests went out on a day.</summary>
     /// <param name="today">The day.</param>
-    /// <returns>The count; zero for any other day than the one counted.</returns>
-    public int On(DateOnly today) => today == _day ? _count : 0;
+    /// <returns>
+    /// The count; zero for a later day than the one counted. A day before it (the clock was set back) counts as the
+    /// day counted, so that setting the clock back never resets the limit (the review of round 5, M8).
+    /// </returns>
+    public int On(DateOnly today) => today <= _day ? _count : 0;
 
     /// <summary>Counts one request on a day, and keeps the count in the file.</summary>
     /// <param name="today">The day.</param>
     public void Add(DateOnly today)
     {
         _count = On(today) + 1;
-        _day = today;
+        _day = today > _day ? today : _day;
         if (_path is null)
         {
             return;
@@ -65,7 +68,7 @@ internal sealed class DailyRequestCount
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-            var temporary = _path + ".tmp";
+            var temporary = _path + "." + Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture) + ".tmp";
             File.WriteAllBytes(temporary, JsonSerializer.SerializeToUtf8Bytes(
                 new Stored(_day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), _count)));
             File.Move(temporary, _path, overwrite: true);

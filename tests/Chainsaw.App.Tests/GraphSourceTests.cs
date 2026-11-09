@@ -112,10 +112,13 @@ internal sealed class TestAttribution : IAttributionService
     /// <summary>The addresses the graph checked against the lists when it was read, each with its chain.</summary>
     public List<ChainAddress> ListsChecked { get; } = [];
 
+    /// <summary>The sanction lists the check says could not be used.</summary>
+    public List<SanctionListInfo> UnusableLists { get; } = [];
+
     public SanctionCheck CheckSanctions(ICase @case, IReadOnlyCollection<ChainAddress> addresses)
     {
         ListsChecked.AddRange(addresses);
-        return new SanctionCheck(null, [], 0);
+        return new SanctionCheck(null, [], 0) { Unusable = UnusableLists };
     }
 
     public OpenSourceCheck CheckOpenSources(ICase @case, IReadOnlyCollection<ChainAddress> addresses) =>
@@ -318,6 +321,22 @@ public sealed class GraphSourceTests
 
         Assert.Contains(GraphSamples.K1.ToChainAddress(), _attribution.ListsChecked);
         Assert.Contains(GraphSamples.E.ToChainAddress(), _attribution.ListsChecked);
+    }
+
+    /// <summary>A sanction list that has changed on the computer is said in the graph's problems.</summary>
+    [Fact]
+    public async Task AChangedListIsSaid()
+    {
+        _tracing.Tracer = (_, _) => GraphSamples.Trace();
+        _attribution.UnusableLists.Add(new SanctionListInfo(
+            "OFAC SDN", new string('a', 64), new DateOnly(2026, 11, 1), DateTimeOffset.UnixEpoch,
+            new Dictionary<string, int>(), 0));
+
+        var scene = await Source.LoadAsync(_case, TracingMethodKind.Fifo, CancellationToken.None);
+
+        Assert.Contains(
+            GraphSource.UnusableListText("Sanktionslistan", "OFAC SDN", new DateOnly(2026, 11, 1)),
+            scene.Snapshot.Graph.Problems);
     }
 
     /// <summary>Only a cluster is asked of Clustering, from its first address.</summary>

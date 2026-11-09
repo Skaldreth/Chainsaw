@@ -333,9 +333,34 @@ public sealed class ServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task A_period_before_the_sources_history_is_answered_from_the_case_and_never_asked_again()
+    public async Task A_period_the_source_has_no_rate_for_is_not_asked_again_until_the_cooldown_has_passed()
     {
         _harness.Http.AnswerText(Fixtures.BitstampUsdHour, """{"data": {"pair": "BTC/USD", "ohlc": []}}""");
+
+        var first = await _harness.PriceAsync(Fixtures.At);
+        var again = await _harness.PriceAsync(Fixtures.At);
+        _harness.Clock.UtcNow += new PricingOptions().FailureCooldown;
+        var later = await _harness.PriceAsync(Fixtures.At);
+
+        Assert.Equal(PriceLookupStatus.NotAvailable, first.Status);
+        Assert.Equal(PriceLookupStatus.NotAvailable, again.Status);
+        Assert.False(again.IsThrottled);
+        Assert.Empty(again.Origins);
+        Assert.Equal(PriceLookupStatus.NotAvailable, later.Status);
+        Assert.Equal(2, _harness.Http.Sent.Count);
+        Assert.Equal(2, _harness.RawRows().Count);
+    }
+
+    [Fact]
+    public async Task A_period_before_the_sources_history_is_answered_from_the_case_and_never_asked_again()
+    {
+        // The market's first period starts a day after the hour asked about: the history begins later.
+        var marketStart = Fixtures.HourStart + 86_400;
+        _harness.Http.AnswerText(Fixtures.BitstampUsdHour, $$$"""
+            {"data": {"pair": "BTC/USD", "ohlc": [{"timestamp": "{{{marketStart}}}",
+            "open": "1", "high": "1", "low": "1",
+            "close": "1", "volume": "0"}]}}
+            """);
 
         var first = await _harness.PriceAsync(Fixtures.At);
         var again = await _harness.PriceAsync(Fixtures.At);
@@ -374,7 +399,7 @@ public sealed class ServiceTests : IDisposable
         Assert.Equal(PriceLookupStatus.NotAvailable, lookup.Status);
         Assert.Single(lookup.Origins);
         Assert.Single(_harness.RawRows());
-        Assert.Equal(1, _harness.Count("pricing_lookup"));
+        Assert.Equal(0, _harness.Count("pricing_lookup"));
     }
 
     [Fact]
@@ -434,11 +459,11 @@ public sealed class ServiceTests : IDisposable
 
         Assert.Equal(PriceLookupStatus.NotAvailable, lookup.Status);
         Assert.Contains("SEKUSDPMI", lookup.Problem, StringComparison.Ordinal);
-        Assert.Equal(1, _harness.Count("pricing_fiat_ranges"));
+        Assert.Equal(0, _harness.Count("pricing_fiat_ranges"));
     }
 
     [Fact]
-    public async Task Days_before_the_riksbanks_history_are_answered_from_the_case_and_never_asked_again()
+    public async Task An_empty_answer_from_the_riksbank_is_never_kept_as_final()
     {
         _harness.Http.Answer(Fixtures.BitstampUsdHour, "bitstamp-btcusd-hour.json");
         _harness.Http.AnswerText(Fixtures.RiksbankUsdNovember, string.Empty, 204);
@@ -449,8 +474,7 @@ public sealed class ServiceTests : IDisposable
         var again = await _harness.PriceAsync(Fixtures.At);
 
         Assert.Equal(PriceLookupStatus.NotAvailable, again.Status);
-        Assert.Contains("före seriens historik", again.Problem, StringComparison.Ordinal);
-        Assert.Equal(sent, _harness.Http.Sent.Count);
+        Assert.True(_harness.Http.Sent.Count > sent);
     }
 
     [Fact]

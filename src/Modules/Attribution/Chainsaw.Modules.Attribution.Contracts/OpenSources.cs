@@ -30,13 +30,13 @@ public interface IOpenSourceLists
     /// <returns>The sources.</returns>
     IReadOnlyList<OpenSourceListInfo> List();
 
-    /// <summary>Finds an address on every current source.</summary>
-    /// <param name="address">The address with its chain.</param>
-    /// <returns>The sources that name the address, with what they say; empty when none does.</returns>
-    /// <exception cref="OpenSourceListException">
-    /// <see cref="OpenSourceListError.Tampered"/> when a stored file no longer has its hash.
-    /// </exception>
-    IReadOnlyList<OpenSourceMatch> Find(ChainAddress address);
+    /// <summary>
+    /// Finds many addresses in every current source at once, reading which sources are current only once. A source
+    /// whose file has lost its hash is passed over and named in <see cref="OpenSourceLookup.Unusable"/>.
+    /// </summary>
+    /// <param name="addresses">The addresses with their chain.</param>
+    /// <returns>The sources looked in, those that could not be, and what they say about each address.</returns>
+    OpenSourceLookup Find(IReadOnlyCollection<ChainAddress> addresses);
 
     /// <summary>Removes an imported source from the data folder; labels sealed in cases keep its hash.</summary>
     /// <param name="sha256">The source's <see cref="OpenSourceListInfo.Sha256"/>.</param>
@@ -82,7 +82,20 @@ public sealed record OpenSourceMatch(OpenSourceListInfo List, IReadOnlyList<Open
 /// <param name="Added">The new labels.</param>
 /// <param name="AlreadyLabelled">Hits that were already labelled from the same file.</param>
 public sealed record OpenSourceCheck(
-    IReadOnlyList<OpenSourceListInfo> Lists, IReadOnlyList<LabelEntry> Added, int AlreadyLabelled);
+    IReadOnlyList<OpenSourceListInfo> Lists, IReadOnlyList<LabelEntry> Added, int AlreadyLabelled)
+{
+    /// <summary>Gets the current sources that could not be looked in, since their file has lost its hash.</summary>
+    public IReadOnlyList<OpenSourceListInfo> Unusable { get; init; } = [];
+}
+
+/// <summary>Many addresses looked up in the current open sources.</summary>
+/// <param name="Lists">The sources looked in.</param>
+/// <param name="Unusable">The current sources that could not be looked in, since their file has lost its hash.</param>
+/// <param name="Matches">What the sources say about each address they name.</param>
+public sealed record OpenSourceLookup(
+    IReadOnlyList<OpenSourceListInfo> Lists,
+    IReadOnlyList<OpenSourceListInfo> Unusable,
+    IReadOnlyDictionary<ChainAddress, IReadOnlyList<OpenSourceMatch>> Matches);
 
 /// <summary>Why an open source could not be imported or read.</summary>
 public enum OpenSourceListError
@@ -98,6 +111,12 @@ public enum OpenSourceListError
 
     /// <summary>A stored source no longer has the hash it was imported with.</summary>
     Tampered,
+
+    /// <summary>
+    /// The source's newest record is dated after today; as the newest file of its source it would stand in for every
+    /// file imported later, so it is refused.
+    /// </summary>
+    FutureDate,
 }
 
 /// <summary>An open source could not be imported or read. The message never contains the file's content.</summary>
@@ -132,6 +151,7 @@ public sealed class OpenSourceListException : Exception
         OpenSourceListError.NoDate => "The source does not state how new its data is.",
         OpenSourceListError.TooLarge => "The file is too large to be an open source.",
         OpenSourceListError.Tampered => "A stored open source no longer has its hash.",
+        OpenSourceListError.FutureDate => "The source's data is dated after today.",
         _ => "The open source could not be read.",
     };
 }

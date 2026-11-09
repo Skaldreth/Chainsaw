@@ -171,4 +171,10 @@ public interface IAttributionService
 /// <param name="List">The list that was used, or <see langword="null"/> when no list is imported.</param>
 /// <param name="Added">The new labels.</param>
 /// <param name="AlreadyLabelled">Hits that were already labelled from the same list.</param>
-public sealed record SanctionCheck(SanctionListInfo? List, IReadOnlyList<LabelEntry> Added, int AlreadyLabelled);
+public sealed record SanctionCheck(SanctionListInfo? List, IReadOnlyList<LabelEntry> Added, int AlreadyLabelled)
+{
+    /// <summary>
+    /// Gets the current lists that could not be looked on, since their file has lost its hash; the others were.
+    /// </summary>
+    public IReadOnlyList<SanctionListInfo> Unusable { get; init; } = [];
+}

@@ -27,10 +27,10 @@ namespace Chainsaw.Modules.Attribution;
 internal static class RansomwhereParser
 {
     /// <summary>The source's name as an origin states it.</summary>
-    public const string ListName = "Ransomwhere";
+    public const string ListName = OpenSourceLicenses.RansomwhereName;
 
     /// <summary>The licence and the attribution it asks for.</summary>
-    public const string License = "CC BY 4.0, Jack Cable, Ransomwhere (ransomwhe.re)";
+    public const string License = OpenSourceLicenses.Ransomwhere;
 
     /// <summary>The longest family name kept, so that a label's name stays within its limit.</summary>
     private const int MaximumFamilyLength = 80;
@@ -45,7 +45,7 @@ internal static class RansomwhereParser
     {
         try
         {
-            var reader = new Utf8JsonReader(content);
+            var reader = new Utf8JsonReader(WithoutBom(content));
             if (!reader.Read() || reader.TokenType != JsonTokenType.StartArray
                 || !reader.Read() || reader.TokenType != JsonTokenType.StartObject)
             {
@@ -74,7 +74,7 @@ internal static class RansomwhereParser
     {
         try
         {
-            using var document = JsonDocument.Parse(content);
+            using var document = JsonDocument.Parse(WithoutBom(content).ToArray());
             if (document.RootElement.ValueKind != JsonValueKind.Array)
             {
                 throw new OpenSourceListException(OpenSourceListError.NotKnown);
@@ -113,6 +113,18 @@ internal static class RansomwhereParser
             throw new OpenSourceListException(OpenSourceListError.NotKnown, exception);
         }
     }
+
+    /// <summary>Gives a file's bytes without a UTF-8 byte order mark, which a saved file may start with.</summary>
+    /// <param name="content">The file's bytes.</param>
+    /// <returns>The bytes after the mark, or all of them.</returns>
+    private static ReadOnlySpan<byte> WithoutBom(byte[] content)
+    {
+        ReadOnlySpan<byte> bytes = content;
+        return bytes.StartsWith(Utf8Bom) ? bytes[Utf8Bom.Length..] : bytes;
+    }
+
+    /// <summary>Gets the UTF-8 byte order mark.</summary>
+    private static ReadOnlySpan<byte> Utf8Bom => [0xEF, 0xBB, 0xBF];
 
     /// <summary>Reads one record as a label, if it names a Bitcoin address.</summary>
     /// <param name="record">The record.</param>

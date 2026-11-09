@@ -35,6 +35,9 @@ internal sealed class OpenSourceLists(AttributionOptions options, IClock clock) 
     /// <summary>The stored sources, read again when the folder has changed; created on first use.</summary>
     private FolderSnapshot<OpenSourceListInfo>? _listing;
 
+    /// <summary>The sources whose file has lost its hash, not read again until imported or removed.</summary>
+    private readonly HashSet<string> _broken = new(StringComparer.Ordinal);
+
     /// <summary>The sources loaded for lookups, by their hash.</summary>
     private readonly Dictionary<string, ILookup<ChainAddress, OpenSourceEntry>> _loaded = new(StringComparer.Ordinal);
 
@@ -51,20 +54,29 @@ internal sealed class OpenSourceLists(AttributionOptions options, IClock clock) 
         var bytes = ListFiles.ReadAll(
             content, MaximumLength, () => new OpenSourceListException(OpenSourceListError.TooLarge));
         var (kind, parsed) = Parse(bytes);
+
+        // The newest data of a source is the one used, so a date after today (a day's slack for time zones) would
+        // shadow every later file of the same source.
+        if (parsed.DataDate > DateOnly.FromDateTime(clock.UtcNow.UtcDateTime).AddDays(1))
+        {
+            throw new OpenSourceListException(OpenSourceListError.FutureDate);
+        }
+
         var sha = Convert.ToHexStringLower(SHA256.HashData(bytes));
         lock (_gate)
         {
-            if (Describe(kind, sha) is { } existing)
+            if (Describe(kind, sha, repair: false) is { } existing && !_broken.Contains(sha))
             {
                 return existing;
             }
 
+            _broken.Remove(sha);
+            _loaded.Remove(sha);
             var info = new OpenSourceListInfo(
                 parsed.Name, parsed.License, sha, parsed.DataDate, clock.UtcNow, Counts(parsed), parsed.Skipped);
             Directory.CreateDirectory(options.OpenSourceDirectory);
             ListFiles.WriteAtomically(PathFor(kind, sha, DataExtension), bytes);
-            ListFiles.WriteAtomically(PathFor(kind, sha, DescriptionExtension), JsonSerializer.SerializeToUtf8Bytes(
-                new StoredDescription(info.DataDate, info.ImportedUtc, info.AddressesByChain, info.Skipped)));
+            WriteDescription(kind, info);
             _listing?.Invalidate();
             return info;
         }
@@ -95,7 +107,7 @@ internal sealed class OpenSourceLists(AttributionOptions options, IClock clock) 
                 .EnumerateFiles(options.OpenSourceDirectory, kind.Prefix + "*" + DataExtension)
                 .Select(path => Path.GetFileNameWithoutExtension(path)[kind.Prefix.Length..])
                 .Where(IsHash)
-                .Select(sha => Describe(kind, sha)))
+                .Select(sha => Describe(kind, sha, repair: true)))
             .OfType<OpenSourceListInfo>()
             .OrderByDescending(info => info.DataDate)
             .ThenByDescending(info => info.ImportedUtc)
@@ -104,20 +116,65 @@ internal sealed class OpenSourceLists(AttributionOptions options, IClock clock) 
     }
 
     /// <inheritdoc/>
-    public IReadOnlyList<OpenSourceMatch> Find(ChainAddress address)
+    public OpenSourceLookup Find(IReadOnlyCollection<ChainAddress> addresses)
     {
-        ArgumentNullException.ThrowIfNull(address);
-        var matches = new List<OpenSourceMatch>();
+        ArgumentNullException.ThrowIfNull(addresses);
+        var usable = new List<(OpenSourceListInfo Info, ILookup<ChainAddress, OpenSourceEntry> Entries)>();
+        var unusable = new List<OpenSourceListInfo>();
         foreach (var list in CurrentLists)
         {
-            var hits = Loaded(list)[address].ToList();
-            if (hits.Count > 0)
+            if (TryLoaded(list) is { } entries)
             {
-                matches.Add(new OpenSourceMatch(list, hits));
+                usable.Add((list, entries));
+            }
+            else
+            {
+                unusable.Add(list);
             }
         }
 
-        return matches;
+        var matches = new Dictionary<ChainAddress, IReadOnlyList<OpenSourceMatch>>();
+        foreach (var address in usable.Count == 0 ? [] : addresses.Distinct())
+        {
+            List<OpenSourceMatch> found =
+            [
+                .. usable.Where(list => list.Entries.Contains(address))
+                    .Select(list => new OpenSourceMatch(list.Info, [.. list.Entries[address]])),
+            ];
+            if (found.Count > 0)
+            {
+                matches[address] = found;
+            }
+        }
+
+        return new OpenSourceLookup([.. usable.Select(list => list.Info)], unusable, matches);
+    }
+
+    /// <summary>
+    /// Loads a source for lookups, or gives none when its file has lost its hash; such a source is remembered as
+    /// broken, so that it is not read and hashed again at every lookup, until it is imported again or removed.
+    /// </summary>
+    /// <param name="info">The source.</param>
+    /// <returns>Its entries by address, or <see langword="null"/> when it is broken.</returns>
+    private ILookup<ChainAddress, OpenSourceEntry>? TryLoaded(OpenSourceListInfo info)
+    {
+        lock (_gate)
+        {
+            if (_broken.Contains(info.Sha256))
+            {
+                return null;
+            }
+
+            try
+            {
+                return Loaded(info);
+            }
+            catch (OpenSourceListException exception) when (exception.Error == OpenSourceListError.Tampered)
+            {
+                _broken.Add(info.Sha256);
+                return null;
+            }
+        }
     }
 
     /// <inheritdoc/>
@@ -140,6 +197,7 @@ internal sealed class OpenSourceLists(AttributionOptions options, IClock clock) 
             }
 
             _loaded.Remove(sha256);
+            _broken.Remove(sha256);
             _listing?.Invalidate();
             return removed;
         }
@@ -196,31 +254,77 @@ internal sealed class OpenSourceLists(AttributionOptions options, IClock clock) 
         }
     }
 
-    /// <summary>Reads a stored source's description.</summary>
+    /// <summary>
+    /// Reads a stored source's description. A source whose description is missing or broken is not dropped in
+    /// silence: when <paramref name="repair"/> is set, its file is read again, checked against its hash, and the
+    /// description written anew with the file's own time as when it was imported (as for the sanction lists).
+    /// </summary>
     /// <param name="kind">The source.</param>
     /// <param name="sha">The file's hash.</param>
+    /// <param name="repair">Whether a missing or broken description is written anew from the file.</param>
     /// <returns>The source, or <see langword="null"/> when it is not stored or cannot be described.</returns>
-    private OpenSourceListInfo? Describe(SourceKind kind, string sha)
+    private OpenSourceListInfo? Describe(SourceKind kind, string sha, bool repair)
     {
-        var path = PathFor(kind, sha, DescriptionExtension);
-        if (!File.Exists(path) || !File.Exists(PathFor(kind, sha, DataExtension)))
+        if (!File.Exists(PathFor(kind, sha, DataExtension)))
         {
             return null;
         }
 
+        var path = PathFor(kind, sha, DescriptionExtension);
         try
         {
-            var stored = JsonSerializer.Deserialize<StoredDescription>(File.ReadAllBytes(path));
-            return stored is null
-                ? null
-                : new OpenSourceListInfo(kind.Name, LicenseOf(kind), sha, stored.DataDate, stored.ImportedUtc,
+            var stored = File.Exists(path)
+                ? JsonSerializer.Deserialize<StoredDescription>(File.ReadAllBytes(path))
+                : null;
+            if (stored is not null)
+            {
+                return new OpenSourceListInfo(kind.Name, LicenseOf(kind), sha, stored.DataDate, stored.ImportedUtc,
                     stored.AddressesByChain, stored.Skipped);
+            }
         }
         catch (JsonException)
         {
+            // Written anew below, from the source itself.
+        }
+
+        return repair ? Repair(kind, sha) : null;
+    }
+
+    /// <summary>Writes a stored source's description anew from its file.</summary>
+    /// <param name="kind">The source.</param>
+    /// <param name="sha">The file's hash.</param>
+    /// <returns>The source, or <see langword="null"/> when its file no longer has its hash or cannot be read.</returns>
+    private OpenSourceListInfo? Repair(SourceKind kind, string sha)
+    {
+        try
+        {
+            var bytes = File.ReadAllBytes(PathFor(kind, sha, DataExtension));
+            if (Convert.ToHexStringLower(SHA256.HashData(bytes)) != sha)
+            {
+                return null;
+            }
+
+            var parsed = kind.Parse(bytes);
+            var imported = new DateTimeOffset(File.GetLastWriteTimeUtc(PathFor(kind, sha, DataExtension)));
+            var info = new OpenSourceListInfo(
+                kind.Name, LicenseOf(kind), sha, parsed.DataDate, imported, Counts(parsed), parsed.Skipped);
+            WriteDescription(kind, info);
+            return info;
+        }
+        catch (Exception exception) when (exception is OpenSourceListException or IOException
+            or UnauthorizedAccessException)
+        {
+            // A source that cannot be read is never listed: a label from it could not be followed to its file.
             return null;
         }
     }
+
+    /// <summary>Writes a source's description next to it.</summary>
+    /// <param name="kind">The source.</param>
+    /// <param name="info">The source's description.</param>
+    private void WriteDescription(SourceKind kind, OpenSourceListInfo info) =>
+        ListFiles.WriteAtomically(PathFor(kind, info.Sha256, DescriptionExtension), JsonSerializer.SerializeToUtf8Bytes(
+            new StoredDescription(info.DataDate, info.ImportedUtc, info.AddressesByChain, info.Skipped)));
 
     /// <summary>Gives a source's licence, which is Chainsaw's own knowledge of it, never read from the file.</summary>
     /// <param name="kind">The source.</param>

@@ -42,6 +42,19 @@ public sealed class DailyRequestCountTests : IDisposable
     }
 
     [Fact]
+    public void A_clock_set_back_never_resets_the_count()
+    {
+        var count = new DailyRequestCount(File);
+        count.Add(Day);
+        count.Add(Day);
+
+        count.Add(Day.AddDays(-1));
+
+        Assert.Equal(3, new DailyRequestCount(File).On(Day));
+        Assert.Equal(3, count.On(Day.AddDays(-1)));
+    }
+
+    [Fact]
     public void A_broken_file_counts_from_zero()
     {
         Directory.CreateDirectory(Path.GetDirectoryName(File)!);

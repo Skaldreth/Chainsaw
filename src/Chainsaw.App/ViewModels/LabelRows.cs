@@ -14,8 +14,11 @@ public enum LabelFilter
     /// <summary>A sanction list the user imported.</summary>
     Sanction,
 
-    /// <summary>The user's own labels, also those from an open source the user named.</summary>
+    /// <summary>The user's own labels.</summary>
     Own,
+
+    /// <summary>An open source: one built in (Ransomwhere) or one the user named in the form.</summary>
+    OpenSource,
 
     /// <summary>A supplier of attribution, for example Chainabuse.</summary>
     Provider,
@@ -58,7 +61,10 @@ public static class LabelFilters
 {
     /// <summary>Gets every filter in the order of the left column.</summary>
     public static IReadOnlyList<LabelFilter> All { get; } =
-        [LabelFilter.Sanction, LabelFilter.Own, LabelFilter.Provider, LabelFilter.Behaviour, LabelFilter.OtherCase];
+    [
+        LabelFilter.Sanction, LabelFilter.Own, LabelFilter.OpenSource, LabelFilter.Provider, LabelFilter.Behaviour,
+        LabelFilter.OtherCase,
+    ];
 
     /// <summary>Gives the filter a source belongs to.</summary>
     /// <param name="source">How the case got a label.</param>
@@ -66,6 +72,7 @@ public static class LabelFilters
     public static LabelFilter Of(LabelSource source) => source switch
     {
         LabelSource.SanctionList => LabelFilter.Sanction,
+        LabelSource.OpenSource => LabelFilter.OpenSource,
         LabelSource.Provider => LabelFilter.Provider,
         LabelSource.Behaviour => LabelFilter.Behaviour,
         LabelSource.OtherCase => LabelFilter.OtherCase,
@@ -78,6 +85,7 @@ public static class LabelFilters
     public static string Icon(LabelFilter filter) => filter switch
     {
         LabelFilter.Sanction => "Icon.Kind.Ban",
+        LabelFilter.OpenSource => "Icon.Globe",
         LabelFilter.Provider => "Icon.Alert",
         LabelFilter.Behaviour => "Icon.Pulse",
         LabelFilter.OtherCase => "Icon.Library",
@@ -91,6 +99,7 @@ public static class LabelFilters
     public static string Name(LabelFilter filter, string providers) => filter switch
     {
         LabelFilter.Sanction => "Sanktionslista",
+        LabelFilter.OpenSource => "Öppen källa",
         LabelFilter.Provider => providers,
         LabelFilter.Behaviour => "Beteende",
         LabelFilter.OtherCase => "Annat ärende",
@@ -105,6 +114,7 @@ public static class LabelFilters
     {
         LabelFilter.Sanction => "Sanktionslistor",
         LabelFilter.Own => "Egna",
+        LabelFilter.OpenSource => "Öppna källor",
         LabelFilter.OtherCase => "Andra ärenden",
         _ => Name(filter, providers),
     };
@@ -363,8 +373,9 @@ public sealed partial class LabelRowViewModel : ObservableObject
         _ => "URSPRUNG",
     };
 
-    /// <summary>Gets whether <em>Varför?</em> is offered: for what an analysis or a supplier says.</summary>
-    public bool HasWhy => Sources.Contains(LabelFilter.Behaviour) || Sources.Contains(LabelFilter.Provider);
+    /// <summary>Gets whether <em>Varför?</em> is offered: for an analysis, a supplier or an open source.</summary>
+    public bool HasWhy => Sources.Contains(LabelFilter.Behaviour) || Sources.Contains(LabelFilter.Provider)
+        || Sources.Contains(LabelFilter.OpenSource);
 
     /// <summary>Gets the text the filter field searches: the label, its node, its address and its cases.</summary>
     public required string SearchText { get; init; }
@@ -818,6 +829,10 @@ public sealed record LabelWords(string CaseNumber, string Providers, TimeZoneInf
                 origin.SourceVersion),
             LabelFilter.Provider => (origin.SourceName, "Hämtad " + when + " av " + origin.SetBy.Name,
                 origin.SourceVersion),
+            LabelFilter.OpenSource => (origin.SourceName, "Läst " + when + " av " + origin.SetBy.Name,
+                OpenSourceLicenses.Of(origin.SourceName) is { } license
+                    ? $"{origin.SourceVersion} · {license}"
+                    : origin.SourceVersion),
             LabelFilter.Behaviour => ($"Analysen {origin.SourceName} {origin.SourceVersion}", when, string.Empty),
             _ => (Person(origin.SetBy), when, NoteOf(origin)),
         };

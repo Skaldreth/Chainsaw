@@ -1,3 +1,4 @@
+using Chainsaw.SharedKernel;
 using Chainsaw.Modules.Chains.Contracts;
 
 namespace Chainsaw.Modules.Attribution.Contracts;
@@ -63,23 +64,51 @@ public interface ISanctionLists
     /// </exception>
     SanctionMatch? Find(EthereumAddress address);
 
-    /// <summary>Finds an address on every current list (<see cref="CurrentLists"/>).</summary>
-    /// <param name="address">The address.</param>
-    /// <returns>One match per current list, also those without hits; empty when no list is imported.</returns>
-    /// <exception cref="SanctionListException">
-    /// <see cref="SanctionListError.Tampered"/> when a stored file no longer has its hash.
-    /// </exception>
-    IReadOnlyList<SanctionMatch> FindAll(BitcoinAddress address) => Find(address) is { } match ? [match] : [];
-
     /// <summary>
-    /// Finds an Ethereum address on every current list, as <see cref="Find(EthereumAddress)"/> does on one.
+    /// Finds an address on every current list that can be read (<see cref="CurrentLists"/>); a list whose file has
+    /// lost its hash is passed over, as <see cref="FindMany"/> says.
     /// </summary>
     /// <param name="address">The address.</param>
-    /// <returns>One match per current list, also those without hits; empty when no list is imported.</returns>
-    /// <exception cref="SanctionListException">
-    /// <see cref="SanctionListError.Tampered"/> when a stored file no longer has its hash.
-    /// </exception>
-    IReadOnlyList<SanctionMatch> FindAll(EthereumAddress address) => Find(address) is { } match ? [match] : [];
+    /// <returns>The lists that name the address; empty when none does.</returns>
+    IReadOnlyList<SanctionMatch> FindAll(BitcoinAddress address) =>
+        Find(address) is { Hits.Count: > 0 } match ? [match] : [];
+
+    /// <summary>
+    /// Finds an Ethereum address on every current list that can be read, as <see cref="Find(EthereumAddress)"/> does
+    /// on one.
+    /// </summary>
+    /// <param name="address">The address.</param>
+    /// <returns>The lists that name the address; empty when none does.</returns>
+    IReadOnlyList<SanctionMatch> FindAll(EthereumAddress address) =>
+        Find(address) is { Hits.Count: > 0 } match ? [match] : [];
+
+    /// <summary>
+    /// Finds many addresses on every current list at once, each on its own chain (Bitcoin and Ethereum), reading which
+    /// lists are current only once. A list whose file has lost its hash is passed over and named in
+    /// <see cref="SanctionLookup.Unusable"/>, so that one changed list never keeps the others from being looked on.
+    /// </summary>
+    /// <param name="addresses">The addresses, each with its chain.</param>
+    /// <returns>The lists looked on, those that could not be, and the hits of each address that has any.</returns>
+    SanctionLookup FindMany(IReadOnlyCollection<ChainAddress> addresses)
+    {
+        ArgumentNullException.ThrowIfNull(addresses);
+        var matches = new Dictionary<ChainAddress, IReadOnlyList<SanctionMatch>>();
+        foreach (var address in addresses.Distinct())
+        {
+            IReadOnlyList<SanctionMatch> found = address.Chain switch
+            {
+                Chain.Bitcoin when BitcoinAddress.TryParse(address.Value, out var bitcoin) => FindAll(bitcoin),
+                Chain.Ethereum when EthereumAddress.TryParse(address.Value, out var account) => FindAll(account),
+                _ => [],
+            };
+            if (found.Count > 0)
+            {
+                matches[address] = found;
+            }
+        }
+
+        return new SanctionLookup(CurrentLists, [], matches);
+    }
 
     /// <summary>
     /// Removes an imported list from the data folder, for example one with a wrong date that would stay current
@@ -157,6 +186,15 @@ public sealed record SanctionedAddress(
     /// </summary>
     public string? ListedAs { get; init; }
 }
+
+/// <summary>Many addresses looked up on the current lists.</summary>
+/// <param name="Lists">The lists looked on, the newest first.</param>
+/// <param name="Unusable">The current lists that could not be looked on, since their file has lost its hash.</param>
+/// <param name="Matches">The lists that name each address, for each address named by any.</param>
+public sealed record SanctionLookup(
+    IReadOnlyList<SanctionListInfo> Lists,
+    IReadOnlyList<SanctionListInfo> Unusable,
+    IReadOnlyDictionary<ChainAddress, IReadOnlyList<SanctionMatch>> Matches);
 
 /// <summary>An address looked up on a list.</summary>
 /// <param name="List">The list.</param>

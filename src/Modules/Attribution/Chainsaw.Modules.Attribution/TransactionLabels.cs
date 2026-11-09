@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Chainsaw.Modules.Attribution.Contracts;
 using Chainsaw.Modules.Cases.Contracts;
@@ -21,6 +22,19 @@ internal sealed class TransactionLabels : ITransactionLabels
     /// <summary>The action of a record that takes a label back.</summary>
     private const string RetractAction = "retract";
 
+    /// <summary>
+    /// The labels read from each open case, so that a graph's build reads the table once and not once per transaction
+    /// (the review of round 5, M3). Only this class writes the table, and it forgets a case's labels when it does; a
+    /// case opened again is a new instance.
+    /// </summary>
+    private readonly ConditionalWeakTable<ICase, IReadOnlyList<TransactionLabel>> _read = new();
+
+    /// <summary>Counts the writes started and ended, so that a reading made around a write is not kept.</summary>
+    private long _writes;
+
+    /// <summary>The writes under way now.</summary>
+    private long _active;
+
     /// <inheritdoc/>
     public TransactionLabel Add(ICase @case, TransactionLabelDraft draft)
     {
@@ -37,7 +51,7 @@ internal sealed class TransactionLabels : ITransactionLabels
         var name = LabelRules.Optional(draft.Name, LabelRules.MaximumNameLength, nameof(draft));
         var reason = LabelRules.Optional(draft.Reason, LabelRules.MaximumReasonLength, nameof(draft)) ?? string.Empty;
         var note = LabelRules.Optional(draft.Note, LabelRules.MaximumNoteLength, nameof(draft));
-        return @case.Write(transaction =>
+        return Writing(@case, () => @case.Write(transaction =>
         {
             var journal = transaction.AppendJournal(new JournalDraft(
                 AttributionJournalKinds.TransactionLabelAdded,
@@ -61,7 +75,7 @@ internal sealed class TransactionLabels : ITransactionLabels
             return new TransactionLabel(
                 record.Sequence, draft.Chain, id, draft.Kind, name, journal.Operator, journal.Utc, reason, note,
                 journal.Sequence, null);
-        });
+        }));
     }
 
     /// <inheritdoc/>
@@ -69,7 +83,7 @@ internal sealed class TransactionLabels : ITransactionLabels
     {
         ArgumentNullException.ThrowIfNull(@case);
         var checkedReason = LabelRules.Optional(reason, LabelRules.MaximumReasonLength, nameof(reason));
-        return @case.Write(transaction =>
+        return Writing(@case, () => @case.Write(transaction =>
         {
             var label = Read(transaction).FirstOrDefault(each => each.Sequence == sequence && each.IsActive);
             if (label is null)
@@ -93,14 +107,48 @@ internal sealed class TransactionLabels : ITransactionLabels
                     journal.Sequence, LabelStore.Text(journal.Utc),
                 ]);
             return true;
-        });
+        }));
     }
 
     /// <inheritdoc/>
     public IReadOnlyList<TransactionLabel> List(ICase @case)
     {
         ArgumentNullException.ThrowIfNull(@case);
-        return @case.Read(Read);
+        if (_read.TryGetValue(@case, out var labels))
+        {
+            return labels;
+        }
+
+        var before = Interlocked.Read(ref _active) == 0 ? Interlocked.Read(ref _writes) : -1;
+        labels = @case.Read(Read);
+        if (Interlocked.Read(ref _active) == 0 && Interlocked.Read(ref _writes) == before)
+        {
+            _read.AddOrUpdate(@case, labels);
+        }
+
+        return labels;
+    }
+
+    /// <summary>Writes, forgetting the case's labels before and after so that none is read stale.</summary>
+    /// <typeparam name="T">The write's result.</typeparam>
+    /// <param name="case">The case written.</param>
+    /// <param name="write">The write.</param>
+    /// <returns>The write's result.</returns>
+    private T Writing<T>(ICase @case, Func<T> write)
+    {
+        Interlocked.Increment(ref _active);
+        Interlocked.Increment(ref _writes);
+        _read.Remove(@case);
+        try
+        {
+            return write();
+        }
+        finally
+        {
+            _read.Remove(@case);
+            Interlocked.Increment(ref _writes);
+            Interlocked.Decrement(ref _active);
+        }
     }
 
     /// <inheritdoc/>

@@ -12,8 +12,8 @@ namespace Chainsaw.Modules.Attribution;
 internal static class SanctionXml
 {
     /// <summary>
-    /// The most parts one entry may have, counting the elements read one at a time: far above any real entry (the
-    /// largest have some hundreds), far below what would fill the memory.
+    /// The most elements one entry may have, counting each part read one at a time with the elements inside it: far
+    /// above any real entry (the largest have some hundreds), far below what would fill the memory.
     /// </summary>
     public const int MaximumPartsPerEntry = 20_000;
 
@@ -66,7 +66,9 @@ internal static class SanctionXml
         var count = 0;
         foreach (var (container, part) in Children(reader, null, containers))
         {
-            if (++count > MaximumPartsPerEntry)
+            // Each part counts with everything inside it, so that one part with many children is no way around it.
+            count += 1 + part.Descendants().Count();
+            if (count > MaximumPartsPerEntry)
             {
                 throw new SanctionListException(SanctionListError.TooLarge);
             }

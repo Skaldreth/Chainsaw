@@ -397,7 +397,15 @@ internal sealed class PriceService : IPriceService
             }
 
             var candle = _crypto.ReadCandle(response.Body, query.Asset, query.Quote, query.Resolution, query.Start);
-            return new Kept<CryptoRate>(candle is null ? null : Rate(query, candle, response.Origin), response.Origin);
+            if (candle is not null)
+            {
+                return new Kept<CryptoRate>(Rate(query, candle, response.Origin), response.Origin);
+            }
+
+            // Without a candle the answer is final only when the response shows the history starts later.
+            return _crypto.HistoryStartsAfter(response.Body, query.Asset, query.Quote, query.Resolution, query.Start)
+                ? new Kept<CryptoRate>(null, response.Origin)
+                : null;
         }
 
         return Task.Run(
@@ -436,7 +444,11 @@ internal sealed class PriceService : IPriceService
                 {
                     // A period that may not have ended at the source can still change, so it is never kept; one
                     // that had ended and still has no rate lies before the source's history, which is final.
-                    noHistory = candle is null && query.SettlesAt <= response.ReceivedAt;
+                    // Only a response with candles that all start after the period shows that; an empty answer
+                    // (maintenance, an aggregation that lags, a clock ahead) is never final (round 5, I3).
+                    noHistory = candle is null && query.SettlesAt <= response.ReceivedAt
+                        && _crypto.HistoryStartsAfter(
+                            response.Body.Span, query.Asset, query.Quote, query.Resolution, query.Start);
                     candle = null;
                     problem = noHistory
                         ? NoCryptoHistory(query)
@@ -534,7 +546,7 @@ internal sealed class PriceService : IPriceService
         if (await StoredFiatRateAsync(@case, currency, series, day, cancellationToken).ConfigureAwait(false)
             is { } kept)
         {
-            return FromCase(kept, NoFiatHistory(series, day));
+            return new PriceLookup<FiatRate>(PriceLookupStatus.FromCase, kept, [kept.Origin], null);
         }
 
         if (mode == PriceLookupMode.CaseOnly)
@@ -548,7 +560,7 @@ internal sealed class PriceService : IPriceService
             if (await StoredFiatRateAsync(@case, currency, series, day, cancellationToken).ConfigureAwait(false)
                 is { } meanwhile)
             {
-                return FromCase(meanwhile, NoFiatHistory(series, day));
+                return new PriceLookup<FiatRate>(PriceLookupStatus.FromCase, meanwhile, [meanwhile.Origin], null);
             }
 
             var (from, to) = FiatRange(day);
@@ -597,16 +609,16 @@ internal sealed class PriceService : IPriceService
     }
 
     /// <summary>
-    /// Finds a final answer for a day in the case: the day's rate, or a sealed response for the days before it that
-    /// had passed and had no rate (a day before the series' history), which is final too and is not asked for again.
+    /// Finds a final fiat rate for a day in the case. An answer without a rate is never final: an empty answer for
+    /// past days does not show that the series had no rate then (the review of round 5, I2).
     /// </summary>
     /// <param name="case">The open case.</param>
     /// <param name="currency">The foreign currency.</param>
     /// <param name="series">The series.</param>
     /// <param name="day">The day asked about.</param>
     /// <param name="cancellationToken">Stops the lookup before it starts.</param>
-    /// <returns>The answer, or <see langword="null"/> when the case has none.</returns>
-    private Task<Kept<FiatRate>?> StoredFiatRateAsync(
+    /// <returns>The rate, or <see langword="null"/> when the case has none.</returns>
+    private Task<FiatRate?> StoredFiatRateAsync(
         ICase @case, FiatCurrency currency, string series, DateOnly day, CancellationToken cancellationToken) =>
         Task.Run(
             () => @case.Read(reader => _store.FirstFiatRange(reader, _fiat.Name, series, day, range => Quietly(() =>
@@ -624,8 +636,8 @@ internal sealed class PriceService : IPriceService
                 }
 
                 return Pick(observations, day) is { } found
-                    ? new Kept<FiatRate>(FiatRateOf(currency, series, day, found, origin), origin)
-                    : new Kept<FiatRate>(null, origin);
+                    ? FiatRateOf(currency, series, day, found, origin)
+                    : null;
             }))),
             cancellationToken);
 
@@ -729,7 +741,6 @@ internal sealed class PriceService : IPriceService
 
         FiatObservation? picked = null;
         DateOnly? finalTo = null;
-        var noHistory = false;
         var problem = Unusable(response);
         var failed = problem is not null;
         if (problem is null)
@@ -741,8 +752,7 @@ internal sealed class PriceService : IPriceService
                 var passed = PassedBefore(response.ReceivedAt);
                 var final = day < passed || observations.Any(observation => observation.Date == day);
                 finalTo = to < passed ? to : observations.LastOrDefault()?.Date;
-                noHistory = picked is null && final;
-                problem = noHistory ? NoFiatHistory(series, day) : FiatProblem(series, day, from, picked, final);
+                problem = FiatProblem(series, day, from, picked, final);
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
@@ -755,7 +765,7 @@ internal sealed class PriceService : IPriceService
         var sealedResponse = await SealAsync(@case, _fiat.Name, RateKinds.FiatObservations, subject, sent,
             (transaction, saved) =>
             {
-                if ((problem is null || noHistory) && finalTo is { } covered && covered >= day)
+                if (problem is null && finalTo is { } covered && covered >= day)
                 {
                     RateResponseStore.AddFiatRange(transaction, series, new StoredFiatRange(saved, from, to), covered);
                 }
@@ -818,14 +828,6 @@ internal sealed class PriceService : IPriceService
     private static string NoCryptoHistory(CandleQuery query) =>
         $"Källan har ingen kurs för perioden {query.Period}, som var avslutad när den frågades: perioden ligger " +
         "före källans historik. Svaret är sparat i ärendet och frågas inte igen.";
-
-    /// <summary>Says that a day lies before a fiat series' history, which the case's sealed answer shows.</summary>
-    /// <param name="series">The series.</param>
-    /// <param name="day">The day.</param>
-    /// <returns>Why there is no rate, in Swedish.</returns>
-    private static string NoFiatHistory(string series, DateOnly day) =>
-        $"Källan har ingen kurs i serien {series} för {Day(day)} eller dagarna före: dagen ligger före seriens " +
-        "historik. Svaret är sparat i ärendet och frågas inte igen.";
 
     /// <summary>
     /// Answers from what the case holds: its rate, or that the source has no rate for the time, with the sealed

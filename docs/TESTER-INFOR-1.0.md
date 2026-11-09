@@ -817,9 +817,10 @@ ansluten utgång.
 - Samma kurs hämtas inte två gånger: två uppslag för samma timme ger bara ett nytt svar i ärendet.
 - Utan utgång: en kurs som redan är hämtad visas ur ärendet, och en ny säger *Offline* utan att något går ut.
 - Många tx på en gång (en graf med tx över flera månader) ger inga fel 429 från Riksbanken.
-- **Före källans historik (omgång 5):** en tx från 2010 (före Bitstamps historik) får *– kr*, och hovring säger att
-  perioden ligger före källans historik och att svaret är sparat. Öppna grafen igen: inget nytt svar hämtas för samma
-  timme (räkna svaren under Inställningar › Kurser, *Sparas i ärendet*). Detsamma för en dag före Riksbankens serie.
+- **Före källans historik (omgång 5):** en tx från 2010 (före Bitstamps historik) får *– kr*. Säger hovringen att
+  perioden ligger före källans historik, hämtas inget nytt svar för samma timme när grafen öppnas igen (räkna svaren
+  under Inställningar › Kurser). Säger den bara att källan inte hade kursen, svarade Bitstamp utan några perioder,
+  och då frågas den igen efter väntetiden; skriv ner vilket det blev. En dag före Riksbankens serie frågas alltid igen.
 - **Riksbankens dygnsgräns över omstarter:** `%LOCALAPPDATA%\Chainsaw\Kurser\riksbank-requests.json` har dagens
   datum och antalet uppslag till Riksbanken, och räknas vidare efter en omstart samma dag.
 
@@ -1679,6 +1680,15 @@ analysen med version och att det är en bedömning; *?* öppnar Guidens avsnitt.
 - **En trasig beskrivning:** ändra en `.json` bredvid en sanktionslista till skräp och starta om; listan står kvar i
   listan (beskrivningen skrivs om ur själva listan) i stället för att försvinna. En lista som läggs i mappen utanför
   Chainsaw märks utan omstart.
+- **Det EU:s lista säger:** *Varför?* på en träff från EU:s lista citerar ungefär 100 tecken runt adressen. En adress
+  vid ett ord för en annan kedja (BCH, Litecoin, BEP-20, TRON, Polygon) blir ingen träff utan räknas som överhoppad
+  i svaret efter importen.
+- **En ändrad lista:** ändra ett tecken i en sparad sanktionslista (`.xml`) eller i `ransomwhere-….data` och öppna
+  grafen: en gul toast säger en gång att listan har ändrats och inte används, och de andra listorna används som
+  vanligt.
+- **Vyn Etiketter:** vänsterkolumnen har raden *Öppna källor* med en jordglob; en *Rapporterad* etikett från
+  Ransomwhere står där, och ursprunget visar licensen (*CC BY 4.0, Jack Cable, Ransomwhere (ransomwhe.re)*). Samma
+  licens står i *Varför?* och i rapportens rad för etiketten.
 - `/verify` är grönt efter träffar på EU:s lista och i Ransomwhere.
 
 ### Vyn Etiketter (ET1a)

@@ -63,19 +63,76 @@ public sealed class OpenSourceTests : IDisposable
     }
 
     [Fact]
-    public void A_changed_file_is_refused()
+    public void A_changed_file_is_passed_over_and_named_and_the_labels_still_come_from_the_sanction_lists()
     {
+        var address = Wpkh("rw-tamper");
         var info = _harness.OpenSources.Import(new MemoryStream(Ransomwhere(
-            Record(Wpkh("rw-tamper").Value, "A", "2026-10-01T10:00:00.000Z", 1))));
+            Record(address.Value, "A", "2026-10-01T10:00:00.000Z", 1))));
+        _harness.Sanctions.Import(new SdnFile().Xbt("9001", "SYNTETISK", address.Value).Stream());
         var stored = Directory.GetFiles(Path.Combine(_harness.Directory, "Öppna källor"), "*.data").Single();
         File.WriteAllText(stored, "[]");
 
-        var exception = Assert.Throws<OpenSourceListException>(
-            () => _harness.OpenSources.Find(Wpkh("rw-tamper").ToChainAddress()));
+        var open = _harness.Labels.CheckOpenSources(_harness.Case, [address.ToChainAddress()]);
+        var sanctions = _harness.Labels.CheckSanctions(_harness.Case, [address.ToChainAddress()]);
 
-        Assert.Equal(OpenSourceListError.Tampered, exception.Error);
+        Assert.Empty(open.Added);
+        Assert.Equal(info.Sha256, Assert.Single(open.Unusable).Sha256);
+        Assert.Single(sanctions.Added);
         Assert.True(_harness.OpenSources.Remove(info.Sha256));
         Assert.Empty(_harness.OpenSources.List());
+    }
+
+    [Fact]
+    public void A_second_check_with_nothing_new_opens_no_write()
+    {
+        var address = Wpkh("rw-once");
+        _harness.OpenSources.Import(new MemoryStream(Ransomwhere(
+            Record(address.Value, "A", "2026-10-01T10:00:00.000Z", 1))));
+        var (counted, counter) = WriteCountingCase.Wrap(_harness.Case);
+        _harness.Labels.CheckOpenSources(counted, [address.ToChainAddress()]);
+        var writes = counter.Writes;
+
+        var again = _harness.Labels.CheckOpenSources(counted, [address.ToChainAddress()]);
+
+        Assert.Equal(1, writes);
+        Assert.Equal(writes, counter.Writes);
+        Assert.Equal(1, again.AlreadyLabelled);
+    }
+
+    [Fact]
+    public void A_file_with_a_byte_order_mark_is_recognised()
+    {
+        var bytes = Ransomwhere(Record(Wpkh("rw-bom").Value, "A", "2026-10-01T10:00:00.000Z", 1));
+
+        var info = _harness.OpenSources.Import(new MemoryStream([0xEF, 0xBB, 0xBF, .. bytes]));
+
+        Assert.Equal("Ransomwhere", info.Name);
+    }
+
+    [Fact]
+    public void A_data_set_dated_after_today_is_refused()
+    {
+        var bytes = Ransomwhere(Record(Wpkh("rw-future").Value, "A", "2027-01-01T10:00:00.000Z", 1));
+
+        var exception = Assert.Throws<OpenSourceListException>(
+            () => _harness.OpenSources.Import(new MemoryStream(bytes)));
+
+        Assert.Equal(OpenSourceListError.FutureDate, exception.Error);
+    }
+
+    [Fact]
+    public void A_broken_description_is_repaired_from_the_file()
+    {
+        var info = _harness.OpenSources.Import(new MemoryStream(Ransomwhere(
+            Record(Wpkh("rw-repair").Value, "A", "2026-10-01T10:00:00.000Z", 1))));
+        var description = Directory.GetFiles(Path.Combine(_harness.Directory, "Öppna källor"), "*.json").Single();
+        File.WriteAllText(description, "{trasig");
+        using var restarted = new Harness(_harness.Directory);
+
+        var listed = Assert.Single(restarted.OpenSources.List());
+
+        Assert.Equal(info.Sha256, listed.Sha256);
+        Assert.Equal(info.DataDate, listed.DataDate);
     }
 
     [Fact]

@@ -214,6 +214,26 @@ public sealed class TestDataSanctionLists(ISanctionLists inner, TestActors actor
     public IReadOnlyList<SanctionMatch> FindAll(EthereumAddress address) => inner.FindAll(address);
 
     /// <inheritdoc/>
+    public SanctionLookup FindMany(IReadOnlyCollection<ChainAddress> addresses)
+    {
+        ArgumentNullException.ThrowIfNull(addresses);
+        var lookup = inner.FindMany(addresses);
+        if (actors.Sanctioned.Address is not { } sanctioned)
+        {
+            return lookup;
+        }
+
+        var actor = sanctioned.ToChainAddress();
+        if (!TestDataScope.IsBuilding || !addresses.Contains(actor) || Find(sanctioned) is not { } madeUp)
+        {
+            return lookup;
+        }
+
+        var matches = new Dictionary<ChainAddress, IReadOnlyList<SanctionMatch>>(lookup.Matches) { [actor] = [madeUp] };
+        return lookup with { Matches = matches };
+    }
+
+    /// <inheritdoc/>
     public bool Remove(string sha256) => inner.Remove(sha256);
 }
 

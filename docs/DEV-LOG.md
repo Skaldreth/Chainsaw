@@ -4186,3 +4186,26 @@ topp.
   förseglad tabell (`attribution.transaction-label-added`, `-retracted`), grafens läsning skriver nu träffar, och
   Pricing pekar ut svar utan kurs i registret (oförseglat, som förut, men läst bara när det förseglade svaret är
   lyckat och kom efter perioden).
+
+- **Rättat efter den oberoende granskningen av omgång 5** (0 C, 7 I, 9 M, alla rättade):
+  - **I1:** `CheckSanctions` och `CheckOpenSources` läser först och öppnar en skrivning bara när något är nytt; test
+    med en räknande `ICase`.
+  - **I2:** Riksbankens tomma svar är aldrig slutliga (eget beslut: utan bevis, i stället för ett bevis som bara
+    fungerar vid seriens början).
+  - **I3:** Bitstamps svar utan perioden är slutligt bara när svaret har perioder som alla börjar efter den
+    (`ICryptoRateSource.HistoryStartsAfter`); ett tomt svar aldrig.
+  - **I4:** listorna slås upp en gång per anrop (`ISanctionLists.FindMany`, `IOpenSourceLists.Find`) och varje lista
+    för sig; en lista som tappat sin hash hoppas över, minns som trasig (läses inte om) och nämns i
+    `SanctionCheck.Unusable`. Grafen säger det i sina problem, som blir en toast en gång. Sanktionslistorna och de
+    öppna källorna kontrolleras var för sig.
+  - **I5:** EU:s lista tar bara adresser på huvudnätet och hoppar över en adress när texten runt den nämner en annan
+    kedja; de räknas som överhoppade.
+  - **I6:** etikettens skäl citerar ungefär 100 tecken runt adressen.
+  - **I7:** licensen och erkännandet för Ransomwhere står i *Varför?*, i vyn Etiketter och i rapporten
+    (`OpenSourceLicenses`); öppna källor har ett eget filter, *Öppna källor*, med jordgloben (`Icon.Globe`, en ikon som
+    redan fanns), och *Varför?* visas för dem.
+  - **M1** delarna räknas med allt inuti, **M2** `CurrentLists` en gång per anrop, **M3** etiketterna på tx läses en
+    gång per öppet ärende och glöms när de skrivs, **M4** en trasig beskrivning av en öppen källa skrivs om, **M5**
+    datum efter i dag vägras för öppna källor, **M6** TRON-adresser och testnät räknas som överhoppade, **M7** en fil
+    med BOM känns igen, **M8** dygnsräknaren nollställs inte när klockan ställs bakåt och skriver genom en unik
+    temporär fil, **M9** ytan för etiketter på tx står redan i TODO som [skiss].

@@ -270,26 +270,15 @@ internal sealed class AttributionService(
     /// <inheritdoc/>
     public SanctionCheck CheckSanctions(ICase @case, IReadOnlyCollection<BitcoinAddress> addresses)
     {
-        ArgumentNullException.ThrowIfNull(@case);
         ArgumentNullException.ThrowIfNull(addresses);
-        // Each hit keeps the list it was found on, so that a list imported meanwhile is never named for it.
-        var matches = addresses.Distinct()
-            .SelectMany(address => sanctions.FindAll(address)
-                .Select(match => (Address: address.ToChainAddress(), Match: (SanctionMatch?)match)))
-            .ToList();
-        return CheckSanctions(@case, matches, currency => currency == OfacSdnParser.BitcoinCurrency);
+        return CheckSanctions(@case, [.. addresses.Select(address => address.ToChainAddress())]);
     }
 
     /// <inheritdoc/>
     public SanctionCheck CheckSanctions(ICase @case, IReadOnlyCollection<EthereumAddress> addresses)
     {
-        ArgumentNullException.ThrowIfNull(@case);
         ArgumentNullException.ThrowIfNull(addresses);
-        var matches = addresses.Distinct()
-            .SelectMany(address => sanctions.FindAll(address)
-                .Select(match => (Address: address.ToChainAddress(), Match: (SanctionMatch?)match)))
-            .ToList();
-        return CheckSanctions(@case, matches, SanctionCurrency.OnEthereum.Contains);
+        return CheckSanctions(@case, [.. addresses.Select(address => address.ToChainAddress())]);
     }
 
     /// <inheritdoc/>
@@ -297,80 +286,35 @@ internal sealed class AttributionService(
     {
         ArgumentNullException.ThrowIfNull(@case);
         ArgumentNullException.ThrowIfNull(addresses);
-        var bitcoin = new List<BitcoinAddress>();
-        var ethereum = new List<EthereumAddress>();
-        foreach (var address in addresses)
-        {
-            if (address.Chain == Chain.Bitcoin && BitcoinAddress.TryParse(address.Value, out var parsed))
-            {
-                bitcoin.Add(parsed);
-            }
-            else if (address.Chain == Chain.Ethereum && EthereumAddress.TryParse(address.Value, out var account))
-            {
-                ethereum.Add(account);
-            }
-        }
-
-        var onBitcoin = bitcoin.Count == 0 ? null : CheckSanctions(@case, bitcoin);
-        var onEthereum = ethereum.Count == 0 ? null : CheckSanctions(@case, ethereum);
-        return new SanctionCheck(
-            onEthereum?.List ?? onBitcoin?.List ?? sanctions.Current,
-            [.. onBitcoin?.Added ?? [], .. onEthereum?.Added ?? []],
-            (onBitcoin?.AlreadyLabelled ?? 0) + (onEthereum?.AlreadyLabelled ?? 0));
-    }
-
-    /// <summary>
-    /// Labels the hits of addresses already looked up on the list, the same way for every chain: one journal line, and
-    /// a label per hit not already labelled from the same list.
-    /// </summary>
-    /// <param name="case">The open case.</param>
-    /// <param name="looked">Each address with its chain and what the list said, or <see langword="null"/> without a
-    /// list.</param>
-    /// <param name="onChain">Says whether a hit's currency is one of the chain's.</param>
-    /// <returns>What was checked and labelled.</returns>
-    private SanctionCheck CheckSanctions(
-        ICase @case, IReadOnlyList<(ChainAddress Address, SanctionMatch? Match)> looked, Func<string, bool> onChain)
-    {
-        var matches = looked.Where(found => found.Match is not null).ToList();
-        if (matches.Count == 0)
-        {
-            return new SanctionCheck(sanctions.Current, [], 0);
-        }
-
-        var list = matches[^1].Match!.List;
-        var used = matches.Select(found => found.Match!.List).DistinctBy(each => each.Sha256).ToList();
-        var lists = string.Join(", ", used.Select(each => $"{each.Name} {each.Version}"));
-        var names = string.Join(" och ", used.Select(each => each.Name).Distinct(StringComparer.Ordinal));
-        var hits = matches
-            .SelectMany(found => found.Match!.Hits
-                .Where(hit => onChain(hit.Currency))
-                .Select(hit => (found.Address, Hit: hit, found.Match.List)))
+        // The lists are asked once for every address; each hit keeps the list it was found on, so that a list
+        // imported meanwhile is never named for it.
+        var lookup = sanctions.FindMany([.. addresses.Where(IsSanctionChain).Distinct()]);
+        var list = lookup.Lists.FirstOrDefault();
+        var hits = lookup.Matches
+            .SelectMany(pair => pair.Value.SelectMany(match => match.Hits
+                .Where(hit => OnChain(pair.Key.Chain, hit.Currency))
+                .Select(hit => new SanctionHit(pair.Key, hit, match.List))))
             .ToList();
-        if (hits.Count == 0)
+        var done = new SanctionCheck(list, [], hits.Count) { Unusable = lookup.Unusable };
+
+        // Read first: the graph checks at every reading, and a write transaction would make the case save itself
+        // again with nothing new (the review of round 5, I1).
+        if (hits.Count == 0 || @case.Read(reader => FreshSanctions(LabelStore.Read(reader), hits)).Count == 0)
         {
-            return new SanctionCheck(list, [], 0);
+            return done;
         }
 
         return @case.Write(transaction =>
         {
             // Only the case's own checks count: a copy from another case leaves this case's own hit to be sealed.
-            var stored = LabelStore.Read(transaction);
-            var drafts = hits
-                .Select(found => (found.Address, found.Hit, found.List,
-                    Origin: SanctionOriginId(found.List, found.Hit, found.Address)))
-                .Where(found => !stored.Has(
-                    LabelStore.Key(
-                        found.Origin,
-                        LabelSubject.ForAccount(found.Address),
-                        LabelKind.Sanctioned,
-                        found.Hit.EntryName),
-                    LabelSource.SanctionList))
-                .ToList();
+            var drafts = FreshSanctions(LabelStore.Read(transaction), hits);
             if (drafts.Count == 0)
             {
-                return new SanctionCheck(list, [], hits.Count);
+                return done;
             }
 
+            var used = drafts.Select(found => found.List).DistinctBy(each => each.Sha256).ToList();
+            var names = string.Join(" och ", used.Select(each => each.Name).Distinct(StringComparer.Ordinal));
             var journal = transaction.AppendJournal(new JournalDraft(
                 AttributionJournalKinds.SanctionsMatched,
                 string.Format(
@@ -378,7 +322,7 @@ internal sealed class AttributionService(
                     "{0} adresser på {1} ({2})",
                     drafts.Count,
                     names,
-                    lists),
+                    string.Join(", ", used.Select(each => $"{each.Name} {each.Version}"))),
                 JsonSerializer.Serialize(new
                 {
                     list = names,
@@ -395,43 +339,62 @@ internal sealed class AttributionService(
                 .Select(found => LabelStore.Seal(
                     transaction, SanctionLabel(found.List, found.Hit, found.Address, found.Origin, journal), journal))
                 .ToList();
-            return new SanctionCheck(list, added, hits.Count - drafts.Count);
+            return done with { Added = added, AlreadyLabelled = hits.Count - drafts.Count };
         });
     }
+
+    /// <summary>Says whether an address is on a chain the sanction lists are read for.</summary>
+    /// <param name="address">The address with its chain.</param>
+    /// <returns><see langword="true"/> for Bitcoin and Ethereum.</returns>
+    private static bool IsSanctionChain(ChainAddress address) => address.Chain is Chain.Bitcoin or Chain.Ethereum;
+
+    /// <summary>Says whether a hit's currency is a chain's, so that a hit is never taken for another chain.</summary>
+    /// <param name="chain">The address's chain.</param>
+    /// <param name="currency">The hit's currency code.</param>
+    /// <returns><see langword="true"/> when the currency is the chain's.</returns>
+    private static bool OnChain(Chain chain, string currency) => chain switch
+    {
+        Chain.Bitcoin => currency == SanctionCurrency.Bitcoin,
+        Chain.Ethereum => SanctionCurrency.OnEthereum.Contains(currency),
+        _ => false,
+    };
+
+    /// <summary>Gives the hits the case has not had from the same list, with their origins.</summary>
+    /// <param name="stored">The case's labels.</param>
+    /// <param name="hits">The hits.</param>
+    /// <returns>The hits to label.</returns>
+    private static List<SanctionDraft> FreshSanctions(StoredLabels stored, IReadOnlyList<SanctionHit> hits) =>
+    [
+        .. hits
+            .Select(found => new SanctionDraft(
+                found.Address, found.Hit, found.List, SanctionOriginId(found.List, found.Hit, found.Address)))
+            .Where(found => !stored.Has(
+                LabelStore.Key(
+                    found.Origin, LabelSubject.ForAccount(found.Address), LabelKind.Sanctioned, found.Hit.EntryName),
+                LabelSource.SanctionList)),
+    ];
 
     /// <inheritdoc/>
     public OpenSourceCheck CheckOpenSources(ICase @case, IReadOnlyCollection<ChainAddress> addresses)
     {
         ArgumentNullException.ThrowIfNull(@case);
         ArgumentNullException.ThrowIfNull(addresses);
-        var lists = openSources.CurrentLists;
-        if (lists.Count == 0 || addresses.Count == 0)
-        {
-            return new OpenSourceCheck(lists, [], 0);
-        }
-
-        var hits = addresses.Distinct()
-            .SelectMany(address => openSources.Find(address))
-            .SelectMany(match => match.Hits.Select(hit => (match.List, Hit: hit)))
+        var lookup = openSources.Find([.. addresses.Distinct()]);
+        var hits = lookup.Matches.Values
+            .SelectMany(matches => matches.SelectMany(match => match.Hits.Select(hit => (match.List, Hit: hit))))
             .ToList();
-        if (hits.Count == 0)
+        var done = new OpenSourceCheck(lookup.Lists, [], hits.Count) { Unusable = lookup.Unusable };
+        if (hits.Count == 0 || @case.Read(reader => FreshOpenSources(LabelStore.Read(reader), hits)).Count == 0)
         {
-            return new OpenSourceCheck(lists, [], 0);
+            return done;
         }
 
         return @case.Write(transaction =>
         {
-            var stored = LabelStore.Read(transaction);
-            var drafts = hits
-                .Select(found => (found.List, found.Hit, Origin: OpenSourceOriginId(found.List, found.Hit)))
-                .Where(found => !stored.Has(
-                    LabelStore.Key(
-                        found.Origin, LabelSubject.ForAccount(found.Hit.Address), found.Hit.Kind, found.Hit.Name),
-                    LabelSource.OpenSource))
-                .ToList();
+            var drafts = FreshOpenSources(LabelStore.Read(transaction), hits);
             if (drafts.Count == 0)
             {
-                return new OpenSourceCheck(lists, [], hits.Count);
+                return done;
             }
 
             var used = drafts.Select(found => found.List).DistinctBy(each => each.Sha256).ToList();
@@ -457,9 +420,24 @@ internal sealed class AttributionService(
                 .Select(found => LabelStore.Seal(
                     transaction, OpenSourceLabel(found.List, found.Hit, found.Origin, journal), journal))
                 .ToList();
-            return new OpenSourceCheck(lists, added, hits.Count - drafts.Count);
+            return done with { Added = added, AlreadyLabelled = hits.Count - drafts.Count };
         });
     }
+
+    /// <summary>Gives an open source's hits the case has not had from the same file, with their origins.</summary>
+    /// <param name="stored">The case's labels.</param>
+    /// <param name="hits">The hits.</param>
+    /// <returns>The hits to label.</returns>
+    private static List<(OpenSourceListInfo List, OpenSourceEntry Hit, string Origin)> FreshOpenSources(
+        StoredLabels stored, IReadOnlyList<(OpenSourceListInfo List, OpenSourceEntry Hit)> hits) =>
+    [
+        .. hits
+            .Select(found => (found.List, found.Hit, Origin: OpenSourceOriginId(found.List, found.Hit)))
+            .Where(found => !stored.Has(
+                LabelStore.Key(
+                    found.Origin, LabelSubject.ForAccount(found.Hit.Address), found.Hit.Kind, found.Hit.Name),
+                LabelSource.OpenSource)),
+    ];
 
     /// <summary>Gives the stable origin of an open source's hit: the file's hash, the address and the name.</summary>
     /// <param name="list">The source.</param>
@@ -561,13 +539,13 @@ internal sealed class AttributionService(
         return list.Name == EuFsfParser.ListName
             ? string.Format(
                 CultureInfo.InvariantCulture,
-                "Adressen står i {0} på EU:s konsoliderade lista över finansiella sanktioner för {1} " +
-                "(EU-referens {2}, {3}). Listan har ingen egen sort för kryptoadresser; Chainsaw kände igen " +
-                "adressen på dess form.",
-                hit.ListedAs ?? "posten",
+                "Adressen står på EU:s konsoliderade lista över finansiella sanktioner för {0} (EU-referens {1}, " +
+                "{2}), i {3}. Listan har ingen egen sort för kryptoadresser; Chainsaw kände igen adressen på dess " +
+                "form, och inget i texten runt den nämner en annan kedja.",
                 hit.EntryName,
                 hit.EntryUid,
-                programs)
+                programs,
+                hit.ListedAs ?? "posten")
             : string.Format(
                 CultureInfo.InvariantCulture,
                 "Adressen står på listan som Digital Currency Address - {0} för {1} (uid {2}, {3}).",
@@ -600,4 +578,18 @@ internal sealed class AttributionService(
         return new LabelEntry(
             0, LabelSubject.ForAccount(address), LabelKind.Sanctioned, hit.EntryName, origin, false, 0);
     }
+
+    /// <summary>A hit on a sanction list for an address.</summary>
+    /// <param name="Address">The address with its chain.</param>
+    /// <param name="Hit">The list's entry.</param>
+    /// <param name="List">The list.</param>
+    private sealed record SanctionHit(ChainAddress Address, SanctionedAddress Hit, SanctionListInfo List);
+
+    /// <summary>A hit on a sanction list to label, with its origin.</summary>
+    /// <param name="Address">The address with its chain.</param>
+    /// <param name="Hit">The list's entry.</param>
+    /// <param name="List">The list.</param>
+    /// <param name="Origin">The label's origin id.</param>
+    private sealed record SanctionDraft(
+        ChainAddress Address, SanctionedAddress Hit, SanctionListInfo List, string Origin);
 }
