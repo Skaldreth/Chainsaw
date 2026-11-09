@@ -5726,3 +5726,7 @@ klustringen, också borta tx (TODO). Därför gör testärendet körningen själ
   och smalnar efter ett som fyllde sidan, upp till kedjans topp och högst åtta per adress. `shielded-pool` håller
   gränsen 0,4 på matchningen av belopp och tid, så att jämna och upprepade belopp visas lägre i stället för att
   försvinna. Guiden säger att bevakningen missar t→z under 0,01 ZEC.
+- **Efter tredje granskningen:** grafen läser Litecoins ändringar av block (`GraphChainState.ReadMarksAsync`) och
+  frågar ersättaren av en försvunnen tx hos tx:ens egen kedjas källa; de frågade tx:erna hålls isär per kedja
+  (`Txid.Stored`). Vem som spenderade en output på Zcash läses efter fönstren också på adressens nyaste sida, så att
+  en spend i mempoolen inte läses som ospenderad.

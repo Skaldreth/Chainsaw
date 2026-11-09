@@ -248,7 +248,7 @@ public sealed partial class GraphViewModel
         // Only a transaction the rule says is gone is asked about; the others are read from the case.
         var missing = _heldBack.SelectMany(held => held.Missing).Distinct().ToList();
         var gone = GoneByRule();
-        await AskAsync(state, openCase, [.. missing.Where(txid => gone.Contains(txid.Value))]);
+        await AskAsync(state, openCase, [.. missing.Where(txid => gone.Contains(txid.Stored))]);
 
         var replacers = await state.ReadReplacersAsync(openCase, missing, _work.Token);
         if (read == _heldReads && _session.Current == openCase)

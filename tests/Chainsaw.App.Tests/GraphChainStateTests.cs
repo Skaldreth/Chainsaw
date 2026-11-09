@@ -135,9 +135,37 @@ public sealed class GraphChainStateTests
         Assert.Equal(FakeEthereum.Moved, change.TransactionId);
     }
 
-    /// <summary>A Bitcoin source answering from what the test set, counting what it was asked.</summary>
-    private sealed class FakeBitcoin : IBitcoinSource
+    [Fact]
+    public async Task Litecoins_gone_transactions_are_read_with_the_others_and_asked_of_litecoins_source()
     {
+        var litecoin = new FakeLitecoin();
+        var gone = Txid.Parse(Chain.Litecoin, new string('5', 64));
+        var before = new BlockSighting(3_000_000, new string('a', 64), Now, 1);
+        var now = new BlockSighting(null, null, Now, 2);
+        litecoin.Changes.Add(new BlockChange(gone, BlockChangeKind.Gone, before, now) { Chain = Chain.Litecoin });
+        var state = new GraphChainState(_bitcoin, _ethereum, _prices, litecoin: litecoin);
+
+        var reading = await state.ReadMarksAsync(_case, default);
+        await state.ReadReplacersAsync(_case, [gone], default);
+        await state.AskReplacementAsync(_case, gone, default);
+
+        Assert.Contains(reading.Changes, change => change.Chain == Chain.Litecoin && change.TransactionId == gone.Value);
+        Assert.Equal(["replacement:CaseOnly", "replacement:AsNeeded"], litecoin.Calls.Where(
+            call => call.StartsWith("replacement", StringComparison.Ordinal)));
+        Assert.DoesNotContain(_bitcoin.Calls, call => call.StartsWith("replacement", StringComparison.Ordinal));
+    }
+
+    /// <summary>Litecoin's source, as the Bitcoin fake on Litecoin's network.</summary>
+    private sealed class FakeLitecoin : FakeBitcoin, ILitecoinSource
+    {
+        public override BitcoinNetwork Network => BitcoinNetwork.Litecoin;
+    }
+
+    /// <summary>A Bitcoin source answering from what the test set, counting what it was asked.</summary>
+    private class FakeBitcoin : IBitcoinSource
+    {
+        public List<BlockChange> Changes { get; } = [];
+
         public Dictionary<BitcoinAddress, (long Funded, long Spent)> Funded { get; } = [];
 
         public Dictionary<BitcoinAddress, long> MempoolIn { get; } = [];
@@ -152,7 +180,14 @@ public sealed class GraphChainStateTests
 
         public int Summaries { get; private set; }
 
-        public BitcoinNetwork Network => BitcoinNetwork.Mainnet;
+        public virtual BitcoinNetwork Network => BitcoinNetwork.Mainnet;
+
+        public Task<BitcoinLookup<TransactionReplacement>> GetReplacementAsync(
+            ICase @case, Txid txid, LookupMode mode = LookupMode.CaseOnly, CancellationToken cancellationToken = default)
+        {
+            Calls.Add("replacement:" + mode);
+            return Task.FromResult(new BitcoinLookup<TransactionReplacement>(LookupStatus.NotInCase, null, [], null));
+        }
 
         public Task<BitcoinLookup<BitcoinAddressSummary>> GetAddressSummaryAsync(
             ICase @case, BitcoinAddress address, CancellationToken cancellationToken = default)
@@ -193,7 +228,7 @@ public sealed class GraphChainStateTests
             ICase @case, CancellationToken cancellationToken = default)
         {
             Calls.Add("changes");
-            return Task.FromResult<IReadOnlyList<BlockChange>>([]);
+            return Task.FromResult<IReadOnlyList<BlockChange>>([.. Changes]);
         }
 
         public Task<BitcoinLookup<BitcoinAddressPage>> GetAddressTransactionsAsync(

@@ -177,8 +177,11 @@ public sealed class GraphChainState(
         IReadOnlyList<BlockChange> onBsc = bsc is null
             ? []
             : await bsc.GetBlockChangesAsync(@case, cancellationToken).ConfigureAwait(false);
+        IReadOnlyList<BlockChange> onLitecoin = litecoin is null
+            ? []
+            : await litecoin.GetBlockChangesAsync(@case, cancellationToken).ConfigureAwait(false);
         var tip = await bitcoin.GetTipAsync(@case, LookupMode.CaseOnly, cancellationToken).ConfigureAwait(false);
-        return new ChainMarksReading([.. onBitcoin, .. onEthereum, .. onTron, .. onBsc], tip.Value);
+        return new ChainMarksReading([.. onBitcoin, .. onEthereum, .. onTron, .. onBsc, .. onLitecoin], tip.Value);
     }
 
     /// <inheritdoc/>
@@ -190,7 +193,12 @@ public sealed class GraphChainState(
         var replacers = new Dictionary<Txid, IReadOnlyList<Txid>>();
         foreach (var txid in txids)
         {
-            var lookup = await bitcoin.GetReplacementAsync(@case, txid, LookupMode.CaseOnly, cancellationToken)
+            if (SourceOf(txid) is not { } source)
+            {
+                continue;
+            }
+
+            var lookup = await source.GetReplacementAsync(@case, txid, LookupMode.CaseOnly, cancellationToken)
                 .ConfigureAwait(false);
             if (lookup.Value is { Replacers.Count: > 0 } replacement)
             {
@@ -205,10 +213,26 @@ public sealed class GraphChainState(
     public async Task<LookupStatus> AskReplacementAsync(ICase @case, Txid txid, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(@case);
-        var lookup = await bitcoin.GetReplacementAsync(@case, txid, LookupMode.AsNeeded, cancellationToken)
+        ArgumentNullException.ThrowIfNull(txid);
+        if (SourceOf(txid) is not { } source)
+        {
+            return LookupStatus.Failed;
+        }
+
+        var lookup = await source.GetReplacementAsync(@case, txid, LookupMode.AsNeeded, cancellationToken)
             .ConfigureAwait(false);
         return lookup.Status;
     }
+
+    /// <summary>Gives the source of a transaction's own UTXO chain, which knows what replaced it there.</summary>
+    /// <param name="txid">The transaction.</param>
+    /// <returns>The source, or <see langword="null"/> where the chain's source is not registered.</returns>
+    private IBitcoinSource? SourceOf(Txid txid) => txid.Chain switch
+    {
+        Chain.Litecoin => litecoin,
+        Chain.Zcash => zcash,
+        _ => bitcoin,
+    };
 
     /// <summary>
     /// Gives today's rate of one asset: the newest hour that has ended, or, when the source has none for it yet, the

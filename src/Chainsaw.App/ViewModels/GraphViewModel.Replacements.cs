@@ -173,7 +173,7 @@ public sealed partial class GraphViewModel
     private async Task<bool> AskAsync(IGraphChainState state, ICase openCase, IReadOnlyList<Txid> txids)
     {
         var answered = false;
-        foreach (var txid in txids.Where(txid => _askedReplacements.Add(txid.Value)))
+        foreach (var txid in txids.Where(txid => _askedReplacements.Add(txid.Stored)))
         {
             var status = LookupStatus.Failed;
             try
@@ -188,7 +188,7 @@ public sealed partial class GraphViewModel
 
             if (status is not (LookupStatus.Fetched or LookupStatus.FromCase))
             {
-                _askedReplacements.Remove(txid.Value);
+                _askedReplacements.Remove(txid.Stored);
             }
 
             answered |= status == LookupStatus.Fetched;
@@ -197,11 +197,23 @@ public sealed partial class GraphViewModel
         return answered;
     }
 
-    /// <summary>Gives the transactions the case's block changes say are gone from Bitcoin, by the rule.</summary>
-    /// <returns>Their ids.</returns>
-    private HashSet<string> GoneByRule() =>
-    [
-        .. _changes.Where(change => change is { Chain: Chain.Bitcoin, Kind: BlockChangeKind.Gone })
-            .Select(change => change.TransactionId),
-    ];
+    /// <summary>
+    /// Gives the transactions the case's block changes say are gone from a UTXO chain (Bitcoin or Litecoin), by the
+    /// rule.
+    /// </summary>
+    /// <returns>Their ids as stored, with the chain (<see cref="Txid.Stored"/>).</returns>
+    private HashSet<string> GoneByRule()
+    {
+        var gone = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var change in _changes.Where(change => change.Kind == BlockChangeKind.Gone
+            && change.Chain.Model() == LedgerModel.Utxo))
+        {
+            if (Txid.TryParse(change.Chain, change.TransactionId, out var txid))
+            {
+                gone.Add(txid.Stored);
+            }
+        }
+
+        return gone;
+    }
 }

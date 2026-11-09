@@ -227,9 +227,10 @@ internal sealed class BlockbookZcashSource : IZcashSource
     /// upwards (<c>from</c> and <c>to</c>), oldest first: a window in the past holds still while new transactions come,
     /// unlike Blockbook's pages, which count from the newest. A window that fills a page is read again narrower, and a
     /// window that was read whole is followed by a wider one, until every output is found, the chain's tip is passed
-    /// or <see cref="MostSpendWindows"/> windows are read per address. An output whose spender could lie beyond what
-    /// was read is said to be unknown (<see cref="BitcoinOutputSpend.IsUnknown"/>), never unspent, and the others keep
-    /// their answers.
+    /// or <see cref="MostSpendWindows"/> windows are read per address. Once past the tip, the newest page of the
+    /// address's history is read too, since a spend still in the mempool is in no window. An output whose spender
+    /// could lie beyond what was read is said to be unknown (<see cref="BitcoinOutputSpend.IsUnknown"/>), never
+    /// unspent, and the others keep their answers.
     /// </remarks>
     public async Task<BitcoinLookup<IReadOnlyList<BitcoinOutputSpend>>> GetOutputSpendsAsync(
         ICase @case, Txid txid, LookupMode mode = LookupMode.AsNeeded, CancellationToken cancellationToken = default)
@@ -293,7 +294,8 @@ internal sealed class BlockbookZcashSource : IZcashSource
 
     /// <summary>
     /// Reads who spends a transaction's outputs to one address, window by window of heights from the transaction's
-    /// block; an unconfirmed transaction's in the newest page of the address's history.
+    /// block, and then in the newest page of the address's history for a spend still in the mempool; an unconfirmed
+    /// transaction's in the newest page alone.
     /// </summary>
     /// <param name="case">The open case.</param>
     /// <param name="transaction">The transaction.</param>
@@ -329,24 +331,46 @@ internal sealed class BlockbookZcashSource : IZcashSource
             }
 
             var missing = outputs.Where(index => spends[index].SpentBy is null).ToList();
-            var next = window?.After(page.More);
-            var pastTip = next is not null && next.From > reading.Tip;
-            if (missing.Count == 0 || pastTip || (window is null && !page.More))
+            if (missing.Count == 0)
             {
                 return true;
+            }
+
+            if (window is null)
+            {
+                // The newest page: a spend not in a block is among the newest, so only a full page of transactions
+                // that are all unconfirmed can hide one.
+                var hidden = page.More && page.Transactions.Count > 0 && page.Transactions[^1].Block is null;
+                MarkUnknown(spends, missing.Where(_ => hidden));
+                return true;
+            }
+
+            var next = window.After(page.More);
+            if (next is not null && next.From > reading.Tip)
+            {
+                // Every window has a top, so a spend still in the mempool is read from the newest page last.
+                window = null;
+                continue;
             }
 
             if (next is null || read == MostSpendWindows)
             {
-                foreach (var index in missing)
-                {
-                    spends[index] = spends[index] with { IsUnknown = true };
-                }
-
+                MarkUnknown(spends, missing);
                 return true;
             }
 
             window = next;
+        }
+    }
+
+    /// <summary>Says of some outputs that who spent them could not be read.</summary>
+    /// <param name="spends">The spends by output.</param>
+    /// <param name="outputs">The outputs' indexes.</param>
+    private static void MarkUnknown(BitcoinOutputSpend[] spends, IEnumerable<int> outputs)
+    {
+        foreach (var index in outputs)
+        {
+            spends[index] = spends[index] with { IsUnknown = true };
         }
     }
 

@@ -236,7 +236,13 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
   - **Vem som spenderade en output på Zcash** läses ur adressens historik i fönster av blockhöjder uppåt från tx:ens
     block (`from=`/`to=`), högst åtta per adress. Ett fönster som fyller en sida läses om smalare, ner till ett block;
     hos en adress med fler tx i ett block än en sida rymmer, eller där fönstren tar slut före toppen, märks outputen
-    *okänd* för sig. Ett större `pageSize` för de fönstren vore steget dit.
+    *okänd* för sig. Ett större `pageSize` för de fönstren vore steget dit. Efter toppen läses adressens nyaste sida
+    utan höjder, för en spend som ännu ligger i mempoolen.
+  - **Toppen och fönstren från olika endpoints:** kedjans höjd och fönstren i adressens historik kan komma från olika
+    endpoints. En endpoint som ligger efter svarar då på ett fönster utan den spend som redan finns, och outputen läses
+    som ospenderad tills den hämtas igen. Svaret blir aldrig slutgiltigt (fönstrets topp ligger över källans höjd),
+    så det hämtas igen, men under tiden visas det fel. Att fråga fönstren av samma endpoint som gav höjden, eller
+    kräva att fönstrets svar har nått höjden, vore steget dit.
   - **Bevakningen av pengar in i en Zcash-pool** ser t→z på adressens sida som det inputs betalar utöver outputs när
     det är mer än 0,01 ZEC; en t→z under det räknas som avgift och syns inte som en träff.
   - **Zcash på en adress sida** (det som hölls tillbaka, EX1) har inte poolernas del: där är avgiften det
@@ -247,10 +253,9 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
     Blockbook vore stabilare.
   - **ZEC-kursen:** Bitstamps `zeceur` har historik bara från 2026-03-31 och handlas tunt, som BNB.
   - **Chainabuse på Zcash** frågas inte (som Litecoin och BSC).
-  - **Bytt block och ersatt tx i grafen på Litecoin** (GR9a): en försvunnen Litecoin-tx får nu sitt märke
-    (`BlockMarks.GoneOf` läser tx:en på ändringens kedja), men uppslaget av ersättare och valet att följa en
-    (`GraphViewModel.Replacements`, `GoneByRule`) gäller bara Bitcoin. *Kontroll* mot tx:ens bytes i inspektören
-    visas också bara för Bitcoin. **Zcash** har ingen `GetBlockChangesAsync` alls, så GR9a är tyst där.
+  - **Bytt block och ersatt tx i grafen** (GR9a): Litecoins ändringar läses med de andra kedjornas, en försvunnen
+    Litecoin-tx får sitt märke och dess ersättare frågas av Litecoins källa. *Kontroll* mot tx:ens bytes i
+    inspektören visas bara för Bitcoin. **Zcash** har ingen `GetBlockChangesAsync` alls, så GR9a är tyst där.
   - **Unified addresses på Zcash (`u1…`)** ses alltid som ett slut i en skyddad pool
     (`ChainStartPoint.RecogniseZcashShielded`), också när adressen har en genomskinlig mottagare som börser betalar
     till. Att avkoda ZIP 316 och följa den genomskinliga mottagaren (`t1…`) vore steget dit.

@@ -101,6 +101,7 @@ public sealed class ZcashTests
         AnswerTip(harness, 3_000_100);
         Answer(harness, Window(Payee, 3_000_000, 1_152), Page(Payee, 1, -1, ShieldingJson(), PaymentJson()));
         Answer(harness, Window(Payer, 3_000_000, 1_152), Page(Payer, 1, -1, PaymentJson()));
+        Answer(harness, Newest(Payer), Page(Payer, 1, 1, PaymentJson()));
 
         var spends = await harness.Zcash.GetOutputSpendsAsync(harness.Case, Payment);
 
@@ -222,12 +223,31 @@ public sealed class ZcashTests
         Answer(harness, Window(Payee, 3_000_000, 1_152), Page(Payee, 1, -1, Busy()));
         Answer(harness, Window(Payee, 3_000_000, 288), Page(Payee, 1, -1, ShieldingJson(), PaymentJson()));
         Answer(harness, Window(Payer, 3_000_000, 1_152), Page(Payer, 1, -1, PaymentJson()));
+        Answer(harness, Newest(Payer), Page(Payer, 1, 1, PaymentJson()));
 
         var spends = (await harness.Zcash.GetOutputSpendsAsync(harness.Case, Payment)).Value!;
 
         Assert.Equal(Shielding, spends[0].SpentBy!.Txid);
         Assert.False(spends[1].IsUnknown);
         Assert.Null(spends[1].SpentBy);
+    }
+
+    [Fact]
+    public async Task A_spend_still_in_the_mempool_is_read_from_the_newest_page_after_the_windows()
+    {
+        using var harness = new SourceHarness();
+        AnswerPayment(harness);
+        AnswerTip(harness, 3_000_100);
+        var pending = Txid.Parse(Chain.Zcash, Fixtures.Repeat("d9", 32));
+        var spender = Tx(pending, [(Payment, 1, Payer, 490_000)], [(Payee, 480_000)], 0, "00");
+        Answer(harness, Window(Payee, 3_000_000, 1_152), Page(Payee, 1, -1, ShieldingJson(), PaymentJson()));
+        Answer(harness, Window(Payer, 3_000_000, 1_152), Page(Payer, 1, -1, PaymentJson()));
+        Answer(harness, Newest(Payer), Page(Payer, 1, 1, spender, PaymentJson()));
+
+        var spends = (await harness.Zcash.GetOutputSpendsAsync(harness.Case, Payment)).Value!;
+
+        Assert.Equal(pending, spends[1].SpentBy!.Txid);
+        Assert.Null(spends[1].SpentBy!.Block);
     }
 
     [Fact]
@@ -238,6 +258,7 @@ public sealed class ZcashTests
         AnswerTip(harness, 3_010_000);
         Answer(harness, Window(Payee, 3_000_000, 1_152), Page(Payee, 1, -1, ShieldingJson(), PaymentJson()));
         Answer(harness, Window(Payer, 3_000_000, 1_152), Page(Payer, 1, -1, PaymentJson()));
+        Answer(harness, Newest(Payer), Page(Payer, 1, 1, PaymentJson()));
         Answer(harness, Window(Payer, 3_001_152, 4_608), Page(Payer, 1, -1));
         Answer(harness, Window(Payer, 3_005_760, 18_432), Page(Payer, 1, -1));
 
@@ -260,6 +281,7 @@ public sealed class ZcashTests
         }
 
         Answer(harness, Window(Payer, 3_000_000, 1_152), Page(Payer, 1, -1, PaymentJson()));
+        Answer(harness, Newest(Payer), Page(Payer, 1, 1, PaymentJson()));
 
         var lookup = await harness.Zcash.GetOutputSpendsAsync(harness.Case, Payment);
 
@@ -432,6 +454,10 @@ public sealed class ZcashTests
     /// <summary>The path of an address's history in a window of heights.</summary>
     private static string Window(BitcoinAddress address, long from, long span) =>
         $"api/v2/address/{address.Value}?details=txs&pageSize=5&from={from}&to={from + span - 1}";
+
+    /// <summary>The path of the newest page of an address's history, without heights.</summary>
+    private static string Newest(BitcoinAddress address) =>
+        $"api/v2/address/{address.Value}?details=txs&pageSize=5";
 
     /// <summary>Answers the chain's height.</summary>
     private static void AnswerTip(SourceHarness harness, long height) => Answer(
