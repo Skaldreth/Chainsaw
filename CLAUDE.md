@@ -406,6 +406,9 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
 - **Panorering** (användarens beslut 2026-11-07): höger- och mittknappen panorerar grafen, också över en nod, och
   ytan glider vidare och saktar in när man släpper i farten, som i Gawk. Ett högerklick utan rörelse öppnar nodens meny.
   Vänsterknappen drar noder och väljer. **Grafen använder ytan**: många motparter sprids ut, aldrig i en lång kolumn.
+  **Ett klick bredvid stänger de små panelerna** (användarens beslut 2026-11-08): menyn, formulären vid noden,
+  Bevaka, den egna ytans formulär, frågan före sortering, soptunnans varning, bildspråkets ruta och rutan *Bytte block*
+  stängs utan att något sparas när man klickar någon annanstans i grafen, och klicket gör samtidigt det det annars gör.
 - **Delete slänger** den valda noden, eller de valda, i soptunnan, var som helst i grafen och också i högen
   (användarens beslut 2026-11-07), med samma varning som när man drar dit något som har kopplingar vidare.
 - **Den tomma grafen guidar, GR6c** (användarens beslut 2026-11-07): utan ärende står
@@ -495,8 +498,10 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   det man slängde. Soptunnan har en **egen vy** med allt som slängts, som ett träd: det man slängde överst och det som
   följde med under, i flera led. Formen är **SO1a** (användarens beslut 2026-11-07): ikonen växer till en rund
   yta i hörnet med en ringvåg när man är framme, varningen är en liten ruta vid soptunnan med trädet, och det som följer
-  med blir streckat medan resten tonas ner. Vyn är en indragen trädlista per slängning med *Lägg tillbaka* (grenen eller
-  en del) och *Lägg tillbaka allt*. En linje till något i soptunnan blir en kort stump, och soptunnan använder inte
+  med blir streckat medan resten tonas ner. **Vyn är SO2a** (användarens beslut 2026-11-08): ett kort per slängning med det slängda
+  som små noder lagda som en kortlek, när, vem och hur många, och trädet med grenlinjer som fälls ut; *Lägg tillbaka*
+  syns på hovring (kortet för hela slängningen, en rund ikon på raden för grenen), ärendena från startsidan är rutor
+  och en hög har korten bakom sig, och en tom soptunna är en stor ikon nersänkt i ytan. En linje till något i soptunnan blir en kort stump, och soptunnan använder inte
   rött, som betyder risk. **Bevakat slängs inte i tysthet** (användarens beslut 2026-11-07): ligger det som slängs
   under bevakning, eller har det bevakningar längre ner i grenen, frågar Chainsaw först om bevakningarna (en eller
   flera) ska avslutas innan det går i soptunnan. I startvyn kan man slänga ärenden. Bildspråkets *?* flyttas till nedre högra
@@ -675,7 +680,7 @@ Canvas: https://claude.ai/artifact/LVMLEqgJteM68jjc7vuq1h. **Den är uppdelad i 
 | **Inställningar** | ST1a (dialog som i Gawk), ST1b (vy); KL1a, KL1b (källornas endpoints) | ST1a vald och byggd (etapp 19); KL1a vald, ersatt av KL2b (vald 2026-11-08 utan linjerna vid raderna och byggd, med Chainabuse under *Etiketter*) |
 | **Bevakning** | BV1a (lista med formulär), BV1b (tidslinje med händelser); BV2a (vaktlinje), BV2b (båge vid porten); BV3a, BV3b (Bevaka, enklare och vid noden) | BV1a och BV2a valda, med animerade ringar vid träff; BV3a vald |
 | **Begäran** | BG1a (i inspektören), BG1b (vyn Begäran); export till Markdown | BG1b vald och byggd |
-| **Soptunnan** | SO1a, SO1b (släppytan, varningen och vyn) | SO1a vald |
+| **Soptunnan** | SO1a, SO1b (släppytan, varningen och vyn); SO2a, SO2b (vyn omgjord: kort per slängning eller lista och bild, tomt läge med nersänkt ikon) | SO1a vald; SO2a vald och byggd 2026-11-08 (vyn) |
 | **Ärendeväljaren** | ÄV1a (i titelraden), ÄV1b (panel) | ÄV1a vald |
 | **Kontroller och förslag** | KF1a (lista att gå igenom), KF1b (områden bakom aktörerna, också för plånböcker, tid och egna ytor); KF2a, KF2b (omgjorda, professionellare) | KF1a byggd i etapp 22, ersätts av KF2b (vald 2026-11-08), med områdena från KF1b |
 | **Meddelanden** | TO1a (toastern nere till höger) | TO1a godkänd och byggd |

@@ -34,6 +34,9 @@ public sealed partial class GraphCanvas
     /// <summary>Where the open box's <em>?</em> stood on screen, so that a click on it opens the Guide.</summary>
     private Rect? _markGuide;
 
+    /// <summary>The open or hovered mark's box on screen as last drawn, so that a press in it does not close it.</summary>
+    private Rect? _markFrame;
+
     /// <summary>
     /// Where the open box's links in the rows <em>Ersatt av …</em> stood on screen, with their line and replacer, so
     /// that a click on one follows that replacer or takes the choice back.
@@ -90,6 +93,7 @@ public sealed partial class GraphCanvas
     {
         _markGuide = null;
         _markReplacementLinks.Clear();
+        _markFrame = null;
         var model = _model!;
         var key = _hoveredMark ?? model.OpenBlockMark;
         if (key is null || !model.BlockMarksByLine.TryGetValue(key, out var mark)
@@ -105,6 +109,7 @@ public sealed partial class GraphCanvas
         var left = Math.Min(at.X + 16, ActualWidth - MarkBoxWidth - 8);
         var top = Math.Clamp(at.Y - 12, 8, Math.Max(8, ActualHeight - height - 8));
         var frame = new Rect(left, top, MarkBoxWidth, height);
+        _markFrame = frame;
         DrawFloatingBox(dc, frame);
         dc.PushClip(new RectangleGeometry(frame, CardRadius, CardRadius));
         DrawMarkBoxHead(dc, mark, frame);
@@ -215,26 +220,40 @@ public sealed partial class GraphCanvas
         dc.DrawText(text, new Point(left + 23, middle - (text.Height / 2)));
     }
 
-    /// <summary>Takes a press on a block mark (opens or closes its box) or on the open box's <em>?</em>.</summary>
+    /// <summary>
+    /// Takes a press on a block mark (opens or closes its box), on the open box's <em>?</em> or in the box (which
+    /// leaves it open). A press anywhere else closes an open box and goes on to the graph as usual.
+    /// </summary>
     /// <param name="screen">The press on screen.</param>
     /// <param name="surface">The press on the surface.</param>
-    /// <returns><see langword="true"/> when a mark took the press.</returns>
+    /// <returns><see langword="true"/> when a mark or its box took the press.</returns>
     private bool PressBlockMark(GraphPoint screen, GraphPoint surface)
     {
-        if (_markGuide is { } guide && guide.Contains(new Point(screen.X, screen.Y)))
+        var point = new Point(screen.X, screen.Y);
+        if (_markGuide is { } guide && guide.Contains(point))
         {
             _model!.OpenBlockMarkGuide();
             return true;
         }
 
-        foreach (var link in _markReplacementLinks.Where(link => link.Area.Contains(new Point(screen.X, screen.Y))))
+        foreach (var link in _markReplacementLinks.Where(link => link.Area.Contains(point)))
         {
             _ = _model!.ChooseReplacementAsync(link.EdgeKey, link.Replacer);
             return true;
         }
 
+        if (_model!.OpenBlockMark is not null && _markFrame is { } frame && frame.Contains(point))
+        {
+            return true;
+        }
+
         if (MarkAt(surface) is not { } key)
         {
+            if (_model.OpenBlockMark is not null)
+            {
+                _model.ToggleBlockMark(null);
+            }
+
             return false;
         }
 

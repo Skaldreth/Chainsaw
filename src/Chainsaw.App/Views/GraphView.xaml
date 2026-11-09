@@ -664,9 +664,10 @@
                                     <Border MinWidth="18" Height="18" CornerRadius="9" Padding="5,0" Margin="8,0,0,0"
                                             Background="{StaticResource Brush.Accent}" VerticalAlignment="Center"
                                             Visibility="{Binding Checks.HasWaiting, Converter={StaticResource Visible}}">
+                                        <!-- Digits sit below the middle of Segoe UI's line box; the margin lifts them a pixel. -->
                                         <TextBlock Text="{Binding Checks.WaitingText}" FontSize="11" FontWeight="SemiBold"
                                                    Foreground="{StaticResource Brush.OnAccent}" HorizontalAlignment="Center"
-                                                   VerticalAlignment="Center" />
+                                                   VerticalAlignment="Center" Margin="0,0,0,2" />
                                     </Border>
                                 </StackPanel>
                             </Button>

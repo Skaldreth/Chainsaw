@@ -20,6 +20,15 @@ public sealed partial class TrashRowViewModel : ObservableObject
     /// <summary>How far one depth is indented, in pixels.</summary>
     public const double IndentStep = 18;
 
+    /// <summary>How far one depth is indented in the trash's view (sketch SO2a), where real branch lines are drawn.</summary>
+    public const double TreeStep = 24;
+
+    /// <summary>Where the trash view's tree starts: the root's shape stands this far in.</summary>
+    public const double TreeStart = 10;
+
+    /// <summary>How far into a depth's step its branch line runs: under the middle of the parent's shape.</summary>
+    public const double BranchOffset = 11;
+
     /// <summary>Creates a row.</summary>
     /// <param name="member">The member.</param>
     /// <param name="depth">How deep it hangs: 0 for what was thrown.</param>
@@ -55,6 +64,23 @@ public sealed partial class TrashRowViewModel : ObservableObject
 
     /// <summary>Gets how far it is indented: one step per depth below the first.</summary>
     public double Indent => Math.Max(0, Depth - 1) * IndentStep;
+
+    /// <summary>Gets how far the row's shape stands in the trash's view: one tree step per depth.</summary>
+    public double TreePad => TreeStart + (Depth * TreeStep);
+
+    /// <summary>Gets where the branch into the row turns, in the trash's view; only drawn below the root.</summary>
+    public double ElbowLeft => LineAt(Depth);
+
+    /// <summary>
+    /// Gets the branch lines that run through the row from top to bottom in the trash's view: one for each depth where
+    /// a later row still hangs on the same parent, so that the tree reads as one piece.
+    /// </summary>
+    public IReadOnlyList<double> Rails { get; init; } = [];
+
+    /// <summary>Gives where the branch line into a depth runs: under the middle of the parent's shape.</summary>
+    /// <param name="depth">The depth, 1 or more.</param>
+    /// <returns>Its distance from the row's left edge.</returns>
+    public static double LineAt(int depth) => TreeStart + (Math.Max(0, depth - 1) * TreeStep) + BranchOffset;
 
     /// <summary>Gets its sort as the graph drew it.</summary>
     public SortLook Look { get; }
@@ -157,8 +183,48 @@ public sealed partial class TrashRowViewModel : ObservableObject
                 {
                     ThrowSequence = throwSequence,
                     Below = CountBelow(depths, index),
+                    Rails = RailsOf(depths, index),
                 }),
         ];
+    }
+
+    /// <summary>
+    /// Gives the branch lines through a row: for each depth from 1 to the row's own, the line runs on when a later row
+    /// hangs at that depth before one hangs shallower (the row's own line then goes on past its elbow).
+    /// </summary>
+    /// <param name="depths">Every row's depth.</param>
+    /// <param name="index">The row.</param>
+    /// <returns>The lines' distances from the row's left edge.</returns>
+    private static List<double> RailsOf(List<int> depths, int index)
+    {
+        var rails = new List<double>();
+        for (var depth = 1; depth <= depths[index]; depth++)
+        {
+            if (GoesOn(depths, index, depth))
+            {
+                rails.Add(LineAt(depth));
+            }
+        }
+
+        return rails;
+    }
+
+    /// <summary>Says whether a later row hangs at a depth before any row hangs shallower than it.</summary>
+    /// <param name="depths">Every row's depth.</param>
+    /// <param name="index">The row to look after.</param>
+    /// <param name="depth">The depth.</param>
+    /// <returns><see langword="true"/> when the line at the depth goes on below the row.</returns>
+    private static bool GoesOn(List<int> depths, int index, int depth)
+    {
+        for (var later = index + 1; later < depths.Count; later++)
+        {
+            if (depths[later] <= depth)
+            {
+                return depths[later] == depth;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>Counts the rows that hang under a row: those after it that lie deeper, up to the next that does not.</summary>

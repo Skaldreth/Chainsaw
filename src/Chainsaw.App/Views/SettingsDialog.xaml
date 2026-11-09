@@ -682,9 +682,24 @@
             </Button>
         </DataTemplate>
 
+        <!--
+          The keyboard's ring around a mode. WPF shows a focus visual only when focus came from the keyboard, so a click
+          on a mode does not leave an accent frame around it (which made the switch look broken).
+        -->
+        <Style x:Key="Sources.ModeFocus">
+            <Setter Property="Control.Template">
+                <Setter.Value>
+                    <ControlTemplate>
+                        <Rectangle RadiusX="7" RadiusY="7" Stroke="{StaticResource Brush.Accent}" StrokeThickness="1.5" />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!-- One of the three modes as an icon: the chosen one on the selected surface, in the accent (Av in cream). -->
         <DataTemplate x:Key="Sources.Mode" DataType="{x:Type vm:SettingsChoice}">
-            <Button x:Name="Mode" Width="34" Height="28" Margin="1,0" Cursor="Hand" FocusVisualStyle="{x:Null}"
+            <Button x:Name="Mode" Width="34" Height="28" Margin="1,0" Cursor="Hand"
+                    FocusVisualStyle="{StaticResource Sources.ModeFocus}"
                     Background="Transparent" Foreground="{StaticResource Brush.TextDim}" CommandParameter="{Binding}"
                     AutomationProperties.Name="{Binding Label}"
                     Command="{Binding DataContext.ChooseModeCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}">
@@ -702,9 +717,6 @@
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="Box" Property="Background" Value="{StaticResource Brush.SurfaceHover}" />
-                            </Trigger>
-                            <Trigger Property="IsKeyboardFocused" Value="True">
-                                <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource Brush.Accent}" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -2164,8 +2176,8 @@
                                 <DockPanel Visibility="{Binding IsBuilt, Converter={StaticResource Visible}}">
                                     <!-- The chain's name, and the mode as three icons with its name beside. -->
                                     <DockPanel DockPanel.Dock="Top" Height="36">
-                                        <Border DockPanel.Dock="Right" Padding="3" CornerRadius="10" BorderThickness="1.5"
-                                                BorderBrush="{StaticResource Brush.Border}" Background="{StaticResource Brush.Background}"
+                                        <Border DockPanel.Dock="Right" Padding="2" CornerRadius="10" BorderThickness="1"
+                                                BorderBrush="{StaticResource Brush.BorderStrong}" Background="{StaticResource Brush.Background}"
                                                 VerticalAlignment="Center">
                                             <ItemsControl ItemsSource="{Binding ModeChoices}" ItemTemplate="{StaticResource Sources.Mode}"
                                                           ItemsPanel="{StaticResource Settings.Options}" Focusable="False"

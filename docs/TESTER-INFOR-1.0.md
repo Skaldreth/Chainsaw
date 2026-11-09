@@ -3279,3 +3279,26 @@ Inga riktiga adresser står här; ta dem ur en beställning eller en blockutfors
 - [ ] `chainsaw:solana/<adress>` öppnar Chainsaw med adressen på Solana.
 - [ ] Guiden: *Solana* under *Fler kedjor* stämmer med det som syns.
 - [ ] `/verify` är grönt efter allt ovan, och journalens rader nämner Solana.
+
+### Soptunnans vy (SO2a)
+
+- [ ] Öppna soptunnan (klick på ikonen nere till vänster) med några slängningar i `/testdata`: ett kort per slängning,
+      med det slängda som små noder lagda som en kortlek, titeln (*K7 och 2 till*) och när, vem och hur många under.
+- [ ] Ett klick på kortets huvud fäller ihop och ut trädet, och pilen vänder. Trädets grenlinjer går obrutna från
+      föräldern till varje rad, också i flera led.
+- [ ] *Lägg tillbaka* syns först när musen är över kortet, och den runda ikonen på en rad först när musen är över
+      raden. Båda lägger tillbaka det de ska.
+- [ ] *bevakas* står i kortets huvud och ögat på raden när något i slängningen är bevakat.
+- [ ] Utan ärende: bara *På startsidan*, med ärendena som rutor och en hög med två kort bakom sig. Hovra: rutan lyfts
+      en pixel och kanten ljusnar ett steg. *Lägg tillbaka allt* i huvudet lägger tillbaka allt.
+- [ ] Tom soptunna: en stor ikon nersänkt i ytan mitt i vyn, *Soptunnan är tom* och raden under.
+- [ ] Vyn Bevakning: namnet på varje rad är ljust, inte svart.
+- [ ] *Förslag* i grafens huvud: siffran står mitt i den runda bubblan.
+- [ ] Inställningar › Källor: att klicka på ett läge lämnar ingen orange ram; Tab ger ramen.
+- [ ] Grafen: öppna rutan *Bytte block* med ett klick på märket. Ett klick i rutan låter den stå, ett klick någon
+      annanstans i grafen stänger den (och gör det klicket annars gör, till exempel väljer en nod).
+- [ ] Ett klick i grafen bredvid en öppen liten panel stänger den utan att något sparas, och klicket gör sitt (väljer
+      en nod, eller inget): formulären Etikett, Bryt upp och Annan kedja, Bevaka, den egna ytans formulär, frågan
+      före sortering, soptunnans varning och bildspråkets ruta.
+- [ ] Toasten: listen längs nederkanten ligger inne i de rundade hörnen, texten står mitt för ikonen, och toasten står
+      24 px från fönstrets nederkant.
