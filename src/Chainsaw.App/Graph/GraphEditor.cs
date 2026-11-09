@@ -433,7 +433,11 @@ public sealed class GraphEditor(
     {
         ArgumentNullException.ThrowIfNull(@case);
         ArgumentNullException.ThrowIfNull(link);
-        return Task.Run(() => new UndoOutcome(tracing.UnlinkCrossChain(@case, link, reason)));
+
+        // A link an approved suggestion made is taken back with its approval, so that the suggestion waits again.
+        return Task.Run(() => new UndoOutcome(link.Origin is null
+            ? tracing.UnlinkCrossChain(@case, link, reason)
+            : checks.TakeBackLink(@case, link, reason)));
     }
 
     /// <inheritdoc/>

@@ -1,5 +1,7 @@
 using Chainsaw.Modules.Cases.Contracts;
+using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Checks.Contracts;
+using Chainsaw.Modules.Pricing.Contracts;
 using Chainsaw.SharedKernel;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -35,6 +37,13 @@ public static class ChecksModule
         services.AddSingleton<ICheckAnalysis, DustCheck>();
         services.AddSingleton<ICheckAnalysis, PayJoinCheck>();
         services.AddSingleton<ICheckAnalysis, ActiveHoursCheck>();
+        services.AddSingleton<ICheckAnalysis, CrossChainCheck>();
+        services.AddSingleton<ICrossChainLookup>(provider =>
+            provider.GetService<IBitcoinSource>() is { } bitcoin
+            && provider.GetService<IEthereumSource>() is { } ethereum
+                ? new CrossChainLookup(
+                    bitcoin, ethereum, provider.GetService<IPriceService>(), provider.GetService<ITronSource>())
+                : NoCrossChainLookup.Instance);
         services.AddSingleton<ICheckService, CheckService>();
         return services;
     }

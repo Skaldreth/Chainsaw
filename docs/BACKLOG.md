@@ -166,8 +166,24 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
   tar slut här* med orsaken skyddad pool. Senare kan pengar som kommer ut ur poolen föreslås som kandidater ur belopp
   och tid, streckade som mixerns troliga utgångar.
 - **Privacy coins:** metoderna är beslutade (CLAUDE.md, *Spåret tar slut*) och byggs som förslag i omgång 9.
-- **Cross-chain automatiskt:** hitta fortsättningen på den andra kedjan själv (belopp och tid hos swap-tjänster, bryggornas
-  egna händelser). Kanten finns i modellen från början.
+- **Cross-chain, efter `cross-chain v1`** (byggt 2026-11-09, DEV-LOG): förslagen väger det grafen har på andra kedjor
+  och mottagaren som ett memo i THORChains form namnger. Kvar:
+  - **Bryggornas händelser på Ethereum:** bara `Transfer`-händelser läses ur loggarna, så en bryggas eget mål-id eller
+    mottagare (till exempel THORChain-routerns memo i anropets data, eller en bryggas `Deposit`-händelse) syns inte.
+    Kräver att källan läser loggarna eller anropets data.
+  - **Tjänstens utbetalningsadresser på den andra kedjan:** en swap-tjänst med samma etikett på båda kedjorna kunde
+    slås upp i tidsfönstret (deras historik är lång och dyr att läsa); i dag vägs bara det grafen redan har.
+  - **Uppslag per tidsintervall:** ingen av källorna kan svara på *alla betalningar mellan två tider*; med egen nod och
+    eget index går det.
+  - **Bara mottagarens senaste sida** läses (Bitcoin 25 tx, Ethereum och TRON en sida per historik), så en gammal swap
+    till en livlig adress kan saknas.
+  - **Spåret slutar på en tx-etikett** (*Swap eller brygga* på en tx, inte en adress): sådana betalningar vägs inte än.
+  - **Bryggorna till L2-kedjorna** (Arbitrum, OP Mainnet, Base, Polygon) leder till kedjor Chainsaw inte har; BSC och
+    Litecoin vägs när de finns i `Chain` (memots `BSC.` och `LTC.` känns igen men sägs ärligt som en kedja Chainsaw inte
+    har).
+  - **En utbetalning i flera delar** godkänns som en kandidat i taget, men en betalning kan bara knytas till en tx åt
+    gången (Tracing), så den andra delen vägras; delar som tillsammans är värdet föreslås inte.
+  - **Ett godkänt förslag vars betalning in sedan knyts om för hand** står kvar som godkänt i panelen tills nästa körning.
 - **Direkt mot kedjan:** egen nod och eget index (Bitcoin Core med `txindex`, Fulcrum eller electrs eller ett eget index;
   Reth eller Erigon för Ethereum; java-tron för TRON). Kräver en server. Esplora går att köra själv, så Bitcoin blir bara en
   annan adress i datalagret.
@@ -278,8 +294,6 @@ tidsmönster (`active-hours`) och tjänster ur beteende (`service-behaviour`). K
   inte (förslag: känna igen en trolig mixer ur beteende); när flera delar går in i nästa mixer tillsammans följs bara
   en av dem, och stegets belopp är den delen; kedjan grenar sig inte när två utgångar går till olika mixers.
 - **Tornado Cash och andra zk-mixers:** under *Kedjor och data*.
-- **Byte av kedja och token** (bryggor, swap-tjänster utan konto, DEX): kända kontrakt och tjänster känns igen som
-  *Fortsätter på annan kedja*; förslag på fortsättningen ur belopp och tid (under Spårning).
 - **Nästlade tjänster** (en tjänst som har konto hos en börs): beteende som insättningar och uttag i mönster.
 - **Privacy coins och skyddade pooler** (Monero, Zcash, Litecoin MWEB): slut på spåret; förslag på uttag ur poolen ur
   belopp och tid.
@@ -345,8 +359,6 @@ tidsmönster (`active-hours`) och tjänster ur beteende (`service-behaviour`). K
 - **Grafens prestanda, efter omgång 7:** när en drag släpps räknas hela layouten om (cirka 100 ms i hoppkolumnerna
   och 20 ms på den fria ytan vid 3 000 aktörer, `GraphScaleTests`), på UI-tråden. Den kunde räknas utanför UI-tråden
   och bytas in när den är klar. Under draget står de belopp som inte tillhör de dragna linjerna kvar där de stod.
-- **Hitta fortsättningen på en annan kedja själv** (CLAUDE.md, *Cross-chain*): belopp och tid hos swap-tjänster,
-  bryggornas egna händelser. I v1 knyts den för hand.
 
 ### Ledtrådsnoden, valvyn och samlingsnoden (EX1, EX2, EX2b, omgjorda 2026-11-08)
 

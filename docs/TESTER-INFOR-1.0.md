@@ -1843,6 +1843,27 @@ Testärendet visar dem inte än (TODO); prova i ett ärende där mönstren finns
   namn, färg och ikon, streckad, medan sort och namn väljs. *Sätt etikett* sparar en etikett med källan
   `service-behaviour v1`, som i *Historik* kan tas tillbaka.
 
+### Fortsättningen på annan kedja (cross-chain v1, 2026-11-09)
+
+Kräver ett ärende där pengar på Bitcoin går in till en adress med etiketten *Swap eller brygga*, och grafen också har
+en utbetalning på Ethereum eller TRON strax efter (till exempel en startpunkt där), med kurserna i ärendet.
+- *Förslag · N* har ett förslag *Fortsättning på annan kedja* med lila område, brickorna *Tjänstens memo först*,
+  *Värde − avgift*, *Tid* och *Samma nyckel*, och kandidaterna som rader: mottagaren förkortad, beloppet med sin
+  tillgång (till exempel USDT) och tiden efter. Raden under titeln säger beloppet in med sin tillgång.
+- En utbetalning vars värde är mycket större eller mindre än det som gick in blir ingen kandidat. Utan kurs i ärendet
+  blir det inget förslag (utom för en mottagare som memot namnger, se nästa punkt).
+- En Bitcoin-tx till en THORChain-adress med ett `OP_RETURN`-memo `=:ETH.ETH:0x…`: när kontrollerna körs med utgången
+  ansluten slås mottagaren upp på Ethereum (bara adressen), och en betalning till den står först, med *mottagaren står i
+  memot …* i skälet.
+- Med utgången frånkopplad: panelen säger *Fortsättningen på Ethereum kunde inte slås upp: …*, och förslagen bygger på
+  det som redan finns i ärendet.
+- Godkänn en kandidat (Enter), gärna utan skäl: grafen får den lila streckade länken till tx:en på den andra kedjan,
+  journalen har beslutet och *Fortsätter på annan kedja: … (godkänt förslag, cross-chain v1)*.
+- Ångra beslutet (Ctrl+Z eller *Ångra* i loggen): länken försvinner och förslaget väntar igen. Godkänn igen och ta
+  tillbaka länken i nodens *Historik* i stället: samma resultat, beslutet är ångrat.
+- Knyt fortsättningen för hand (K) på en annan betalning in: den får inget förslag.
+- Försök godkänna en andra kandidat för samma betalning: det vägras (en betalning fortsätter på ett ställe i taget).
+
 ## Etiketter
 
 ### Etiketterna (etapp 8, Attribution)

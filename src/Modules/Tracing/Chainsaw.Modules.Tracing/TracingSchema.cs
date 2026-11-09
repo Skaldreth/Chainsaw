@@ -26,12 +26,13 @@ internal sealed class TracingSchema : ICaseSchemaContributor
     /// <c>internal:0x…</c> or <c>token:0x…</c>, and <c>from_output</c> its position in the transaction (0 for the
     /// ether the transaction sent, the trace's index for an internal one, the log's index for a token). A Bitcoin
     /// txid never holds a colon, so the two never mix. <c>to_chain</c> and <c>to_id</c> name the other chain's
-    /// transaction.
+    /// transaction. <c>origin</c> is empty for a link made by hand, and for one an approved suggestion made it names
+    /// the analysis with its version and the decision, for example <c>cross-chain v1#12</c>.
     /// </summary>
     public static readonly IReadOnlyList<string> CrossChainColumns =
     [
         "action", "link_sequence", "from_txid", "from_output", "to_chain", "to_id", "reason", "journal_sequence",
-        "recorded_utc",
+        "recorded_utc", "origin",
     ];
 
     /// <summary>The sealed chain of the graph's comments (sketch KN1a).</summary>
@@ -118,6 +119,7 @@ internal sealed class TracingSchema : ICaseSchemaContributor
             reason TEXT NOT NULL,
             journal_sequence INTEGER NOT NULL,
             recorded_utc TEXT NOT NULL,
+            origin TEXT,
             hash BLOB NOT NULL
         ) STRICT;
         """;

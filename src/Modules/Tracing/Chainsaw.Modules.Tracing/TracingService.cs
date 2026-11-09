@@ -15,9 +15,6 @@ namespace Chainsaw.Modules.Tracing;
 /// </summary>
 internal sealed class TracingService : ITracingService
 {
-    /// <summary>The longest reason the user may give.</summary>
-    private const int MaximumReasonLength = 1_000;
-
     /// <summary>
     /// How many lookups of where coins went are asked at the same time. The source's own pace per endpoint still
     /// decides when each request leaves (rate limits are always respected); asking a few at once only keeps one
@@ -212,23 +209,7 @@ internal sealed class TracingService : ITracingService
             throw new ArgumentException("A link to another chain leads off Bitcoin.", nameof(to));
         }
 
-        return @case.Write(transaction =>
-        {
-            // One coin continues in one place; another link is made after the first is taken back, so that the
-            // coin's amount is never on two lines at once.
-            if (GraphStateStore.Read(transaction).Links.Any(link => link.From == from))
-            {
-                throw new ArgumentException(
-                    "The coin already continues on another chain; take that link back first.", nameof(from));
-            }
-
-            var journal = transaction.AppendJournal(new JournalDraft(
-                TracingJournalKinds.CrossChainLinked,
-                string.Format(CultureInfo.InvariantCulture, "Fortsätter på annan kedja: {0} → {1}", from, to),
-                JsonSerializer.Serialize(
-                    new { from = from.ToString(), chain = to.Chain.ToString(), to = to.Id, reason })));
-            return GraphStateStore.SealLink(transaction, from, to, reason, journal);
-        });
+        return @case.Write(transaction => CrossChainLinks.SealCoin(transaction, from, to, reason, null));
     }
 
     /// <inheritdoc/>
@@ -243,23 +224,7 @@ internal sealed class TracingService : ITracingService
             throw new ArgumentException("A link to another chain leads off the movement's chain.", nameof(to));
         }
 
-        return @case.Write(transaction =>
-        {
-            if (GraphStateStore.Read(transaction).Links.Any(link => link.FromTransfer == from))
-            {
-                throw new ArgumentException(
-                    "The movement already continues on another chain; take that link back first.", nameof(from));
-            }
-
-            var text = string.Create(
-                CultureInfo.InvariantCulture,
-                $"{from.Kind.ToString().ToLowerInvariant()}:{from.Transaction.Value}#{from.Position}");
-            var journal = transaction.AppendJournal(new JournalDraft(
-                TracingJournalKinds.CrossChainLinked,
-                string.Format(CultureInfo.InvariantCulture, "Fortsätter på annan kedja: {0} → {1}", text, to),
-                JsonSerializer.Serialize(new { from = text, chain = to.Chain.ToString(), to = to.Id, reason })));
-            return GraphStateStore.SealLink(transaction, from, to, reason, journal);
-        });
+        return @case.Write(transaction => CrossChainLinks.SealMovement(transaction, from, to, reason, null));
     }
 
     /// <inheritdoc/>
@@ -283,15 +248,7 @@ internal sealed class TracingService : ITracingService
                 return false;
             }
 
-            var journal = transaction.AppendJournal(new JournalDraft(
-                TracingJournalKinds.CrossChainUnlinked,
-                string.Format(
-                    CultureInfo.InvariantCulture,
-                    "Länken till annan kedja togs tillbaka: {0} → {1}",
-                    stored.FromText,
-                    stored.To),
-                JsonSerializer.Serialize(new { link = stored.Sequence, reason })));
-            GraphStateStore.SealUnlink(transaction, stored, reason, journal);
+            CrossChainLinks.Unlink(transaction, stored, reason);
             return true;
         });
     }
@@ -1323,13 +1280,7 @@ internal sealed class TracingService : ITracingService
     /// <summary>Checks a reason the user gives; it may be empty (the user's decision 2026-11-07).</summary>
     /// <param name="reason">The reason.</param>
     /// <exception cref="ArgumentException">It is too long.</exception>
-    private static void CheckReason(string reason)
-    {
-        if (reason is null || reason.Length > MaximumReasonLength)
-        {
-            throw new ArgumentException("A reason is at most 1 000 characters.", nameof(reason));
-        }
-    }
+    private static void CheckReason(string reason) => CrossChainLinks.CheckReason(reason);
 
     /// <summary>
     /// Joins an answer's notes (a transaction that left its block, one that could not be checked against its bytes)

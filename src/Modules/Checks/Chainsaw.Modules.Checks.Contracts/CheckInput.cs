@@ -1,5 +1,6 @@
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Clustering.Contracts;
+using Chainsaw.Modules.Tracing.Contracts;
 
 namespace Chainsaw.Modules.Checks.Contracts;
 
@@ -59,6 +60,19 @@ public sealed record CheckInput(
     /// example as a customer's deposit).
     /// </summary>
     public IReadOnlySet<BitcoinAddress> Protected { get; init; } = new HashSet<BitcoinAddress>();
+
+    /// <summary>
+    /// Gets the graph the input was built from, for an analysis that reads more than the Bitcoin transactions (the
+    /// cross-chain analysis reads every chain's payments and the links to other chains); <see langword="null"/> when
+    /// the input was built without one.
+    /// </summary>
+    public TraceGraph? Graph { get; init; }
+
+    /// <summary>
+    /// Gets what the cross-chain search read from the case of the other chains (<see cref="ICrossChainLookup"/>);
+    /// empty when nothing.
+    /// </summary>
+    public CrossChainArrivals CrossChain { get; init; } = CrossChainArrivals.Empty;
 
     /// <summary>Gives the owner of an address (<see cref="Owners"/>).</summary>
     /// <param name="address">The address.</param>

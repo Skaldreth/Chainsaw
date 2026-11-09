@@ -5100,3 +5100,54 @@ offline), App 6 i `ChainStateTests` (rutans rad och fot, länken, en fråga per 
   resten vid nästa uppslag*.
 - **M-3:** det instabila App-testet gick inte att framkalla (App.Tests tre gånger i rad, alla gröna); lämnat.
 - **M-4:** raderna i `ersatt-tx.md` är brutna.
+
+## Fortsättningen på annan kedja själv: `cross-chain v1` (backloggens punkt 9, 2026-11-09)
+
+En analys i Checks som föreslår var pengar som nått en brygga eller swap fortsätter på en annan kedja, som kandidater
+i KF2b-panelen, och ett godkännande som knyter fortsättningen i samma transaktion som beslutet.
+
+- **Analysen `cross-chain v1`** (`CrossChainCheck`): för varje betalning in till en aktör där spåret slutar med
+  *Fortsätter på annan kedja* (etiketten *Swap eller brygga* eller en känd brygga) och som inte är knuten för hand väger
+  den betalningar på de andra kedjorna: grafens egna och de som sökningen läst in i ärendet. Värdet jämförs med
+  ärendets kurser vid de två blocktiderna (avgift −3 % till 20 %, full poäng 0,2–6 %), tiden inom 72 h (full inom 2 h,
+  10 min tidigare tillåts för klockorna) och adressen (samma 20 byte på Ethereum och TRON 0,9, utbetalning från en
+  brygga eller swap 0,8, annars 0,5). Poängen är värde 0,5, tid 0,25, adress 0,25, och kandidater under 0,45 tas bort.
+  Utan kurs, eller när värdet inte passar, blir betalningen ingen kandidat.
+- **Tjänstens egen händelse först:** ett `OP_RETURN`-memo i THORChains form (`SWAP`, `s` eller `=`, `KEDJA.TILLGÅNG`
+  eller `b`/`e`, mottagaren; `SwapMemo`) i betalningens Bitcoin-tx namnger mottagaren på den andra kedjan. En betalning
+  till den är kandidat också utan kurs, med 0,7 i grund plus värde och tid, och står alltid först.
+- **Sökningen** (`ICrossChainLookup`, `CrossChainLookup`): slår upp memots mottagare (bara adressen, första sidan; på
+  Ethereum och TRON transaktioner och tokens) genom källan och utgången, högst 8 mottagare, och värderar betalningarna
+  in och de på andra kedjor i fönstret med ärendets kurser (högst 200, de närmaste först; högst 24 kurser frågas av
+  källan). `CheckSource` kör den med `AsNeeded` före varje körning av kontrollerna; `CheckService.Run` läser den med
+  `CaseOnly`, så att körningen själv aldrig skickar något. Det som inte nåddes (utgången, kedjan av, ingen källa) står i
+  körningens problem och i förslagets *Varför?*.
+- **Kontrakten:** `ChainMovement` (en betalning på vilken kedja som helst, med block och hash), `CheckFinding.Departure`
+  och `CheckCandidate.Arrival`; `CheckCandidate.Address`, `Txid` och `Amount` är nu valfria (en kandidat på en annan
+  kedja har ingen Bitcoin-adress). Det som sparas skrivs som förut när de nya delarna saknas, så andra fynd får samma
+  fingeravtryck.
+- **Godkännandet** (`CheckService.FollowAcrossChains`): knyter betalningen in till kandidatens tx med
+  `ICrossChainLinks.Link` i samma transaktion som beslutet, med det frivilliga skälet och ursprunget
+  `CrossChainOrigin` (analysen med version och beslutets nummer), som förseglas i den nya kolumnen `origin` i
+  `tracing_cross_chain` och står i journalraden. Att ångra beslutet tar tillbaka länken i samma transaktion, och att ta
+  tillbaka länken i *Historik* ångrar beslutet (`ICheckService.TakeBackLink`, `GraphEditor.UnlinkAsync`), så att panelen
+  och grafen säger samma sak. En länk görs aldrig av sig själv.
+- **Tracing:** reglerna för en länk (annan kedja, en länk per mynt eller rörelse, skälets längd) ligger nu på ett ställe,
+  `CrossChainLinks`, som både länkarna för hand och de godkända använder.
+- **Panelen:** kandidatraden visar mottagaren och beloppet med sin tillgång, tiden efter betalningen in, brickorna för
+  analysen och *Varför?* i Guidens avsnitt *Fortsättningen på en annan kedja*. Ingen ny yta.
+- **Tester:** facit i `CrossChainTests` (rätt kandidat först, inget förslag när värdet inte passar, flera som passar,
+  samma kedja och utanför fönstret, memots mottagare först och utan kurs, samma nyckel Ethereum–TRON, knutet för hand,
+  godkänna och ångra, en vägrad länk sparar inget beslut, ta tillbaka från historiken, läst som förseglat, memon),
+  `CrossChainLookupTests` (bara mottagaren frågas och i rätt läge, offline sägs, bara ärendet) och `LinkOriginTests` i
+  Tracing. Den gyllene filen i Tracing har den nya kolumnen.
+
+**Egna beslut och avsteg:**
+- Analysens `Scope` är Bitcoins, eftersom kontrollerna bara kör analyser för Bitcoin; den väger ändå betalningar in på
+  alla kedjor grafen har.
+- Värdet jämförs bara med kurser; två tokens med samma symbol på olika kedjor (USDT) jämförs aldrig på symbolen.
+- Ett förslag vars betalning in är på Ethereum eller TRON har inget område och inga linjer i grafen (områdena ritas
+  kring Bitcoin-adresser); det står i panelen. Ytan skissas först (TODO, punkt 9).
+- Ett andra godkännande för samma betalning vägras av Tracing (en länk per betalning); BACKLOG.
+
+**Återstår:** BACKLOG, *Cross-chain, efter `cross-chain v1`*, och ytorna i TODO, punkt 9. Oberoende granskning.

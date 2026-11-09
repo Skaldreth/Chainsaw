@@ -86,6 +86,12 @@ public sealed record CrossChainLink(
     /// </summary>
     public AccountSeed? FromTransfer { get; init; }
 
+    /// <summary>
+    /// Gets the approved suggestion the link comes from (<see cref="CrossChainOrigin"/>), or <see langword="null"/>
+    /// for a link the user made by hand.
+    /// </summary>
+    public CrossChainOrigin? Origin { get; init; }
+
     /// <summary>Gets the chain the money left.</summary>
     public Chain FromChain => FromTransfer?.Transaction.Chain ?? Chain.Bitcoin;
 

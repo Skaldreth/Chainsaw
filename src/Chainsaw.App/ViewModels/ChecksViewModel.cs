@@ -917,11 +917,12 @@ public sealed partial class ChecksViewModel : ObservableObject
 
     /// <summary>
     /// What the list says when the graph has Ethereum: the analyses are written for the UTXO model (CoinJoin, peel
-    /// chain, the mixer's candidates and the wallets from Clustering) and are not run on an account chain.
+    /// chain, the mixer's candidates and the wallets from Clustering) and are not run on an account chain; only the
+    /// continuation on another chain (<c>cross-chain</c>) weighs payments there.
     /// </summary>
     public const string AccountChainsText =
-        "Kontrollerna gäller UTXO-modellen (Bitcoin) och körs inte på Ethereum och TRON än; "
-        + "den delen är inte kontrollerad.";
+        "Kontrollerna gäller UTXO-modellen (Bitcoin) och körs inte på Ethereum och TRON än, utom fortsättningen på "
+        + "annan kedja; den delen är annars inte kontrollerad.";
 
     /// <summary>Says, after the status, that the checks did not run on the graph's Ethereum part.</summary>
     /// <param name="scene">The graph.</param>
@@ -971,6 +972,7 @@ public sealed partial class ChecksViewModel : ObservableObject
         "dust" => GuideTopic.Dust,
         "payjoin-hint" => GuideTopic.PayJoin,
         "active-hours" => GuideTopic.TimePattern,
+        CheckAnalysisNames.CrossChain => GuideTopic.CrossChain,
         _ => GuideTopic.Areas,
     };
 
@@ -1657,7 +1659,7 @@ public sealed partial class ChecksViewModel : ObservableObject
                 : new CheckRowViewModel(check, null, []);
             foreach (var row in shown.Candidates.Where(c => !c.IsDismissed))
             {
-                if (graph.NodeOf(row.Candidate.Address) is { } to && to.Key != from.Key)
+                if (row.Candidate.Address is { } address && graph.NodeOf(address) is { } to && to.Key != from.Key)
                 {
                     lines.Add(new CandidateLine(
                         from.Key, to.Key, row.Candidate.Score, row.ScoreText, row.IsApproved, row.Rank, row.IsChosen));

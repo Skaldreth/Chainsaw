@@ -28,6 +28,17 @@ internal sealed class CheckService : ICheckService
     /// <summary>The labels, for the victims; <see langword="null"/> when the module is not registered.</summary>
     private readonly IAttributionService? _attribution;
 
+    /// <summary>
+    /// What the case has of the other chains for the cross-chain analysis; <see langword="null"/> when not registered.
+    /// </summary>
+    private readonly ICrossChainLookup? _crossChain;
+
+    /// <summary>
+    /// Where an approved continuation on another chain is linked; <see langword="null"/> when Tracing is not
+    /// registered, and then such an approval is refused.
+    /// </summary>
+    private readonly ICrossChainLinks? _links;
+
     /// <summary>Creates the service.</summary>
     /// <param name="analyses">Every registered analysis; those for Bitcoin run, in the order registered.</param>
     /// <param name="clustering">The clustering.</param>
@@ -36,12 +47,18 @@ internal sealed class CheckService : ICheckService
     /// The labels, so that the victims are known (<see cref="CheckInput.Protected"/>); <see langword="null"/> when
     /// Attribution is not registered, and then only the start points are.
     /// </param>
+    /// <param name="crossChain">
+    /// What the case has of the other chains (read only, sending nothing), or <see langword="null"/>.
+    /// </param>
+    /// <param name="links">Where an approved continuation on another chain is linked, or <see langword="null"/>.</param>
     /// <exception cref="InvalidOperationException">Two analyses have the same name.</exception>
     public CheckService(
         IEnumerable<ICheckAnalysis> analyses,
         IClusteringService clustering,
         IClock clock,
-        IAttributionService? attribution = null)
+        IAttributionService? attribution = null,
+        ICrossChainLookup? crossChain = null,
+        ICrossChainLinks? links = null)
     {
         ArgumentNullException.ThrowIfNull(analyses);
         var all = analyses.ToList();
@@ -59,6 +76,8 @@ internal sealed class CheckService : ICheckService
         _clustering = clustering;
         _clock = clock;
         _attribution = attribution;
+        _crossChain = crossChain;
+        _links = links;
     }
 
     /// <inheritdoc/>
@@ -72,13 +91,15 @@ internal sealed class CheckService : ICheckService
         var (results, decisions) = @case.Read(
             reader => (CheckStore.ReadResults(reader), CheckStore.ReadDecisions(reader)));
         var (approved, dismissed) = DecisionsOf(results, decisions);
+        var problems = new List<string>();
         var input = InputOf(@case, graph) with
         {
             Approved = approved,
             Dismissed = dismissed,
             ApprovedWallets = ApprovedWalletsOf(@case, decisions),
+            Graph = graph,
+            CrossChain = CrossChainOf(@case, graph, problems),
         };
-        var problems = new List<string>();
         var raw = new List<(ICheckAnalysis Analysis, ResultKey Key, CheckFinding Finding)>();
         var found = new List<(ICheckAnalysis Analysis, ResultKey Key, CheckFinding Finding, string Content)>();
         foreach (var analysis in _analyses)
@@ -125,6 +146,32 @@ internal sealed class CheckService : ICheckService
                 decisions.TryGetValue(item.Key, out var made) ? made : []);
         }).ToList();
         return new CheckRun(checks, sealedCount, input.Transactions.Count, _clock.UtcNow, problems);
+    }
+
+    /// <summary>
+    /// Reads what the case has of the other chains for the cross-chain analysis, sending nothing; a failure leaves it
+    /// empty and is said, so that the other analyses still run.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="graph">The graph.</param>
+    /// <param name="problems">Where a failure is said.</param>
+    /// <returns>What was read.</returns>
+    private CrossChainArrivals CrossChainOf(ICase @case, TraceGraph graph, List<string> problems)
+    {
+        if (_crossChain is null)
+        {
+            return CrossChainArrivals.Empty;
+        }
+
+        try
+        {
+            return _crossChain.FindAsync(@case, graph, LookupMode.CaseOnly).GetAwaiter().GetResult();
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            problems.Add(string.Format(CultureInfo.InvariantCulture, FailedText, CrossChainCheck.Identity));
+            return CrossChainArrivals.Empty;
+        }
     }
 
     /// <inheritdoc/>
@@ -229,6 +276,7 @@ internal sealed class CheckService : ICheckService
         {
             var decision = SealOne(transaction, requests[index], reasons[index], results, decisions);
             FollowInClustering(transaction, requests[index], decision, results);
+            FollowAcrossChains(transaction, requests[index], decision, results);
             var key = KeyOf(requests[index]);
             if (!decisions.TryGetValue(key, out var list))
             {
@@ -291,6 +339,105 @@ internal sealed class CheckService : ICheckService
                 _clustering.UndoMerges(transaction, made, decision.Reason);
             }
         }
+    }
+
+    /// <summary>
+    /// Follows a decision about a continuation on another chain in the same transaction, so that the two are sealed
+    /// together or not at all: approving a candidate links the payment into the bridge or swap to the candidate's
+    /// transaction, as the user's judgement with the decision as its origin, and taking the approval back takes that
+    /// link back. Any other decision is left alone.
+    /// </summary>
+    /// <param name="transaction">The case's transaction.</param>
+    /// <param name="request">The decision as asked for.</param>
+    /// <param name="decision">The decision as sealed.</param>
+    /// <param name="results">The sealed findings.</param>
+    /// <exception cref="InvalidOperationException">No links can be made here (Tracing is not registered).</exception>
+    /// <exception cref="ArgumentException">
+    /// The payment already continues on another chain (for example by another candidate's approval).
+    /// </exception>
+    private void FollowAcrossChains(
+        ICaseTransaction transaction,
+        DecisionRequest request,
+        CheckDecision decision,
+        Dictionary<ResultKey, SealedResult> results)
+    {
+        if (request.Analysis.Name != CrossChainCheck.Name || request.Verdict == CheckVerdict.Dismissed)
+        {
+            return;
+        }
+
+        var links = _links ?? throw new InvalidOperationException("Links to other chains cannot be made here.");
+        if (request.Verdict == CheckVerdict.Withdrawn)
+        {
+            if (request.Undoes is { } undone)
+            {
+                links.UnlinkMadeBy(transaction, request.Analysis.ToString(), undone, decision.Reason);
+            }
+
+            return;
+        }
+
+        var finding = FindingCodec.Decode(results[KeyOf(request)].Content);
+        var arrival = finding.Candidates.FirstOrDefault(candidate => candidate.Key == request.CandidateKey)?.Arrival;
+        if (finding.Departure is not { } departure || arrival is null)
+        {
+            throw new SuggestionChangedException("The suggestion does not name both payments; run the checks again.");
+        }
+
+        links.Link(transaction, new CrossChainLinkDraft(
+            departure.Coin,
+            departure.Movement,
+            arrival.Transaction,
+            decision.Reason,
+            new CrossChainOrigin(request.Analysis.ToString(), decision.Sequence)));
+    }
+
+    /// <inheritdoc/>
+    public bool TakeBackLink(ICase @case, CrossChainLink link, string? reason)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(link);
+        if (link.Origin is not { } origin)
+        {
+            throw new ArgumentException("A link made by hand is taken back in Tracing.", nameof(link));
+        }
+
+        var checkedReason = Optional(reason, CheckRules.MaximumTextLength, nameof(reason));
+        return @case.Write(transaction =>
+        {
+            if (ApprovalInForce(transaction, origin) is { } approval)
+            {
+                // Taking the approval back takes its link back too, so that the suggestion waits again.
+                var request = DecisionRequest.TakeBack(approval) with { Reason = checkedReason };
+                DecideIn(transaction, [request], [checkedReason]);
+                return true;
+            }
+
+            var links = _links
+                ?? throw new InvalidOperationException("Links to other chains cannot be taken back here.");
+            return links.UnlinkMadeBy(transaction, origin.Analysis, origin.Decision, checkedReason) > 0;
+        });
+    }
+
+    /// <summary>Gives the approval a link names as its origin, when it is still the decision in force.</summary>
+    /// <param name="reader">The case's transaction.</param>
+    /// <param name="origin">The link's origin.</param>
+    /// <returns>The approval, or <see langword="null"/> when it was taken back or is not sealed.</returns>
+    private static CheckDecision? ApprovalInForce(ICaseReader reader, CrossChainOrigin origin)
+    {
+        foreach (var made in CheckStore.ReadDecisions(reader).Values)
+        {
+            if (made.FirstOrDefault(decision => decision.Sequence == origin.Decision
+                && decision.Analysis.ToString() == origin.Analysis) is not { } approval)
+            {
+                continue;
+            }
+
+            var latest = made.LastOrDefault(decision => decision.CandidateKey == approval.CandidateKey);
+            return latest?.Sequence == approval.Sequence && approval.Verdict == CheckVerdict.Approved ? approval : null;
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -464,7 +611,9 @@ internal sealed class CheckService : ICheckService
             result.Sequence, request.Analysis, string.Empty, finding, result.JournalSequence, result.RecordedUtc, made);
         Refuse(request, stored);
         var verb = VerbOf(request.Verdict);
-        var what = candidate is null ? finding.Title : $"{finding.Title}, kandidat {candidate.Address}";
+        var what = candidate is null
+            ? finding.Title
+            : $"{finding.Title}, kandidat {candidate.Address?.ToString() ?? candidate.Arrival?.To.ToString()}";
         var journal = transaction.AppendJournal(new JournalDraft(
             CheckJournalKinds.Decided,
             $"{verb}: {what} ({request.Analysis})",
@@ -745,9 +894,10 @@ internal sealed class CheckService : ICheckService
                 .ToHashSet(StringComparer.Ordinal);
             if (inForce.Count > 0 && results.TryGetValue(key, out var result))
             {
+                // A candidate on another chain has no coin; the analyses that build on approvals read Bitcoin's.
                 approved.AddRange(FindingCodec.Decode(result.Content).Candidates
-                    .Where(candidate => inForce.Contains(candidate.Key))
-                    .Select(c => new ApprovedCandidate(analysis, key.FindingKey, c.Txid, c.Output)));
+                    .Where(candidate => inForce.Contains(candidate.Key) && candidate.Txid is not null)
+                    .Select(c => new ApprovedCandidate(analysis, key.FindingKey, c.Txid!, c.Output)));
             }
         }
 
@@ -913,8 +1063,12 @@ internal sealed class CheckService : ICheckService
             .Select(item => item.Candidate)
             .ToList();
         var dropped = finding.Candidates.Except(kept).ToList();
-        var droppedAddresses = dropped.Select(c => c.Address).Except(kept.Select(c => c.Address)).ToHashSet();
-        var droppedTxids = dropped.Select(c => c.Txid).Except(kept.Select(c => c.Txid)).ToHashSet();
+        var droppedAddresses = dropped.Select(c => c.Address).OfType<BitcoinAddress>()
+            .Except(kept.Select(c => c.Address).OfType<BitcoinAddress>())
+            .ToHashSet();
+        var droppedTxids = dropped.Select(c => c.Txid).OfType<Txid>()
+            .Except(kept.Select(c => c.Txid).OfType<Txid>())
+            .ToHashSet();
         return finding with
         {
             Addresses = [.. finding.Addresses.Where((a, index) => index == 0 || !droppedAddresses.Contains(a))],
@@ -943,12 +1097,16 @@ internal sealed class CheckService : ICheckService
             return finding;
         }
 
-        var txids = carried.Select(candidate => candidate.Txid).ToHashSet();
+        var txids = carried.Select(candidate => candidate.Txid).OfType<Txid>().ToHashSet();
         // The first basis entry is the anchor's (the deposit's transaction); only the candidates' entries are carried.
         var basis = sealedBefore!.Basis.Skip(1).Where(entry => txids.Contains(entry.Txid));
         return finding with
         {
-            Addresses = [.. finding.Addresses.Concat(carried.Select(candidate => candidate.Address)).Distinct()],
+            Addresses =
+            [
+                .. finding.Addresses.Concat(carried.Select(candidate => candidate.Address).OfType<BitcoinAddress>())
+                    .Distinct(),
+            ],
             Basis = [.. finding.Basis.Concat(basis).DistinctBy(entry => entry.Txid)],
             Candidates = [.. finding.Candidates.Concat(carried)],
         };
