@@ -214,6 +214,13 @@ Verktyget `tools/Chainsaw.Recovery` körs på Windows (fingeravtrycket i appen p
       pengar) i grafen, på ljusheten.
 - [ ] Aktörer med negativ etikett i det som hölls tillbaka och i högen har riskfärgen, inte felfärgen.
 
+### Kommandoraden arbetar (2026-11-09)
+
+- [ ] Skriv `/testdata` och tryck Enter: förstoringsglaset blir en snurra och under fältet står *Arbetar med /testdata …*
+      tills ärendet är öppet; fältet går inte att skriva i under tiden. Med animeringar avstängda i Windows står
+      snurran stilla.
+- [ ] Ett kommando som misslyckas byter texten mot felet i felfärgen, och snurran blir förstoringsglaset igen.
+
 ### Kommandoraden som Spotlight (polering 2026-11-07)
 
 - [ ] Statusraden längst ner är borta; utgången står bara i titelraden, och hovring på den säger vart uppslagen går.
@@ -3379,6 +3386,21 @@ Inga riktiga adresser står här; ta dem ur en beställning eller en blockutfors
 - [ ] Guiden: *Solana* under *Fler kedjor* stämmer med det som syns.
 - [ ] `/verify` är grönt efter allt ovan, och journalens rader nämner Solana.
 
+
+### Testärendets varianter (2026-11-09)
+
+- [ ] `/testdata ` och Tab fyller i `-1`, `-2` …; `/testdata -9` svarar att varianten inte finns och listar dem.
+- [ ] `/testdata -1` (grunden): bara offrets betalning som startpunkt med etiketten Offret; expandera själv.
+- [ ] `/testdata -2` (till börsen): peel chain fram till Nordbörsen; vyn Begäran har uttaget.
+- [ ] `/testdata -3` (mixern): pengarna in i Blandaren och *Förslag · N* i grafens huvud med troliga utgångar.
+- [ ] `/testdata -4` (bevakning): vyn Bevakning har *Bedragarens andra plånbok* med en ny träff.
+- [ ] `/testdata -5` (förvirring): damm, den liknande adressen, hoppen med paus och delarna som möts, med förslag.
+- [ ] `/testdata -6` (andra kedjor): bara TRON och Ethereum, med USDT, swap-pillret och Tornado Cash.
+- [ ] `/testdata -7` (eget arbete): etiketten från kollegans ärende, uppbrytningen, den egna ytan, lappen med
+      historik och två saker i soptunnan.
+- [ ] `/testdata -8` (block som byts): märket *bytte block* på uttaget, en tx som är borta och en slutsats som hålls
+      tillbaka.
+- [ ] Ärendets titel säger vilken variant det är, och `/testdata` utan växel bygger hela berättelsen som förut.
 ### Soptunnans vy (SO2a)
 
 - [ ] Öppna soptunnan (klick på ikonen nere till vänster) med några slängningar i `/testdata`: ett kort per slängning,

@@ -653,7 +653,10 @@ Samma arbetssätt som Gawk (användarens beslut 2026-11-06):
 - **Heuristiker testas mot ett facit:** syntetiska tx-mönster (peel chain, CoinJoin, konsolidering, börsens sweep) som
   testdata, så att varje heuristik har tester som visar vad den slår ihop och vad den låter bli.
 - **Testärendet `/testdata`** (bara Debug) fylls på när något nytt byggs, så att allt går att se i det
-  (`src/Chainsaw.App/TestData/TestStory.cs`).
+  (`src/Chainsaw.App/TestData/TestStory.cs`). **`/testdata -1` … `-8` bygger små varianter** som visar en sak var
+  (användarens önskemål 2026-11-09, `TestScenarios.cs`): grunden, till börsen, mixern, bevakning, förvirring, andra
+  kedjor, eget arbete och block som byts, på samma påhittade kedja så att resten kan expanderas för hand. En ny
+  förmåga får en variant när den inte syns tydligt i någon av dem.
 - **.NET i molnmiljön:** `apt-get update && apt-get install -y dotnet-sdk-10.0`. Bygg och testa med `dotnet build` och `dotnet test` i roten.
 
 ## Dokumentation
