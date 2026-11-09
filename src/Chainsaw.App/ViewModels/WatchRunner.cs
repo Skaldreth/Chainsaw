@@ -152,12 +152,13 @@ public sealed class WatchRunner : IDisposable
             return;
         }
 
-        // A new block heard of asks at once; so does a new watch, unless the last ask for the height failed.
+        // A new block heard of asks at once, and so does a new watch, unless the last ask for the height failed: then the
+        // minute holds whatever is heard, so that a source that fails cannot be asked faster by news.
         _news?.Keep(chain);
         var heard = _news?.Heard(chain) ?? 0;
         var nudged = heard != state.Heard;
         state.Heard = heard;
-        var waits = (!unstarted || state.HeightFailed) && !nudged;
+        var waits = state.HeightFailed || (!unstarted && !nudged);
         if (waits && now < state.NextHeight)
         {
             return;

@@ -259,12 +259,13 @@ internal sealed class WatcherLoop
         var now = _parts.Clock.UtcNow;
         var unstarted = work.Any(each => StartOf(each.Case, each.Watch) is null);
 
-        // A new block heard of by websocket asks at once, instead of waiting for the minute.
+        // A new block heard of by websocket asks at once, instead of waiting for the minute; after a failed ask the
+        // minute holds all the same.
         _parts.News?.Keep(chain);
         var heard = _parts.News?.Heard(chain) ?? 0;
         var nudged = heard != state.Heard;
         state.Heard = heard;
-        var waits = (!unstarted || state.HeightFailed) && !nudged;
+        var waits = state.HeightFailed || (!unstarted && !nudged);
         if (waits && now < state.NextHeight)
         {
             return;

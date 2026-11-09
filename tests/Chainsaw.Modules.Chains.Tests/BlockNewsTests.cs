@@ -65,15 +65,38 @@ public sealed class BlockNewsTests : IDisposable
         var socket = _sockets.Open(Mempool);
         socket.Say("""{"blocks":[{"height":921400}]}""");
         socket.Say("""{"block":{"height":921401}}""");
+
+        _news.Keep(Chain.Bitcoin);
+        await Until(() => _news.Heard(Chain.Bitcoin) == 1);
+        _harness.Clock.UtcNow += BlockNews.MinimumNudge;
         socket.Say("""{"block":{"height":921401}}""");
         socket.Say("""{"mempoolInfo":{"size":3}}""");
         socket.Say("""{"block":{"height":921402}}""");
 
-        _news.Keep(Chain.Bitcoin);
-
         await Until(() => _news.Heard(Chain.Bitcoin) == 2);
         Assert.Equal([BlockNews.WantBlocks], socket.Sent);
         Assert.Equal(new Uri("wss://mempool.example/api/v1/ws"), Assert.Single(_sockets.Asked.Distinct()));
+    }
+
+    [Fact]
+    public async Task A_flood_is_one_nudge_and_a_jump_or_an_impossible_height_is_not_believed()
+    {
+        await UseOnlyAsync(Mempool);
+        var socket = _sockets.Open(Mempool);
+        socket.Say("""{"blocks":[{"height":921400}]}""");
+        socket.Say("""{"block":{"height":921401}}""");
+        socket.Say("""{"block":{"height":921402}}""");
+        socket.Say("""{"block":{"height":921403}}""");
+
+        _news.Keep(Chain.Bitcoin);
+        await Until(() => socket.Received == 4);
+        Assert.Equal(1, _news.Heard(Chain.Bitcoin));
+
+        _harness.Clock.UtcNow += BlockNews.MinimumNudge;
+        socket.Say("""{"block":{"height":921410}}""");
+        socket.Say("""{"block":{"height":99999999}}""");
+        socket.Say("""{"block":{"height":921404}}""");
+        await Until(() => _news.Heard(Chain.Bitcoin) == 2);
     }
 
     [Fact]
@@ -212,8 +235,16 @@ public sealed class BlockNewsTests : IDisposable
             return Task.CompletedTask;
         }
 
-        public async Task<string?> ReceiveAsync(int maximumBytes, CancellationToken cancellationToken = default) =>
-            await _messages.Reader.ReadAsync(cancellationToken);
+        public int Received => _received;
+
+        private int _received;
+
+        public async Task<string?> ReceiveAsync(int maximumBytes, CancellationToken cancellationToken = default)
+        {
+            var message = await _messages.Reader.ReadAsync(cancellationToken);
+            Interlocked.Increment(ref _received);
+            return message;
+        }
 
         public ValueTask DisposeAsync()
         {

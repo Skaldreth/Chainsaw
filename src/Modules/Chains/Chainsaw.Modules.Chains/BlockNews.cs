@@ -23,6 +23,15 @@ internal sealed class BlockNews : IBlockNews, IDisposable
     /// <summary>How long before a dropped or closed socket is opened again.</summary>
     public static readonly TimeSpan Reconnect = TimeSpan.FromSeconds(30);
 
+    /// <summary>
+    /// The shortest time between two nudges: news faster than this (a source that floods) is counted once, and the
+    /// minute's ask catches what it held back.
+    /// </summary>
+    public static readonly TimeSpan MinimumNudge = TimeSpan.FromSeconds(30);
+
+    /// <summary>How many blocks above the last one heard a new block may be; a larger jump is not believed.</summary>
+    public const int LargestJump = 3;
+
     /// <summary>The longest message read; mempool.space's messages about blocks are a few kilobytes.</summary>
     public const int MaximumMessageBytes = 1024 * 1024;
 
@@ -47,6 +56,9 @@ internal sealed class BlockNews : IBlockNews, IDisposable
     /// <summary>How often a listener looks whether it is still kept.</summary>
     private readonly TimeSpan _lookEvery;
 
+    /// <summary>Bitcoin's name in the tables, for the highest height the chain can have come to.</summary>
+    private readonly string _chainName;
+
     /// <summary>The listeners per chain (guarded by itself).</summary>
     private readonly Dictionary<Chain, Listener> _listeners = [];
 
@@ -56,14 +68,17 @@ internal sealed class BlockNews : IBlockNews, IDisposable
     /// <param name="clock">The clock.</param>
     /// <param name="delay">Waits; <see cref="Task.Delay(TimeSpan, CancellationToken)"/> when none.</param>
     /// <param name="lookEvery">How often a listener looks whether it is kept; 15 seconds when none.</param>
+    /// <param name="network">The Bitcoin network the endpoints answer for.</param>
     public BlockNews(
         IChainSources sources,
         IExitWebSocket? sockets,
         IClock clock,
         Func<TimeSpan, CancellationToken, Task>? delay = null,
-        TimeSpan? lookEvery = null)
+        TimeSpan? lookEvery = null,
+        BitcoinNetwork network = BitcoinNetwork.Mainnet)
     {
         (_sources, _sockets, _clock) = (sources, sockets, clock);
+        _chainName = RawResponseStore.NameOf(network);
         _delay = delay ?? Task.Delay;
         _lookEvery = lookEvery ?? TimeSpan.FromSeconds(15);
     }
@@ -268,19 +283,27 @@ internal sealed class BlockNews : IBlockNews, IDisposable
         return Reconnect;
     }
 
-    /// <summary>Counts a message's new block, once per height, never for the recent blocks a socket starts with.</summary>
+    /// <summary>
+    /// Counts a message's new block: once per height, never for the recent blocks a socket starts with, never a height
+    /// the chain cannot have come to or one more than <see cref="LargestJump"/> blocks above the last heard, and at
+    /// most once per <see cref="MinimumNudge"/>, so that a source can neither flood the watching nor lead it astray.
+    /// </summary>
     /// <param name="listener">The chain's listener.</param>
     /// <param name="message">The message.</param>
-    private static void Count(Listener listener, string message)
+    private void Count(Listener listener, string message)
     {
-        if (HeightOf(message) is not { } found || found.Height <= listener.Highest)
+        var now = _clock.UtcNow;
+        if (HeightOf(message) is not { } found || found.Height <= listener.Highest
+            || found.Height > ChainLimits.HighestPlausible(_chainName, now)
+            || (found.IsNew && listener.Highest > 0 && found.Height > listener.Highest + LargestJump))
         {
             return;
         }
 
         listener.Highest = found.Height;
-        if (found.IsNew)
+        if (found.IsNew && now - listener.LastNudge >= MinimumNudge)
         {
+            listener.LastNudge = now;
             Interlocked.Increment(ref listener.HeardCount);
         }
     }
@@ -342,6 +365,9 @@ internal sealed class BlockNews : IBlockNews, IDisposable
 
         /// <summary>Gets or sets the highest block heard of.</summary>
         public long Highest { get; set; }
+
+        /// <summary>Gets or sets when the last nudge was counted.</summary>
+        public DateTimeOffset LastNudge { get; set; } = DateTimeOffset.MinValue;
 
         /// <summary>Gets until when each endpoint that gave no websocket is passed over.</summary>
         public Dictionary<Guid, DateTimeOffset> PassedOver { get; } = [];

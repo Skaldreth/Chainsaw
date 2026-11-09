@@ -66,7 +66,8 @@ public static class ChainsModule
         services.AddSingleton(provider => new BlockNews(
             provider.GetRequiredService<IChainSources>(),
             provider.GetService<IExitWebSocket>(),
-            provider.GetRequiredService<IClock>()));
+            provider.GetRequiredService<IClock>(),
+            network: settings.Network));
         services.AddSingleton<IBlockNews>(provider => provider.GetRequiredService<BlockNews>());
         services.AddSingleton<IBitcoinSource>(provider => new EsploraBitcoinSource(
             provider.GetRequiredService<ChainSources>(),
