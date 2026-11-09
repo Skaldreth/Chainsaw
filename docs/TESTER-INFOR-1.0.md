@@ -3130,3 +3130,6 @@ Jämför med skissen IN5a på canvasen (sidan Grafen, omgång 18).
       före sortering, soptunnans varning och bildspråkets ruta.
 - [ ] Toasten: listen längs nederkanten ligger inne i de rundade hörnen, texten står mitt för ikonen, och toasten står
       24 px från fönstrets nederkant.
+- [ ] Inspektören: när den stängs (Esc eller ×) glider panelen ut och grafens kant och titelraden följer med i samma
+      takt, utan hopp i slutet; när den öppnas glider de in tillsammans. Stäng och öppna snabbt efter varandra: den
+      vänder där den är. Dra sedan kanten: bredden ändras som förut och kommer tillbaka nästa gång.
