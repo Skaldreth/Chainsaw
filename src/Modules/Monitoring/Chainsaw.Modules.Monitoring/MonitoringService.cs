@@ -74,6 +74,12 @@ internal sealed class MonitoringService(
     }
 
     /// <summary>
+    /// How long after a hit was sealed (or last moved) a move to another block is believed: about a block's time, so
+    /// that a hit moves at most once per block however the endpoints disagree.
+    /// </summary>
+    internal static readonly TimeSpan MoveDamping = TimeSpan.FromMinutes(10);
+
+    /// <summary>
     /// Gives each hit as its latest record leaves it: a hit whose transaction moved to another block is sealed again
     /// with the new block, and is given once, with the block it was in before (<see cref="WatchHit.MovedFrom"/>).
     /// </summary>
@@ -91,6 +97,37 @@ internal sealed class MonitoringService(
         }
 
         return [.. latest.Values.OrderBy(hit => hit.Sequence)];
+    }
+
+    /// <summary>
+    /// Gives the known hits a check found in another block (a reorganisation), when the move can be believed: the
+    /// check read everything fresh from endpoints in step (<see cref="WatchFeedStatus.Read"/>), and the hit has not moved
+    /// within <see cref="MoveDamping"/>, so that endpoints that disagree cannot make it flap between two blocks.
+    /// </summary>
+    /// <param name="watch">The watch.</param>
+    /// <param name="result">The check.</param>
+    /// <param name="known">The block each known hit rests on, by key.</param>
+    /// <param name="sealedAt">When each known hit's latest record was sealed, by key.</param>
+    /// <param name="now">The time now.</param>
+    /// <returns>The moved hits.</returns>
+    private static List<WatchMatch> MovedHits(
+        Watch watch,
+        WatchCheckResult result,
+        IReadOnlyDictionary<string, WatchBlock> known,
+        IReadOnlyDictionary<string, DateTimeOffset> sealedAt,
+        DateTimeOffset now)
+    {
+        if (result.Status != WatchFeedStatus.Read)
+        {
+            return [];
+        }
+
+        return [.. result.Matches.Where(match =>
+        {
+            var key = WatchCodec.Key(watch.Id, match);
+            return known.TryGetValue(key, out var block) && !SameBlock(block, match.Block)
+                && now - sealedAt[key] >= MoveDamping;
+        })];
     }
 
     /// <summary>Says whether two blocks are the same block: the same height and hash, whatever time a source gave.</summary>
@@ -261,8 +298,11 @@ internal sealed class MonitoringService(
         var watches = GetWatches(@case).Where(w => w.Chain == chain && w.State == WatchState.Active).ToList();
         Start(@case, watches.Where(watch => watch.StartHeight is null).ToList(), height);
         var outcomes = await CheckTipsAsync(@case, chain, cancellationToken).ConfigureAwait(false);
-        var known = GetHits(@case).ToDictionary(
+        var hits = GetHits(@case);
+        var known = hits.ToDictionary(
             hit => WatchCodec.Key(hit.WatchId, hit.Match), hit => hit.Match.Block, StringComparer.Ordinal);
+        var sealedAt = hits.ToDictionary(
+            hit => WatchCodec.Key(hit.WatchId, hit.Match), hit => hit.RecordedUtc, StringComparer.Ordinal);
         var checkedBefore = GetChecked(@case);
         var now = clock.UtcNow;
         var due = watches.Where(watch => watch.StartHeight is not null
@@ -279,12 +319,10 @@ internal sealed class MonitoringService(
             var fresh = result.Matches.Where(match => !known.ContainsKey(WatchCodec.Key(watch.Id, match))).ToList();
 
             // A known hit found in another block: the chain was reorganised, and that is sealed and said.
-            var moved = result.Matches.Where(match =>
-                known.TryGetValue(WatchCodec.Key(watch.Id, match), out var block) && !SameBlock(block, match.Block))
-                .ToList();
+            var moved = MovedHits(watch, result, known, sealedAt, now);
             var problems = notes.Concat(result.Problems).ToList();
-            var hits = Seal(@case, watch, new SealedMatches(fresh, moved, known), result, problems, height, now);
-            outcomes.Add(new WatchOutcome(watch.Id, result.Status, hits, problems));
+            var sealedHits = Seal(@case, watch, new SealedMatches(fresh, moved, known), result, problems, height, now);
+            outcomes.Add(new WatchOutcome(watch.Id, result.Status, sealedHits, problems));
         }
 
         return new WatchRun(chain, open, height, outcomes, clock.UtcNow);

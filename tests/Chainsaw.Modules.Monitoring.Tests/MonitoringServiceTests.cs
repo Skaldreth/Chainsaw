@@ -118,7 +118,13 @@ public sealed class MonitoringServiceTests : IDisposable
         // The block was replaced: the same transaction is mined again one block higher, under another hash.
         var again = Synthetic.Tx("hit", 900_002).In(Node, 20_000).Out(Exchange, 19_000).Build();
         _harness.Bitcoin.Holds(Node, again);
+        _harness.Clock.UtcNow += MonitoringService.MoveDamping;
         var run = await _harness.Service.CheckAsync(_harness.Case, Chain.Bitcoin, 900_002);
+
+        // An endpoint that still says the old block cannot move it straight back: the move is damped.
+        _harness.Bitcoin.Holds(Node, first);
+        await _harness.Service.CheckAsync(_harness.Case, Chain.Bitcoin, 900_003);
+        _harness.Bitcoin.Holds(Node, again);
         var quiet = await _harness.Service.CheckAsync(_harness.Case, Chain.Bitcoin, 900_003);
         _harness.Reopen();
 
