@@ -12,9 +12,11 @@ namespace Chainsaw.Modules.Checks;
 /// about (the same cluster or deposit address). A labelled exchange or service, or a hub, as the destination says
 /// nothing (it has many customers), and a payment that only forwards money the payer got in the graph (a deposit
 /// address sweeping to its hot wallet) is no payer of a collection. A recipient that only passes the sweeps on in
-/// larger, gathered amounts (<see cref="PassesOnInBulk"/>) says nothing either: it has the form of an exchange's hot
-/// wallet without a label, whose collectors are its customers' deposit addresses. A merchant that empties its tills
-/// to its cold wallet, or an exchange without a label, has the same form as what is left, and the text says so.
+/// larger, gathered amounts (<see cref="PassesOnInBulk"/>) has the form of an exchange's hot wallet without a label,
+/// whose collectors are its customers' deposit addresses; it says nothing unless a start point or a victim is among
+/// the payers, since a fraud's wallet that cashes out in bulk has the same form. Then the text says that it may be
+/// an exchange without a label. A merchant that empties its tills to its cold wallet has the same form, and the text
+/// says so.
 /// </summary>
 internal static class CollectionPattern
 {
@@ -42,14 +44,25 @@ internal static class CollectionPattern
             .OrderBy(collection => collection.Sweep[0])
             .GroupBy(collection => shape.Flows[collection.Sweep[0]].To)
             .Where(group => group.Select(collection => collection.Collector).Distinct().Count() >= 2)
+            .Where(group => !PassesOnInBulk(shape, shape.Actors[group.Key]) || HasVictims(shape, group))
             .Select(group => Describe(shape, [.. group], analysis));
+
+    /// <summary>
+    /// Whether a start point or a victim (<see cref="ActorSort.Protected"/>) paid into the collections.
+    /// </summary>
+    /// <param name="shape">The shape.</param>
+    /// <param name="group">The collections.</param>
+    /// <returns>Whether one did.</returns>
+    private static bool HasVictims(GraphShape shape, IEnumerable<Collection> group) =>
+        group.SelectMany(collection => collection.Payments)
+            .Any(index => shape.Actors[shape.Flows[index].From].Sort == ActorSort.Protected);
 
     /// <summary>Whether sweeps to an actor say something: one that nothing is known about, and not a hub.</summary>
     /// <param name="shape">The shape.</param>
     /// <param name="actor">The actor.</param>
     /// <returns>Whether they do.</returns>
     private static bool MayReceive(GraphShape shape, ShapeActor actor) =>
-        actor.Sort == ActorSort.Unknown && !PatternActors.IsHub(shape, actor) && !PassesOnInBulk(shape, actor);
+        actor.Sort == ActorSort.Unknown && !PatternActors.IsHub(shape, actor);
 
     /// <summary>
     /// Whether an actor only passes on what it gets in larger, gathered amounts, as an exchange's hot wallet does with
@@ -160,10 +173,9 @@ internal static class CollectionPattern
             + $"och sedan sveps {CheckText.Percent(SweepShare)} till {CheckText.Percent(MostSweep)} av det insamlade "
             + "vidare i en tx som spenderar deras mynt. " + PatternText.Parts(parts) + " Det är formen hos "
             + "insamlingsadresser i ett bedrägeri som töms till samma plånbok, men det kan också vara en handlare som "
-            + "tömmer sina kassor till sin kalla plånbok, eller en börs utan etikett vars insättningsadresser töms till "
-            + "dess plånbok. Insättningar som bara förs vidare från "
-            + "en annan adress i grafen räknas inte som avsändare, och en börs eller tjänst med etikett som mottagare "
-            + "säger inget, eftersom den har många kunder.";
+            + "tömmer sina kassor till sin kalla plånbok." + ExchangeNote(shape, shape.Actors[firstSweep.To])
+            + " Insättningar som bara förs vidare från en annan adress i grafen räknas inte som avsändare, och en börs "
+            + "eller tjänst med etikett som mottagare säger inget, eftersom den har många kunder.";
         var flows = group.SelectMany(collection => collection.Payments.Concat(collection.Sweep))
             .Select(index => shape.Flows[index]);
         return PatternText.Check(
@@ -173,6 +185,19 @@ internal static class CollectionPattern
             why,
             flows);
     }
+
+    /// <summary>
+    /// Says that the recipient may be an exchange without a label, when it passes the sweeps on in larger amounts.
+    /// </summary>
+    /// <param name="shape">The shape.</param>
+    /// <param name="recipient">The actor the collections sweep to.</param>
+    /// <returns>The sentence, with a space first, or nothing.</returns>
+    private static string ExchangeNote(GraphShape shape, ShapeActor recipient) =>
+        PassesOnInBulk(shape, recipient)
+            ? $" {PatternText.Actor(recipient)} för pengarna vidare i större, samlade belopp, som en börs plånbok "
+                + "gör med kundernas insättningar, så det kan också vara en börs utan etikett; träffen står kvar "
+                + "eftersom en startpunkt eller ett offer finns bland avsändarna."
+            : string.Empty;
 
     /// <summary>Describes one collection in a sentence.</summary>
     /// <param name="shape">The shape.</param>

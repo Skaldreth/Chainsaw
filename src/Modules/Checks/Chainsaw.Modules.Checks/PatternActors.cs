@@ -13,41 +13,63 @@ internal static class PatternActors
     /// </summary>
     public const int HubCounterparties = 10;
 
-    /// <summary>Which actors of each shape are hubs, read once per shape.</summary>
-    private static readonly ConditionalWeakTable<GraphShape, bool[]> Hubs = [];
+    /// <summary>Which actors of each shape are hubs, both ways, read once per shape.</summary>
+    private static readonly ConditionalWeakTable<GraphShape, HubTable> Hubs = [];
 
     /// <summary>
     /// Whether an actor is a hub: at least <see cref="HubCounterparties"/> counterparties that count
-    /// (<see cref="Counts"/>) have paid it or been paid by it.
+    /// (<see cref="Counts"/>) have paid it or been paid by it. Every actor it pays counts.
     /// </summary>
     /// <param name="shape">The shape.</param>
     /// <param name="actor">The actor.</param>
     /// <returns>Whether it is.</returns>
     public static bool IsHub(GraphShape shape, ShapeActor actor) =>
-        Hubs.GetValue(shape, ReadHubs)[actor.Index];
+        Hubs.GetValue(shape, ReadHubs).Plain[actor.Index];
 
-    /// <summary>Reads which actors of a shape are hubs.</summary>
+    /// <summary>
+    /// Whether an actor is a hub as the ways read it (<see cref="RoutePattern"/>): as <see cref="IsHub"/>, but a
+    /// recipient that only passes on the actor's own coins (a mule, <see cref="PassesOnFor"/>) does not count, so that
+    /// a scammer who pays out through many mules is no hub. Only the ways use it: elsewhere an exchange's customers who
+    /// spend their withdrawals onward would look like mules.
+    /// </summary>
+    /// <param name="shape">The shape.</param>
+    /// <param name="actor">The actor.</param>
+    /// <returns>Whether it is.</returns>
+    public static bool IsHubForWays(GraphShape shape, ShapeActor actor) =>
+        Hubs.GetValue(shape, ReadHubs).ForWays[actor.Index];
+
+    /// <summary>Reads which actors of a shape are hubs, both ways.</summary>
     /// <param name="shape">The shape.</param>
     /// <returns>Whether each actor is.</returns>
-    private static bool[] ReadHubs(GraphShape shape)
+    private static HubTable ReadHubs(GraphShape shape)
     {
         var paid = shape.Actors
             .Select(actor => shape.Out(actor.Index).Select(index => shape.Flows[index].To).ToHashSet())
             .ToArray();
         var passesFor = shape.Actors.Select(actor => PassesOnFor(shape, actor.Index)).ToArray();
-        return [.. shape.Actors.Select(actor => paid[actor.Index]
+        return new HubTable(
+            Read(shape, paid, (_, _) => true),
+            Read(shape, paid, (actor, other) => passesFor[other] != actor));
+    }
+
+    /// <summary>Reads which actors are hubs, counting only the counterparties a filter keeps.</summary>
+    /// <param name="shape">The shape.</param>
+    /// <param name="paid">The actors each actor pays.</param>
+    /// <param name="keep">Whether a counterparty (second) may count for an actor (first) at all.</param>
+    /// <returns>Whether each actor is a hub.</returns>
+    private static bool[] Read(GraphShape shape, HashSet<int>[] paid, Func<int, int, bool> keep) =>
+        [.. shape.Actors.Select(actor => paid[actor.Index]
             .Concat(shape.In(actor.Index).Select(index => shape.Flows[index].From))
             .Distinct()
-            .Where(other => passesFor[other] != actor.Index && Counts(shape, paid, actor.Index, other))
+            .Where(other => keep(actor.Index, other) && Counts(shape, paid, actor.Index, other))
             .Take(HubCounterparties)
             .Count() >= HubCounterparties)];
-    }
 
     /// <summary>
     /// Gives the one actor whose coins an actor only passes on: it got money from that actor alone, has paid on, and
-    /// every coin it spent was paid to it by that actor (a mule). Such a recipient does not count towards making the
-    /// payer a hub, as a payer that only collects and empties does not count towards making its recipient one, so
-    /// that a scammer who pays out to many mules is no hub.
+    /// every coin it spent was paid to it by that actor (a mule). As the ways read hubs (<see cref="IsHubForWays"/>),
+    /// such a recipient does not count towards making the payer one, as a payer that only collects and empties does
+    /// not count towards making its recipient one, so that a scammer who pays out to many mules is no hub.
     /// </summary>
     /// <param name="shape">The shape.</param>
     /// <param name="actor">The actor's index.</param>
@@ -72,7 +94,7 @@ internal static class PatternActors
     /// does one that only collects and empties into the actor (a victim who paid it, or a collecting address that
     /// swept to it): it pays the actor, pays no one else, and the actor never pays it. Everything else counts: a
     /// labelled actor, and every actor the actor pays (an exchange pays out to many customers, a scam's collector
-    /// sweeps to few), except one that only passes on the actor's coins (<see cref="PassesOnFor"/>).
+    /// sweeps to few).
     /// </summary>
     /// <param name="shape">The shape.</param>
     /// <param name="paid">The actors each actor pays.</param>
@@ -114,4 +136,9 @@ internal static class PatternActors
         && !flow.ChangeBack
         && flow.Spent.Count > 0
         && flow.Spent.All(coin => shape.PayerOf(coin) is not null);
+
+    /// <summary>Which actors of a shape are hubs, counted plainly and as the ways count them.</summary>
+    /// <param name="Plain">Whether each actor is a hub (<see cref="IsHub"/>).</param>
+    /// <param name="ForWays">Whether each actor is a hub as the ways read it (<see cref="IsHubForWays"/>).</param>
+    private sealed record HubTable(bool[] Plain, bool[] ForWays);
 }

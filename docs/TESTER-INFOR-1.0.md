@@ -1815,7 +1815,9 @@ SJÄLVT* i *Förslag · N*, med analysen *pattern v1* och att det är en bedömn
 - **Samma insamling:** två adresser som var och en tar emot från minst fem avsändare och sedan sveper deras mynt i en
   tx till samma adress som inget är känt om ger *Samma insamling, 2 aktörer*; *Varför?* nämner båda med belopp, antal
   avsändare och svepets tx, och att det också kan vara en handlare. Sveper de till en börs med etikett, eller är
-  avsändarna en börs insättningsadresser, ger det inget. Ett stort bedrägeri (tolv eller trettio insamlingsadresser
+  avsändarna en börs insättningsadresser, ger det inget. För plånboken vidare allt i en tx (till exempel till en
+  börs) är träffen borta, utom när ett offer eller en startpunkt finns bland avsändarna; då säger *Varför?* att det
+  kan vara en börs utan etikett. Prova att märka ett offer och se träffen komma tillbaka. Ett stort bedrägeri (tolv eller trettio insamlingsadresser
   till samma plånbok) ger fortfarande en träff.
 - **Samma väg:** två offers mynt som var för sig förs genom två mellanhänder till samma börs (etikett) ger *Samma väg,
   2 delar* med *3 steg till börs …* i raden under, men bara när de kommer till samma insättningsadress; två olika

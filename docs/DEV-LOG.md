@@ -5218,3 +5218,16 @@ former, och en kontroll kan inte avfärdas; slumpgrafen saknade länkade mynt oc
   *Samma väg*.
 - **M-1 och M-2:** Guiden förklarar betalningsförmedlaren och sprickan i en mixer utan etikett.
 - **M-3:** fickpengarna (N3'') står i BACKLOG under *Mönster: fickpengar*.
+
+**Fjärde granskningens rättelser (2 I, 2 M), 2026-11-09.** Båda I-fynden kom av de förra rättelserna.
+- **I-α:** en plånbok som för vidare i större, samlade belopp tystar *Samma insamling* bara när ingen startpunkt eller
+  inget offer finns bland avsändarna; annars står träffen kvar, och bara då säger *Varför?* att det kan vara en börs
+  utan etikett. Proven B (2, 12 och 30 insamlingsadresser till en plånbok som tar ut allt i en tx till en börs, utan
+  märkta offer: tyst) och C (samma med offren märkta: träff) är tester.
+- **I-β:** mul-undantaget gäller bara *Samma väg* (`PatternActors.IsHubForWays`); insamlingen och de andra reglerna
+  räknar alla som aktören betalar (`IsHub`). Provet X3'' (20 insättningskluster, en hot wallet med tolv uttag som
+  kunderna spenderar vidare) ger ingen träff. X3 och N4b håller.
+- **M-β:** en träff kan komma och gå när grafen växer, eftersom reglerna bara läser det som är hämtat: en plånbok
+  som visar sig ta ut i stora belopp eller betala ut till många tystar en insamling utan märkta offer. Guiden säger
+  det och råder att märka offren.
+- **M-α:** Guiden säger att *Likadana belopp* och *Samma insamling* kan gälla samma flöde.

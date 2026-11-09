@@ -46,7 +46,8 @@ internal static class RoutePattern
         foreach (var start in shape.Flows)
         {
             var origin = shape.Actors[start.From];
-            if (origin.Sort is not (ActorSort.Unknown or ActorSort.Protected) || PatternActors.IsHub(shape, origin))
+            if (origin.Sort is not (ActorSort.Unknown or ActorSort.Protected)
+                || PatternActors.IsHubForWays(shape, origin))
             {
                 continue;
             }
@@ -75,7 +76,7 @@ internal static class RoutePattern
     /// <param name="actor">The actor.</param>
     /// <returns>Whether it may.</returns>
     private static bool MayPass(GraphShape shape, ShapeActor actor) =>
-        actor.Sort == ActorSort.Unknown && !PatternActors.IsHub(shape, actor);
+        actor.Sort == ActorSort.Unknown && !PatternActors.IsHubForWays(shape, actor);
 
     /// <summary>Writes a walk's lines as one text, so that walks can be compared.</summary>
     /// <param name="lines">The lines' indexes.</param>

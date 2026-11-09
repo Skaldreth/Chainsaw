@@ -485,6 +485,68 @@ public sealed class PatternCheckTests
         Assert.Empty(Run([.. deposits.SelectMany(cluster => cluster), .. onward]));
     }
 
+    [Theory]
+    [InlineData(2)]
+    [InlineData(12)]
+    [InlineData(30)]
+    public void Collections_whose_wallet_cashes_out_in_bulk_are_silent_without_victims_and_found_with_them(
+        int collectors)
+    {
+        // Probes B and C: the collections are swept to a wallet that forwards everything in one tx to an exchange.
+        var wallet = Wpkh("cash-out-wallet");
+        var clusters = Enumerable.Range(0, collectors)
+            .Select(i => Collection($"b{i}", Start + (i * 200), wallet).ToList())
+            .ToList();
+        var sweeps = clusters.Select(cluster => cluster[^1]).ToList();
+        var cashOut = sweeps
+            .Aggregate(Tx("b-cash-out", Start + (collectors * 200) + 100), (tx, sweep) => tx.Spend(sweep, 0))
+            .Out(Exchange, sweeps.Sum(sweep => sweep.Outputs[0].Amount.Value) - 10_000).Build();
+        var txs = clusters.SelectMany(cluster => cluster).Append(cashOut).ToList();
+        var victims = clusters.SelectMany(cluster => cluster.Take(cluster.Count - 1))
+            .SelectMany(paid => paid.Inputs.Select(spent => spent.Address!))
+            .ToHashSet();
+
+        var silent = Analysis.Run(Input(txs, exchanges: [Exchange]));
+        var withVictims = Analysis.Run(Input(txs, exchanges: [Exchange]) with { Protected = victims });
+
+        Assert.DoesNotContain(silent, finding => finding.Key.StartsWith("collect:", StringComparison.Ordinal));
+        var finding = Single(withVictims, "collect:");
+        Assert.Equal($"Samma insamling, {collectors} aktörer", finding.Title);
+        Assert.Contains("börs utan etikett", finding.Why, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void The_possible_exchange_is_named_only_when_the_wallet_cashes_out_in_bulk()
+    {
+        var txs = Collection("s1", Start, Wpkh("launder")).Concat(Collection("s2", Start + 500, Wpkh("launder")));
+
+        Assert.DoesNotContain("börs utan etikett", Single(Run([.. txs]), "collect:").Why, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void An_unlabelled_hot_wallet_whose_customers_spend_their_withdrawals_onward_is_no_collection()
+    {
+        // Probe X3'': twenty deposit clusters to a hot wallet that pays twelve withdrawals, each spent onward.
+        var hot = Wpkh("hot-x3b");
+        var deposits = Enumerable.Range(0, 20)
+            .SelectMany(i => Collection($"x{i}", Start + (i * 50), hot, payers: 5))
+            .ToList();
+        var swept = Enumerable.Range(0, 20).Select(i => deposits.Single(tx => tx.Txid == Txid($"x{i}-sweep"))).ToList();
+        var payouts = new List<BitcoinTransaction>();
+        for (var i = 0; i < 12; i++)
+        {
+            var withdrawal = Tx($"x3b-payout-{i}", Start + 2_000 + i).Spend(swept[i], 0)
+                .Out(Wpkh($"x3b-customer-{i}"), 5_000_000).Out(hot, swept[i].Outputs[0].Amount.Value - 5_010_000)
+                .Build();
+            var onward = Tx($"x3b-onward-{i}", Start + 2_100 + i).Spend(withdrawal, 0)
+                .Out(Wpkh($"x3b-shop-{i}"), 4_990_000).Build();
+            payouts.AddRange([withdrawal, onward]);
+        }
+
+        Assert.DoesNotContain(Run([.. deposits, .. payouts]),
+            finding => finding.Key.StartsWith("collect:", StringComparison.Ordinal));
+    }
+
     [Fact]
     public void A_scammer_who_pays_out_through_twelve_mules_is_no_hub_and_the_ways_are_found()
     {

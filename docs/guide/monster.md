@@ -59,8 +59,19 @@ en egen aktör i mitten, eftersom ingen vet vems pengar som gick vart. Fyra regl
 - **En betalningsförmedlare** (en tjänst som tar emot betalningar åt många butiker och betalar ut till dem) har samma
   form som en insamling och som samma väg: många betalar in, och pengarna förs vidare i större belopp. Saknar den
   etikett kan den ge en träff; sätt en etikett på den, så räknas den som en tjänst.
-- **En börs utan etikett** vars insättningsadresser töms till dess plånbok liknar en insamling. En mottagare som bara
-  för vidare i större, samlade belopp räknas därför inte, men innan dess säger *Varför?* att det kan vara en börs.
+- **En börs utan etikett** vars insättningsadresser töms till dess plånbok liknar en insamling. När mottagaren bara
+  för vidare i större, samlade belopp är Chainsaw därför tyst, **utom** när en startpunkt eller ett offer finns bland
+  avsändarna: en bedragares plånbok som tar ut allt i en tx har samma form. Då står träffen kvar, och *Varför?* säger
+  att det också kan vara en börs utan etikett.
+- **Mulor räknas bara i *Samma väg*:** en mottagare som bara för vidare aktörens egna mynt gör inte aktören till en
+  knutpunkt när vägarna läses, så att en bedragare som betalar ut genom många mulor syns. I insamlingen räknas alla
+  aktören betalar, eftersom en börs kunder som spenderar sina uttag vidare ser ut som mulor.
+- **En träff kan komma och gå när grafen växer:** reglerna läser bara det som är hämtat. Expanderar du en insamlings
+  plånbok kan det visa sig att den för vidare i stora belopp (och träffen försvinner, om inget offer är märkt), eller
+  att den betalar ut till många (och blir en knutpunkt). Märk offren och startpunkterna, så står en träff som bygger
+  på dem kvar.
+- **Likadana belopp och samma insamling kan gälla samma pengar:** en bedragare som delar upp insamlade pengar i lika
+  delar till en börs ger båda träffarna; de beskriver olika sidor av samma flöde.
 - **En mixer utan etikett** är en spricka: Chainsaw vet inte att mynten byts där, så samma väg och rundgången kan följa
   mynten genom den som om de vore samma pengar, så länge den inte har så många motparter att den blir en knutpunkt.
   Sätt en etikett på en mixer så snart den känns igen; då slutar vägen där.
