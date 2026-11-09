@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json;
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Network.Contracts;
+using Chainsaw.Modules.Security.Contracts;
 using Chainsaw.SharedKernel;
 
 namespace Chainsaw.Modules.Chains.Tests;
@@ -84,7 +85,7 @@ public sealed class BitcoinCoreTests : IDisposable
     [InlineData("""{"result":"00000000000000000001","error":null,"id":"x"}""", "00000000000000000001")]
     public void An_answer_is_read_as_the_plain_text_esplora_gives(string body, string text)
     {
-        Assert.Equal(text, Encoding.UTF8.GetString(BitcoinCoreApi.Result(Encoding.UTF8.GetBytes(body))));
+        Assert.Equal(text, Encoding.UTF8.GetString(BitcoinCoreApi.Result(Encoding.UTF8.GetBytes(body), null)));
     }
 
     [Theory]
@@ -93,7 +94,60 @@ public sealed class BitcoinCoreTests : IDisposable
     [InlineData("800010")]
     public void An_error_or_another_form_is_not_an_answer(string body)
     {
-        Assert.ThrowsAny<FormatException>(() => BitcoinCoreApi.Result(Encoding.UTF8.GetBytes(body)));
+        Assert.ThrowsAny<FormatException>(() => BitcoinCoreApi.Result(Encoding.UTF8.GetBytes(body), null));
+    }
+
+    [Fact]
+    public void A_fresh_answer_must_give_back_the_id_of_the_call_that_was_sent()
+    {
+        var other = """{"result":"00","error":null,"id":"getblockhash 1"}"""u8.ToArray();
+        var right = """{"result":"00","error":null,"id":"getblockhash 840000"}"""u8.ToArray();
+        var none = """{"result":"00","error":null}"""u8.ToArray();
+
+        Assert.Throws<FormatException>(() => BitcoinCoreApi.ResultFor("block-height/840000", other));
+        Assert.Throws<FormatException>(() => BitcoinCoreApi.ResultFor("block-height/840000", none));
+        Assert.Equal("00", Encoding.UTF8.GetString(BitcoinCoreApi.ResultFor("block-height/840000", right)));
+        Assert.Throws<FormatException>(() => _api.ReadHeight(other));
+    }
+
+    [Fact]
+    public async Task An_answer_to_another_call_is_sealed_but_never_used()
+    {
+        await OwnNodeFirstAsync();
+        _harness.Local.AnswerRpc(Node, "getblockcount", """{"result":800010,"error":null,"id":"getblockhash 5"}""");
+
+        var lookup = await _harness.Source.GetTipHeightAsync(_harness.Case);
+
+        Assert.Null(lookup.Value);
+        Assert.Contains(_harness.RawRows(), row => row.Source == BitcoinCoreApi.Code);
+    }
+
+    [Fact]
+    public async Task The_nodes_key_goes_only_to_the_node_and_the_node_takes_only_its_own_key()
+    {
+        var keys = new FakeKeys();
+        keys.Save(new ApiKey("node", BitcoinCoreApi.Code, "rpcuser:secret"));
+        keys.Save(new ApiKey("esplora-key", string.Empty, "token"));
+        var http = new FakeExitHttp(_harness.Clock);
+        var local = new FakeLocalHttp(_harness.Clock);
+        var sources = new ChainSources(
+            [new EsploraApi(new BitcoinSourceOptions { DefaultEndpoints = [] }), _api], http, keys, null,
+            _harness.Clock, new ChainSourcesOptions(), local, _harness.Clock.Delay);
+
+        // The node's password as a bearer token through the exit: refused before anything is sent.
+        var external = await sources.TryAsync(Chain.Bitcoin, new Uri("https://esplora.example/"), "esplora", "node");
+        Assert.Equal(ProbeOutcome.NotSent, external.Outcome);
+        Assert.Empty(http.Sent);
+
+        // Another key to the node: refused too.
+        var wrong = await sources.TryAsync(Chain.Bitcoin, new Uri(Node), BitcoinCoreApi.Code, "esplora-key", true);
+        Assert.Equal(ProbeOutcome.NotSent, wrong.Outcome);
+        Assert.Empty(local.Sent);
+
+        // The node's own key goes as Basic, straight to the node.
+        await sources.TryAsync(Chain.Bitcoin, new Uri(Node), BitcoinCoreApi.Code, "node", true);
+        var sent = Assert.Single(local.Sent);
+        Assert.Equal("Basic " + Convert.ToBase64String("rpcuser:secret"u8.ToArray()), sent.Credential!.Value);
     }
 
     [Theory]
@@ -255,8 +309,10 @@ public sealed class BitcoinCoreTests : IDisposable
     {
         var own = await AddNodeAsync();
         _harness.Local.AnswerRpc(Node, "getblockcount", """{"result":800010,"error":null,"id":"getblockcount"}""");
-        _harness.Local.AnswerRpc(Node, "getblockhash 0", $$"""{"result":"{{Genesis}}","error":null,"id":"x"}""");
-        _harness.Local.AnswerRpc(Node, "getblockhash 800010", $$"""{"result":"{{Genesis}}","error":null,"id":"y"}""");
+        _harness.Local.AnswerRpc(
+            Node, "getblockhash 0", $$"""{"result":"{{Genesis}}","error":null,"id":"getblockhash 0"}""");
+        _harness.Local.AnswerRpc(
+            Node, "getblockhash 800010", $$"""{"result":"{{Genesis}}","error":null,"id":"getblockhash 800010"}""");
 
         await _harness.Sources.ProbeAsync(Chain.Bitcoin);
 

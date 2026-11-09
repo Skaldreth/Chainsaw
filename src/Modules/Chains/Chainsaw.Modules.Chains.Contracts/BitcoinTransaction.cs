@@ -77,9 +77,10 @@ public enum InBlockCheck
     ConfirmedElsewhere,
 
     /// <summary>
-    /// As <see cref="SourceOnly"/>, and the user's own node (an endpoint marked local: Bitcoin Core, or an electrs on
-    /// the own network) has the same block hash at that height in its chain. The own node has checked every block's
-    /// work itself, so the header the merkle proof leads to is in the chain it holds; the proof itself may have come
+    /// As <see cref="SourceOnly"/>, and the user's own Bitcoin Core (an endpoint marked local that speaks its RPC) has
+    /// the same block hash at that height in its chain; another local endpoint (an electrs) that does is
+    /// <see cref="ConfirmedElsewhere"/>, said by name as a local endpoint. The node has checked every block's work
+    /// itself, so the header the merkle proof leads to is in the chain it holds; the proof itself may have come
     /// from another source, since it is checked against that header and not taken on its word.
     /// </summary>
     ConfirmedByOwnNode,

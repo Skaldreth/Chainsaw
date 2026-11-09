@@ -1148,6 +1148,14 @@ internal sealed class ChainSources : IChainSources
             return null;
         }
 
+        if (key is not null && IsNodeKey(key) != api.Info.LocalOnly)
+        {
+            // The own node's password is never sent to another sort (as a bearer token through the exit, say, from
+            // an edited sources.json), and the own node takes only a key made for it.
+            problem = $"API-nyckeln {apiKey} hör till en annan sorts källa och skickas inte hit. Inget skickades.";
+            return null;
+        }
+
         var credential = key is null ? null : api.Credential(key.Secret);
         if (credential is not { IsWellFormed: true })
         {
@@ -1157,6 +1165,15 @@ internal sealed class ChainSources : IChainSources
 
         return request with { Credential = credential };
     }
+
+    /// <summary>
+    /// Tells whether a key in the vault is the user's own node's user name and password: its identifier names the
+    /// sort, <see cref="BitcoinCoreApi.Code"/>, so that it can only ever be sent to the own node.
+    /// </summary>
+    /// <param name="key">The key.</param>
+    /// <returns><see langword="true"/> when it is.</returns>
+    internal static bool IsNodeKey(ApiKey key) =>
+        string.Equals(key.Identifier, BitcoinCoreApi.Code, StringComparison.Ordinal);
 
     /// <summary>A probe that sent nothing.</summary>
     /// <param name="id">The endpoint.</param>

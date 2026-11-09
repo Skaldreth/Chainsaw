@@ -103,6 +103,24 @@ public sealed class MerkleProofTests : IDisposable
     }
 
     [Fact]
+    public async Task A_local_esplora_confirms_by_name_as_a_local_endpoint_not_as_the_own_node()
+    {
+        var block = AnswerBlockWithRoot(Fixtures.Real, position: 0);
+        AnswerProof(position: 0);
+        await _harness.Sources.Add(Chain.Bitcoin, new Uri(LocalEsplora), "esplora", null, local: true).Saved;
+        await _harness.Sources.SetModeAsync(Chain.Bitcoin, SourceMode.Priority);
+        _harness.Local.AnswerBytes(LocalEsplora + "block-height/800003", Encoding.ASCII.GetBytes(block.Value), 200);
+
+        var lookup = await _harness.Source.VerifyInBlockAsync(_harness.Case, Fixtures.Real);
+
+        Assert.Equal(InBlockCheck.ConfirmedElsewhere, lookup.Value!.InBlock);
+        Assert.Contains(lookup.Notes, note => note.Contains("en lokal endpoint, esplora.lan", StringComparison.Ordinal));
+    }
+
+    /// <summary>An electrs with Esplora's API on the own network in the tests.</summary>
+    private const string LocalEsplora = "https://esplora.lan/api/";
+
+    [Fact]
     public async Task An_own_node_with_another_block_at_the_height_leaves_the_block_one_sources()
     {
         AnswerBlockWithRoot(Fixtures.Real, position: 0);

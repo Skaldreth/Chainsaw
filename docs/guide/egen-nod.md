@@ -36,7 +36,8 @@ Bitcoin Core hittar en gammal tx bara med **`txindex=1`** i `bitcoin.conf`. Utan
 1. Bitcoin Core svarar bara över vanlig http. Chainsaw frågar bara över https, så ställ en **TLS-proxy** framför noden
    på det egna nätet (stunnel, nginx eller Caddy), och lägg till dess adress, till exempel `https://bitcoind.lan/`.
 2. Lägg användarnamnet och lösenordet (`rpcauth`, eller innehållet i nodens kakfil `__cookie__:…`) som en nyckel i
-   valvet, skrivet `användare:lösenord`. Det skickas som HTTP Basic och hamnar aldrig i ärendet.
+   valvet, skrivet `användare:lösenord`, med identifieraren `bitcoin-core`. Det skickas som HTTP Basic och hamnar
+   aldrig i ärendet. En nyckel märkt så skickas bara till den egna Bitcoin Core, och noden tar bara en sådan nyckel.
 3. I *Inställningar → Källor → Bitcoin*: *+ Lägg till endpoint …*, välj **Bitcoin Core (egen nod)**, slå på **Lokal**
    och välj nyckeln. Bitcoin Core kan bara läggas till som lokal, så att lösenordet aldrig går genom utgången.
 4. Fäst nodens certifikat med nålen på raden, om proxyn har ett eget certifikat.
@@ -46,7 +47,8 @@ Bitcoin Core hittar en gammal tx bara med **`txindex=1`** i `bitcoin.conf`. Utan
 När Chainsaw kontrollerar att en tx ligger i sitt block räknar den merkleroten själv från tx:en och källans bevis och
 jämför med blockets huvud (se [Kontroll mot kedjan](kontroll-mot-kedjan.md)). Huvudet visar bara att blocket bär
 *något* arbete. Finns en egen nod frågar Chainsaw den vilket block som ligger på höjden. Har noden samma block är tx:en
-**bekräftad av den egna noden**: blocket ligger i den kedja noden själv har kontrollerat. Beviset får ha kommit från en
+**bekräftad av den egna noden**: blocket ligger i den kedja noden själv har kontrollerat. En egen electrs som har
+samma block räknas som en bekräftelse av en annan endpoint och sägs vid namn som *en lokal endpoint*. Beviset får ha kommit från en
 annan källa, eftersom det kontrolleras mot huvudet och inte tas på ord. Har noden ett annat block på höjden säger
 Chainsaw det, och blocket vilar bara på en källas svar.
 

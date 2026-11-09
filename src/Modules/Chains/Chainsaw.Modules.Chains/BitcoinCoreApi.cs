@@ -70,6 +70,12 @@ internal sealed class BitcoinCoreApi : ISourceApi
         "Den egna noden har inget transaktionsindex (txindex=1 i bitcoin.conf), så den kan bara ge tx:er som väntar "
         + "på ett block. Övriga källor frågas.";
 
+    /// <summary>The call for the chain's height.</summary>
+    private static readonly RpcCall HeightCall = new("getblockcount", []);
+
+    /// <summary>How the id of a call for the hash at a height begins; a probe's answer to it must begin so.</summary>
+    private const string HashCallPrefix = "getblockhash ";
+
     /// <summary>The paths of the Esplora form that one method answers, read by <see cref="TryCall"/>.</summary>
     private const string TipHeightPath = "blocks/tip/height";
 
@@ -110,12 +116,12 @@ internal sealed class BitcoinCoreApi : ISourceApi
     public string ChainName { get; }
 
     /// <inheritdoc/>
-    public ExitRequest HeightRequest(Uri address) => Call(address, new RpcCall("getblockcount", []));
+    public ExitRequest HeightRequest(Uri address) => Call(address, HeightCall);
 
     /// <inheritdoc/>
     public long ReadHeight(ReadOnlySpan<byte> body)
     {
-        var text = Encoding.UTF8.GetString(Result(body));
+        var text = Encoding.UTF8.GetString(Result(body, HeightCall.Id));
         return long.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out var height) && height > 0
             ? height
             : throw new FormatException("The height is not a whole number above zero.");
@@ -127,7 +133,7 @@ internal sealed class BitcoinCoreApi : ISourceApi
 
     /// <inheritdoc/>
     public string ReadHash(ReadOnlySpan<byte> body) =>
-        BlockHash.TryParse(Encoding.UTF8.GetString(Result(body)), out var hash)
+        BlockHash.TryParse(Encoding.UTF8.GetString(Result(body, HashCallPrefix, idIsPrefix: true)), out var hash)
             ? hash.Value
             : throw new FormatException("The hash is not 64 hex characters.");
 
@@ -204,9 +210,17 @@ internal sealed class BitcoinCoreApi : ISourceApi
 
     /// <summary>Reads the value of a successful JSON-RPC response as the Esplora form gives it: plain text.</summary>
     /// <param name="body">The response's bytes.</param>
+    /// <param name="expectedId">
+    /// The id of the call that was sent (<see cref="RpcCall.Id"/>), which the answer must give back, so that an answer
+    /// to another call is never read as this one's; <see langword="null"/> for an answer read back from the case, which
+    /// was checked against its call when it was fetched (only then is it indexed as an answer).
+    /// </param>
+    /// <param name="idIsPrefix">Whether the answer's id need only start with <paramref name="expectedId"/>.</param>
     /// <returns>The <c>result</c>: a text without its quotes, or a number as it is written.</returns>
-    /// <exception cref="FormatException">The body is not a JSON-RPC response with a text or a number.</exception>
-    internal static byte[] Result(ReadOnlySpan<byte> body)
+    /// <exception cref="FormatException">
+    /// The body is not a JSON-RPC response with a text or a number, or not the answer to the call.
+    /// </exception>
+    internal static byte[] Result(ReadOnlySpan<byte> body, string? expectedId, bool idIsPrefix = false)
     {
         try
         {
@@ -216,6 +230,11 @@ internal sealed class BitcoinCoreApi : ISourceApi
                 || (root.TryGetProperty("error", out var error) && error.ValueKind != JsonValueKind.Null))
             {
                 throw new FormatException("The response is not a JSON-RPC answer.");
+            }
+
+            if (expectedId is not null && !AnswersCall(root, expectedId, idIsPrefix))
+            {
+                throw new FormatException("The JSON-RPC answer is not the answer to the call that was sent.");
             }
 
             return result.ValueKind switch
@@ -230,6 +249,37 @@ internal sealed class BitcoinCoreApi : ISourceApi
             throw new FormatException("The response is not JSON.", exception);
         }
     }
+
+    /// <summary>Tells whether a JSON-RPC answer gives back the id of the call that was sent.</summary>
+    /// <param name="root">The answer.</param>
+    /// <param name="expectedId">The call's id.</param>
+    /// <param name="idIsPrefix">Whether the answer's id need only start with it.</param>
+    /// <returns><see langword="true"/> when it does.</returns>
+    private static bool AnswersCall(JsonElement root, string expectedId, bool idIsPrefix)
+    {
+        if (!root.TryGetProperty("id", out var id) || id.ValueKind != JsonValueKind.String)
+        {
+            return false;
+        }
+
+        var given = id.GetString()!;
+        return idIsPrefix
+            ? given.StartsWith(expectedId, StringComparison.Ordinal)
+            : string.Equals(given, expectedId, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Reads a fresh answer to the call that answers a path, checked against the call's id; a path no call answers
+    /// gives nothing to read.
+    /// </summary>
+    /// <param name="path">The lookup's path.</param>
+    /// <param name="body">The response's bytes.</param>
+    /// <returns>The <c>result</c> as plain text.</returns>
+    /// <exception cref="FormatException">The body is not the answer to the path's call.</exception>
+    internal static byte[] ResultFor(string path, ReadOnlySpan<byte> body) =>
+        TryCall(path, out var call)
+            ? Result(body, call!.Id)
+            : throw new FormatException("Bitcoin Core does not answer that lookup.");
 
     /// <summary>Builds the POST of one call to the endpoint's address.</summary>
     /// <param name="address">The endpoint's address.</param>

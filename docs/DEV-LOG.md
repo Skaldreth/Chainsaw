@@ -5238,4 +5238,13 @@ offline), App 6 i `ChainStateTests` (rutans rad och fot, länken, en fråga per 
   noden förseglade och lästa ur ärendet, utan txindex, adresserna aldrig till noden, provet), tre i `MerkleProofTests`
   (bekräftad, annat block, noden efter) och tre i `EndpointPhaseAndLocalTests` (provet utan utgång), och tre i
   `SourcesTests`. Syntetiska svar i formen ur Bitcoin Cores RPC-dokumentation; aldrig nätet.
-- **Återstår:** oberoende granskning (rör princip 4), provet på Windows (`docs/TESTER-INFOR-1.0.md`), ytorna i TODO.
+- **Efter säkerhetsgranskningen** (inga C eller I; tre M rättade):
+  - **M1:** ett nytt JSON-RPC-svar måste ge tillbaka `id` för anropet som skickades (`BitcoinCoreApi.ResultFor`,
+    provets höjd och hash likaså); ett svar på ett annat anrop förseglas men används inte. Ett svar som läses ur
+    ärendet kontrollerades så när det hämtades (bara då indexeras det som svar).
+  - **M2:** nodens nyckel i valvet har identifieraren `bitcoin-core` (`ChainSources.IsNodeKey`). En sådan nyckel
+    skickas aldrig till en annan sorts källa (alltså aldrig som bearer genom utgången, också med en redigerad
+    `sources.json`), och Bitcoin Core tar bara en sådan nyckel.
+  - **M3:** bara en Bitcoin Core ger *bekräftad av den egna noden*; en annan lokal endpoint (electrs) ger
+    `ConfirmedElsewhere` med *bekräftades av en lokal endpoint, namn*.
+- **Återstår:** provet på Windows (`docs/TESTER-INFOR-1.0.md`), ytorna i TODO.

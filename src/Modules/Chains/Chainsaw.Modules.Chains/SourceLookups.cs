@@ -499,10 +499,21 @@ internal sealed class SourceLookups
     /// </summary>
     /// <param name="source">The sort of API the body came from (<see cref="ResponseOrigin.Source"/>).</param>
     /// <param name="body">The raw body.</param>
+    /// <param name="path">
+    /// The path of a fresh lookup, whose call's id a fresh JSON-RPC answer must give back; <see langword="null"/> for
+    /// an answer read back from the case, which was checked so when it was fetched.
+    /// </param>
     /// <returns>The body to read.</returns>
-    /// <exception cref="FormatException">A JSON-RPC body is not an answer.</exception>
-    public static byte[] Readable(string source, byte[] body) =>
-        source == BitcoinCoreApi.Code ? BitcoinCoreApi.Result(body) : body;
+    /// <exception cref="FormatException">A JSON-RPC body is not an answer, or not the answer to the call.</exception>
+    public static byte[] Readable(string source, byte[] body, string? path = null)
+    {
+        if (source != BitcoinCoreApi.Code)
+        {
+            return body;
+        }
+
+        return path is null ? BitcoinCoreApi.Result(body, expectedId: null) : BitcoinCoreApi.ResultFor(path, body);
+    }
 
     /// <summary>Reads a fresh response, or says why it cannot be used.</summary>
     /// <typeparam name="T">What is looked up.</typeparam>
@@ -546,7 +557,8 @@ internal sealed class SourceLookups
 
         try
         {
-            return (query.Parse(Readable(api.Info.Code, response.Body.ToArray())), null, Outcome.Answered);
+            return (query.Parse(Readable(api.Info.Code, response.Body.ToArray(), query.Path)), null,
+                Outcome.Answered);
         }
         catch (SourceNotFoundException)
         {

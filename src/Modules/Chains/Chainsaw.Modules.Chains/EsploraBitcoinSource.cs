@@ -243,7 +243,9 @@ internal class EsploraBitcoinSource : IBitcoinSource
     /// block's work itself, so its word that this block is at the height in its chain makes the block more than one
     /// source's); otherwise, or when the own node cannot answer, by another endpoint in step with the chain, so that a
     /// block is not one source's alone: a header that meets only the network's easiest target says nothing about the
-    /// chain. An own node that has another block at the height is said, and the block then rests on one source.
+    /// chain. An own node that has another block at the height is said, and the block then rests on one source. Only
+    /// Bitcoin Core gives <see cref="InBlockCheck.ConfirmedByOwnNode"/>; another local endpoint confirms by name, as
+    /// another endpoint does.
     /// </summary>
     /// <param name="case">The open case.</param>
     /// <param name="block">The block, checked against its header.</param>
@@ -260,8 +262,13 @@ internal class EsploraBitcoinSource : IBitcoinSource
         var ownNode = own?.Origins.LastOrDefault();
         if (own?.Value == block.Hash.Value && ownNode is not null)
         {
-            return (InBlockCheck.ConfirmedByOwnNode, own.Origins,
-                WithWork($"Blockets hash vid höjden bekräftades av den egna noden, {ownNode.Endpoint}."));
+            // Only Bitcoin Core is a node that has checked every block itself; another local endpoint (an electrs) is
+            // said by name as a local endpoint, as confirmation by another endpoint.
+            return ownNode.Source == BitcoinCoreApi.Code
+                ? (InBlockCheck.ConfirmedByOwnNode, own.Origins,
+                    WithWork($"Blockets hash vid höjden bekräftades av den egna noden, {ownNode.Endpoint}."))
+                : (InBlockCheck.ConfirmedElsewhere, own.Origins,
+                    WithWork($"Blockets hash vid höjden bekräftades av en lokal endpoint, {ownNode.Endpoint}."));
         }
 
         if (own?.Value is not null)
