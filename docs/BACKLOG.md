@@ -326,6 +326,9 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
   redan står i kö (till exempel en ändring som väntar på disken) väntas inte in, eftersom den återkommer på UI-tråden.
 
 ## Attribution
+- **Efter fjärde granskningen av omgång 5 (2026-11-09, M):** testärendet visar inte längre *Tidigare sanktionerad*
+  (steget på Blandaren gick genom `Add`, som nu vägrar sorten); låt den påhittade listan eller ett förseglat steg ge
+  den igen [direkt]. `StartPointPreview.IsPossiblySanctioned` läses ur tipsets text; bär `IsUncertain` som data.
 - **Vyn Etiketter (ET1a), det som återstår:**
   - *Sprid inte* som slås på i efterhand tar etiketten ur biblioteket och hindrar att den ges vidare, men kopior som
     redan gått till andra ärenden ligger kvar där (toasten säger det).
