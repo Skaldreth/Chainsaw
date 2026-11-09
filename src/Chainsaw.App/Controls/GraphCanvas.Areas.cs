@@ -39,13 +39,26 @@ public sealed partial class GraphCanvas
     /// <summary>The areas as last drawn, for the pointer.</summary>
     private IReadOnlyList<AreaPlace> _areas = [];
 
+    /// <summary>
+    /// The areas, places and scene <see cref="_areas"/> was worked out from, so that it is worked out again only when
+    /// one of them changes, not on every frame of a pan (principle 6).
+    /// </summary>
+    private (object? Areas, object? Places, object? Scene) _areasFrom;
+
     /// <summary>Draws the areas' fills and edges behind the lines and the actors.</summary>
     /// <param name="dc">Where to draw.</param>
     /// <param name="visible">The visible part of the surface.</param>
     private void DrawAreas(DrawingContext dc, GraphRect visible)
     {
         var model = _model!;
-        _areas = AreaGeometry.Place(model.Checks.Areas, model.Places, model.FrameAt);
+        var from = ((object)model.Checks.Areas, (object)model.Places, (object?)model.Scene);
+        if (!ReferenceEquals(_areasFrom.Areas, from.Item1) || !ReferenceEquals(_areasFrom.Places, from.Item2)
+            || !ReferenceEquals(_areasFrom.Scene, from.Item3))
+        {
+            _areasFrom = from;
+            _areas = AreaGeometry.Place(model.Checks.Areas, model.Places, model.FrameAt);
+        }
+
         foreach (var place in _areas.Where(place => place.Frame.Intersects(visible)))
         {
             var tint = GraphPalette.Find(this, AreaLooks.BrushKey(place.Area.Look.Tint));

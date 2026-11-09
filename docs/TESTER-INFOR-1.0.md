@@ -3231,3 +3231,27 @@ Jämför med skissen IN5a på canvasen (sidan Grafen, omgång 18).
   *Spara som X-B*, som har ditt arbete.
 - **Länk med citattecken:** kör `chainsaw:btc/x" "--watch-alert` från Kör (Win+R): inget kort om en bevakning visas.
 - **Kraschrutan** visar bara rubriken och var loggen ligger, aldrig felets text.
+
+## Omgång 7: vyerna och appen (2026-11-08)
+
+- **Stor graf:** gör ett ärende med många aktörer (eller expandera Navet och flera högar i `/testdata`). Dra en nod
+  fram och tillbaka på den fria ytan och i hoppkolumnerna: noden och dess linjer följer musen utan hack. Beloppen på
+  andra linjer står kvar under draget och flyttar sig till lediga platser när du släpper. Hovra över noder och linjer:
+  rätt nod eller linje lyser.
+- **Exponering:** godkänn en trolig utgång ur en mixer i *Förslag* (Ctrl+J), och öppna Exponering för en aktör som
+  betalat till mixern: bortom mixern står en streckad nod med en prickad linje och *förslag*, och andelarna ändras inte.
+  Står mixern i tredje ringen hamnar förslaget utanför den, inne i bilden. Öppna Guidens panel i Exponering: sidopanelen
+  flyttar sig så att den syns.
+- **Rapport:** markera mixern och godkänn en kandidat: under *Slutsatser* står *en trolig utbetalning till …, ett
+  förslag som användaren godkänt* med analysen och tx:en. Exportera: toasten har *Visa i mappen*, som öppnar
+  Utforskaren med filen vald. *Ändra i grafen* visar grafen med *‹ Rapport* i huvudet; knappen och Esc går tillbaka.
+  Slå av *Hashkedjornas topphash* och exportera: filen nämner ingen topphash.
+- **Lappar:** fäll ut en hög medan du skriver i en lapp: tangenterna går inte längre in i lappen. Dra en lapp mot
+  soptunnan och tryck Alt+Tab mitt i draget: lappen står kvar där den var och soptunnan krymper. Panorera med många
+  lappar: skuggorna hackar inte.
+- **Etiketter:** *Visa i grafen* på en etikett vars adress ligger i en hög fäller ut högen.
+- **Sökningen:** släng en aktör, sök på dess adress (Ctrl+K): raden säger *Lägg tillbaka*, och Enter lägger tillbaka
+  den i grafen. En aktör som bara följde med när något annat slängdes säger *Öppna soptunnan*, och Enter öppnar
+  soptunnan med trädet. Lägg tillbaka aktören i soptunnans vy medan sökningen står öppen och tryck Enter på raden:
+  grafen säger att den inte längre låg så, och soptunnan öppnas.
+

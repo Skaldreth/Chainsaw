@@ -226,6 +226,7 @@ public partial class App : Application
                 .AddSingleton<WpfFilePicker>()
                 .AddSingleton<IFilePicker>(provider => provider.GetRequiredService<WpfFilePicker>())
                 .AddSingleton<ISaveFilePicker>(provider => provider.GetRequiredService<WpfFilePicker>())
+                .AddSingleton<IFolderView, WpfFolderView>()
                 .AddSingleton<ICaseFilePicker>(provider => provider.GetRequiredService<WpfFilePicker>())
                 .AddSingleton<SanctionListImport>()
                 .AddSingleton<ExitWay>()

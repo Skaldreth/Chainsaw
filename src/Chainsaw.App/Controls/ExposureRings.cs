@@ -145,7 +145,7 @@ public sealed class ExposureRings : FrameworkElement
             DrawVia(dc, via);
         }
 
-        foreach (var service in picture.Services)
+        foreach (var service in picture.Services.Concat(picture.Candidates))
         {
             DrawService(dc, service);
         }
@@ -225,7 +225,9 @@ public sealed class ExposureRings : FrameworkElement
             Ink.Text(picture.OutText, 12, muted), new Point(centre.X + 16, centre.Y + TotalsBelow - left.Height));
     }
 
-    /// <summary>Draws a line of the money: a soft curve, lit or dimmed by the choice.</summary>
+    /// <summary>
+    /// Draws a line of the money: a soft curve, lit or dimmed by the choice; dotted to an approved likely way out.
+    /// </summary>
     /// <param name="dc">Where to draw.</param>
     /// <param name="line">The line.</param>
     private void DrawLine(DrawingContext dc, RingLine line)
@@ -253,8 +255,14 @@ public sealed class ExposureRings : FrameworkElement
         }
 
         dc.PushOpacity(HasChoice && !lit ? DimLine : 1);
-        dc.DrawGeometry(null, new Pen(ink, line.Width) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round },
-            geometry);
+        var pen = new Pen(ink, line.Width)
+        {
+            StartLineCap = PenLineCap.Round,
+            EndLineCap = PenLineCap.Round,
+            DashCap = PenLineCap.Round,
+            DashStyle = line.IsDotted ? RingDash : DashStyles.Solid,
+        };
+        dc.DrawGeometry(null, pen, geometry);
         dc.Pop();
     }
 
@@ -276,7 +284,8 @@ public sealed class ExposureRings : FrameworkElement
 
     /// <summary>
     /// Draws a service: its frame in its sort's shape and colour with the sort's icon, larger the larger its share, the
-    /// sanction mark in the corner, and its name and amount beside it, outwards from the axis.
+    /// sanction mark in the corner, and its name and amount beside it, outwards from the axis. An approved likely way
+    /// out beyond a mixer is drawn the same, dashed, with <em>förslag</em> beside it.
     /// </summary>
     /// <param name="dc">Where to draw.</param>
     /// <param name="place">The service.</param>
@@ -301,7 +310,7 @@ public sealed class ExposureRings : FrameworkElement
 
         var frame = new Pen(chosen ? accent : ink, chosen ? 2 : 1.5)
         {
-            DashStyle = place.Look.IsDashed ? FrameDash : DashStyles.Solid,
+            DashStyle = place.Look.IsDashed || place.IsCandidate ? FrameDash : DashStyles.Solid,
         };
         dc.DrawRoundedRectangle(GraphPalette.Find(this, "Brush.Surface"), frame, box, radius, radius);
         var icon = place.Size * 0.54;

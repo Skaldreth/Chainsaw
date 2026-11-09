@@ -235,7 +235,7 @@ public sealed partial class GraphCanvas : FrameworkElement
         DrawAreas(drawingContext, visible);
         DrawCommentThreads(drawingContext, visible);
         var (nearNodes, nearEdges) = _model.Near;
-        var edges = GraphHitTest.VisibleEdges(scene, _model.Curves, visible).ToList();
+        var edges = _model.VisibleEdges(visible).ToList();
         DrawWatchGlows(drawingContext, visible);
         DrawTrashStubs(drawingContext, visible);
         edges.RemoveAll(edge => _model.IsFoldedAway(edge.Edge.From) || _model.IsFoldedAway(edge.Edge.To));
@@ -264,7 +264,7 @@ public sealed partial class GraphCanvas : FrameworkElement
         DrawWatchMarks(drawingContext, visible);
         drawingContext.Pop();
         var nodes = _blast == BlastPhase.None
-            ? GraphHitTest.VisibleNodes(scene, _model.Places, visible)
+            ? _model.VisibleNodes(visible)
             : scene.Nodes.Where(node => _model.Places.ContainsKey(node.Key));
         foreach (var node in nodes.Where(node => !_model.IsFoldedAway(node.Key)))
         {
