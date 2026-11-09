@@ -12,13 +12,17 @@ namespace Chainsaw.Modules.Cases;
 /// <remarks>
 /// <para>The construction (ECIES in the form of SEC 1 and ISO 18033-2, built from .NET's own primitives):</para>
 /// <list type="number">
-/// <item>A new ephemeral P-384 key pair is made for every envelope.</item>
+/// <item>The ephemeral P-384 private key is derived from the file key, the case id and the recovery key's
+/// fingerprint (see <see cref="DeriveEphemeralScalar"/>), so that one case, file key and recovery key always give the
+/// same envelope, and any other combination an unrelated one.</item>
 /// <item>ECDH between the ephemeral private key and the recovery public key gives the shared secret (the
 /// x-coordinate, 48 bytes).</item>
 /// <item>HKDF-SHA384 turns the secret into a 32-byte AES key. The info binds the format, the kind, the case id, the
 /// ephemeral public key and the recovery key's fingerprint, so that a key derived for one envelope is useless for
 /// any other.</item>
-/// <item>AES-256-GCM encrypts the file key under a random nonce, with the same context as associated data.</item>
+/// <item>AES-256-GCM encrypts the file key with the same context as associated data, under a nonce derived like the
+/// ephemeral key. The AES key is only ever used for this one file key, so a fixed nonce per key is never reused for
+/// another message.</item>
 /// </list>
 /// <para>
 /// The envelope stores the recovery key's fingerprint (so that a tool can say which key a file is open to, and the
@@ -26,10 +30,11 @@ namespace Chainsaw.Modules.Cases;
 /// file key and the tag. The ephemeral private key and the shared secret are cleared as soon as the AES key exists.
 /// </para>
 /// <para>
-/// Last, the envelope holds a check: HMAC-SHA256 over its fields under a key derived from the file key. Only the
-/// holder of the private key can open the envelope, but anyone who has opened the case can tell from the check that
-/// the envelope is the one Chainsaw wrote, so that a damaged envelope is seen and replaced when the case is opened
-/// instead of when the administrator needs it.
+/// Because the envelope is a function of the file key, anyone who has opened the case can make it again and compare
+/// it byte for byte with the stored one (<see cref="Matches"/>), without the private key. A stored envelope that
+/// wraps anything but the file key, even a well-formed one that someone with the file key wrote, never matches, and
+/// Chainsaw writes the right one when the case is opened. The administrator's side is unchanged: the tool opens the
+/// envelope with the private key and the ephemeral public key as stored.
 /// </para>
 /// </remarks>
 internal static class RecoveryEnvelopes
@@ -58,11 +63,11 @@ internal static class RecoveryEnvelopes
     /// <summary>The field with the tag.</summary>
     private const string TagField = "tag";
 
-    /// <summary>The field with the check over the envelope, under a key derived from the file key.</summary>
-    private const string CheckField = "check";
+    /// <summary>The HKDF info label of the ephemeral private key.</summary>
+    private const string EphemeralLabel = "chainsaw/case/recovery-ephemeral/v2";
 
-    /// <summary>The HKDF info for the key of the check.</summary>
-    private const string CheckKeyInfo = "chainsaw/case/recovery-check/v1";
+    /// <summary>The HKDF info label of the nonce.</summary>
+    private const string NonceLabel = "chainsaw/case/recovery-nonce/v2";
 
     /// <summary>The length of a fingerprint in hexadecimal digits.</summary>
     private const int FingerprintLength = 64;
@@ -70,10 +75,24 @@ internal static class RecoveryEnvelopes
     /// <summary>The largest ephemeral key that is read; a P-384 SubjectPublicKeyInfo is 120 bytes.</summary>
     private const int MaximumEphemeralSize = 256;
 
-    /// <summary>The size of the check.</summary>
-    private const int CheckSize = 32;
+    /// <summary>The size of a P-384 private scalar.</summary>
+    private const int ScalarSize = 48;
 
-    /// <summary>Encrypts the file key to the recovery key.</summary>
+    /// <summary>
+    /// The order n of the P-384 base point, big-endian (FIPS 186-5 / SEC 2); a private scalar lies in 1..n-1.
+    /// </summary>
+    internal static readonly byte[] Order = Convert.FromHexString(
+        "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFC7634D81F4372DDF581A0DB248B0A77AECEC196ACCC52973");
+
+    /// <summary>Tests a file key that an envelope gave, before it is taken for the case's.</summary>
+    /// <param name="fileKey">The key the envelope gave.</param>
+    /// <returns><see langword="true"/> when it is the case's file key.</returns>
+    public delegate bool FileKeyTest(ReadOnlySpan<byte> fileKey);
+
+    /// <summary>
+    /// Encrypts the file key to the recovery key. The result depends only on the arguments, so that the same call
+    /// gives the same envelope byte for byte.
+    /// </summary>
     /// <param name="caseId">The case id.</param>
     /// <param name="fileKey">The file key.</param>
     /// <param name="recoveryKey">The organisation's public recovery key.</param>
@@ -82,14 +101,20 @@ internal static class RecoveryEnvelopes
     {
         ArgumentNullException.ThrowIfNull(recoveryKey);
         using var recipient = recoveryKey.CreateKey();
-        using var ephemeral = ECDiffieHellman.Create(ECCurve.NamedCurves.nistP384);
+        using var ephemeral = DeriveEphemeralKey(caseId, fileKey, recoveryKey.Fingerprint);
         var ephemeralPublic = RecoveryPublicKey.FromPrivateKey(ephemeral).ExportSubjectPublicKeyInfo();
         var context = Context(caseId, recoveryKey.Fingerprint, ephemeralPublic);
+        var nonce = new byte[CaseCrypto.NonceSize];
+        HKDF.DeriveKey(
+            HashAlgorithmName.SHA384, fileKey, nonce, [], Label(NonceLabel, caseId, recoveryKey.Fingerprint));
+        var ciphertext = new byte[fileKey.Length];
+        var tag = new byte[CaseCrypto.TagSize];
         var wrappingKey = CaseCrypto.AllocateSecret(CaseCrypto.KeySize);
         try
         {
             DeriveWrappingKey(ephemeral, recipient.PublicKey, context, wrappingKey);
-            var (nonce, ciphertext, tag) = CaseCrypto.Wrap(wrappingKey, fileKey, context);
+            using var aes = new AesGcm(wrappingKey, CaseCrypto.TagSize);
+            aes.Encrypt(nonce, fileKey, ciphertext, tag, context);
             return new JsonObject
             {
                 [KeyEnvelopes.KindField] = Kind,
@@ -99,8 +124,6 @@ internal static class RecoveryEnvelopes
                 [NonceField] = Convert.ToBase64String(nonce),
                 [KeyField] = Convert.ToBase64String(ciphertext),
                 [TagField] = Convert.ToBase64String(tag),
-                [CheckField] = Convert.ToBase64String(
-                    Check(caseId, fileKey, context, nonce, ciphertext, tag)),
             };
         }
         finally
@@ -109,32 +132,103 @@ internal static class RecoveryEnvelopes
         }
     }
 
+    /// <summary>
+    /// Compares a stored envelope byte for byte, in constant time, with the one <see cref="Create"/> gives for the
+    /// case's file key: only then does it hold the file key for that recovery key.
+    /// </summary>
+    /// <param name="stored">The stored envelope.</param>
+    /// <param name="expected">The envelope made now.</param>
+    /// <returns><see langword="true"/> when they are the same.</returns>
+    public static bool Matches(JsonObject stored, JsonObject expected) =>
+        CryptographicOperations.FixedTimeEquals(
+            Encoding.UTF8.GetBytes(stored.ToJsonString()), Encoding.UTF8.GetBytes(expected.ToJsonString()));
+
+    /// <summary>
+    /// Picks the envelopes to drop so that one more fits in a header of <see cref="CaseContainer.MaximumEnvelopes"/>,
+    /// when it is full: first envelopes that nothing uses (another kind or construction, which anyone can write, and
+    /// copies of the sharing envelope or of this vault's envelope, which are never read), then recovery envelopes for
+    /// keys other than the configured one, then vault envelopes that <paramref name="isOwn"/> does not claim; each
+    /// group from the end of the file. The sharing envelope (the first of its kind, the one that is opened) and this
+    /// vault's first envelope are never picked, so that copies of them cannot keep the recovery envelope out.
+    /// </summary>
+    /// <param name="envelopes">The envelopes the header keeps.</param>
+    /// <param name="fingerprint">The configured recovery key's fingerprint.</param>
+    /// <param name="isOwn">Tells whether a vault envelope is one this vault opens.</param>
+    /// <returns>The envelopes to drop; fewer than needed when the rest may not go.</returns>
+    public static IReadOnlyList<JsonObject> ToMakeRoom(
+        IReadOnlyList<JsonObject> envelopes, string fingerprint, Func<JsonObject, bool> isOwn)
+    {
+        ArgumentNullException.ThrowIfNull(isOwn);
+        var needed = envelopes.Count + 1 - CaseContainer.MaximumEnvelopes;
+        if (needed <= 0)
+        {
+            return [];
+        }
+
+        bool Operator(JsonObject envelope) => KeyEnvelopes.IsKind(envelope, KeyEnvelopes.OperatorKind);
+        bool Known(JsonObject envelope) => Operator(envelope)
+            || KeyEnvelopes.IsKind(envelope, KeyEnvelopes.PasswordKind) || FingerprintOf(envelope) is not null;
+        var sharing = envelopes.FirstOrDefault(envelope => KeyEnvelopes.IsKind(envelope, KeyEnvelopes.PasswordKind));
+        var own = envelopes.FirstOrDefault(envelope => Operator(envelope) && isOwn(envelope));
+        bool Copy(JsonObject envelope) =>
+            (KeyEnvelopes.IsKind(envelope, KeyEnvelopes.PasswordKind) && !ReferenceEquals(envelope, sharing))
+            || (Operator(envelope) && !ReferenceEquals(envelope, own) && isOwn(envelope));
+        var backwards = envelopes.Reverse().ToList();
+        return
+        [
+            .. backwards.Where(envelope => !Known(envelope) || Copy(envelope))
+                .Concat(backwards.Where(envelope => FingerprintOf(envelope) is { } other && other != fingerprint))
+                .Concat(backwards.Where(envelope =>
+                    KeyEnvelopes.IsKind(envelope, KeyEnvelopes.OperatorKind) && !isOwn(envelope)))
+                .Take(needed),
+        ];
+    }
+
     /// <summary>Tries every recovery envelope made for the private key's public half.</summary>
     /// <param name="header">The header.</param>
     /// <param name="privateKey">The organisation's private recovery key.</param>
-    /// <param name="fileKey">Receives the file key when an envelope opens.</param>
-    /// <returns><see langword="true"/> when an envelope opened.</returns>
-    /// <exception cref="CaseException"><see cref="CaseError.Corrupt"/> when such an envelope is malformed.</exception>
+    /// <param name="fileKey">
+    /// Receives the file key when an envelope opens and <paramref name="accept"/> takes it.
+    /// </param>
+    /// <param name="accept">
+    /// Tells whether the key an envelope gave is the case's (the seal over the file holds under it). Anyone can write
+    /// an envelope that opens with the private key and wraps another key, so that one must not hide a sound one.
+    /// </param>
+    /// <returns><see langword="true"/> when an envelope gave the case's file key.</returns>
+    /// <exception cref="CaseException">
+    /// <see cref="CaseError.Corrupt"/> when none did and an envelope was malformed or gave a key the file does not
+    /// take.
+    /// </exception>
     /// <exception cref="CryptographicException">The private key is not a P-384 key.</exception>
     /// <remarks>
     /// A damaged envelope does not stop the others from being tried; the file is only corrupt when no envelope for
-    /// the key opens and one of them was malformed.
+    /// the key opens and one of them was malformed or opened to the wrong key.
     /// </remarks>
-    public static bool TryOpen(CaseHeader header, ECDiffieHellman privateKey, Span<byte> fileKey)
+    public static bool TryOpen(CaseHeader header, ECDiffieHellman privateKey, Span<byte> fileKey, FileKeyTest accept)
     {
+        ArgumentNullException.ThrowIfNull(accept);
         var fingerprint = RecoveryPublicKey.FromPrivateKey(privateKey).Fingerprint;
         CaseException? malformed = null;
         foreach (var envelope in Readable(header).Where(item => item.Fingerprint == fingerprint))
         {
             try
             {
-                if (TryOpenOne(header.CaseId, envelope.Envelope, privateKey, fingerprint, fileKey))
+                if (!TryOpenOne(header.CaseId, envelope.Envelope, privateKey, fingerprint, fileKey))
+                {
+                    continue;
+                }
+
+                if (accept(fileKey))
                 {
                     return true;
                 }
+
+                CryptographicOperations.ZeroMemory(fileKey);
+                malformed = new CaseException(CaseError.Corrupt);
             }
             catch (CaseException exception) when (exception.Error == CaseError.Corrupt)
             {
+                CryptographicOperations.ZeroMemory(fileKey);
                 malformed = exception;
             }
         }
@@ -151,49 +245,6 @@ internal static class RecoveryEnvelopes
     /// <returns>The fingerprints, in file order, without repeats.</returns>
     public static IReadOnlyList<string> Fingerprints(CaseHeader header) =>
         [.. Readable(header).Select(item => item.Fingerprint).Distinct(StringComparer.Ordinal)];
-
-    /// <summary>
-    /// Tells whether the header has an envelope of this construction for a key whose check holds under the file key,
-    /// that is, one that Chainsaw wrote and that has not been damaged since.
-    /// </summary>
-    /// <param name="header">The header.</param>
-    /// <param name="fileKey">The case's file key.</param>
-    /// <param name="fingerprint">The recovery key's fingerprint.</param>
-    /// <returns><see langword="true"/> when the key is covered by a sound envelope.</returns>
-    public static bool Covers(CaseHeader header, ReadOnlySpan<byte> fileKey, string fingerprint)
-    {
-        foreach (var (envelope, _) in Readable(header).Where(item => item.Fingerprint == fingerprint))
-        {
-            if (CheckHolds(header.CaseId, fileKey, envelope, fingerprint))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /// <summary>
-    /// Gives the envelopes of this construction for a key whose check does not hold: damaged, or changed by someone
-    /// without the file key. They are replaced when a sound envelope for the same key is added.
-    /// </summary>
-    /// <param name="header">The header.</param>
-    /// <param name="fileKey">The case's file key.</param>
-    /// <param name="fingerprint">The recovery key's fingerprint.</param>
-    /// <returns>The damaged envelopes, as the header holds them.</returns>
-    public static IReadOnlyList<JsonObject> Damaged(CaseHeader header, ReadOnlySpan<byte> fileKey, string fingerprint)
-    {
-        List<JsonObject> damaged = [];
-        foreach (var (envelope, _) in Readable(header).Where(item => item.Fingerprint == fingerprint))
-        {
-            if (!CheckHolds(header.CaseId, fileKey, envelope, fingerprint))
-            {
-                damaged.Add(envelope);
-            }
-        }
-
-        return damaged;
-    }
 
     /// <summary>
     /// Gives the header's envelopes without those of this construction for revoked keys, so that a compromised key
@@ -280,71 +331,92 @@ internal static class RecoveryEnvelopes
         }
     }
 
-    /// <summary>Checks an envelope's check against its fields; a missing or malformed field fails it.</summary>
+    /// <summary>
+    /// Makes the ephemeral key pair of an envelope from its private scalar (<see cref="DeriveEphemeralScalar"/>).
+    /// </summary>
     /// <param name="caseId">The case id.</param>
     /// <param name="fileKey">The file key.</param>
-    /// <param name="envelope">The envelope.</param>
-    /// <param name="fingerprint">The envelope's fingerprint.</param>
-    /// <returns><see langword="true"/> when the check holds.</returns>
-    private static bool CheckHolds(Guid caseId, ReadOnlySpan<byte> fileKey, JsonObject envelope, string fingerprint)
+    /// <param name="fingerprint">The recovery key's fingerprint.</param>
+    /// <returns>The key pair; the caller disposes it.</returns>
+    /// <remarks>
+    /// Only the private scalar is imported. .NET computes the public point from it, on Windows (CNG) as on Linux
+    /// (OpenSSL), since .NET 5; the round trip is checked by a test.
+    /// </remarks>
+    private static ECDiffieHellman DeriveEphemeralKey(Guid caseId, ReadOnlySpan<byte> fileKey, string fingerprint)
     {
+        var scalar = CaseCrypto.AllocateSecret(ScalarSize);
+        var key = ECDiffieHellman.Create();
         try
         {
-            var ephemeral = ReadBytes(envelope, EphemeralField);
-            var nonce = ReadBytes(envelope, NonceField, CaseCrypto.NonceSize);
-            var ciphertext = ReadBytes(envelope, KeyField, CaseCrypto.KeySize);
-            var tag = ReadBytes(envelope, TagField, CaseCrypto.TagSize);
-            var check = ReadBytes(envelope, CheckField, CheckSize);
-            var context = Context(caseId, fingerprint, ephemeral);
-            return CryptographicOperations.FixedTimeEquals(
-                check, Check(caseId, fileKey, context, nonce, ciphertext, tag));
+            DeriveEphemeralScalar(caseId, fileKey, fingerprint, scalar);
+            key.ImportParameters(new ECParameters { Curve = ECCurve.NamedCurves.nistP384, D = scalar });
+            return key;
         }
-        catch (CaseException exception) when (exception.Error == CaseError.Corrupt)
+        catch
         {
-            return false;
+            key.Dispose();
+            throw;
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(scalar);
         }
     }
 
     /// <summary>
-    /// Computes an envelope's check: HMAC-SHA256 under a key derived from the file key and the case id, over the
-    /// envelope's context and its nonce, wrapped key and tag, each with its length.
+    /// Derives the ephemeral private scalar d of an envelope: HKDF-SHA384 with the file key as input key material
+    /// and the version label, the case id, the recovery key's fingerprint and a counter as info, 48 bytes read as a
+    /// big-endian number, taken when 1 &lt;= d &lt;= n-1 and otherwise drawn again with the next counter (rejection
+    /// sampling, as in FIPS 186-5 A.2.2 and RFC 6979). A value that is taken is uniform on 1..n-1, since every
+    /// accepted value is equally likely; n is within 2^-190 of 2^384, so a second draw practically never happens.
     /// </summary>
     /// <param name="caseId">The case id.</param>
     /// <param name="fileKey">The file key.</param>
-    /// <param name="context">The envelope's context (which holds the fingerprint and the ephemeral key).</param>
-    /// <param name="nonce">The nonce.</param>
-    /// <param name="ciphertext">The wrapped file key.</param>
-    /// <param name="tag">The tag.</param>
-    /// <returns>The 32-byte check.</returns>
-    private static byte[] Check(
-        Guid caseId,
-        ReadOnlySpan<byte> fileKey,
-        byte[] context,
-        byte[] nonce,
-        byte[] ciphertext,
-        byte[] tag)
+    /// <param name="fingerprint">The recovery key's fingerprint.</param>
+    /// <param name="destination">Receives the 48-byte scalar.</param>
+    internal static void DeriveEphemeralScalar(
+        Guid caseId, ReadOnlySpan<byte> fileKey, string fingerprint, Span<byte> destination)
     {
-        var key = CaseCrypto.AllocateSecret(CaseCrypto.KeySize);
-        try
+        for (var counter = 0; ; counter++)
         {
-            HKDF.DeriveKey(
-                HashAlgorithmName.SHA256, fileKey, key, caseId.ToByteArray(), Encoding.ASCII.GetBytes(CheckKeyInfo));
-            using var hmac = IncrementalHash.CreateHMAC(HashAlgorithmName.SHA256, key);
-            Span<byte> length = stackalloc byte[sizeof(int)];
-            foreach (var part in new[] { context, nonce, ciphertext, tag })
+            var info = Label(EphemeralLabel, caseId, fingerprint, counter);
+            HKDF.DeriveKey(HashAlgorithmName.SHA384, fileKey, destination[..ScalarSize], [], info);
+            if (IsScalar(destination[..ScalarSize]))
             {
-                System.Buffers.Binary.BinaryPrimitives.WriteInt32BigEndian(length, part.Length);
-                hmac.AppendData(length);
-                hmac.AppendData(part);
+                return;
             }
-
-            return hmac.GetHashAndReset();
-        }
-        finally
-        {
-            CryptographicOperations.ZeroMemory(key);
         }
     }
+
+    /// <summary>
+    /// Tells, without branching on the value, whether a 48-byte big-endian number lies in 1..n-1: it is not zero, and
+    /// subtracting n from it borrows.
+    /// </summary>
+    /// <param name="value">The number.</param>
+    /// <returns><see langword="true"/> when it is a valid private scalar.</returns>
+    private static bool IsScalar(ReadOnlySpan<byte> value)
+    {
+        var borrow = 0;
+        var any = 0;
+        for (var index = ScalarSize - 1; index >= 0; index--)
+        {
+            var difference = value[index] - Order[index] - borrow;
+            borrow = (difference >> 31) & 1;
+            any |= value[index];
+        }
+
+        return (borrow & (any == 0 ? 0 : 1)) == 1;
+    }
+
+    /// <summary>The HKDF info for a value derived from the file key for one case and recovery key.</summary>
+    /// <param name="label">The label of the value.</param>
+    /// <param name="caseId">The case id.</param>
+    /// <param name="fingerprint">The recovery key's fingerprint.</param>
+    /// <param name="counter">The draw, for the ephemeral scalar.</param>
+    /// <returns>The bytes.</returns>
+    private static byte[] Label(string label, Guid caseId, string fingerprint, int counter = 0) =>
+        Encoding.UTF8.GetBytes(string.Create(
+            System.Globalization.CultureInfo.InvariantCulture, $"{label}\n{caseId:D}\n{fingerprint}\n{counter}"));
 
     /// <summary>Derives the AES key from the ECDH secret with HKDF-SHA384, and clears the secret.</summary>
     /// <param name="own">The own private key (the ephemeral key or the recovery key).</param>

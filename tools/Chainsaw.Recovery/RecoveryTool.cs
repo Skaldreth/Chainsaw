@@ -204,8 +204,10 @@ internal static class RecoveryTool
 
     /// <summary>
     /// <c>check &lt;case.cut&gt; [--public &lt;public-key-file&gt;]</c>: says whether the case has an envelope for a
-    /// key, by default the one built into this Chainsaw, and lists the keys it has envelopes for. With
-    /// <c>--key &lt;private-key-file&gt;</c> instead, the private key is tried on the case for real.
+    /// key, by default the one built into this Chainsaw, and lists the keys it has envelopes for. Without the private
+    /// key or the file key nobody can tell that an envelope holds the file key (anyone can write one that wraps
+    /// another), so the answer says so. With <c>--key &lt;private-key-file&gt;</c> instead, the private key is tried
+    /// on the case for real.
     /// </summary>
     /// <param name="line">The command line.</param>
     /// <param name="console">The console.</param>
@@ -251,6 +253,7 @@ internal static class RecoveryTool
         if (fingerprints.Contains(key.Fingerprint, StringComparer.Ordinal))
         {
             console.Out($"Ja: ärendet har ett kuvert för {key.DisplayFingerprint}.");
+            console.Out("Att kuvertet öppnas och filen är hel visar bara check --key med den privata nyckeln.");
             return ExitCodes.Success;
         }
 
@@ -260,7 +263,8 @@ internal static class RecoveryTool
 
     /// <summary>
     /// Tries the private key on the case for real: an envelope must open with it, and the seal over the whole file
-    /// must hold, so that a damaged envelope or file is found now and not when the case is needed. Nothing is changed.
+    /// must hold under the key it gives (an envelope that wraps another key does not count), so that a damaged
+    /// envelope or file is found now and not when the case is needed. Nothing is changed.
     /// </summary>
     /// <param name="console">The console.</param>
     /// <param name="casePath">The case file.</param>

@@ -69,7 +69,8 @@ nyckelns **fingeravtryck** (SHA-256 av den publika nyckeln, sexton grupper om fy
   annars startar inte Chainsaw, så att en återkallelse aldrig tyst blir utan verkan. Skriv alltså inga kommentarer på
   raden, inte ordet i andra kommentarer, och inget fingeravtryck på en rad utan ordet. Ett fingeravtryck skrivs på en
   rad, inte delat på två. Varje ärende som öppnas förlorar då kuvertet för den gamla nyckeln, med en rad i journalen.
-  Kuvert för nycklar som bara är okända tas aldrig bort, så att en äldre version inte kan ta bort en nyare nyckel.
+  Kuvert för nycklar som bara är okända tas inte bort, så att en äldre version inte kan ta bort en nyare nyckel,
+  utom när huvudet är fullt och kuvertet för den inbyggda nyckeln annars inte får plats (se nedan).
 - Kopior av ärendefiler som redan har lämnats ut har kvar kuvertet för den återkallade nyckeln, och en äldre version
   av Chainsaw som inte vet om återkallelsen kan lägga tillbaka det. Det stängs först när ärendets filnyckel kan bytas
   (finns inte än).
@@ -83,16 +84,19 @@ dotnet run --project tools/Chainsaw.Recovery -- check X:\Ärenden\A1.cut --publi
 ```
 
 Svaret är *Ja* (slutkod 0) eller *Nej* (slutkod 1) och en lista över de nycklar ärendet har kuvert för. Kontrollen
-läser bara filens huvud och kräver ingen nyckel, så ett skadat kuvert med rätt fingeravtryck svarar också *Ja*. Den
-som har den privata nyckeln kan prova den på riktigt, utan att något i filen ändras:
+läser bara filens huvud och kräver ingen nyckel, så ett skadat kuvert med rätt fingeravtryck, eller ett som någon har
+skrivit för att linda en annan nyckel, svarar också *Ja*; svaret påminner om det. Den som har den privata nyckeln kan
+prova den på riktigt, utan att något i filen ändras:
 
 ```
 dotnet run --project tools/Chainsaw.Recovery -- check X:\Ärenden\A1.cut --key E:\Chainsaw-nyckel\chainsaw-recovery.private.pem
 ```
 
-Då öppnas kuvertet med nyckeln och sigillet över hela filen kontrolleras: *Ja … och filen är hel*, *Nej* när inget
-kuvert öppnas, och ett fel när filen är skadad. Chainsaw ser själv ett skadat kuvert för den inbyggda nyckeln (varje
-kuvert har en kontroll under ärendets filnyckel) och ersätter det när ärendet öppnas.
+Då öppnas kuverten med nyckeln, och ett kuvert räknas bara när sigillet över hela filen håller under den nyckel det
+ger: *Ja … och filen är hel*, *Nej* när inget kuvert öppnas, och ett fel när filen är skadad eller kuvertet lindar en
+annan nyckel. Ett sådant kuvert före ett riktigt hindrar inte att det riktiga öppnas. Chainsaw ser själv när kuvertet
+för den inbyggda nyckeln saknas eller inte håller (se *Konstruktionen*) och skriver det på nytt när ärendet öppnas, med
+en rad i journalen.
 
 ## Öppna ett ärende åt en operatör
 
@@ -122,7 +126,36 @@ Verktyget skriver aldrig ut dem eller den privata nyckeln.
 
 ## Konstruktionen
 
-Kuvertet är ECIES på P-384: för varje kuvert skapas ett nytt tillfälligt nyckelpar, ECDH mot den publika nyckeln ger en
+Kuvertet är ECIES på P-384: ett tillfälligt nyckelpar per kuvert, ECDH mot den publika nyckeln ger en
 gemensam hemlighet, HKDF-SHA384 gör den till en AES-nyckel, och AES-256-GCM krypterar filnyckeln. Ärendets id, nyckelns
 fingeravtryck och den tillfälliga publika nyckeln är bundna till kuvertet, så ett kuvert som flyttas till ett annat
 ärende eller ändras öppnar ingenting.
+
+**Kuvertets format** (`kind` `recovery`, `alg` `ecies-p384-hkdf-sha384-aes256gcm`) har fälten `fingerprint` (SHA-256
+av den publika nyckeln i DER-form, hex), `ephemeral` (den tillfälliga publika nyckeln som DER `SubjectPublicKeyInfo`),
+`nonce` (12 byte), `key` (den krypterade filnyckeln, 32 byte) och `tag` (16 byte), alla binära i Base64. Kontexten
+`chainsaw/case/envelope/v1`, slaget, algoritmen, ärendets id, fingeravtrycket och `ephemeral` som lagrad är både
+HKDF-info och associerad data för AES-GCM. Verktyget öppnar kuvertet med den privata nyckeln och `ephemeral` som den
+står, och behöver inte veta hur den tillfälliga nyckeln togs fram.
+
+**Den tillfälliga nyckeln härleds ur filnyckeln** (2026-11-09), så att Chainsaw kan kontrollera kuvertet utan den
+privata nyckeln. Den privata skalären *d* är HKDF-SHA384 med filnyckeln som indata och
+`chainsaw/case/recovery-ephemeral/v2`, ärendets id, fingeravtrycket och en räknare som info, 48 byte lästa som ett tal;
+ligger det inte i 1..n−1 (n är P-384:s ordning) dras ett nytt med nästa räknare. Varje tal som tas är lika sannolikt,
+så *d* är likformig på 1..n−1, och ett andra drag händer i praktiken aldrig (n skiljer sig från 2^384 med mindre än
+2^−190 av talen). Nonce härleds på samma sätt med `chainsaw/case/recovery-nonce/v2`. Samma ärende, filnyckel och
+återställningsnyckel ger alltså alltid samma kuvert, byte för byte, och allt annat (ett annat ärende, en ny filnyckel
+efter *Byt filnyckel*, en gren, en annan nyckel) ett orelaterat: AES-nyckeln används bara för just den filnyckeln, så
+ingen nonce återanvänds för ett annat meddelande. Den som saknar filnyckeln lär sig ingenting om *d*; den som har
+filnyckeln kan redan öppna ärendet.
+
+**Chainsaw kontrollerar kuvertet varje gång ärendet öppnas**: kuvertet för den inbyggda nyckeln görs om ur filnyckeln och
+jämförs byte för byte (i konstant tid) med det lagrade. Saknas det, eller håller det inte (skadat, eller skrivet av
+någon för att linda en annan nyckel, vilket vem som helst kan eftersom nyckeln är publik), skrivs det rätta, och
+journalen säger att kuvertet *saknades* eller *höll inte och skrevs på nytt*. Fler kopior av samma kuvert blir ett.
+Huvudet sparas bara ur minnet, och inget efter öppningen ändrar kuvertet, så kontrollen vid öppningen gäller varje
+sparning. Är huvudet fullt (64 kuvert) tas först kuvert som inget läser bort (av okänt slag eller format, och
+kopior av delningskuvertet eller av det egna valvets kuvert), sedan kuvert för andra återställningsnycklar och sist
+valvkuvert som inte är det egna valvets, bakifrån, och journalen säger hur många. Det egna valvets första kuvert och
+delningskuvertet (det första av sitt slag, det som öppnas) tas aldrig bort, så kopior av dem kan inte hålla
+kuvertet ute; räcker det ändå inte säger journalen att kuvertet saknas.

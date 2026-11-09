@@ -369,6 +369,7 @@ public sealed class GraphEditor(
                     Withdrawals = withdrawals,
                     HeldBack = clustering.GetHeldBack(@case),
                     HeldBackDecisions = decisions,
+                    IsElsewhere = sequence => @case.WasAddedElsewhere(CaseChains.Journal, sequence),
                 };
             },
             cancellationToken);

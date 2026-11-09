@@ -59,6 +59,8 @@ public partial class App : Application
     /// <param name="e">The arguments Chainsaw was started with, for example a <c>chainsaw:</c> link.</param>
     protected override async void OnStartup(StartupEventArgs e)
     {
+        // First of all, so that no crash from here on leaves a dump for Windows Error Reporting.
+        ErrorReporting.Exclude();
         base.OnStartup(e);
         CrashGuard.Guard(this);
         CaseClipboard.Guard();
@@ -82,6 +84,7 @@ public partial class App : Application
 
         _host = BuildHost();
         await _host.StartAsync();
+        WithdrawFromUnsafeFolder(_host.Services);
         var window = _host.Services.GetRequiredService<MainWindow>();
         MainWindow = window;
         // The alarm follows the open case from here on and says when it cannot be saved.
@@ -94,6 +97,30 @@ public partial class App : Application
             window.BringForward();
         }));
         window.Show();
+    }
+
+    /// <summary>
+    /// Takes away the <c>Run</c> key and the link <c>chainsaw:</c> when others can change the program folder (decision
+    /// 16), so that Windows never starts Chainsaw's programs from it on its own; the settings say why.
+    /// </summary>
+    /// <param name="services">The host's services.</param>
+    private static void WithdrawFromUnsafeFolder(IServiceProvider services)
+    {
+        if (services.GetRequiredService<ProgramFolderVerdict>().IsSafe)
+        {
+            return;
+        }
+
+        try
+        {
+            services.GetRequiredService<LinkRegistration>().Withdraw();
+            services.GetRequiredService<IAutostart>().Set(null);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException
+            or System.Security.SecurityException)
+        {
+            // The registry refused; the settings still say that Chainsaw does not start from this folder.
+        }
     }
 
     /// <summary>
@@ -242,10 +269,12 @@ public partial class App : Application
                 .AddSingleton<CaseBranchViewModel>()
                 .AddSingleton<CaseDialogsViewModel>()
                 .AddSingleton<SourcesViewModel>()
+                .AddSingleton(_ => ProgramFolderCheck.Check(AppContext.BaseDirectory))
                 .AddSingleton<ILinkRegistry, CurrentUserLinkRegistry>()
                 .AddSingleton(provider => new LinkRegistration(
                     provider.GetRequiredService<ILinkRegistry>(),
-                    Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, "Chainsaw.exe")))
+                    Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, "Chainsaw.exe"),
+                    provider.GetRequiredService<ProgramFolderVerdict>().IsSafe))
                 .AddSingleton<AboutViewModel>()
                 .AddSingleton<IAlertPreview>(provider => new WpfAlertPreview(
                     () => provider.GetRequiredService<ShellViewModel>().Show(AppView.Monitoring)))
@@ -277,7 +306,8 @@ public partial class App : Application
                 .AddSingleton<FlowViewModel>()
                 .AddSingleton<ReportViewModel>()
                 .AddSingleton<IBackgroundProcess, WindowsBackgroundProcess>()
-                .AddSingleton<IAutostart, RunKeyAutostart>()
+                .AddSingleton<IAutostart>(provider =>
+                    new RunKeyAutostart(provider.GetRequiredService<ProgramFolderVerdict>().IsSafe))
                 .AddSingleton(provider => new BackgroundParts(
                     provider.GetRequiredService<IBackgroundWatches>(),
                     provider.GetRequiredService<IBackgroundPlan>(),
@@ -289,6 +319,7 @@ public partial class App : Application
                     provider.GetRequiredService<IClock>())
                 {
                     Exits = provider.GetRequiredService<IBackgroundExits>(),
+                    Progress = provider.GetRequiredService<IBackgroundProgressFile>(),
                 })
                 .AddSingleton(provider => new BackgroundLink(
                     provider.GetRequiredService<BackgroundParts>(),

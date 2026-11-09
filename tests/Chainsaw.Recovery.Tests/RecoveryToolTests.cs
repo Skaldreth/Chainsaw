@@ -211,6 +211,7 @@ public sealed class RecoveryToolTests(KeyPairFixture keys) : IClassFixture<KeyPa
 
         Assert.Equal(ExitCodes.Success, exitCode);
         Assert.Contains("Ja", console.All, StringComparison.Ordinal);
+        Assert.Contains("check --key", console.All, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -40,7 +40,9 @@ public enum BackgroundMode
 /// watches or the settings change, starts the background process and sets it to start with Windows while a watch is
 /// active and it is on (and the way out is Windows, or the selected exit is allowed in the background), brings what the
 /// background saw into the open case, and says honestly what the background does. Turning it off removes the exits'
-/// copies kept for it. It knows nothing of WPF.
+/// copies kept for it and every case from the plan (decided 2026-11-09): while it is off the plan holds no address,
+/// filter or transaction, and a case comes back into it only when it is opened after it is turned on again. It knows
+/// nothing of WPF.
 /// </summary>
 public sealed class BackgroundLink : IDisposable
 {
@@ -82,6 +84,12 @@ public sealed class BackgroundLink : IDisposable
 
     /// <summary>The case held, or <see langword="null"/>.</summary>
     private Guid? _held;
+
+    /// <summary>
+    /// Whether a plan turned off, or the background's progress, could not be written, so that a file may still hold
+    /// cases.
+    /// </summary>
+    private volatile bool _casesLeftWhileOff;
 
     /// <summary>When the background was last started.</summary>
     private DateTimeOffset _started = DateTimeOffset.MinValue;
@@ -140,7 +148,10 @@ public sealed class BackgroundLink : IDisposable
         _ = Task.Run(() => LoopAsync(_stop.Token));
     }
 
-    /// <summary>Takes changed settings: the plan gets them, and the background is started or stopped.</summary>
+    /// <summary>
+    /// Takes changed settings: the plan gets them, and the background is started or stopped. Turned off, the plan loses
+    /// every case; turned on, the open case is written into it again.
+    /// </summary>
     /// <param name="settings">The settings.</param>
     /// <returns>A task that completes when the plan is written.</returns>
     public Task ApplyAsync(AppSettings settings)
@@ -152,7 +163,7 @@ public sealed class BackgroundLink : IDisposable
             ForgetExits();
         }
 
-        return WriteAsync(null);
+        return WriteAsync(settings.WatchInBackground ? _board.Case : null);
     }
 
     /// <summary>
@@ -169,6 +180,32 @@ public sealed class BackgroundLink : IDisposable
         {
             // Held for a moment (a scanner): removed at the next change of the settings, and the background, which
             // stops with the plan, never reads it meanwhile.
+        }
+    }
+
+    /// <summary>
+    /// Empties the background's progress (the watches and the hits it has told, transactions included), as the plan's
+    /// cases are when it is turned off (decided 2026-11-09). The queue is left: it waits to be brought into its case.
+    /// </summary>
+    /// <returns>
+    /// <see langword="true"/> when nothing of it is left; <see langword="false"/> when it could not be written.
+    /// </returns>
+    private bool ForgetProgress()
+    {
+        try
+        {
+            if (_parts.Progress is { } progress && progress.Read().Count > 0)
+            {
+                progress.Write([]);
+            }
+
+            return true;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException
+            or System.Security.Cryptography.CryptographicException or PlatformNotSupportedException)
+        {
+            // Held for a moment (a scanner): written again at the next look.
+            return false;
         }
     }
 
@@ -215,10 +252,18 @@ public sealed class BackgroundLink : IDisposable
         }
     }
 
-    /// <summary>Looks at the background once: whether it runs, what it says, and whether a hit waits.</summary>
+    /// <summary>
+    /// Looks at the background once: whether it runs, what it says, and whether a hit waits; first, when it is off and
+    /// the plan could not be written without its cases, writes it again.
+    /// </summary>
     /// <returns>A task that completes when it is done.</returns>
     public async Task RefreshAsync()
     {
+        if (_casesLeftWhileOff)
+        {
+            await WritePlanAsync(null).ConfigureAwait(false);
+        }
+
         var plan = _plan;
         var needed = Needed(plan);
         var running = _parts.Process.IsRunning();
@@ -343,11 +388,18 @@ public sealed class BackgroundLink : IDisposable
     /// Writes a case that is being let go (closed, forgotten at a lock, or replaced) into the plan while it can still be
     /// read, since the background takes it over as soon as the hold goes: a watch taken back, paused or changed, or a
     /// hit sealed, just before is then never watched or told on the plan from before. It runs on the UI thread, as the
-    /// case is closed right after; starting or stopping the background follows off it.
+    /// case is closed right after; starting or stopping the background follows off it. Turned off, nothing of the case
+    /// is written: the plan holds no case then.
     /// </summary>
     /// <param name="closing">The case being let go.</param>
     private void WriteClosing(ICase closing)
     {
+        if (!_settings.WatchInBackground)
+        {
+            _ = WriteAsync(null);
+            return;
+        }
+
         _writing.Wait();
         try
         {
@@ -377,19 +429,32 @@ public sealed class BackgroundLink : IDisposable
 
     /// <summary>
     /// Writes the plan with the settings and, when a case is given, its active watches; then sets the background to
-    /// start with Windows, or not, and starts or stops it. A case closed meanwhile keeps what the plan had.
+    /// start with Windows, or not, and starts or stops it. A case closed meanwhile keeps what the plan had. Turned off,
+    /// the plan is written with no case at all.
     /// </summary>
     /// <param name="case">The open case, or <see langword="null"/>.</param>
     /// <returns>A task that completes when it is written.</returns>
     private async Task WriteAsync(ICase? @case)
+    {
+        await WritePlanAsync(@case).ConfigureAwait(false);
+        await RefreshAsync().ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Writes the plan as <see cref="WriteAsync"/> does, without looking at the background afterwards.
+    /// </summary>
+    /// <param name="case">The open case, or <see langword="null"/>.</param>
+    /// <returns>A task that completes when it is written.</returns>
+    private async Task WritePlanAsync(ICase? @case)
     {
         await _writing.WaitAsync().ConfigureAwait(false);
         try
         {
             await Task.Run(() =>
             {
+                var settings = _settings;
                 BackgroundCase? described = null;
-                if (@case is not null)
+                if (@case is not null && settings.WatchInBackground)
                 {
                     try
                     {
@@ -401,10 +466,12 @@ public sealed class BackgroundLink : IDisposable
                     }
                 }
 
-                var settings = _settings;
+                // Turned off, the plan keeps no case (decided 2026-11-09): nothing of a case lies outside the vault
+                // for a watching that does not run.
                 BackgroundPlan Settled(BackgroundPlan plan) => plan with
                 {
                     Enabled = settings.WatchInBackground,
+                    Cases = settings.WatchInBackground ? plan.Cases : [],
                     Route = settings.ExitRoute,
                     Alerts = settings.Alerts,
                     ProxyLoginFor = settings.ProxyLoginFor,
@@ -413,13 +480,17 @@ public sealed class BackgroundLink : IDisposable
                 try
                 {
                     _plan = _parts.Plan.Update(plan => Settled(described is null ? plan : plan.With(described)));
+                    _casesLeftWhileOff = !settings.WatchInBackground && !ForgetProgress();
                 }
                 catch (Exception exception) when (exception is IOException or UnauthorizedAccessException
                     or System.Security.Cryptography.CryptographicException or PlatformNotSupportedException)
                 {
                     // The plan could not be written; the next change tries again, and the head says what runs. The
                     // settings hold all the same: a background that may no longer go out through Windows is stopped
-                    // now, never left to look up on the old plan (principle 4).
+                    // now, never left to look up on the old plan (principle 4). Turned off, the cases still in the
+                    // file (and the background's progress) are written away at the next look, not left until the next
+                    // change.
+                    _casesLeftWhileOff = !settings.WatchInBackground;
                     _plan = Settled(_plan);
                 }
 
@@ -435,8 +506,6 @@ public sealed class BackgroundLink : IDisposable
         {
             _writing.Release();
         }
-
-        await RefreshAsync().ConfigureAwait(false);
     }
 
     /// <summary>Sets the background to start with Windows, or not, and starts or stops it now.</summary>
@@ -534,4 +603,10 @@ public sealed record BackgroundParts(
     /// Windows is a way out for it).
     /// </summary>
     public IBackgroundExits? Exits { get; init; }
+
+    /// <summary>
+    /// Gets the background's progress, emptied when the watching is turned off, or <see langword="null"/> where there
+    /// is none.
+    /// </summary>
+    public IBackgroundProgressFile? Progress { get; init; }
 }

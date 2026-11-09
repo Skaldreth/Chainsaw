@@ -37,10 +37,10 @@ public sealed class CaseDialogsViewModel
             Showing = password.ShowAsync(offer);
             Shown?.Invoke(this, EventArgs.Empty);
         };
-        workflow.ConflictFound += (_, conflict) =>
+        workflow.ConflictFound += (_, offer) =>
         {
             CloseAll();
-            branch.Show(conflict);
+            branch.Show(offer.Conflict, offer.FileReplaced);
             Shown?.Invoke(this, EventArgs.Empty);
         };
     }

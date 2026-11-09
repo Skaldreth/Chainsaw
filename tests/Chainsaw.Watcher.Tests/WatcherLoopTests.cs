@@ -264,6 +264,25 @@ public sealed class WatcherLoopTests : IDisposable
     }
 
     [Fact]
+    public async Task Turned_off_it_ends_and_keeps_nothing_of_the_watches()
+    {
+        await _world.UseTestEndpointAsync();
+        await _world.WatchAsync();
+        _world.WritePlan();
+        _world.Height(800_010);
+        _world.Clock.UtcNow += TimeSpan.FromMinutes(5);
+        await Loop.RunOnceAsync();
+        Assert.Single(_world.App<IBackgroundProgressFile>().Read());
+
+        // As Chainsaw writes it when the background watching is turned off: no case at all.
+        _world.App<IBackgroundPlan>().Update(plan => plan with { Enabled = false, Cases = [] });
+        Assert.False(await Loop.RunOnceAsync());
+
+        Assert.Empty(_world.App<IBackgroundProgressFile>().Read());
+        Assert.Equal(BackgroundState.Stopped, _world.App<IBackgroundStatusFile>().Read()!.State);
+    }
+
+    [Fact]
     public async Task Every_chain_s_endpoints_are_tried_also_when_another_chain_has_one_in_step()
     {
         await _world.UseTestEndpointAsync();

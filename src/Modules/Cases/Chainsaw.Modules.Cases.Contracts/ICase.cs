@@ -164,6 +164,20 @@ public interface ICase : IDisposable
     /// </summary>
     bool FileKeyReplacementInterrupted => false;
 
+    /// <summary>
+    /// Gets whether a sealed record was added on another computer: it lay beyond the last record this computer had
+    /// seen of its chain (this computer's anchor, see the Guide's <em>Ankaret</em>) when the case was opened, for
+    /// example a colleague's work in a copy that came back. The hash chain shows only that nothing was changed, not
+    /// where a record was written, so this is what this computer can vouch for, kept with its anchors. Records added
+    /// in this session are this computer's own. Nothing is marked when this computer has no anchors for the case yet
+    /// (it vouches for nothing), and the marks of a chain start over when its anchor is replaced, which the journal
+    /// records (<see cref="CaseJournalKinds.AnchorsReplaced"/>). Read without waiting for an operation that runs.
+    /// </summary>
+    /// <param name="chain">The chain's name, for example <see cref="CaseChains.Journal"/>.</param>
+    /// <param name="sequence">The record's sequence number.</param>
+    /// <returns><see langword="true"/> when it was added on another computer.</returns>
+    bool WasAddedElsewhere(string chain, long sequence) => false;
+
     /// <summary>Writes the working copy back into the case file, atomically.</summary>
     /// <exception cref="CaseException">
     /// <see cref="CaseError.Closed"/>, or <see cref="CaseError.LockedWhileSaving"/> when the vault was locked while the

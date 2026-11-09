@@ -17,9 +17,16 @@ public sealed partial class CaseBranchViewModel : ObservableObject
     /// <summary>What is said about the file's branch.</summary>
     public const string FileHint = "Öppnas som den är sparad. Arbetskopian flyttas till Återställda.";
 
-    /// <summary>What is said about the working copy's branch.</summary>
-    public const string CopyHint =
+    /// <summary>What is said about the working copy's branch after a crash.</summary>
+    public const string CrashCopyHint =
         "Sparas som ett eget ärende med ditt kuvert. Journalen följer med fram till kraschen.";
+
+    /// <summary>
+    /// What is said about the working copy's branch when the file on disk was changed or replaced while the case was
+    /// open (decided 2026-11-09).
+    /// </summary>
+    public const string ReplacedCopyHint =
+        "Filen på disken ändrades medan ärendet var öppet; ditt arbete finns i arbetskopian.";
 
     /// <summary>What the fork says when it is not known where the journals went apart.</summary>
     public const string ApartWords = "Gick isär";
@@ -103,6 +110,13 @@ public sealed partial class CaseBranchViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(HasError))]
     public partial string ErrorText { get; private set; } = string.Empty;
 
+    /// <summary>
+    /// Gets what is said about the working copy's branch: <see cref="CrashCopyHint"/> after a crash,
+    /// <see cref="ReplacedCopyHint"/> when the file was replaced while the case was open.
+    /// </summary>
+    [ObservableProperty]
+    public partial string CopyHint { get; private set; } = CrashCopyHint;
+
     /// <summary>Gets the dialog's heading, for example <c>2026-0117 gick åt två håll</c>.</summary>
     public string Heading => $"{CaseNumber} gick åt två håll";
 
@@ -120,9 +134,14 @@ public sealed partial class CaseBranchViewModel : ObservableObject
 
     /// <summary>Shows the dialog for a conflict, with the working copy's branch chosen.</summary>
     /// <param name="conflict">The conflict.</param>
-    public void Show(WorkingCopyConflict conflict)
+    /// <param name="fileReplaced">
+    /// Whether the file was changed or replaced on disk while the case was open, rather than a crash leaving the
+    /// working copy.
+    /// </param>
+    public void Show(WorkingCopyConflict conflict, bool fileReplaced = false)
     {
         ArgumentNullException.ThrowIfNull(conflict);
+        CopyHint = fileReplaced ? ReplacedCopyHint : CrashCopyHint;
         var now = _clock.UtcNow;
         CaseNumber = conflict.CaseNumber;
         FileWhen = EnvelopeWords.When(conflict.CaseFileWrittenUtc, now, _zone);

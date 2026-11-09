@@ -1844,6 +1844,14 @@
                                             </StackPanel>
                                         </DockPanel>
                                     </Border>
+                                    <!-- Others can change the program folder (decision 16): no Run key, said here. -->
+                                    <DockPanel Margin="0,12,0,0"
+                                               Visibility="{Binding HasProgramFolderWarning, Converter={StaticResource Visible}}">
+                                        <controls:GridIcon DockPanel.Dock="Left" Size="16" Data="{StaticResource Icon.Alert}"
+                                                           Foreground="{StaticResource Brush.Pending}" Margin="0,1,10,0" VerticalAlignment="Top" />
+                                        <TextBlock Text="{Binding ProgramFolderWarning}" FontSize="13.5"
+                                                   Foreground="{StaticResource Brush.Pending}" TextWrapping="Wrap" />
+                                    </DockPanel>
                                     <!-- When a watch hits (sketch BV4a): three ways, each a row with its icon on a tile that is
                                          tinted in the accent while the way is on. -->
                                     <StackPanel Orientation="Horizontal" Margin="0,22,0,6">
@@ -1914,7 +1922,7 @@
                                         </DockPanel>
                                     </Border>
                                     <StackPanel Orientation="Horizontal" Margin="0,14,0,0"
-                                                Visibility="{Binding WatchesInBackground, Converter={StaticResource Visible}}">
+                                                Visibility="{Binding StartsWithWindows, Converter={StaticResource Visible}}">
                                         <controls:GridIcon Size="14" Data="{StaticResource Icon.Pin}" Foreground="{StaticResource Brush.TextDim}"
                                                            Margin="0,0,8,0" VerticalAlignment="Center" />
                                         <TextBlock Text="Gäller också när Chainsaw är stängt. Bakgrunden startar med Windows." FontSize="13"
@@ -1972,6 +1980,14 @@
                                             </StackPanel>
                                         </DockPanel>
                                     </Border>
+                                    <!-- Others can change the program folder (decision 16): no link, said here. -->
+                                    <DockPanel Margin="0,12,0,0"
+                                               Visibility="{Binding HasProgramFolderWarning, Converter={StaticResource Visible}}">
+                                        <controls:GridIcon DockPanel.Dock="Left" Size="16" Data="{StaticResource Icon.Alert}"
+                                                           Foreground="{StaticResource Brush.Pending}" Margin="0,1,10,0" VerticalAlignment="Top" />
+                                        <TextBlock Text="{Binding ProgramFolderWarning}" FontSize="13.5"
+                                                   Foreground="{StaticResource Brush.Pending}" TextWrapping="Wrap" />
+                                    </DockPanel>
                                 </StackPanel>
 
                                 <!-- ===== Kurser: the currency, the resolution and the sources ===== -->

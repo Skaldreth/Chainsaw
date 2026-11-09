@@ -114,6 +114,9 @@ internal sealed class WatcherLoop
 
         if (!_plan.HasWork)
         {
+            // Turned off or nothing watched: what it kept of the watches (the hits told) goes too, so that nothing of a
+            // case is left outside the vault for a watching that does not run.
+            KeepProgress();
             Say(BackgroundState.Stopped, null);
             return false;
         }
@@ -566,12 +569,12 @@ internal sealed class WatcherLoop
     }
 
     /// <summary>
-    /// Writes the progress when it changed, keeping only the watches still in the plan, so that a quiet round writes
-    /// nothing to the disk.
+    /// Writes the progress when it changed, keeping only the watches still in the plan (none when it has no work), so
+    /// that a quiet round writes nothing to the disk.
     /// </summary>
     private void KeepProgress()
     {
-        var inPlan = _plan.Cases
+        var inPlan = _plan.Cases.Where(_ => _plan.HasWork)
             .SelectMany(@case => @case.Watches.Select(watch => (@case.CaseId, watch.WatchId)))
             .ToHashSet();
         var kept = _progress.Where(each => inPlan.Contains(each.Key)).ToDictionary();

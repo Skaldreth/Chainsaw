@@ -133,6 +133,9 @@ internal sealed class TestVault(VaultState state, string key = "correct horse ba
 
     public Exception? Failure { get; set; }
 
+    /// <summary>Runs inside <see cref="ChangeMasterKey"/>, before the key is changed: a lock meanwhile, for example.</summary>
+    public Action? DuringChange { get; set; }
+
     public void Create(ReadOnlySpan<char> masterKey)
     {
         if (Failure is not null)
@@ -171,6 +174,7 @@ internal sealed class TestVault(VaultState state, string key = "correct horse ba
 
     public void ChangeMasterKey(ReadOnlySpan<char> currentMasterKey, ReadOnlySpan<char> newMasterKey)
     {
+        DuringChange?.Invoke();
         if (Failure is not null)
         {
             throw Failure;
@@ -918,7 +922,8 @@ internal sealed class GateRig
         Way = new ExitWay(Route, Exit, Ui, network: Network, reconnect: Reconnect);
         ExitPanel = new ExitPanelViewModel(Exit, Way, Exits, Picker, Ui);
         Settings = new SettingsViewModel(
-            new AppSettings(), SettingsStore, Way, ExitPanel, AutoLock, Prices, Profiles, Vault, Cases, Build);
+            new AppSettings(), SettingsStore, Way, ExitPanel, AutoLock, Prices, Profiles, Vault, Cases, Build,
+            lockSignal: LockSignal);
         Toaster = new Toaster(Ui);
         CasePicker = withCasePicker
             ? new CasePickerViewModel(Session, Workflow, Verifier, Ui, Clock, TimeZoneInfo.Utc)

@@ -883,6 +883,15 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
 ## Kodgranskningen 2026-11-08 (mindre fynd som inte rättades)
 
 Rapporterna per varv ligger inte i repot; det som står kvar är detta.
+- **Det som lades till på en annan dator** (beslut 19) märks per journalrad. En förfalskad modulrad som pekar på en
+  äldre, egen journalrad märks inte, och inte heller hämtade råsvar eller bevakningar (deras kontrakt har ingen
+  journalsekvens). Kan rättas när modulernas kontrakt säger sin kedjas namn.
+- **Administratörens öppning** prövar sigillet över hela filen för varje kuvert som öppnas med den privata nyckeln;
+  63 påhittade kuvert gör verktyget långsamt men kan inte stoppa det.
+- **Fullt huvud och två versioner:** när huvudet är fullt kan en äldre version ta bort en nyare nyckels
+  återställningskuvert för att ge plats, och den nyare lägger tillbaka det, med en journalrad varje gång.
+- **Inställningarna stängda med Esc** medan huvudnyckeln byts, utan låsning, ger fortfarande inget svar (beslut 17
+  gällde låsningen).
 - **Virtualisering som kräver skiss:** kontrollpanelens tre listor (*Att avgöra*, *Gjort av sig självt*, *Beslutade*)
   och papperskorgsvyns grupper är inte virtualiserade; ett stort ärende bygger en rad per post.
 - **Rapportens aktörsbrickor** ligger i en `WrapPanel` utan tak; en lasso över en stor graf gör en bricka per aktör

@@ -334,7 +334,7 @@ public sealed class RoundSixTests : IDisposable
         using (var opened = _fixture.CreateStore().Open("A1"))
         {
             var entry = opened.ReadJournal().Last(item => item.Kind == CaseJournalKinds.RecoveryAccessChanged);
-            Assert.Contains("skadat", entry.Summary, StringComparison.Ordinal);
+            Assert.Contains("höll inte och skrevs på nytt", entry.Summary, StringComparison.Ordinal);
             Assert.Contains("\"replaced\":1", entry.Details, StringComparison.Ordinal);
         }
 

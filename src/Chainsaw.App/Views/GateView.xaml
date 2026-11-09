@@ -246,6 +246,17 @@
                         <TextBlock x:Name="LockHint" Text="Huvudnyckel" FontSize="16" Margin="14,0" VerticalAlignment="Center"
                                    Foreground="{StaticResource Brush.TextDim}" IsHitTestVisible="False" />
                     </Grid>
+                    <!-- A master-key change finished while or after Chainsaw locked (decided 2026-11-09): who changed it. -->
+                    <DockPanel Margin="0,10,0,0" Visibility="{Binding HasNotice, Converter={StaticResource Visible}}">
+                        <Button DockPanel.Dock="Right" Style="{StaticResource Button.Icon}" Margin="8,0,0,0"
+                                VerticalAlignment="Top" Command="{Binding DismissNoticeCommand}" ToolTip="Stäng"
+                                AutomationProperties.Name="Stäng">
+                            <controls:GridIcon Size="12" Data="{StaticResource Icon.Close}"
+                                               Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                        </Button>
+                        <TextBlock Text="{Binding NoticeText}" FontSize="13" TextWrapping="Wrap" LineHeight="18"
+                                   Foreground="{StaticResource Brush.Text}" />
+                    </DockPanel>
                     <TextBlock Text="{Binding ErrorText}" Style="{StaticResource Text.Error}" Margin="0,8,0,0" />
                     <Button x:Name="UnlockButton" Style="{StaticResource Button.Primary}" Height="44" Margin="0,14,0,0"
                             Click="OnUnlock" Visibility="Hidden"

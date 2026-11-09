@@ -289,7 +289,9 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   organisationens publika nyckel, som är inbyggd i Chainsaw. Den privata nyckeln har bara administratören, och den finns
   aldrig i repot. Glöms huvudnyckeln går valvet inte att återställa (det skapas på nytt), men ärendena kan öppnas av
   administratören.
-  - **Konstruktionen:** ECIES på P-384. Ett nytt tillfälligt nyckelpar per kuvert, ECDH mot den publika nyckeln,
+  - **Konstruktionen:** ECIES på P-384. Det tillfälliga nyckelparet och nonce härleds ur filnyckeln, ärendets id och
+    fingeravtrycket (användarens beslut 2026-11-09), så att kuvertet byggs om och jämförs byte för byte vid varje
+    öppning och skrivs på nytt med en rad i journalen när det saknas eller inte håller. ECDH mot den publika nyckeln,
     HKDF-SHA384 till en AES-256-GCM-nyckel som lindar filnyckeln. Ärendets id, nyckelns fingeravtryck (SHA-256 av den
     publika nyckeln i kanonisk DER-form) och den tillfälliga nyckeln är bundna som HKDF-info och associerad data.
   - **Den publika nyckeln** ligger i `src/Modules/Cases/Chainsaw.Modules.Cases/organization-recovery-key.pem`, en
@@ -298,7 +300,9 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
     inbyggda nyckeln öppnas (äldre ärenden och bytt nyckel). Kuvert för andra nycklar ligger kvar, eftersom en äldre
     version eller en annan organisations Chainsaw annars skulle ta bort en nyare nyckels kuvert. En röjd nyckel
     **återkallas** med en rad `REVOKED <fingeravtryck>` i samma fil, och dess kuvert tas bort ur varje ärende som
-    öppnas; kopior gjorda före det har dem kvar. Kuvert i ett okänt format sparas orörda och hindrar aldrig öppningen.
+    öppnas; kopior gjorda före det har dem kvar. Kuvert i ett okänt format sparas orörda och hindrar aldrig öppningen; bara när huvudet är fullt och
+    återställningskuvertet behöver plats tas okända kuvert, andra nycklars kuvert och kopior bort först, med en rad i
+    journalen.
   - **Verktyget** `tools/Chainsaw.Recovery` (`keygen`, `fingerprint`, `check`, `open`) är administratörens. Den
     privata nyckeln skyddas med lösenord (krypterad PKCS #8, PBKDF2-HMAC-SHA512 med 600 000 iterationer och
     AES-256), skrivs aldrig över och aldrig i ett git-repo. Hur nyckeln skapas, förvaras och används står i

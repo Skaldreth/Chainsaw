@@ -82,6 +82,13 @@ internal sealed partial class Case : ICase
     private bool _replaceAnchors;
 
     /// <summary>
+    /// The records, by chain, that this computer's anchors say were added on another computer: set once while the
+    /// case opens (<see cref="ReconcileAnchors"/>) and only read afterwards, so it is read without the gate.
+    /// </summary>
+    private IReadOnlyDictionary<string, IReadOnlyList<SequenceRange>> _elsewhere =
+        new Dictionary<string, IReadOnlyList<SequenceRange>>(StringComparer.Ordinal);
+
+    /// <summary>
     /// Set when a save found the case file changed or replaced outside Chainsaw since this session last read or wrote
     /// it. The file is then never replaced again in this session: the working copy keeps the session's work as the
     /// other branch (sketch ÄR1b), and every later save, the closing's included, refuses at once.
@@ -192,6 +199,11 @@ internal sealed partial class Case : ICase
     /// <inheritdoc />
     /// <remarks>Reads the header the last operation left, without waiting for one that runs.</remarks>
     public IReadOnlyList<string> RecoveryFingerprints => RecoveryEnvelopes.Fingerprints(_header);
+
+    /// <inheritdoc />
+    /// <remarks>Reads what the opening found, without waiting for an operation that runs.</remarks>
+    public bool WasAddedElsewhere(string chain, long sequence) =>
+        _elsewhere.TryGetValue(chain, out var ranges) && ranges.Any(range => range.Contains(sequence));
 
     /// <summary>Gets the open database, for <see cref="CaseTransaction"/> and the tests.</summary>
     internal CaseDatabase Database => _database ?? throw new CaseException(CaseError.Closed);
@@ -761,43 +773,92 @@ internal sealed partial class Case : ICase
     /// <summary>
     /// Brings the recovery envelopes up to date when the case is opened, with one entry in the journal: removes the
     /// envelopes for keys this build revokes (so that a compromised key does not open later copies; copies made
-    /// before still hold them), and adds one for the configured key when the file has none (an older case, or a key
-    /// that has been replaced). Envelopes for keys that are merely unknown here (a newer key, or another
-    /// organisation's) stay. The caller saves.
+    /// before still hold them), and makes sure the configured key has exactly one envelope, the one
+    /// <see cref="RecoveryEnvelopes.Create"/> gives for this file key. A missing envelope (an older case, a replaced
+    /// key, or one someone removed) is written, and one that does not match byte for byte (damaged, or written by
+    /// someone to wrap another key) is replaced. When the header is full, envelopes this build cannot use make room
+    /// first (<see cref="RecoveryEnvelopes.ToMakeRoom"/>). Envelopes for keys that are merely unknown here (a newer
+    /// key, or another organisation's) stay otherwise. The caller saves.
     /// </summary>
-    /// <returns><see langword="true"/> when the envelopes changed.</returns>
+    /// <returns><see langword="true"/> when the envelopes changed or the journal got an entry.</returns>
+    /// <remarks>
+    /// The header is only written from memory, and nothing after the opening removes or changes a recovery envelope,
+    /// so a check at every opening covers every save.
+    /// </remarks>
     internal bool UpdateRecoveryEnvelopes()
     {
         var recoveryKey = _services.Options.RecoveryKey;
         var (kept, removed) = RecoveryEnvelopes.Without(_header, _services.Options.RevokedRecoveryKeys);
-        var missing = recoveryKey is not null && !RecoveryEnvelopes.Covers(_header, _fileKey, recoveryKey.Fingerprint);
+        var expected = recoveryKey is null ? null : RecoveryEnvelopes.Create(Info.Id, _fileKey, recoveryKey);
+        var mine = expected is null
+            ? []
+            : kept.Where(envelope => RecoveryEnvelopes.FingerprintOf(envelope) == recoveryKey!.Fingerprint).ToList();
+        var sound = expected is null
+            ? null
+            : mine.FirstOrDefault(envelope => RecoveryEnvelopes.Matches(envelope, expected));
+        var stale = mine.Where(envelope => !ReferenceEquals(envelope, sound)).ToList();
+        var missing = expected is not null && sound is null;
 
-        // A damaged envelope for the configured key goes when a sound one takes its place, so that the header does not
-        // fill up with envelopes that never open.
-        var damaged = missing ? RecoveryEnvelopes.Damaged(_header, _fileKey, recoveryKey!.Fingerprint) : [];
-        var remaining = kept.Where(envelope => !damaged.Any(item => ReferenceEquals(item, envelope))).ToList();
-        var add = missing && remaining.Count < CaseContainer.MaximumEnvelopes;
-        if (!add && removed.Count == 0)
+        // Envelopes from before the construction became checkable carry the old "check" field; replacing those is an
+        // upgrade, not a sign that someone changed the file, and the journal says so.
+        var older = stale.Count > 0 && stale.All(envelope => envelope.ContainsKey(OlderCheckField));
+        if (!missing && stale.Count == 0 && removed.Count == 0)
         {
-            // At the limit a header with one more envelope would not be read again; the file keeps its ways in.
             return false;
         }
 
-        var envelopes = add
-            ? remaining.Append(RecoveryEnvelopes.Create(Info.Id, _fileKey, recoveryKey!))
-            : kept;
-        var replaced = add && damaged.Count > 0;
+        var remaining = kept.Where(envelope => !stale.Any(item => ReferenceEquals(item, envelope))).ToList();
+        var dropped = missing ? RecoveryEnvelopes.ToMakeRoom(remaining, recoveryKey!.Fingerprint, IsOwnEnvelope) : [];
+        remaining.RemoveAll(envelope => dropped.Any(item => ReferenceEquals(item, envelope)));
+
+        // At the limit a header with one more envelope would not be read again; the file keeps its ways in.
+        var add = missing && remaining.Count < CaseContainer.MaximumEnvelopes;
         AppendOwnJournal(new JournalDraft(
             CaseJournalKinds.RecoveryAccessChanged,
-            RecoverySummary(add, removed.Count > 0, replaced),
+            RecoverySummary(missing, add, stale.Count > 0, older, removed.Count > 0, dropped.Count),
             JsonSerializer.Serialize(new Dictionary<string, object?>
             {
                 [RecoveryDetails.Fingerprint] = add ? recoveryKey!.Fingerprint : null,
                 [RecoveryDetails.Removed] = removed,
-                [RecoveryDetails.Replaced] = replaced ? damaged.Count : 0,
+                [RecoveryDetails.Replaced] = stale.Count,
+                [RecoveryDetails.Dropped] = dropped.Count,
             })));
-        _header = _header.WithEnvelopes(envelopes);
+        _header = _header.WithEnvelopes(add ? remaining.Append(expected!) : remaining);
         return true;
+    }
+
+    /// <summary>The field only recovery envelopes of the older, random construction carry.</summary>
+    private const string OlderCheckField = "check";
+
+    /// <summary>
+    /// Tells whether a vault envelope opens with this vault's key, so that making room for the recovery envelope never
+    /// takes this vault's own way in. Without a vault (the administrator's tool), no vault envelope is claimed.
+    /// </summary>
+    /// <param name="envelope">The envelope.</param>
+    /// <returns><see langword="true"/> when this vault opens it.</returns>
+    private bool IsOwnEnvelope(System.Text.Json.Nodes.JsonObject envelope)
+    {
+        byte[] wrappingKey;
+        try
+        {
+            wrappingKey = _services.DeriveVaultKey(CaseCrypto.EnvelopePurpose);
+        }
+        catch (CaseException exception) when (exception.Error == CaseError.VaultLocked)
+        {
+            return false;
+        }
+
+        var opened = CaseCrypto.AllocateSecret(CaseCrypto.KeySize);
+        try
+        {
+            return KeyEnvelopes.TryOpenOne(envelope, Info.Id, wrappingKey, opened)
+                && CryptographicOperations.FixedTimeEquals(opened, _fileKey);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(wrappingKey);
+            CryptographicOperations.ZeroMemory(opened);
+        }
     }
 
     /// <summary>
@@ -838,18 +899,49 @@ internal sealed partial class Case : ICase
     }
 
     /// <summary>The journal's line for a change of the recovery envelopes.</summary>
-    /// <param name="added">Whether an envelope for the configured key was added.</param>
+    /// <param name="missing">Whether the configured key had no envelope that matched.</param>
+    /// <param name="added">Whether its envelope was written.</param>
+    /// <param name="replaced">Whether envelopes for it that did not match were removed.</param>
+    /// <param name="older">Whether all of those were in the older construction (an upgrade).</param>
     /// <param name="removed">Whether envelopes for revoked keys were removed.</param>
-    /// <param name="replaced">Whether the added envelope replaced damaged ones for the same key.</param>
+    /// <param name="dropped">How many envelopes this build cannot use were removed to make room.</param>
     /// <returns>The line.</returns>
-    private static string RecoverySummary(bool added, bool removed, bool replaced) => (added, removed, replaced) switch
+    private static string RecoverySummary(
+        bool missing, bool added, bool replaced, bool older, bool removed, int dropped)
     {
-        (true, _, true) => "Ett skadat kuvert för organisationens återställningsnyckel ersattes med ett nytt",
-        (true, false, false) => "Ärendet fick ett kuvert för organisationens återställningsnyckel",
-        (true, true, false) =>
-            "Ärendet fick ett kuvert för organisationens nya återställningsnyckel; återkallade togs bort",
-        _ => "Kuverten för återkallade återställningsnycklar togs bort ur ärendet",
-    };
+        List<string> parts = [];
+        if (missing)
+        {
+            parts.Add((added, replaced) switch
+            {
+                (true, true) when older =>
+                    "Kuvertet för organisationens återställningsnyckel var i den äldre formen och skrevs på nytt",
+                (true, true) => "Kuvertet för organisationens återställningsnyckel höll inte och skrevs på nytt",
+                (true, false) => "Kuvertet för organisationens återställningsnyckel saknades och skrevs på nytt",
+                _ => "Kuvertet för organisationens återställningsnyckel saknas, och ärendets huvud har inte plats "
+                    + "för det",
+            });
+        }
+        else if (replaced)
+        {
+            parts.Add("Kuvert för organisationens återställningsnyckel som inte höll togs bort");
+        }
+
+        if (dropped > 0)
+        {
+            parts.Add(string.Create(
+                CultureInfo.InvariantCulture,
+                $"{dropped} kuvert som Chainsaw inte kan använda togs bort för att ge plats"));
+        }
+
+        if (removed)
+        {
+            parts.Add("kuverten för återkallade återställningsnycklar togs bort");
+        }
+
+        var line = string.Join("; ", parts);
+        return char.ToUpperInvariant(line[0]) + line[1..];
+    }
 
     /// <summary>
     /// Compares the case with this computer's anchors when it is opened, and seals what does not match in the
@@ -859,8 +951,17 @@ internal sealed partial class Case : ICase
     /// at the next save, since the journal now holds the evidence; without the entry the anchors would stay behind for
     /// ever and hide a later rollback.
     /// </summary>
+    /// <remarks>
+    /// The records a chain has beyond an anchor it still reaches were added on another computer (a colleague's copy
+    /// that came back), and are kept with the anchors as such (<see cref="WasAddedElsewhere"/>); the anchors are
+    /// written at once, so that the mark is not lost when the session ends without a save. Nothing new is marked when
+    /// there are no anchors to go by (this computer vouches for nothing yet), for a chain that no longer reaches its
+    /// anchor (the journal line says so instead), or when a working copy is recovered: what lies beyond the anchors
+    /// then is the interrupted session's own work, since the opening that began it wrote the anchors.
+    /// </remarks>
+    /// <param name="recovered">Whether a working copy left by an interrupted session was recovered.</param>
     /// <returns><see langword="true"/> when something was journalled.</returns>
-    internal bool ReconcileAnchors()
+    internal bool ReconcileAnchors(bool recovered)
     {
         if (!TryReadAnchors(out var file))
         {
@@ -898,6 +999,7 @@ internal sealed partial class Case : ICase
 
         var database = Database;
         List<ChainAnchor> missed;
+        bool added;
         using (database.As(GuardMode.Internal))
         using (var transaction = database.Begin(deferred: true))
         {
@@ -907,10 +1009,16 @@ internal sealed partial class Case : ICase
                     _chains.FirstOrDefault(chain => chain.Name == anchor.Chain) is not { } chain
                     || !CaseChecks.Reaches(database, transaction, chain, anchor)),
             ];
+            added = FindElsewhere(database, transaction, file, missed, recovered);
         }
 
         if (missed.Count == 0)
         {
+            if (added)
+            {
+                WriteAnchors();
+            }
+
             return false;
         }
 
@@ -919,6 +1027,53 @@ internal sealed partial class Case : ICase
             AnchorProblem.Diverged,
             missed);
         return true;
+    }
+
+    /// <summary>
+    /// Finds the records added on another computer: those kept with the anchors, and the records beyond each anchor
+    /// the chain still reaches (all of a chain's records when it had none at the last save).
+    /// </summary>
+    /// <param name="database">The database.</param>
+    /// <param name="transaction">The read transaction.</param>
+    /// <param name="file">The anchors.</param>
+    /// <param name="missed">The anchors the case no longer reaches; their chains keep no marks.</param>
+    /// <param name="recovered">Whether a working copy was recovered; nothing new is marked then.</param>
+    /// <returns><see langword="true"/> when records were found beyond the anchors.</returns>
+    private bool FindElsewhere(
+        CaseDatabase database,
+        SqliteTransaction transaction,
+        AnchorFile file,
+        List<ChainAnchor> missed,
+        bool recovered)
+    {
+        var anchors = file.Anchors.ToDictionary(anchor => anchor.Chain, StringComparer.Ordinal);
+        var elsewhere = new Dictionary<string, IReadOnlyList<SequenceRange>>(StringComparer.Ordinal);
+        var added = false;
+        foreach (var chain in _chains.Where(chain => _shapes.ContainsKey(chain.Name)))
+        {
+            var anchor = anchors.GetValueOrDefault(chain.Name);
+            if (anchor is not null && missed.Contains(anchor))
+            {
+                continue;
+            }
+
+            List<SequenceRange> ranges = [.. anchor?.Elsewhere ?? []];
+            var vouched = anchor?.Sequence ?? 0;
+            var (head, _) = HashChain.ReadHead(database, transaction, chain.Name);
+            if (!recovered && head > vouched)
+            {
+                ranges.Add(new SequenceRange(vouched + 1, head));
+                added = true;
+            }
+
+            if (ranges.Count > 0)
+            {
+                elsewhere[chain.Name] = ranges;
+            }
+        }
+
+        _elsewhere = elsewhere;
+        return added;
     }
 
     /// <summary>
@@ -998,7 +1153,10 @@ internal sealed partial class Case : ICase
                 var (sequence, hash) = HashChain.ReadHead(database, transaction, chain.Name);
                 if (hash is not null && (kept is null || CaseChecks.Reaches(database, transaction, chain, kept)))
                 {
-                    updated[chain.Name] = new ChainAnchor(chain.Name, sequence, hash);
+                    updated[chain.Name] = new ChainAnchor(chain.Name, sequence, hash)
+                    {
+                        Elsewhere = _elsewhere.GetValueOrDefault(chain.Name) ?? kept?.Elsewhere ?? [],
+                    };
                 }
             }
         }

@@ -1,4 +1,5 @@
 using Chainsaw.App.Graph;
+using Chainsaw.Modules.Cases.Contracts;
 
 namespace Chainsaw.App.ViewModels;
 
@@ -13,6 +14,15 @@ public sealed partial class GraphViewModel
 
     /// <summary>Gets the time line under the graph; a new time, chosen or hovered, draws the graph again.</summary>
     public GraphTimelineViewModel Timeline => _timeline ??= CreateTimeline();
+
+    /// <summary>
+    /// Gives whether a journal line of the open case, by its sequence, was added on another computer
+    /// (<see cref="ICase.WasAddedElsewhere"/>); an in-memory answer, so it can be asked on the UI thread.
+    /// </summary>
+    /// <param name="journal">The journal line's sequence.</param>
+    /// <returns><see langword="true"/> when it was; never without an open case.</returns>
+    public bool WasAddedElsewhere(long journal) =>
+        _session.Current is { } openCase && openCase.WasAddedElsewhere(CaseChains.Journal, journal);
 
     /// <summary>Gives the time line the times of each new graph.</summary>
     /// <param name="value">The graph, or <see langword="null"/>.</param>

@@ -280,7 +280,10 @@ public interface IBackgroundStatusFile
 public sealed record BackgroundProgress(
     Guid CaseId, string WatchId, long? StartHeight, WatchChecked? Checked, IReadOnlyList<string> Alerted);
 
-/// <summary>The background process's progress, protected for the Windows user; only it writes it.</summary>
+/// <summary>
+/// The background process's progress, protected for the Windows user; only it writes it, but Chainsaw empties it when
+/// the background watching is turned off.
+/// </summary>
 public interface IBackgroundProgressFile
 {
     /// <summary>Reads the progress.</summary>

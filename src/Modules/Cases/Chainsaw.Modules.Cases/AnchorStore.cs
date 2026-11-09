@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 
 namespace Chainsaw.Modules.Cases;
 
@@ -100,7 +101,10 @@ internal static class AnchorStore
             }
 
             var anchors = JsonSerializer.Deserialize<List<StoredAnchor>>(chains)?
-                .Select(anchor => new ChainAnchor(anchor.Chain, anchor.Sequence, Convert.FromHexString(anchor.Hash)))
+                .Select(anchor => new ChainAnchor(anchor.Chain, anchor.Sequence, Convert.FromHexString(anchor.Hash))
+                {
+                    Elsewhere = [.. (anchor.Elsewhere ?? []).Select(ToRange)],
+                })
                 .ToList();
             return anchors is null ? null : new AnchorFile(anchors, generation);
         }
@@ -123,7 +127,12 @@ internal static class AnchorStore
         Directory.CreateDirectory(directory);
         var chains = JsonSerializer.Serialize(anchors
             .OrderBy(anchor => anchor.Chain, StringComparer.Ordinal)
-            .Select(anchor => new StoredAnchor(anchor.Chain, anchor.Sequence, Convert.ToHexStringLower(anchor.Hash))));
+            .Select(anchor => new StoredAnchor(anchor.Chain, anchor.Sequence, Convert.ToHexStringLower(anchor.Hash))
+            {
+                Elsewhere = anchor.Elsewhere.Count == 0
+                    ? null
+                    : [.. anchor.Elsewhere.Select(range => new[] { range.From, range.To })],
+            }));
         var document = new JsonObject
         {
             [CaseIdField] = caseId.ToString("D"),
@@ -182,9 +191,25 @@ internal static class AnchorStore
         HMACSHA256.HashData(key, Encoding.UTF8.GetBytes(
             string.Create(CultureInfo.InvariantCulture, $"{Domain}\n{caseId:D}\n{generation}\n{chains}")));
 
+    /// <summary>Reads a stored run of records added on another computer.</summary>
+    /// <param name="range">The first and the last sequence number.</param>
+    /// <returns>The run.</returns>
+    /// <exception cref="FormatException">The pair is not a run.</exception>
+    private static SequenceRange ToRange(long[]? range) => range is [var from, var to] && from >= 1 && to >= from
+        ? new SequenceRange(from, to)
+        : throw new FormatException("A run of records is malformed.");
+
     /// <summary>One anchor as it is stored.</summary>
     /// <param name="Chain">The chain's name.</param>
     /// <param name="Sequence">The sequence number.</param>
     /// <param name="Hash">The hash in lower-case hex.</param>
-    private sealed record StoredAnchor(string Chain, long Sequence, string Hash);
+    private sealed record StoredAnchor(string Chain, long Sequence, string Hash)
+    {
+        /// <summary>
+        /// Gets the records added on another computer, as pairs of first and last sequence number; left out when
+        /// there are none (and in files written before they were kept).
+        /// </summary>
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public long[][]? Elsewhere { get; init; }
+    }
 }

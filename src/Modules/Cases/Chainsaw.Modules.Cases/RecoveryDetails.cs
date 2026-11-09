@@ -12,6 +12,11 @@ internal static class RecoveryDetails
     /// <summary>The fingerprints of the revoked keys whose envelopes were removed.</summary>
     public const string Removed = "removed";
 
-    /// <summary>How many damaged envelopes for the configured key were replaced by a sound one.</summary>
+    /// <summary>
+    /// How many envelopes for the configured key that did not match the one made from the file key were removed.
+    /// </summary>
     public const string Replaced = "replaced";
+
+    /// <summary>How many envelopes this build cannot use were removed to make room for the recovery envelope.</summary>
+    public const string Dropped = "dropped";
 }

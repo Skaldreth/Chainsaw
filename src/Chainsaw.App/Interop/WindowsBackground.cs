@@ -86,9 +86,11 @@ public sealed class WindowsBackgroundProcess : IBackgroundProcess
 }
 
 /// <summary>
-/// Starts the background process at sign-in through the user's <c>Run</c> key (HKCU), never the machine's.
+/// Starts the background process at sign-in through the user's <c>Run</c> key (HKCU), never the machine's. Where
+/// others can change the program folder (<see cref="Links.ProgramFolder"/>) it is never set, and is taken away.
 /// </summary>
-public sealed class RunKeyAutostart : IAutostart
+/// <param name="allowed">Whether Windows may start the background process from the program folder.</param>
+public sealed class RunKeyAutostart(bool allowed) : IAutostart
 {
     /// <summary>The user's <c>Run</c> key.</summary>
     private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
@@ -104,7 +106,7 @@ public sealed class RunKeyAutostart : IAutostart
     public void Set(string? command)
     {
         using var key = Registry.CurrentUser.CreateSubKey(RunKey);
-        if (command is null)
+        if (command is null || !allowed)
         {
             key.DeleteValue(BackgroundNames.RunValue, throwOnMissingValue: false);
         }

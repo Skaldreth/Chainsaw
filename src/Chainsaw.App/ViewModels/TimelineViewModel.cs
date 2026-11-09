@@ -32,6 +32,11 @@ public sealed record TimelineFact(string Label, string Value, bool IsMono = fals
 {
     /// <summary>Gets whether a click copies it.</summary>
     public bool CanCopy => Copy is not null;
+
+    /// <summary>
+    /// Gets whether it is the journal line of an event added on another computer: a small muted mark beside it.
+    /// </summary>
+    public bool AddedElsewhere { get; init; }
 }
 
 /// <summary>A row of <em>På banan</em>: an event on the chosen actor's lane.</summary>
@@ -41,7 +46,11 @@ public sealed record TimelineFact(string Label, string Value, bool IsMono = fals
 /// <param name="Amount">The amount with its sign, or an empty text.</param>
 /// <param name="Brush">The dot's colour.</param>
 /// <param name="IsSelected">Whether it is the chosen event.</param>
-public sealed record TimelineRow(string Id, string When, string Name, string Amount, string Brush, bool IsSelected);
+public sealed record TimelineRow(string Id, string When, string Name, string Amount, string Brush, bool IsSelected)
+{
+    /// <summary>Gets whether the case event was added on another computer: a small muted mark on the row.</summary>
+    public bool AddedElsewhere { get; init; }
+}
 
 /// <summary>The chosen event in the inspector of the view Tidslinje (sketch TL3a).</summary>
 /// <param name="IsTransfer">Whether it is a transfer on the chain.</param>
@@ -152,6 +161,12 @@ public sealed partial class TimelineViewModel : ObservableObject
     /// tied to the graph's actors. Read off the UI thread together with the graph.
     /// </summary>
     public Func<TraceGraph, IReadOnlyList<TimelineMoment>> Moments { get; set; } = _ => [];
+
+    /// <summary>
+    /// Gets or sets whether a journal line, by its sequence, was added on another computer
+    /// (<c>ICase.WasAddedElsewhere</c>); none is, unless the shell says so.
+    /// </summary>
+    public Func<long, bool> IsElsewhere { get; set; } = _ => false;
 
     /// <summary>Gets the reading running off the UI thread, or the last; complete when none runs.</summary>
     public Task Computed { get; private set; } = Task.CompletedTask;
@@ -615,7 +630,10 @@ public sealed partial class TimelineViewModel : ObservableObject
 
         if (chosen.Journal is { } journal)
         {
-            facts.Add(new("Förseglad", "journalpost " + journal.ToString(CultureInfo.InvariantCulture)));
+            facts.Add(new("Förseglad", "journalpost " + journal.ToString(CultureInfo.InvariantCulture))
+            {
+                AddedElsewhere = IsElsewhere(journal),
+            });
         }
 
         var node = _actors.GetValueOrDefault(chosen.On ?? string.Empty);
@@ -717,7 +735,10 @@ public sealed partial class TimelineViewModel : ObservableObject
             : each.Title;
         var sign = outwards ? "−" : "+";
         var amount = each.Amount is { } a && each.Kind != TimelineKind.Label ? sign + AmountText.Number(a) : string.Empty;
-        return new TimelineRow(each.Id, when, name, amount, TimelineReading.BrushOf(each.Kind), each.Id == SelectedId);
+        return new TimelineRow(each.Id, when, name, amount, TimelineReading.BrushOf(each.Kind), each.Id == SelectedId)
+        {
+            AddedElsewhere = each.Journal is { } journal && IsElsewhere(journal),
+        };
     }
 
     /// <summary>

@@ -5850,3 +5850,40 @@ Den oberoende granskningen av omgång 5 fann 1 C och 5 I; alla är rättade, och
   *Trolig mixer utan etikett*, och granskningens fem varianter och tre mixrar har var sin uttalade titel. Börserna och
   de upptagna mixrarna ger samma utfall som förut.
 - Versionen är kvar på `mixer-behaviour v1`, eftersom omgång 5 inte är släppt.
+
+## Besluten efter kodgranskningen, 12–19 (2026-11-09)
+
+Användarens beslut 2026-11-09 på TODO 12–19 från kodgranskningen, byggda av fem agenter och stadiet 15 granskat av en
+oberoende agent.
+- **12, bakgrundens plan:** medan bevakning i bakgrunden är av skrivs planen utan ärenden, och `progress.bin` töms
+  (bevakningarnas id och de träffar som redan sagts). Ett ärende som stängs medan det är av skrivs aldrig in. Ett
+  misslyckat skrivande tas om vid nästa titt (var tionde sekund). När det slås på kommer det öppna ärendet tillbaka
+  direkt, de andra när de öppnas. Köerna rörs inte; de är resultat som väntar på ärendet.
+- **13, Windows felrapportering:** `Chainsaw.exe` och `Chainsaw.Watcher.exe` undantas per användare
+  (`WerAddExcludedApplication`, med hela sökvägen och med filnamnet, eftersom det inte gick att pröva vilket WER
+  matchar) och `WerSetFlags(NOHEAP)` sätts. Två små kopior (`Interop/ErrorReporting.cs`, `Watcher/ErrorReporting.cs`),
+  eftersom Watcher inte refererar appen.
+- **14, Recall:** blockeras inte; Guiden (*Ärendefilen*, *Skärmbilder och Windows Recall*) säger att Recall bör vara av
+  eller Chainsaw filtreras bort.
+- **15, återställningskuvertet:** den tillfälliga nyckeln och nonce härleds ur filnyckeln, ärendets id och
+  fingeravtrycket (HKDF-SHA384, förkastande av skalärer utanför 1..n−1), så att kuvertet byggs om och jämförs byte för
+  byte vid varje öppning. Saknas det eller håller det inte skrivs det på nytt med en journalrad; ett kuvert i den äldre
+  formen (med fältet `check`) säger *var i den äldre formen*. Ett fullt huvud ger plats: okända kuvert, andra nycklars
+  kuvert, kopior av delningskuvertet och av valvets eget, och valvkuvert som inte öppnas med valvet tas bort först
+  (granskningen hittade att kopior annars kunde hålla kuvertet ute). Administratören godtar en nyckel bara om sigillet
+  håller under den, så ett skräpkuvert före det riktiga stoppar inte öppningen. `check` i HMAC-form är borttagen.
+  `docs/ATERSTALLNINGSNYCKEL.md` och CLAUDE.md beskriver konstruktionen. **Ej prövat på Windows:** att importera
+  skalären utan den publika punkten (CNG).
+- **16, programmappen:** vid start läses ägare och DACL för programmappen och varje mapp upp till roten
+  (`Links/ProgramFolder.cs` bedömer, `Interop/ProgramFolderCheck.cs` läser). Kan andra än användaren, Administratörer,
+  SYSTEM och TrustedInstaller skriva i den, eller flytta eller ta över en överordnad mapp, skrivs varken Run-nyckeln
+  eller `chainsaw:`, och de tas bort om de pekar hit. Inställningarna säger det med en gul rad. Bakgrundsprocessen
+  startas fortfarande av en Chainsaw som redan körs, eftersom det inte ger något nytt.
+- **17, huvudnyckeln byttes vid en låsning:** låsskärmen säger *Huvudnyckeln ändrades av <namn>. Du blir nu
+  utloggad.* (utan namn: *Huvudnyckeln ändrades. Du blir nu utloggad.*) tills nästa upplåsning eller ×.
+- **18, konfliktdialogen:** tipset säger *…fram till kraschen* efter en krasch och *Filen på disken ändrades medan
+  ärendet var öppet* när filen bytts ut (`ConflictOffer`).
+- **19, det en kollega lagt till:** ankarfilen håller per kedja de sekvenser som tillkommit efter ankaret, upptäckta när
+  ärendet öppnas (`ChainAnchor.Elsewhere`), och `ICase.WasAddedElsewhere`. Nodens historik och Tidslinjen visar en liten
+  dämpad dator vid raden, *Tillagt på en annan dator* på hovring. Första öppningen på en dator märker inget, och ett
+  bytt ankare börjar om. Begränsningarna står i BACKLOG.

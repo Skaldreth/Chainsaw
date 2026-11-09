@@ -31,6 +31,19 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>What the dialog says when the link could not be changed in Windows.</summary>
     public const string LinkFailedText = "Länken gick inte att ändra i Windows.";
 
+    /// <summary>
+    /// What the rows Bevaka när Chainsaw är stängt and Länkar say when others can change the program folder
+    /// (decision 16): Windows would otherwise run what they put there as this user.
+    /// </summary>
+    public const string ProgramFolderOpenText =
+        "Andra på datorn kan ändra i Chainsaws programmapp. Därför startar Chainsaw inte med Windows och öppnar " +
+        "inte chainsaw:-länkar. Installera Chainsaw under %LOCALAPPDATA%\\Programs eller Program Files.";
+
+    /// <summary>What the same rows say when the program folder's rights could not be read.</summary>
+    public const string ProgramFolderUnknownText =
+        "Chainsaw kunde inte se vem som får ändra i programmappen. Därför startar Chainsaw inte med Windows och " +
+        "öppnar inte chainsaw:-länkar. Installera Chainsaw under %LOCALAPPDATA%\\Programs eller Program Files.";
+
     /// <summary>What the dialog says when the settings' file could not be written.</summary>
     public const string SaveFailedText = "Inställningarna gick inte att spara. De gäller tills Chainsaw stängs.";
 
@@ -89,6 +102,12 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>The exits in the vault, for the selected exit, or <see langword="null"/>.</summary>
     private readonly IExitStore? _exitStore;
 
+    /// <summary>
+    /// Locks Chainsaw with a notice when a master-key change completes while or after it locks, or
+    /// <see langword="null"/>.
+    /// </summary>
+    private readonly LockSignal? _lockSignal;
+
     /// <summary>The settings as they are now.</summary>
     private AppSettings _settings;
 
@@ -145,6 +164,13 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// The proxy under Windows and the login to it (sketch PX1a), whose choice is written to the file, or
     /// <see langword="null"/> where there is none.
     /// </param>
+    /// <param name="lockSignal">
+    /// Locks Chainsaw and tells the lock screen when a master-key change completes while or after it locks (decided
+    /// 2026-11-09), or <see langword="null"/> where there is no gate.
+    /// </param>
+    /// <param name="programFolder">
+    /// Whether others can change the program folder (decision 16), or <see langword="null"/> where it was not judged.
+    /// </param>
     public SettingsViewModel(
         AppSettings settings,
         AppSettingsStore store,
@@ -164,7 +190,9 @@ public sealed partial class SettingsViewModel : ObservableObject
         RatesSummaryViewModel? rates = null,
         IBackgroundExits? backgroundExits = null,
         IExitStore? exitStore = null,
-        ProxyLoginViewModel? proxy = null)
+        ProxyLoginViewModel? proxy = null,
+        LockSignal? lockSignal = null,
+        ProgramFolderVerdict? programFolder = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(cases);
@@ -177,9 +205,16 @@ public sealed partial class SettingsViewModel : ObservableObject
         _profiles = profiles;
         _vault = vault;
         _links = links;
+        ProgramFolderWarning = programFolder?.Problem switch
+        {
+            null or ProgramFolderProblem.None => string.Empty,
+            ProgramFolderProblem.Unreadable => ProgramFolderUnknownText,
+            _ => ProgramFolderOpenText,
+        };
         _alerts = alerts;
         _backgroundExits = backgroundExits;
         _exitStore = exitStore;
+        _lockSignal = lockSignal;
         Exits = exits;
         Sources = sources;
         Rates = rates;
@@ -308,7 +343,13 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     /// <summary>Gets whether the watching goes on when Chainsaw is closed.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(StartsWithWindows))]
     public partial bool WatchesInBackground { get; private set; }
+
+    /// <summary>
+    /// Gets whether the page says that the background starts with Windows: it is on, and the program folder allows it.
+    /// </summary>
+    public bool StartsWithWindows => WatchesInBackground && !HasProgramFolderWarning;
 
     /// <summary>Gets whether a hit is said with a notification in Windows.</summary>
     [ObservableProperty]
@@ -357,8 +398,19 @@ public sealed partial class SettingsViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(HasError))]
     public partial string ErrorText { get; private set; } = string.Empty;
 
-    /// <summary>Gets whether the link <c>chainsaw:</c> can be registered here (the row is live).</summary>
-    public bool CanRegisterLinks => _links is not null;
+    /// <summary>
+    /// Gets whether the link <c>chainsaw:</c> can be registered here (the row is live): not where others can change the
+    /// program folder.
+    /// </summary>
+    public bool CanRegisterLinks => _links is { IsAllowed: true };
+
+    /// <summary>
+    /// Gets why Chainsaw neither starts with Windows nor opens links from its folder, or an empty text when it does.
+    /// </summary>
+    public string ProgramFolderWarning { get; }
+
+    /// <summary>Gets whether the program folder stops the <c>Run</c> key and the link (the warning is shown).</summary>
+    public bool HasProgramFolderWarning => ProgramFolderWarning.Length > 0;
 
     /// <summary>Gets whether the link <c>chainsaw:</c> opens this Chainsaw (the switch).</summary>
     [ObservableProperty]
@@ -533,7 +585,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     [RelayCommand]
     public void ToggleLinks()
     {
-        if (_links is null)
+        if (_links is not { IsAllowed: true })
         {
             return;
         }
@@ -715,7 +767,9 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>
     /// Changes the master key: the current key, the new key and the new key again are taken from their fields as
     /// characters, given to the vault off the UI thread, and cleared. Only the vault's key is wrapped again; the
-    /// cases are not touched.
+    /// cases are not touched. A change that completes while or after Chainsaw locks, or when the automatic lock is
+    /// due, cannot be answered here: Chainsaw is locked and the lock screen says who changed the key (decided
+    /// 2026-11-09), so that the old key's <em>Fel huvudnyckel</em> is not the first word of it.
     /// </summary>
     /// <param name="current">The field with the current master key.</param>
     /// <param name="next">The field with the new master key.</param>
@@ -747,9 +801,16 @@ public sealed partial class SettingsViewModel : ObservableObject
             }
 
             var shown = _shown;
+            var name = _savedProfile?.Name;
             IsKeyBusy = true;
             KeyText = string.Empty;
-            var (text, isError) = await Task.Run(() => ChangeKey(currentKey, nextKey));
+            var (text, isError, changer) = await Task.Run(() => ChangeKey(currentKey, nextKey, name));
+            if (!isError && (_vault.State != VaultState.Unlocked || _autoLock.IsDue()))
+            {
+                _lockSignal?.Request(LockViewModel.KeyChangedText(changer));
+                return;
+            }
+
             if (shown != _shown)
             {
                 return;
@@ -792,22 +853,39 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>Changes the master key in the vault and gives the words for the answer.</summary>
     /// <param name="current">The current key.</param>
     /// <param name="next">The new key.</param>
-    /// <returns>The words and whether they are an error.</returns>
-    private (string Text, bool IsError) ChangeKey(char[] current, char[] next)
+    /// <param name="name">The name in the profile as the page read it, or <see langword="null"/> when not yet read.</param>
+    /// <returns>The words, whether they are an error, and the name of the one who changed the key, if known.</returns>
+    private (string Text, bool IsError, string? Changer) ChangeKey(char[] current, char[] next, string? name)
     {
+        // The name is read before the change, while the vault is still open; a lock meanwhile leaves it unknown.
+        name ??= ProfileNameOrNone();
         try
         {
             _vault.ChangeMasterKey(current, next);
-            return (KeyChangedText, false);
+            return (KeyChangedText, false, name);
         }
         catch (VaultException exception) when (exception.Error == VaultError.WrongMasterKey)
         {
-            return (WrongKeyText, true);
+            return (WrongKeyText, true, name);
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
             // The message is never shown: it could name a path.
-            return (KeyFailedText, true);
+            return (KeyFailedText, true, name);
+        }
+    }
+
+    /// <summary>Reads the name in the operator profile, or nothing when it cannot be read (locked, no profile).</summary>
+    /// <returns>The name, or <see langword="null"/>.</returns>
+    private string? ProfileNameOrNone()
+    {
+        try
+        {
+            return _profiles.Get()?.Name;
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            return null;
         }
     }
 

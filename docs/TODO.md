@@ -54,30 +54,6 @@ på grafikkortet** bakom samma `GraphCanvas`, så att inget annat ändras. *Vän
 12. **En trolig tjänst** (TJ1b): kontrollen `service-behaviour` är en kontroll, inte ett förslag, så den står inte i
     KF2b-panelen. *Nu:* *Som etikett …* står i inspektören vid noden. Ska svepet bli ett förslag som väntar i panelen?
 
-**Från kodgranskningen 2026-11-08** (DEV-LOG, *Kodgranskningen i sju varv*):
-12. **Bakgrundens plan när bevakning i bakgrunden är av:** planen behåller alla ärendens bevakade adresser och txid:er
-    (under DPAPI) fast inget använder dem. *Förslag:* töm planen när inställningen är av; ärendena kommer tillbaka när
-    de öppnas. *Nu:* planen ligger kvar.
-13. **Windows felrapportering:** en hård krasch kan ge en minnesdump med dekrypterade ärendedata och nycklar som
-    Microsoft kan begära in. *Förslag:* undanta Chainsaw och bakgrundsprocessen (`WerAddExcludedApplication`, per
-    användare). *Nu:* inte undantagna.
-14. **Recall och skärmdumpar** kan spara grafen. *Förslag:* blockera inte (det stoppar också egna skärmdumpar och
-    skärmdelning), skriv om det i Guiden. *Nu:* ingenting.
-15. **Återställningskuvertet kan bytas mot ett giltigt utseende kuvert med skräp** (av en tjuv eller en kollega med
-    delningslösenordet), och Chainsaw och verktyget säger ändå "täckt". *Förslag:* gör kuvertets tillfälliga nyckel
-    härledd ur filnyckeln och ärendets id, så att Chainsaw kan pröva kuvertet vid varje öppning och skriva ett nytt med
-    en journalrad; en egen etapp, eftersom formatet ändras och EC-importen ska provas på Windows först.
-16. **Programmappens rättigheter:** Run-nyckeln startar bakgrundsprocessen och `chainsaw:` startar Chainsaw ur samma
-    mapp, men bara tunneln har en kontrollerad hash. Packas Chainsaw upp i t.ex. `C:\Chainsaw` (där alla inloggade får
-    ändra) kan en annan användare byta ut programmet. *Förslag:* kontrollera mappens rättigheter vid start, registrera
-    då inte Run-nyckeln eller länken och säg var Chainsaw ska installeras.
-17. **Huvudnyckeln byttes medan Chainsaw låstes:** bytet blir klart men användaren får aldrig veta det och kan få "Fel
-    huvudnyckel" med den gamla. Vilken text, och var (låsskärmen eller efter upplåsningen)?
-18. **Konfliktdialogen** ("X gick åt två håll") säger "…fram till kraschen" också när filen bytts ut på disken medan
-    ärendet var öppet. Ny, neutral text?
-19. **Det en kollega har lagt till** i ett delat ärende efter den här datorns ankare godtas som äkta och visas inte som
-    tillagt någon annanstans. Ska raderna efter det egna ankaret märkas?
-
 **Från Litecoin och BSC 2026-11-09** (DEV-LOG, *Omgång 8b*):
 20. **BSC:s källa:** det finns ingen öppen Blockscout för BSC (Blockscouts egen lista har ingen för kedja 56), BscScans
     API har gått upp i Etherscans, som för BSC kräver en **betald** nyckel och tar den i adressen, och BSC:s öppna

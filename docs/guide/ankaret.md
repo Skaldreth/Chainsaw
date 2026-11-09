@@ -19,6 +19,15 @@ När ärendet öppnas jämförs filen med ankaret. Stämmer de inte står det i 
 `case.anchors-replaced`, med ankaret som det var och filens topp som den är, och ankaret flyttas till filens rad från
 och med nu. Det tysta alternativet, att låta ankaret stå kvar, skulle dölja nästa gång något händer.
 
+## Det som lades till på en annan dator
+
+Har en kollega arbetat i ärendet och lämnat tillbaka filen, finns rader efter ankaret som den här datorn aldrig såg
+skrivas. Kedjan är hel, men en kollega med filnyckeln kan skriva vad som helst i sina rader, också ditt namn och en
+annan tid. Därför har sådana rader en liten nedtonad **dator** i Historik och Tidslinjen, med *Tillagt på en annan
+dator* på hovring. Det den här datorn själv skriver märks aldrig. Markeringen sparas med ankaret, så den finns kvar
+efter nästa sparning. Första gången ärendet öppnas på en dator märks ingenting, eftersom datorn ännu inte har sett
+något att gå i god för, och när ankaret byts (se nedan) börjar markeringarna om.
+
 ## Verifiera säger två saker
 
 **Verifiera** i ärendeväljaren (Ctrl+O) och `/verify` svarar först med det viktiga: om **hashkedjan är hel**, hur många

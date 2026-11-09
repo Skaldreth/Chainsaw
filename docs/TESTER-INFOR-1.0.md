@@ -3302,3 +3302,27 @@ Inga riktiga adresser står här; ta dem ur en beställning eller en blockutfors
       före sortering, soptunnans varning och bildspråkets ruta.
 - [ ] Toasten: listen längs nederkanten ligger inne i de rundade hörnen, texten står mitt för ikonen, och toasten står
       24 px från fönstrets nederkant.
+## Besluten efter kodgranskningen (2026-11-09)
+
+- [ ] **Felrapportering:** efter start finns `Chainsaw.exe` och `Chainsaw.Watcher.exe` (sökväg och filnamn) under
+      `HKCU\Software\Microsoft\Windows\Windows Error Reporting\ExcludedApplications`, utan administratörsrättigheter.
+      En krasch ger ingen ny rapport i `perfmon /rel` eller under `%LOCALAPPDATA%\Microsoft\Windows\WER`.
+- [ ] **Bakgrunden av:** slå av bevakning i bakgrunden med en bevakning aktiv; Chainsaw.Watcher stannar och
+      `%LOCALAPPDATA%\Chainsaw\Bakgrund` (plan och progress) håller inga ärenden. Slå på igen: bevakningen i det öppna
+      ärendet går igen.
+- [ ] **Programmappen:** packa upp i `C:\Chainsaw`; Inställningar visar den gula raden under Bevakning och Länkar,
+      länkbrytaren är gråad och Run-nyckeln saknas. Flytta till `%LOCALAPPDATA%\Programs\Chainsaw`: raden är borta.
+      Prova också `C:\Program Files\Chainsaw` (säker) och en mapp där `icacls … /grant *S-1-5-32-545:(OI)(CI)M` körts
+      (osäker).
+- [ ] **Låsskärmen efter ett nyckelbyte:** byt huvudnyckel och lås (Ctrl+L, eller låt den låsa sig) innan bytet är
+      klart; låsskärmen säger *Huvudnyckeln ändrades av <namn>. Du blir nu utloggad.*, och den nya nyckeln låser upp.
+- [ ] **Konfliktdialogen:** ersätt ärendefilen på disken medan ärendet är öppet och spara; tipset säger att filen
+      ändrades, inte kraschen.
+- [ ] **Återställningskuvertet (CNG):** kör `dotnet test tests/Chainsaw.Modules.Cases.Tests --filter
+      "FullyQualifiedName~RecoveryEnvelopeCheckTests|FullyQualifiedName~RecoveryKeyTests"` och
+      `dotnet test tests/Chainsaw.Recovery.Tests` på Windows. Skapa ett ärende på Windows och öppna det i molnet (eller
+      tvärtom): ingen journalrad *höll inte*. Ett äldre ärende får en gång raden *var i den äldre formen*.
+- [ ] **Tillagt på en annan dator:** dela ett ärende med en kollega, låt hen sätta en etikett, öppna det igen; raden i
+      nodens historik och i Tidslinjen har en liten dator och *Tillagt på en annan dator* på hovring. Egna rader har
+      den inte.
+- [ ] **Guiden:** *Ärendefilen › Skärmbilder och Windows Recall* och *Ankaret › Det som lades till på en annan dator*.

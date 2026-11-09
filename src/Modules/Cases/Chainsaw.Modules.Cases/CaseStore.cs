@@ -474,7 +474,7 @@ internal sealed class CaseStore : ICaseStore, IDisposable
         try
         {
             var header = ReadHeader(paths);
-            if (!RecoveryEnvelopes.TryOpen(header, privateKey, fileKey))
+            if (!RecoveryEnvelopes.TryOpen(header, privateKey, fileKey, key => Seals(paths, header, key)))
             {
                 throw new CaseException(CaseError.NoAccess);
             }
@@ -509,15 +509,9 @@ internal sealed class CaseStore : ICaseStore, IDisposable
         var fileKey = CaseCrypto.AllocateSecret(CaseCrypto.KeySize);
         try
         {
+            // An envelope only counts when the seal over the whole file holds under the key it gives.
             var header = ReadHeader(paths);
-            if (!RecoveryEnvelopes.TryOpen(header, privateKey, fileKey))
-            {
-                return false;
-            }
-
-            return CaseFiles.SealedHash(paths, header, fileKey) is not null
-                ? true
-                : throw new CaseException(CaseError.Corrupt);
+            return RecoveryEnvelopes.TryOpen(header, privateKey, fileKey, key => Seals(paths, header, key));
         }
         finally
         {
@@ -686,7 +680,7 @@ internal sealed class CaseStore : ICaseStore, IDisposable
         var rekeyInterrupted = opened.NoteInterruptedReplacement();
 
         // A case of its own made from a working copy has a new id, and so no anchors yet, like a new case.
-        var anchorsJournalled = opening.Kind != OpeningKind.Branch && opened.ReconcileAnchors();
+        var anchorsJournalled = opening.Kind != OpeningKind.Branch && opened.ReconcileAnchors(recovered);
         if (recovered)
         {
             opened.AppendOwnJournal(new JournalDraft(
@@ -1102,6 +1096,17 @@ internal sealed class CaseStore : ICaseStore, IDisposable
         using var stream = new FileStream(paths.CaseFile, FileMode.Open, FileAccess.Read, FileShare.Read);
         return CaseContainer.ReadHeader(stream);
     }
+
+    /// <summary>
+    /// Tells whether the seal over the case file holds under a file key that a recovery envelope gave, so that an
+    /// envelope that opens with the private key but wraps another key is never taken for the case's.
+    /// </summary>
+    /// <param name="paths">The case's files.</param>
+    /// <param name="header">The header as read.</param>
+    /// <param name="fileKey">The key the envelope gave.</param>
+    /// <returns><see langword="true"/> when it is the file's key.</returns>
+    private static bool Seals(CasePaths paths, CaseHeader header, ReadOnlySpan<byte> fileKey) =>
+        CaseFiles.SealedHash(paths, header, fileKey) is not null;
 
     /// <summary>Opens the working copy; one left by an interrupted session that does not open is a conflict.</summary>
     /// <param name="paths">The case's files.</param>

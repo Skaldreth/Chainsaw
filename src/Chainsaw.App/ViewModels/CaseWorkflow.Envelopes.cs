@@ -40,9 +40,9 @@ public sealed partial class CaseWorkflow
 
     /// <summary>
     /// Raised on the UI thread when a case has a working copy that does not belong to its file, so that the shell lets
-    /// the user choose a branch.
+    /// the user choose a branch, and why the two went apart.
     /// </summary>
-    public event EventHandler<WorkingCopyConflict>? ConflictFound;
+    public event EventHandler<ConflictOffer>? ConflictFound;
 
     /// <summary>
     /// Takes a case file the user chose (<em>Öppna en fil …</em>): one in the cases folder is opened as usual (and asks
@@ -207,7 +207,7 @@ public sealed partial class CaseWorkflow
             var closed = await CloseCurrentAsync();
             if (await FindConflictAsync(number) is { } conflict)
             {
-                ConflictFound?.Invoke(this, conflict);
+                ConflictFound?.Invoke(this, new ConflictOffer(conflict, FileReplaced: true));
                 return CommandReply.Done(string.Empty);
             }
 
@@ -249,7 +249,7 @@ public sealed partial class CaseWorkflow
         }
         else if (error == CaseError.Conflict && await FindConflictAsync(caseNumber) is { } conflict)
         {
-            ConflictFound?.Invoke(this, conflict);
+            ConflictFound?.Invoke(this, new ConflictOffer(conflict, FileReplaced: false));
         }
     }
 

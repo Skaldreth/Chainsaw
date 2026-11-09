@@ -27,6 +27,9 @@ internal static class Program
             return 0;
         }
 
+        // First of all, so that no crash from here on leaves a dump (with the plan's addresses) for Windows.
+        ErrorReporting.Exclude();
+
         if (args.Contains(StopArgument, StringComparer.Ordinal))
         {
             InstanceGuard.AskToStop();

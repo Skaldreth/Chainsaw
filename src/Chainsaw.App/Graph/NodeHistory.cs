@@ -115,6 +115,12 @@ public sealed record HistoryEvent(
     bool IsWithdrawn,
     HistoryUndo Undo)
 {
+    /// <summary>
+    /// Gets whether the row's journal line was added on another computer (<c>ICase.WasAddedElsewhere</c>): a small
+    /// muted mark with <see cref="NodeHistory.ElsewhereText"/> on hovering.
+    /// </summary>
+    public bool AddedElsewhere { get; init; }
+
     /// <summary>Gets the label's sequence, for <see cref="HistoryUndo.RetractLabel"/>.</summary>
     public long LabelSequence { get; init; }
 
@@ -182,6 +188,12 @@ public sealed record NodeHistoryData(
     Cluster? Cluster,
     IReadOnlyDictionary<long, string> Operators)
 {
+    /// <summary>
+    /// Gets whether a journal line, by its sequence, was added on another computer (<c>ICase.WasAddedElsewhere</c>);
+    /// none is, unless the reader says so.
+    /// </summary>
+    public Func<long, bool> IsElsewhere { get; init; } = _ => false;
+
     /// <summary>Gets every record of the case's watches, also of those taken back (Monitoring).</summary>
     public IReadOnlyList<WatchRecord> Watches { get; init; } = [];
 
@@ -315,6 +327,9 @@ public static class NodeHistory
     /// <summary>What a choice not to follow a swap says when its transaction no longer reads as a swap.</summary>
     public const string NoSwapText = "ingen swap längre";
 
+    /// <summary>What the mark on a row added on another computer says on hovering.</summary>
+    public const string ElsewhereText = "Tillagt på en annan dator";
+
     /// <summary>Who wrote a journal entry the case could not name.</summary>
     public const string UnknownOperator = "Okänd";
 
@@ -421,7 +436,10 @@ public static class NodeHistory
             rows.Add(new HistoryEvent(
                 "clustered/" + group.Key, HistoryKind.Clustered, group.Min(link => link.Evidence.RecordedUtc),
                 "Klustrad", sub, "Icon.Kind.Wallet", GraphInk.Cluster, IsDashed: true, IsFact: false,
-                IsWithdrawn: false, HistoryUndo.None));
+                IsWithdrawn: false, HistoryUndo.None)
+            {
+                AddedElsewhere = group.Any(link => data.IsElsewhere(link.Evidence.JournalSequence)),
+            });
         }
     }
 
@@ -483,7 +501,10 @@ public static class NodeHistory
             rows.Add(new HistoryEvent(
                 "watch-hit/" + hit.Sequence.ToString(CultureInfo.InvariantCulture), HistoryKind.WatchHit,
                 match.Block.Time, $"Träff · {direction} {AmountText.WithUnit(match.Amount)}", sub, "Icon.Eye",
-                GraphInk.Accent, IsDashed: false, IsFact: true, IsWithdrawn: false, HistoryUndo.None));
+                GraphInk.Accent, IsDashed: false, IsFact: true, IsWithdrawn: false, HistoryUndo.None)
+            {
+                AddedElsewhere = data.IsElsewhere(hit.JournalSequence),
+            });
         }
     }
 
@@ -540,12 +561,14 @@ public static class NodeHistory
                 entry.CanRetract || entry.IsUsersOwn ? HistoryUndo.RetractLabel : HistoryUndo.None)
             {
                 LabelSequence = label.Sequence,
+                AddedElsewhere = data.IsElsewhere(label.JournalSequence),
                 ReachesLibrary = !label.DoNotSpread && label.Kind != LabelKind.Victim,
             });
             if (entry.Retraction is { } retraction)
             {
                 var who = retraction.By?.Name ?? Who(data, retraction.JournalSequence);
-                rows.Add(Withdrawal(key, retraction.Utc, "Tillbakatagen: " + what, who, retraction.Reason));
+                rows.Add(Withdrawal(key, retraction.Utc, "Tillbakatagen: " + what, who, retraction.Reason)
+                    with { AddedElsewhere = data.IsElsewhere(retraction.JournalSequence) });
             }
         }
     }
@@ -573,13 +596,15 @@ public static class NodeHistory
                 $"{Who(data, first.Split.JournalSequence)} · {heuristics}", "Icon.Split", GraphInk.Cluster,
                 IsDashed: false, IsFact: false, undone, HistoryUndo.UndoSplit)
             {
+                AddedElsewhere = data.IsElsewhere(first.Split.JournalSequence),
                 SplitSequences = [.. group.Where(entry => !entry.IsUndone).Select(entry => entry.Split.Sequence)],
             });
             foreach (var undo in group.Select(entry => entry.Undo).OfType<ClusterSplitUndo>()
                 .DistinctBy(undo => undo.JournalSequence))
             {
                 rows.Add(Withdrawal(
-                    key, undo.RecordedUtc, "Ångrad: uppbrytningen", Who(data, undo.JournalSequence), undo.Reason));
+                    key, undo.RecordedUtc, "Ångrad: uppbrytningen", Who(data, undo.JournalSequence), undo.Reason)
+                    with { AddedElsewhere = data.IsElsewhere(undo.JournalSequence) });
             }
         }
     }
@@ -606,13 +631,15 @@ public static class NodeHistory
                 key, HistoryKind.Merge, first.RecordedUtc, MergeText, sub, "Icon.Kind.Wallet", GraphInk.Cluster,
                 IsDashed: true, IsFact: false, group.All(entry => entry.IsUndone), HistoryUndo.UndoMerge)
             {
+                AddedElsewhere = data.IsElsewhere(first.JournalSequence),
                 MergeSequences = [.. group.Where(entry => !entry.IsUndone).Select(entry => entry.Merge.Sequence)],
             });
             foreach (var undo in group.Select(entry => entry.Undo).OfType<ClusterMergeUndo>()
                 .DistinctBy(undo => undo.JournalSequence))
             {
                 rows.Add(Withdrawal(
-                    key, undo.RecordedUtc, "Ångrad: sammanslagningen", Who(data, undo.JournalSequence), undo.Reason));
+                    key, undo.RecordedUtc, "Ångrad: sammanslagningen", Who(data, undo.JournalSequence), undo.Reason)
+                    with { AddedElsewhere = data.IsElsewhere(undo.JournalSequence) });
             }
         }
     }
@@ -683,12 +710,14 @@ public static class NodeHistory
                 GraphInk.OtherChain, IsDashed: true, IsFact: false, entry.IsTakenBack, HistoryUndo.Unlink)
             {
                 Link = link,
+                AddedElsewhere = data.IsElsewhere(link.JournalSequence),
             });
             if (entry.Unlink is { } unlink)
             {
                 rows.Add(Withdrawal(
                     key, unlink.RecordedUtc, "Tillbakatagen: länken till " + chain,
-                    Who(data, unlink.JournalSequence), unlink.Reason));
+                    Who(data, unlink.JournalSequence), unlink.Reason)
+                    with { AddedElsewhere = data.IsElsewhere(unlink.JournalSequence) });
             }
         }
     }
@@ -715,12 +744,14 @@ public static class NodeHistory
                 IsDashed: false, IsFact: false, entry.IsTakenBack, HistoryUndo.FollowSwap)
             {
                 SwapStop = stop,
+                AddedElsewhere = data.IsElsewhere(stop.JournalSequence),
             });
             if (entry.Undo is { } undo)
             {
                 rows.Add(Withdrawal(
                     key, undo.RecordedUtc, "Tillbakataget: värdet följer med igen",
-                    Who(data, undo.JournalSequence), undo.Reason));
+                    Who(data, undo.JournalSequence), undo.Reason)
+                    with { AddedElsewhere = data.IsElsewhere(undo.JournalSequence) });
             }
         }
     }
@@ -744,12 +775,14 @@ public static class NodeHistory
                 HistoryUndo.TakeBackWithdrawal)
             {
                 WithdrawalSequence = withdrawal.Sequence,
+                AddedElsewhere = data.IsElsewhere(withdrawal.JournalSequence),
             });
             if (withdrawal.Undo is { } undo)
             {
                 rows.Add(Withdrawal(
                     key, undo.RecordedUtc, "Tillbakatagen: " + withdrawal.Heuristic + " räknas igen",
-                    Who(data, undo.JournalSequence), undo.Reason));
+                    Who(data, undo.JournalSequence), undo.Reason)
+                    with { AddedElsewhere = data.IsElsewhere(undo.JournalSequence) });
             }
         }
     }
@@ -803,7 +836,10 @@ public static class NodeHistory
                 key, HistoryKind.HeldBack, released.RecordedUtc,
                 "Hölls tillbaka · tx " + GraphScene.Shorten(released.Txid.Value),
                 "Byggde på " + Txids(released.Missing), "Icon.Held", GraphInk.Spent, IsDashed: true, IsFact: false,
-                IsWithdrawn: true, HistoryUndo.None));
+                IsWithdrawn: true, HistoryUndo.None)
+            {
+                AddedElsewhere = data.IsElsewhere(released.JournalSequence),
+            });
             rows.Add(new HistoryEvent(
                 key + "/released", HistoryKind.HeldBack, released.RecordedUtc, "Slutsatsen släppt, också dess fynd",
                 Because(Who(data, released.JournalSequence), released.Reason), "Icon.Undo", GraphInk.Unknown,
@@ -811,6 +847,7 @@ public static class NodeHistory
                 HistoryUndo.ReopenHeldBack)
             {
                 DecisionSequence = released.Sequence,
+                AddedElsewhere = data.IsElsewhere(released.JournalSequence),
             });
         }
 
@@ -819,7 +856,7 @@ public static class NodeHistory
             rows.Add(Withdrawal(
                 "held/" + reopened.Txid.Value + "/" + reopened.Undoes?.ToString(CultureInfo.InvariantCulture),
                 reopened.RecordedUtc, "Beslutet om slutsatsen taget tillbaka", Who(data, reopened.JournalSequence),
-                reopened.Reason));
+                reopened.Reason) with { AddedElsewhere = data.IsElsewhere(reopened.JournalSequence) });
         }
     }
 
@@ -854,6 +891,7 @@ public static class NodeHistory
         {
             HeldTxid = held.Txid,
             DecisionSequence = held.Decision?.Sequence ?? 0,
+            AddedElsewhere = held.Decision is { } decision && data.IsElsewhere(decision.JournalSequence),
         };
     }
 
