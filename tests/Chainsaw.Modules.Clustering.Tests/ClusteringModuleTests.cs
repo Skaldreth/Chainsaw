@@ -33,7 +33,8 @@ public sealed class ClusteringModuleTests
         Assert.Equal("clustering", schema.Module);
         Assert.Equal(
             [
-                "clustering.evidence", "clustering.splits", "clustering.split_undos", "clustering.merges",
+                "clustering.evidence", "clustering.account_evidence", "clustering.splits", "clustering.split_undos",
+                "clustering.merges",
                 "clustering.merge_undos", "clustering.withdrawals", "clustering.withdrawal_undos",
                 "clustering.held_back_decisions",
             ],

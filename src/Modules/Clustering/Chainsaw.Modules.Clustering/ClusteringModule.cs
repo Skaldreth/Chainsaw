@@ -36,6 +36,7 @@ public static class ClusteringModule
         services.AddSingleton<IClusteringHeuristic>(new PayJoinHeuristic(1));
         services.AddSingleton<IClusteringHeuristic>(new PayJoinHeuristic(2));
         services.AddSingleton<IClusteringService, ClusteringService>();
+        services.AddSingleton<IAccountClustering, AccountClusteringService>();
         return services;
     }
 }

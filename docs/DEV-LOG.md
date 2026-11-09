@@ -6170,3 +6170,19 @@ insättning i en borta tx i Begäran, Flöde).
   händelse innan bygget på Windows (`build/StopWatcher.ps1`, väntar högst 10 s, stoppar aldrig bygget). Run-nyckeln
   rörs inte; Chainsaw startar bakgrunden igen när den körs med en aktiv bevakning. Brytaren *Bevaka när Chainsaw är
   stängt* under Låsning fanns redan.
+
+## E2a (2026-11-09): klustringen av konton
+
+- **`IAccountClustering`** i Clustering, med två heuristiker på `EthereumTransfer` och `EthereumFee` (Chains.Contracts),
+  så att Clustering inte behöver Tracing:
+  - `deposit-sweep v1` (Victor 2020): en adress som tar emot från andra än samlaren och sedan skickar minst 95 % av
+    det, och bara till en adress, inom tre dygn efter sista insättningen, är en insättningsadress. Två eller fler
+    sådana till samma samlare slås ihop med den, av sig själv (`Merge`).
+  - `gas-funding v1`: adresser vars första pengar var högst 0,01 av kedjans mynt från samma betalare, och som inom ett
+    dygn betalade gas och skickade en token, är ett förslag (`Suggestion`), aldrig en sammanslagning.
+- **Förseglat:** egen kedja `clustering.account_evidence` (schemasteg 7) med heuristik, version, kedja, tx, adresser,
+  styrka, skäl och fingeravtryck; en journalrad `clustering.accounts-analysed` när något nytt sluts, och samma slutsats
+  förseglas bara en gång. Klustren byggs ur det förseglade varje gång de efterfrågas (union-find), med samlaren.
+- **Kvar:** grafen (E2b, KE1), förslaget i KF2b och uppbrytning (E2c), och att dra tillbaka en version (KV1a) för
+  kontoheuristikerna.
+

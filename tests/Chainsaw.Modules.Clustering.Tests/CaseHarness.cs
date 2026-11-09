@@ -37,7 +37,10 @@ internal sealed class CaseHarness : IDisposable
         Store = _provider.GetRequiredService<ICaseStore>();
         Case = Store.Create(CaseNumber);
         Service = _provider.GetRequiredService<IClusteringService>();
+        Accounts = _provider.GetRequiredService<IAccountClustering>();
     }
+
+    public IAccountClustering Accounts { get; }
 
     public FakeProfiles Profiles { get; } = new();
 

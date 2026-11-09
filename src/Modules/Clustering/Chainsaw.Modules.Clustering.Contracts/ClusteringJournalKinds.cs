@@ -6,6 +6,9 @@ public static class ClusteringJournalKinds
     /// <summary>The analyses ran over transactions and stored new conclusions.</summary>
     public const string Analysed = "clustering.analysed";
 
+    /// <summary>The account heuristics ran over a chain's transfers and sealed new conclusions.</summary>
+    public const string AccountsAnalysed = "clustering.accounts-analysed";
+
     /// <summary>The user split two addresses that a heuristic had merged.</summary>
     public const string Split = "clustering.split";
 

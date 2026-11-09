@@ -18,6 +18,19 @@ internal sealed class ClusteringSchema : ICaseSchemaContributor
     /// <summary>The table of the analyses' conclusions.</summary>
     public const string EvidenceTable = "clustering_evidence";
 
+    /// <summary>The sealed chain of the account heuristics' conclusions (Ethereum and its machine).</summary>
+    public const string AccountEvidenceChain = "clustering.account_evidence";
+
+    /// <summary>The table of the account heuristics' conclusions.</summary>
+    public const string AccountEvidenceTable = "clustering_account_evidence";
+
+    /// <summary>The sealed columns of an account heuristic's conclusion, in order.</summary>
+    public static readonly IReadOnlyList<string> AccountEvidenceColumns =
+    [
+        "heuristic", "heuristic_version", "chain", "transactions", "accounts", "strength", "reason", "fingerprint",
+        "journal_sequence", "recorded_utc",
+    ];
+
     /// <summary>The sealed chain of the user's splits.</summary>
     public const string SplitsChain = "clustering.splits";
 
@@ -246,6 +259,24 @@ internal sealed class ClusteringSchema : ICaseSchemaContributor
         ) STRICT;
         """;
 
+    /// <summary>The seventh version: the account heuristics' conclusions.</summary>
+    private const string Version7 = """
+        CREATE TABLE clustering_account_evidence (
+            sequence INTEGER PRIMARY KEY,
+            heuristic TEXT NOT NULL,
+            heuristic_version INTEGER NOT NULL,
+            chain TEXT NOT NULL,
+            transactions TEXT NOT NULL,
+            accounts TEXT NOT NULL,
+            strength TEXT NOT NULL,
+            reason TEXT NOT NULL,
+            fingerprint TEXT NOT NULL,
+            journal_sequence INTEGER NOT NULL,
+            recorded_utc TEXT NOT NULL,
+            hash BLOB NOT NULL
+        ) STRICT;
+        """;
+
     /// <inheritdoc/>
     public string Module => ModuleName;
 
@@ -258,12 +289,14 @@ internal sealed class ClusteringSchema : ICaseSchemaContributor
         new(4, "Versioner av analyser som dragits tillbaka och tillbakatagandena (förseglade)", Version4),
         new(5, "Slutsatser som hålls tillbaka och besluten om dem (besluten förseglade)", Version5),
         new(6, "Slutsatser som inte dras medan en tx är borta (arbetsläge)", Version6),
+        new(7, "Klustringen av konton på Ethereum (förseglad)", Version7),
     ];
 
     /// <inheritdoc/>
     public IReadOnlyList<SealedChain> SealedChains { get; } =
     [
         new(EvidenceChain, EvidenceTable, EvidenceColumns),
+        new(AccountEvidenceChain, AccountEvidenceTable, AccountEvidenceColumns),
         new(SplitsChain, SplitsTable, SplitColumns),
         new(SplitUndosChain, SplitUndosTable, SplitUndoColumns),
         new(MergesChain, MergesTable, MergeColumns),
