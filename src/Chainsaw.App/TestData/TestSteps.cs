@@ -36,6 +36,12 @@ public sealed record TestServices(
 
     /// <summary>Gets the Bitcoin source, for the transaction whose block changed (sketch GR9a), if any.</summary>
     public IBitcoinSource? Bitcoin { get; init; }
+
+    /// <summary>Gets the labels on transactions; none when they are not registered.</summary>
+    public ITransactionLabels? TransactionLabels { get; init; }
+
+    /// <summary>Gets the labels of Chainsaw's known contracts on Ethereum; none when they are not registered.</summary>
+    public IKnownContractLabels? KnownContracts { get; init; }
 }
 
 /// <summary>One build of the test case: the case, the story it is built from, and what did not go as planned.</summary>

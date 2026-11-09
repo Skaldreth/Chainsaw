@@ -14,14 +14,17 @@ namespace Chainsaw.App.TestData;
 /// Some parts are expanded from the start and some are left for the user to expand: the hub (more than 50
 /// transactions, so some are held back, and many counterparties), the victim's address (paid out from an exchange),
 /// the CoinJoin's outputs and the scammer's second wallet (the new victim's payment that the watch caught). The
-/// user's own work is there too, so that its marks and history can be seen at once: a split, decided suggestions, an
-/// approved wallet, an edited comment, and a comment and an area in the trash. Everything is made up and nothing goes
-/// out: the chain, the rates and the sanction list are answered on this computer.
+/// obfuscation the checks recognise is there: dust, a look-alike of Sydbörsen's deposit, many hops with a pause, a
+/// split whose parts meet, a possible PayJoin, a spend that is gone and replaced, and Sydbörsen's sweeps into a hot
+/// wallet without a label. The user's own work is there too, so that its marks and history can be seen at once: a
+/// split, decided suggestions, an approved wallet, an edited comment, a label on a transaction, and a comment and an
+/// area in the trash. Everything is made up and nothing goes out: the chain, the rates, the sanction lists and the
+/// open source are answered on this computer.
 /// </remarks>
 public static class TestStory
 {
     /// <summary>The story's version, in the journal and as the made-up labels' source version.</summary>
-    public const string Version = "3";
+    public const string Version = "4";
 
     /// <summary>The made-up open source the test case's labels come from.</summary>
     public const string LabelSource = "testdata (påhittad)";
@@ -61,16 +64,23 @@ public static class TestStory
         [
             new StartPointStep(TestStoryChain.VictimPayment),
 
+            // Before anything is looked up, so that the newest block comes between the answers that a spend is gone.
+            new LagStep(),
+
             // Before anything else looks the cash-out up, so that the first answer is the orphaned block's.
             new ReorganisationStep(TestStoryChain.PeelHops[^1], actors.Exchange),
+            new ReplacedStep(TestStoryChain.ReplacedSpend),
             .. Labels(actors),
             .. Expansions(),
             new SanctionCheckStep(),
+            new OpenSourceCheckStep(),
+            new TransactionLabelStep(TestStoryChain.Join, LabelKind.SwapBridge, "Bytaren (samlad insättning)"),
             new ShareLabelsStep(),
             new LinkOtherChainStep(
                 TestStoryChain.HubPayment, SwapOutput,
                 new ChainTransactionRef(Chain.Tron, TestTronChain.Id(TestTronChain.SwapPayout))),
             .. OnTron(),
+            .. OnEthereum(),
             new WatchStep(actors.Consolidated, "Bedragarens andra plånbok", WatchDirection.In),
             new WatchCheckStep(),
             new ChecksStep(),
@@ -144,17 +154,33 @@ public static class TestStory
     /// <returns>The steps.</returns>
     private static IEnumerable<ITestStep> OnTron() =>
     [
-        new TronLabelStep(TestTronChain.Swap, LabelKind.SwapBridge, "Bytaren (TRON)"),
-        new TronLabelStep(TestTronChain.Exchange, LabelKind.Exchange, "Sydbörsen (TRON)"),
-        new TronStartPointStep(TestTronChain.Scammer),
-        new TronExpandStep(TestTronChain.Scammer),
-        new TronExpandStep(TestTronChain.Mule),
+        new AccountLabelStep(TestTronChain.Swap, LabelKind.SwapBridge, "Bytaren (TRON)"),
+        new AccountLabelStep(TestTronChain.Exchange, LabelKind.Exchange, "Sydbörsen (TRON)"),
+        new AccountStartPointStep(TestTronChain.Scammer),
+        new AccountExpandStep(TestTronChain.Scammer),
+        new AccountExpandStep(TestTronChain.Mule),
+    ];
+
+    /// <summary>
+    /// Gives the part on Ethereum: the scammer's Ethereum address as a start point, expanded, so that the victim's USDT,
+    /// the swap to ether through Uniswap's router (its pill with the router and the price check) and the ether into
+    /// Tornado Cash can be seen; the known contracts are then labelled, so that Tornado Cash is a mixer and a former
+    /// sanction, and the scammer's USDT left over has its snowflake.
+    /// </summary>
+    /// <returns>The steps.</returns>
+    private static IEnumerable<ITestStep> OnEthereum() =>
+    [
+        new AccountStartPointStep(TestEthereumChain.Scammer),
+        new AccountExpandStep(TestEthereumChain.Scammer),
+        new KnownContractsStep(),
     ];
 
     /// <summary>
     /// Gives the expansions made from the start: the money from the victim through the consolidation, the change, the
     /// distribution (which brings the mixer's payout, the CoinJoin and the hub's payment), the mixer's payout (on to an
-    /// exchange and into a second mixer), the whole peel chain, and the miner's reward with the shared transaction.
+    /// exchange and into a second mixer), the whole peel chain, the miner's reward with the shared transaction, the
+    /// hops after the CoinJoin with the split and the parts that meet, the dust, the poisoning, and the customers'
+    /// payments into Sydbörsen with the sweeps that empty them.
     /// </summary>
     /// <returns>The steps.</returns>
     private static IEnumerable<ITestStep> Expansions() =>
@@ -166,6 +192,11 @@ public static class TestStory
         new ExpandStep(TestStoryChain.MixerPayout),
         .. TestStoryChain.PeelHops.SkipLast(1).Select(hop => new ExpandStep(hop)),
         new ExpandStep(TestStoryChain.MinerReward),
+        .. TestStoryChain.PostMixHops.Select(hop => new ExpandStep(hop)),
+        new ExpandStep(TestStoryChain.Split),
+        new ExpandStep(TestStoryChain.Dusting),
+        new ExpandStep(TestStoryChain.Poisoning),
+        .. TestStoryChain.SouthPayments.Select(payment => new ExpandStep(payment)),
     ];
 }
 #endif
