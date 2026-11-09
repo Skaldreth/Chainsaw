@@ -4909,4 +4909,3 @@ Byggt efter skissen DX1b (användarens val 2026-11-08). Bara visning i App; spå
 - Markeringen byter inte färg vid hovring (den ritas i scenens linjelager, och hovringen ritar bara lagret över).
 
 **Återstår:** testärendet har ingen Ethereum-källa, så markeringen går inte att se i `/testdata` än.
->>>>>>> worktree-agent-a7b6479afdfe57d60
