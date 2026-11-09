@@ -32,4 +32,10 @@ public sealed record BitcoinSourceOptions
     /// the custom; a reorganisation deeper than that has not happened in practice.
     /// </summary>
     public int SafeConfirmations { get; init; } = 6;
+
+    /// <summary>
+    /// Gets whether a block header's target must be within the network's limit (powLimit). On, always, in Chainsaw;
+    /// only the tests whose recorded blocks were mined at a test network's ease turn it off.
+    /// </summary>
+    internal bool CheckWorkLimit { get; init; } = true;
 }

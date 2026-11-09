@@ -29,6 +29,7 @@ internal sealed class SourceHarness : IDisposable
         services.AddSingleton<IVault, FakeVault>();
         services.AddSingleton<IPurposeKeys, FakePurposeKeys>();
         services.AddSingleton<IOperatorProfileStore>(Profiles);
+        services.AddSingleton<IVaultSecrets>(new TestVaultSecrets());
         services.AddSingleton<IClock>(Clock);
         services.AddSingleton<IExitHttp>(Http);
         services.AddCasesModule(options =>
@@ -38,7 +39,8 @@ internal sealed class SourceHarness : IDisposable
         });
         services.AddSingleton<ILocalHttp>(Local);
         services.AddChainsModule(
-            new BitcoinSourceOptions { EsploraBaseUri = new Uri(Fixtures.Base) },
+            // The recorded blocks were mined at regtest's ease, beyond mainnet's work limit.
+            new BitcoinSourceOptions { EsploraBaseUri = new Uri(Fixtures.Base), CheckWorkLimit = false },
             options => options.Delay = Clock.Delay);
         _provider = services.BuildServiceProvider();
         Case = _provider.GetRequiredService<ICaseStore>().Create(CaseNumber);

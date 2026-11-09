@@ -29,6 +29,12 @@ internal static class EvidenceStore
     public const string FindingKind = "finding";
 
     /// <summary>
+    /// The adjustment a proposal counts with when it was weighed against a version that is now drawn back.
+    /// </summary>
+    public const string WithdrawnWeighing =
+        "Vägdes mot en version som har dragits tillbaka; räknas som förslag tills tx:en analyseras igen.";
+
+    /// <summary>
     /// The record kind of a result where nothing was concluded; it replaces an earlier result that had.
     /// </summary>
     public const string NothingKind = "nothing";
@@ -76,7 +82,9 @@ internal static class EvidenceStore
 
     /// <summary>
     /// Reads the fingerprint and basis of the newest stored result for every analysis (name and version) of the given
-    /// transactions.
+    /// transactions. A version drawn back is left out, and so is every result of a transaction that such a version had
+    /// analysed and that was stored before it was drawn back: it was weighed against the version, so the next run
+    /// stores it weighed again.
     /// </summary>
     /// <param name="reader">The case's reader.</param>
     /// <param name="txids">The transactions.</param>
@@ -85,6 +93,11 @@ internal static class EvidenceStore
     public static Dictionary<(Txid Txid, HeuristicId Heuristic), StoredResult> LatestResults(
         ICaseReader reader, IReadOnlySet<Txid> txids)
     {
+        var withdrawnAt = ReadWithdrawals(reader)
+            .Where(withdrawal => withdrawal.IsInForce)
+            .ToDictionary(withdrawal => withdrawal.Heuristic, withdrawal => withdrawal.JournalSequence);
+        var releases = HeldBackStore.Releases(reader);
+        var weighedWithWithdrawn = new Dictionary<Txid, long>();
         var latest = new Dictionary<(Txid, HeuristicId), (long Journal, StoredResult Result)>();
         using var command = reader.CreateCommand(
             "SELECT txid, heuristic, heuristic_version, journal_sequence, fingerprint, basis FROM clustering_evidence");
@@ -98,7 +111,20 @@ internal static class EvidenceStore
             }
 
             var key = (txid, Heuristic(row.GetString(1), row.GetInt64(2)));
+            if (withdrawnAt.TryGetValue(key.Item2, out var at))
+            {
+                // A version drawn back neither counts nor holds a run back.
+                weighedWithWithdrawn[txid] = Math.Max(weighedWithWithdrawn.GetValueOrDefault(txid), at);
+                continue;
+            }
+
             var journal = row.GetInt64(3);
+            if (IsReleased(releases, txid, journal))
+            {
+                // A conclusion the user let go neither counts nor holds a run back (sketch HB1a).
+                continue;
+            }
+
             if (!latest.TryGetValue(key, out var known) || journal > known.Journal)
             {
                 var basis = Deserialize<List<string>>(row.GetString(5)).Select(ParseTxid).ToList();
@@ -106,7 +132,10 @@ internal static class EvidenceStore
             }
         }
 
-        return latest.ToDictionary(entry => entry.Key, entry => entry.Value.Result);
+        return latest
+            .Where(entry =>
+                !(weighedWithWithdrawn.TryGetValue(entry.Key.Item1, out var at) && entry.Value.Journal < at))
+            .ToDictionary(entry => entry.Key, entry => entry.Value.Result);
     }
 
     /// <summary>Seals one weighed result as records under a run's journal entry.</summary>
@@ -152,8 +181,8 @@ internal static class EvidenceStore
 
     /// <summary>
     /// Reads the records that count now: for every transaction and analysis name, the newest result of the highest
-    /// version stored. Each record keeps the order of its result's first appearance, so that analysing again never
-    /// changes which of two proposals came first.
+    /// version stored that is not drawn back (<see cref="ReadWithdrawals"/>). Each record keeps the order of its
+    /// result's first appearance, so that analysing again never changes which of two proposals came first.
     /// </summary>
     /// <param name="reader">The case's reader.</param>
     /// <param name="txid">The transaction, or <see langword="null"/> for all.</param>
@@ -162,6 +191,48 @@ internal static class EvidenceStore
     /// <exception cref="CaseException"><see cref="CaseError.Corrupt"/> when a record cannot be read back.</exception>
     public static (List<ClusterEvidence> Evidence, List<StoredFinding> Findings) ReadLatest(
         ICaseReader reader, Txid? txid = null, bool withFindings = true)
+    {
+        var current = CountingRows(reader, txid, null);
+        var evidence = current.Where(row => row.Kind == ProposalKind).Select(ToEvidence).ToList();
+        var findings = withFindings
+            ? current.Where(row => row.Kind == FindingKind).Select(ToFinding).ToList()
+            : [];
+        return (evidence, findings);
+    }
+
+    /// <summary>
+    /// Reads the records that count now (<see cref="ReadLatest(ICaseReader, Txid?, bool)"/>) for many transactions
+    /// at once, read once.
+    /// </summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <param name="txids">The transactions.</param>
+    /// <returns>The conclusions of each transaction asked for; empty lists when one has none.</returns>
+    /// <exception cref="CaseException"><see cref="CaseError.Corrupt"/> when a record cannot be read back.</exception>
+    public static Dictionary<Txid, TransactionConclusions> ReadLatest(ICaseReader reader, IReadOnlySet<Txid> txids)
+    {
+        var rows = CountingRows(reader, null, null).Where(row => txids.Contains(row.Txid)).ToLookup(row => row.Txid);
+        return txids.ToDictionary(
+            txid => txid,
+            txid => new TransactionConclusions(
+                txid,
+                [.. rows[txid].Where(row => row.Kind == ProposalKind).Select(ToEvidence)],
+                [.. rows[txid].Where(row => row.Kind == FindingKind).Select(ToFinding)]));
+    }
+
+    /// <summary>
+    /// Gives the records that count now, in the order of first appearance. A proposal that was weighed down while a
+    /// version now drawn back had analysed its transaction (its CoinJoin's veto, or its disagreement about the
+    /// change) counts as a suggestion until the transaction is analysed again, so that a version drawn back never
+    /// vetoes and nothing it held back is merged without a new weighing.
+    /// </summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <param name="txid">The transaction, or <see langword="null"/> for all.</param>
+    /// <param name="alsoWithdrawn">
+    /// A version to count as drawn back after everything stored, for a preview of drawing it back, or
+    /// <see langword="null"/>.
+    /// </param>
+    /// <returns>The records.</returns>
+    private static List<EvidenceRow> CountingRows(ICaseReader reader, Txid? txid, HeuristicId? alsoWithdrawn)
     {
         using var command = reader.CreateCommand(
             EvidenceSelect + " WHERE $txid IS NULL OR txid = $txid ORDER BY sequence");
@@ -175,6 +246,21 @@ internal static class EvidenceStore
             }
         }
 
+        var withdrawnAt = ReadWithdrawals(reader)
+            .Where(withdrawal => withdrawal.IsInForce)
+            .ToDictionary(withdrawal => withdrawal.Heuristic, withdrawal => withdrawal.JournalSequence);
+        if (alsoWithdrawn is not null)
+        {
+            withdrawnAt.TryAdd(alsoWithdrawn, long.MaxValue);
+        }
+
+        var releases = HeldBackStore.Releases(reader);
+        rows.RemoveAll(row => IsReleased(releases, row.Txid, row.JournalSequence));
+        var weighedWithWithdrawn = rows.Where(row => withdrawnAt.ContainsKey(row.Heuristic))
+            .GroupBy(row => row.Txid)
+            .ToDictionary(group => group.Key, group => group.Max(row => withdrawnAt[row.Heuristic]));
+        rows.RemoveAll(row => withdrawnAt.ContainsKey(row.Heuristic));
+
         var byName = rows.GroupBy(row => (row.Txid, row.Heuristic.Name)).ToDictionary(
             group => group.Key,
             group =>
@@ -183,18 +269,55 @@ internal static class EvidenceStore
                 var journal = group.Where(row => row.Heuristic.Version == version).Max(row => row.JournalSequence);
                 return (Version: version, Journal: journal, First: group.Min(row => row.Sequence));
             });
-        var current = rows.Where(row => byName[(row.Txid, row.Heuristic.Name)] is var counting
-                && row.Heuristic.Version == counting.Version
-                && row.JournalSequence == counting.Journal)
-            .OrderBy(row => byName[(row.Txid, row.Heuristic.Name)].First)
-            .ThenBy(row => row.Sequence)
-            .ToList();
-        var evidence = current.Where(row => row.Kind == ProposalKind).Select(ToEvidence).ToList();
-        var findings = withFindings
-            ? current.Where(row => row.Kind == FindingKind).Select(ToFinding).ToList()
-            : [];
-        return (evidence, findings);
+        return
+        [
+            .. rows.Where(row => byName[(row.Txid, row.Heuristic.Name)] is var counting
+                    && row.Heuristic.Version == counting.Version
+                    && row.JournalSequence == counting.Journal)
+                .OrderBy(row => byName[(row.Txid, row.Heuristic.Name)].First)
+                .ThenBy(row => row.Sequence)
+                .Select(row => WeighedAgain(row, weighedWithWithdrawn)),
+        ];
     }
+
+    /// <summary>
+    /// Reads the proposals that would count with one more version drawn back, for the preview of drawing it back
+    /// (sketch KV1a).
+    /// </summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <param name="withdrawn">The version that would be drawn back.</param>
+    /// <returns>The proposals.</returns>
+    /// <exception cref="CaseException"><see cref="CaseError.Corrupt"/> when a record cannot be read back.</exception>
+    public static List<ClusterEvidence> ReadLatestWithout(ICaseReader reader, HeuristicId withdrawn) =>
+        [.. CountingRows(reader, null, withdrawn).Where(row => row.Kind == ProposalKind).Select(ToEvidence)];
+
+    /// <summary>
+    /// Says whether a record was stored before the user let its transaction's held back conclusions go, so that it
+    /// no longer counts (sketch HB1a).
+    /// </summary>
+    /// <param name="releases">The journal entry of each transaction's latest release.</param>
+    /// <param name="txid">The record's transaction.</param>
+    /// <param name="journal">The record's journal entry.</param>
+    /// <returns><see langword="true"/> when it is let go.</returns>
+    private static bool IsReleased(Dictionary<Txid, long> releases, Txid txid, long journal) =>
+        releases.TryGetValue(txid, out var at) && journal < at;
+
+    /// <summary>
+    /// Lifts the weighing of a version drawn back off a proposal: one weighed down before the withdrawal, of a
+    /// transaction the drawn back version had analysed, counts as a suggestion.
+    /// </summary>
+    /// <param name="row">The record.</param>
+    /// <param name="weighedWithWithdrawn">
+    /// The transactions a version now drawn back analysed, with the journal entry of the latest withdrawal concerned.
+    /// </param>
+    /// <returns>The record as it counts.</returns>
+    private static EvidenceRow WeighedAgain(EvidenceRow row, Dictionary<Txid, long> weighedWithWithdrawn) =>
+        row.Kind == ProposalKind
+        && row.Adjustment is not null
+        && weighedWithWithdrawn.TryGetValue(row.Txid, out var withdrawnAt)
+        && row.JournalSequence < withdrawnAt
+            ? row with { Strength = nameof(EvidenceStrength.Suggestion), Adjustment = WithdrawnWeighing }
+            : row;
 
     /// <summary>Seals a split under its journal entry.</summary>
     /// <param name="transaction">The case's write transaction.</param>
@@ -375,6 +498,85 @@ internal static class EvidenceStore
     /// <exception cref="CaseException"><see cref="CaseError.Corrupt"/> when it is not one.</exception>
     internal static BitcoinAddress ParseAddress(string text) =>
         BitcoinAddress.TryParse(text, out var address) ? address : throw new CaseException(CaseError.Corrupt);
+
+    /// <summary>Seals that a version of an analysis is drawn back, under its journal entry.</summary>
+    /// <param name="transaction">The case's write transaction.</param>
+    /// <param name="heuristic">The analysis and version.</param>
+    /// <param name="reason">Why, or <see langword="null"/>.</param>
+    /// <param name="journal">The journal entry.</param>
+    /// <returns>The stored withdrawal.</returns>
+    public static VersionWithdrawal AppendWithdrawal(
+        ICaseTransaction transaction, HeuristicId heuristic, string? reason, JournalEntry journal)
+    {
+        object?[] values =
+        [
+            heuristic.Name, (long)heuristic.Version, reason, journal.Sequence,
+            journal.Utc.ToString("O", CultureInfo.InvariantCulture),
+        ];
+        var record = transaction.AppendSealed(ClusteringSchema.WithdrawalsChain, values);
+        return new VersionWithdrawal(record.Sequence, heuristic, reason, journal.Sequence, journal.Utc);
+    }
+
+    /// <summary>
+    /// Seals that a withdrawal is taken back, under its journal entry; the withdrawal is never touched.
+    /// </summary>
+    /// <param name="transaction">The case's write transaction.</param>
+    /// <param name="withdrawal">The withdrawal.</param>
+    /// <param name="reason">Why, or <see langword="null"/>.</param>
+    /// <param name="journal">The journal entry.</param>
+    /// <returns>The stored taking back.</returns>
+    public static VersionWithdrawalUndo AppendWithdrawalUndo(
+        ICaseTransaction transaction, VersionWithdrawal withdrawal, string? reason, JournalEntry journal)
+    {
+        object?[] values =
+        [
+            withdrawal.Sequence, reason, journal.Sequence, journal.Utc.ToString("O", CultureInfo.InvariantCulture),
+        ];
+        var record = transaction.AppendSealed(ClusteringSchema.WithdrawalUndosChain, values);
+        return new VersionWithdrawalUndo(record.Sequence, withdrawal.Sequence, reason, journal.Sequence, journal.Utc);
+    }
+
+    /// <summary>
+    /// Reads every withdrawal, oldest first, each with its taking back (the first record for a withdrawal counts).
+    /// </summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <returns>The withdrawals.</returns>
+    /// <exception cref="CaseException"><see cref="CaseError.Corrupt"/> when a record cannot be read back.</exception>
+    public static List<VersionWithdrawal> ReadWithdrawals(ICaseReader reader)
+    {
+        var undos = new Dictionary<long, VersionWithdrawalUndo>();
+        using (var command = reader.CreateCommand(
+            "SELECT sequence, withdrawal_sequence, reason, journal_sequence, recorded_utc "
+                + "FROM clustering_withdrawal_undos ORDER BY sequence"))
+        using (var row = command.ExecuteReader())
+        {
+            while (row.Read())
+            {
+                var undo = new VersionWithdrawalUndo(
+                    row.GetInt64(0), row.GetInt64(1), row.IsDBNull(2) ? null : row.GetString(2), row.GetInt64(3),
+                    ParseTime(row.GetString(4)));
+                undos.TryAdd(undo.WithdrawalSequence, undo);
+            }
+        }
+
+        using var withdrawals = reader.CreateCommand(
+            "SELECT sequence, heuristic, heuristic_version, reason, journal_sequence, recorded_utc "
+                + "FROM clustering_withdrawals ORDER BY sequence");
+        using var read = withdrawals.ExecuteReader();
+        var all = new List<VersionWithdrawal>();
+        while (read.Read())
+        {
+            var sequence = read.GetInt64(0);
+            all.Add(new VersionWithdrawal(
+                sequence,
+                Heuristic(read.GetString(1), read.GetInt64(2)),
+                read.IsDBNull(3) ? null : read.GetString(3),
+                read.GetInt64(4),
+                ParseTime(read.GetString(5))) { Undo = undos.GetValueOrDefault(sequence) });
+        }
+
+        return all;
+    }
 
     /// <summary>Reads a time written with the round-trip format back.</summary>
     /// <param name="text">The text.</param>

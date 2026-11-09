@@ -11,8 +11,9 @@ namespace Chainsaw.Watcher;
 /// case open in Chainsaw to it, and for each chain asks the height at most once a minute through the way out; the
 /// watches that are due (<see cref="WatchSchedule.IsDue"/>) are checked with the same check and feeds as in the open
 /// Chainsaw (<see cref="LookupMode.InStep"/>, the endpoints' pace and fallback), against a case in memory whose raw
-/// responses go, with the matches, into the protected queue. With VPN as the way out nothing is looked up: the exits
-/// are in the vault, which the background never opens.
+/// responses go, with the matches, into the protected queue. With VPN as the way out it connects the program's
+/// selected exit when the user allowed it in the background (decided 2026-11-08), through the same helper, checked by
+/// its SHA-256; without that exit connected nothing is looked up (principle 4), and the vault is never opened.
 /// </summary>
 internal sealed class WatcherLoop
 {
@@ -21,6 +22,12 @@ internal sealed class WatcherLoop
 
     /// <summary>How long before the endpoints are tried again when none is in step.</summary>
     public static readonly TimeSpan ProbeAgain = TimeSpan.FromMinutes(10);
+
+    /// <summary>How long before a failed connection of the exit is tried again.</summary>
+    public static readonly TimeSpan ConnectAgain = TimeSpan.FromMinutes(1);
+
+    /// <summary>How many responses a merged quiet entry holds at most before a new one is begun.</summary>
+    public const int MergedResponsesKept = 600;
 
     /// <summary>How many hits per watch it remembers having told of.</summary>
     public const int AlertedKept = 500;
@@ -33,6 +40,9 @@ internal sealed class WatcherLoop
 
     /// <summary>The gate, which follows the plan's way out.</summary>
     private readonly WatcherGate _gate;
+
+    /// <summary>The login to Windows' proxy, set from the plan (sketch PX1a); none in some tests.</summary>
+    private readonly IWindowsProxy? _proxy;
 
     /// <summary>Makes the case in memory of a round.</summary>
     private readonly Func<IMemoryCase> _scratch;
@@ -64,15 +74,23 @@ internal sealed class WatcherLoop
     /// <summary>The status said last.</summary>
     private (BackgroundState, string?)? _said;
 
+    /// <summary>The last quiet entry queued per watch in this run, which the next quiet check is merged into.</summary>
+    private readonly Dictionary<(Guid, string), QuietEntry> _quiet = [];
+
+    /// <summary>When the exit may be connected next, after a failed attempt.</summary>
+    private DateTimeOffset _nextConnect = DateTimeOffset.MinValue;
+
     /// <summary>Creates the loop.</summary>
     /// <param name="parts">The services.</param>
     /// <param name="route">The way out.</param>
     /// <param name="gate">The gate.</param>
     /// <param name="scratch">Makes a case in memory.</param>
-    public WatcherLoop(WatcherParts parts, IExitRoute route, WatcherGate gate, Func<IMemoryCase> scratch)
+    /// <param name="proxy">The login to Windows' proxy, which follows the plan; none in some tests.</param>
+    public WatcherLoop(
+        WatcherParts parts, IExitRoute route, WatcherGate gate, Func<IMemoryCase> scratch, IWindowsProxy? proxy = null)
     {
         ArgumentNullException.ThrowIfNull(parts);
-        (_parts, _route, _gate, _scratch) = (parts, route, gate, scratch);
+        (_parts, _route, _gate, _scratch, _proxy) = (parts, route, gate, scratch, proxy);
         _progress = parts.Progress.Read().ToDictionary(each => (each.CaseId, each.WatchId));
     }
 
@@ -101,10 +119,16 @@ internal sealed class WatcherLoop
         }
 
         _gate.Route = _plan.Route;
+        FollowProxyLogin();
         _route.Choose(_plan.Route);
-        if (_plan.Route != ExitRoute.Windows)
+        if (!await ExitReadyAsync(cancellationToken).ConfigureAwait(false))
         {
-            // VPN needs the exit's WireGuard file, which is in the vault: nothing is looked up, and that is said.
+            // VPN without the allowed exit connected: nothing is looked up or listened to, and that is said.
+            foreach (var chain in _chains.Keys)
+            {
+                _parts.News?.Release(chain);
+            }
+
             Say(BackgroundState.WaitingForExit, null);
             return true;
         }
@@ -134,6 +158,89 @@ internal sealed class WatcherLoop
         KeepProgress();
         Say(StateOf(round, work.Count), round.InStepWith);
         return true;
+    }
+
+    /// <summary>
+    /// Makes the way out ready: through Windows any exit is let go; through VPN the exit allowed in the background is
+    /// connected (at most once a minute after a failure), and an exit no longer allowed or selected is let go at once.
+    /// </summary>
+    /// <param name="cancellationToken">Stops the attempt.</param>
+    /// <returns><see langword="true"/> when lookups may go out.</returns>
+    private async Task<bool> ExitReadyAsync(CancellationToken cancellationToken)
+    {
+        if (_parts.Exit is not { } exit || _parts.Exits is not { } exits)
+        {
+            return _plan.Route == ExitRoute.Windows;
+        }
+
+        var status = exit.Status;
+        var wanted = _plan.Route == ExitRoute.Vpn ? exits.Usable() : null;
+        if (status.State != ExitState.NotConnected && (wanted is null || status.ExitId != wanted))
+        {
+            // Windows chosen, the permission taken back or another exit selected: the tunnel goes now.
+            await exit.DisconnectAsync().ConfigureAwait(false);
+            status = exit.Status;
+        }
+
+        if (_plan.Route == ExitRoute.Windows)
+        {
+            return true;
+        }
+
+        if (wanted is null)
+        {
+            return false;
+        }
+
+        if (status.State == ExitState.Connected)
+        {
+            return true;
+        }
+
+        var now = _parts.Clock.UtcNow;
+        if (now < _nextConnect)
+        {
+            return false;
+        }
+
+        _nextConnect = now + ConnectAgain;
+        try
+        {
+            status = await exit.ConnectAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (InvalidOperationException)
+        {
+            // The permission was taken back between the look and the attempt.
+            return false;
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            // Cancelled by a change of the exits meanwhile: tried again at the next round.
+            return false;
+        }
+
+        return status.State == ExitState.Connected && status.ExitId == wanted;
+    }
+
+    /// <summary>
+    /// Follows the user's choice to log in to Windows' proxy (sketch PX1a), as Chainsaw does: the same gate, so the
+    /// account goes only to that proxy set by hand. An address that cannot be read turns the login off.
+    /// </summary>
+    private void FollowProxyLogin()
+    {
+        if (_proxy is null)
+        {
+            return;
+        }
+
+        try
+        {
+            _proxy.AllowLogin(_plan.ProxyLoginFor);
+        }
+        catch (ArgumentException)
+        {
+            _proxy.AllowLogin(null);
+        }
     }
 
     /// <summary>Gives what to say after a round.</summary>
@@ -168,6 +275,7 @@ internal sealed class WatcherLoop
         if (_gate.For(chain) != WatchGate.Open || _parts.Feeds.For(scratch, chain) is not { } feed)
         {
             round.ChainsOff++;
+            _parts.News?.Release(chain);
             return;
         }
 
@@ -177,7 +285,14 @@ internal sealed class WatcherLoop
         var state = _chains.TryGetValue(chain, out var known) ? known : _chains[chain] = new ChainState();
         var now = _parts.Clock.UtcNow;
         var unstarted = work.Any(each => StartOf(each.Case, each.Watch) is null);
-        var waits = !unstarted || state.HeightFailed;
+
+        // A new block heard of by websocket asks at once, instead of waiting for the minute; after a failed ask the
+        // minute holds all the same.
+        _parts.News?.Keep(chain);
+        var heard = _parts.News?.Heard(chain) ?? 0;
+        var nudged = heard != state.Heard;
+        state.Heard = heard;
+        var waits = state.HeightFailed || (!unstarted && !nudged);
         if (waits && now < state.NextHeight)
         {
             return;
@@ -185,7 +300,8 @@ internal sealed class WatcherLoop
 
         state.NextHeight = now + HeightPoll;
         var mark = scratch.Mark();
-        var height = await HeightAsync(scratch, chain, cancellationToken).ConfigureAwait(false);
+        var height = await WatchSchedule.HeightAsync(_parts.Bitcoin, _parts.Ethereum, scratch, chain, cancellationToken)
+            .ConfigureAwait(false);
         state.HeightFailed = height is null;
         if (height is not { } tip)
         {
@@ -276,7 +392,7 @@ internal sealed class WatcherLoop
             }
         }
 
-        _parts.Queue.Add(new QueuedCheck(
+        Enqueue(watch, new QueuedCheck(
             Guid.NewGuid(), caseId, watch.WatchId, QueuedKind.Checked, watch.Filter, start, height, checkedNow,
             result.Matches, result.Origins, Responses(scratch, fetched), now)
         {
@@ -302,6 +418,65 @@ internal sealed class WatcherLoop
         return true;
     }
 
+    /// <summary>
+    /// Queues a check. A quiet check (no matches) is merged into the watch's previous quiet entry from this run, so
+    /// that the queue does not grow by one file and one journal line per check while a case stays closed (etapp 27,
+    /// M3): the merged entry keeps every response of both (nothing fetched is dropped, principle 1) and the later
+    /// check's progress and time, under a new id, up to <see cref="MergedResponsesKept"/> responses, after which a
+    /// new entry is begun.
+    /// </summary>
+    /// <param name="watch">The watch as the plan has it.</param>
+    /// <param name="entry">The check's entry.</param>
+    private void Enqueue(BackgroundWatch watch, QueuedCheck entry)
+    {
+        var key = (entry.CaseId, entry.WatchId);
+        var quiet = entry.Matches.Count == 0;
+        if (quiet && _quiet.TryGetValue(key, out var last) && ReferenceEquals(last.Filter, watch.Filter)
+            && last.Start == entry.Start && last.Responses + entry.Responses.Count <= MergedResponsesKept
+            && ReadQuiet(entry.CaseId, last.Id) is { } before)
+        {
+            // A new id, so that Chainsaw, which may have brought the older entry in meanwhile, never takes the merged one
+            // as already brought in. The merged entry is written whole before the older goes: a crash in between leaves
+            // both, and the older's responses are sealed twice rather than lost. The time is the latest check's.
+            var merged = entry with
+            {
+                Id = Guid.NewGuid(),
+                Responses = [.. before.Responses, .. entry.Responses],
+            };
+            _parts.Queue.Add(merged);
+            _parts.Queue.Remove(entry.CaseId, before.Id);
+            _quiet[key] = new QuietEntry(merged.Id, watch.Filter, merged.Start, merged.Responses.Count);
+            return;
+        }
+
+        _parts.Queue.Add(entry);
+        if (quiet)
+        {
+            _quiet[key] = new QuietEntry(entry.Id, watch.Filter, entry.Start, entry.Responses.Count);
+        }
+        else
+        {
+            _quiet.Remove(key);
+        }
+    }
+
+    /// <summary>Reads a quiet entry back, when it is still in the queue and still quiet.</summary>
+    /// <param name="caseId">The case.</param>
+    /// <param name="id">The entry.</param>
+    /// <returns>The entry, or <see langword="null"/> when Chainsaw has brought it in meanwhile or it cannot be read.</returns>
+    private QueuedCheck? ReadQuiet(Guid caseId, Guid id)
+    {
+        try
+        {
+            return _parts.Queue.Read(caseId, id) is { Kind: QueuedKind.Checked, Matches.Count: 0 } entry ? entry : null;
+        }
+        catch (Exception exception) when (exception is InvalidDataException or IOException
+            or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
     /// <summary>Reads the responses sealed in the case in memory, to go into the queue.</summary>
     /// <param name="scratch">The case in memory.</param>
     /// <param name="sequences">Their numbers.</param>
@@ -313,27 +488,6 @@ internal sealed class WatcherLoop
                 .Select(sequence => _parts.Transfer.Read(reader, sequence))
                 .OfType<SealedResponse>()
                 .ToList());
-
-    /// <summary>Asks a chain's height through its sources.</summary>
-    /// <param name="scratch">The case in memory.</param>
-    /// <param name="chain">The chain.</param>
-    /// <param name="cancellationToken">Stops the lookup.</param>
-    /// <returns>The height, or <see langword="null"/> when it could not be had.</returns>
-    private async Task<long?> HeightAsync(ICase scratch, Chain chain, CancellationToken cancellationToken)
-    {
-        switch (chain)
-        {
-            case Chain.Bitcoin:
-                var tip = await _parts.Bitcoin.GetTipHeightAsync(scratch, cancellationToken).ConfigureAwait(false);
-                return tip.Status == LookupStatus.Fetched ? tip.Value?.Height : null;
-            case Chain.Ethereum:
-                var height = await _parts.Ethereum.GetTipHeightAsync(scratch, cancellationToken)
-                    .ConfigureAwait(false);
-                return height.Status == LookupStatus.Fetched ? height.Value?.Height : null;
-            default:
-                return null;
-        }
-    }
 
     /// <summary>
     /// Tries the chain's endpoints when they have not been tried since the process started, or again after a while
@@ -482,6 +636,13 @@ internal sealed class WatcherLoop
         public string? InStepWith { get; set; }
     }
 
+    /// <summary>A quiet entry queued in this run.</summary>
+    /// <param name="Id">The entry.</param>
+    /// <param name="Filter">The filter it was checked with, as the plan held it.</param>
+    /// <param name="Start">The start it counted from.</param>
+    /// <param name="Responses">How many responses it holds.</param>
+    private sealed record QuietEntry(Guid Id, WatchFilter Filter, long Start, int Responses);
+
     /// <summary>What the loop knows about one chain.</summary>
     private sealed class ChainState
     {
@@ -493,6 +654,9 @@ internal sealed class WatcherLoop
 
         /// <summary>Gets or sets when the endpoints were last tried.</summary>
         public DateTimeOffset? ProbedAt { get; set; }
+
+        /// <summary>Gets or sets how many new blocks had been heard of at the last look.</summary>
+        public long Heard { get; set; }
     }
 }
 
@@ -510,6 +674,10 @@ internal sealed class WatcherLoop
 /// <param name="Transfer">Reads the responses out of the case in memory.</param>
 /// <param name="Alerts">Says that a watch has hit.</param>
 /// <param name="Clock">The clock.</param>
+/// <remarks>
+/// <see cref="Exit"/> and <see cref="Exits"/> are the exit allowed in the background; without them only Windows is a way
+/// out.
+/// </remarks>
 internal sealed record WatcherParts(
     IBackgroundPlan Plan,
     IBackgroundProgressFile Progress,
@@ -523,4 +691,14 @@ internal sealed record WatcherParts(
     IEthereumSource Ethereum,
     IResponseTransfer Transfer,
     IAlerts Alerts,
-    IClock Clock);
+    IClock Clock)
+{
+    /// <summary>Gets the connection to the exit allowed in the background, or <see langword="null"/>.</summary>
+    public IExitConnection? Exit { get; init; }
+
+    /// <summary>Gets the exits the user allowed in the background, or <see langword="null"/>.</summary>
+    public IBackgroundExits? Exits { get; init; }
+
+    /// <summary>Gets the chains' news of new blocks, or <see langword="null"/> to ask once a minute only.</summary>
+    public IBlockNews? News { get; init; }
+}

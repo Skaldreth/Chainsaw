@@ -97,7 +97,20 @@ public partial class CasePicker : UserControl
     /// <param name="e">The key.</param>
     private void OnKey(object sender, KeyEventArgs e)
     {
-        if (_picker is not { } picker || Keyboard.Modifiers != ModifierKeys.None)
+        if (_picker is not { } picker)
+        {
+            return;
+        }
+
+        // With a link at the top, Ctrl+N starts a new case with it (sketch LN1a), not an empty one.
+        if (picker.HasLink && e.Key == Key.N && Keyboard.Modifiers == ModifierKeys.Control)
+        {
+            picker.NewCase();
+            e.Handled = true;
+            return;
+        }
+
+        if (Keyboard.Modifiers != ModifierKeys.None)
         {
             return;
         }

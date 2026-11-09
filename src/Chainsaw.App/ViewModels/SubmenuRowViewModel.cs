@@ -36,7 +36,6 @@ public sealed partial class SubmenuRowViewModel : ObservableObject
     {
         (IsEnabled, ToolTip) = Row.Need switch
         {
-            SubmenuNeed.NotBuilt => (false, Row.NotBuiltText),
             SubmenuNeed.OpenCase when !hasCase => (false, SubmenuTable.NeedsCaseText),
             _ => (!Row.IsLine, null),
         };

@@ -30,10 +30,17 @@ internal sealed class ExitRouteChoice : IExitRoute, IDisposable
     /// <summary>Creates the choice with the way chosen when Chainsaw started.</summary>
     /// <param name="options">The settings, with the way out read from the application's settings.</param>
     /// <param name="handlers">Builds the pipeline through Windows.</param>
-    public ExitRouteChoice(NetworkOptions options, IWindowsHandlerFactory handlers)
+    /// <param name="login">
+    /// The login to Windows' proxy, whose change builds the pipeline anew (sketch PX1a); none in some tests.
+    /// </param>
+    public ExitRouteChoice(NetworkOptions options, IWindowsHandlerFactory handlers, WindowsProxyLogin? login = null)
     {
         _route = options.Route;
         _handlers = handlers;
+        if (login is not null)
+        {
+            login.ChoiceChanged += (_, _) => Renew();
+        }
     }
 
     /// <inheritdoc />
@@ -93,6 +100,34 @@ internal sealed class ExitRouteChoice : IExitRoute, IDisposable
         left?.Dispose();
         pipeline?.Dispose();
         Raise(route);
+    }
+
+    /// <summary>
+    /// Builds the pipeline through Windows anew the next time it is needed, and stops the requests in flight through
+    /// the old one, as leaving Windows does: after the login to the proxy is turned off or moved, no connection that
+    /// logged in stays open.
+    /// </summary>
+    public void Renew()
+    {
+        CancellationTokenSource? left;
+        HttpMessageInvoker? pipeline;
+        lock (_gate)
+        {
+            if (_disposed || _windows is null)
+            {
+                return;
+            }
+
+            left = _stopping;
+            _stopping = new CancellationTokenSource();
+            pipeline = _windows;
+            _windows = null;
+        }
+
+        // Cancelled outside the lock: the requests' own callbacks run on it.
+        left.Cancel();
+        left.Dispose();
+        pipeline.Dispose();
     }
 
     /// <summary>Takes what one request through Windows needs, when Windows is the way chosen now.</summary>

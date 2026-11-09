@@ -63,6 +63,7 @@ public sealed partial class GateViewModel : ObservableObject
         vault.StateChanged += (_, state) => ui.Post(() => OnVaultChanged(state));
         firstRun.Completed += (_, _) => OnSetupCompleted();
         lockSignal.Requested += (_, _) => Lock();
+        links.WaitingChanged += (_, _) => ui.Post(() => lockScreen.HasWaitingLink = links.HasWaiting);
         if (Mode == GateMode.Unlocked)
         {
             shell.OnShown();
@@ -192,7 +193,7 @@ public sealed partial class GateViewModel : ObservableObject
     {
         Mode = GateMode.Locked;
         _links.Close();
-        _shell.ClearCommand();
+        _shell.ClearForLock();
         _shell.DismissAll();
         _shell.NewCase.Dismiss();
         _session.Forget();

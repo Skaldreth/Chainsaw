@@ -8,9 +8,7 @@ namespace Chainsaw.App.Navigation;
 /// a shortcut with a modifier is the window's own and works whether the menu is open or not.
 /// </param>
 /// <param name="Need">What the row needs to be chosen.</param>
-/// <param name="NotBuiltText">What the tooltip says while the row's function is not built; empty otherwise.</param>
-public sealed record SubmenuRow(
-    SubmenuAction Action, string Name, string Gesture, SubmenuNeed Need, string NotBuiltText = "")
+public sealed record SubmenuRow(SubmenuAction Action, string Name, string Gesture, SubmenuNeed Need)
 {
     /// <summary>A line between groups of rows.</summary>
     public static SubmenuRow Line { get; } = new(SubmenuAction.None, string.Empty, string.Empty, SubmenuNeed.Nothing);

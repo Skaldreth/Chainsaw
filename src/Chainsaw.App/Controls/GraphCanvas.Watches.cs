@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Chainsaw.App.Graph;
+using static Chainsaw.App.Controls.Freezing;
 
 namespace Chainsaw.App.Controls;
 
@@ -38,20 +39,23 @@ public sealed partial class GraphCanvas
     /// <summary>How far the rings move outwards in one beat.</summary>
     private const double RingTravel = 12;
 
-    /// <summary>The time between two frames of the rings.</summary>
-    private static readonly TimeSpan RingFrame = TimeSpan.FromMilliseconds(66);
-
     /// <summary>The time of one beat of the rings.</summary>
     private static readonly TimeSpan RingBeat = TimeSpan.FromSeconds(1.6);
+
+    /// <summary>The dashes of a tip from the background that waits for Chainsaw's own lookup: uncertain.</summary>
+    private static readonly DashStyle PendingDashes = Frozen(new DashStyle([2, 1.6], 0));
 
     /// <summary>The dots of a watch line and a ray (dotted, never dashed: dashed always means uncertain).</summary>
     private static readonly DashStyle WatchDots = Frozen(new DashStyle([0.01, 2.6], 0));
 
-    /// <summary>Moves the rings while a hit is unseen; stopped otherwise.</summary>
-    private DispatcherTimer? _rings;
-
     /// <summary>Whether moving rings were drawn on screen this frame, so that the frames run only then.</summary>
     private bool _ringsOnScreen;
+
+    /// <summary>Whether moving rings were drawn on screen in the layer over the nodes (the search's ring, the sonar).</summary>
+    private bool _ringsOverNodes;
+
+    /// <summary>Whether the layer over the nodes is being drawn, so that its rings are noted for it.</summary>
+    private bool _drawingOverNodes;
 
     /// <summary>Where in a beat the rings are, from 0 to 1.</summary>
     private double _ringPhase;
@@ -74,13 +78,9 @@ public sealed partial class GraphCanvas
                 continue;
             }
 
-            var pen = new Pen(GraphPalette.Find(this, "Brush.Watch"), GlowWidth)
-            {
-                StartLineCap = PenLineCap.Round,
-                EndLineCap = PenLineCap.Round,
-            };
+            var pen = PenOf(Ink("Brush.Watch"), GlowWidth, ends: PenLineCap.Round);
             dc.PushOpacity(GlowOpacity);
-            dc.DrawGeometry(null, pen, Geometry(curve));
+            dc.DrawGeometry(null, pen, CurveGeometry(curve));
             dc.Pop();
         }
     }
@@ -96,11 +96,14 @@ public sealed partial class GraphCanvas
             switch (line.Kind)
             {
                 case WatchLineKind.Guard:
-                    dc.DrawGeometry(null, DotPen(line.Idle), Geometry(curve));
+                    dc.DrawGeometry(null, DotPen(line.Idle), CurveGeometry(curve));
                     DrawLineEye(dc, curve.Middle, line.Idle);
                     break;
                 case WatchLineKind.Hit:
                     DrawHit(dc, line, curve);
+                    break;
+                case WatchLineKind.Pending:
+                    DrawPending(dc, curve);
                     break;
                 default:
                     break;
@@ -136,20 +139,20 @@ public sealed partial class GraphCanvas
         var centre = new Point(
             place.X + node.Width + MarkOverhang - (MarkSize / 2) - (index * (MarkSize + 2)),
             place.Y - MarkOverhang + (MarkSize / 2));
-        var idle = GraphPalette.Find(this, "Brush.Watch.Idle");
+        var idle = Ink("Brush.Watch.Idle");
         if (mark.Idle)
         {
             dc.DrawEllipse(
-                GraphPalette.Find(this, "Brush.Surface"), new Pen(idle, 1.5), centre, MarkSize / 2, MarkSize / 2);
+                Ink("Brush.Surface"), PenOf(idle, 1.5), centre, MarkSize / 2, MarkSize / 2);
             DrawGlyph(dc, "Icon.Eye", idle, new Point(centre.X - (MarkIconSize / 2), centre.Y - (MarkIconSize / 2)),
                 MarkIconSize);
             return;
         }
 
         dc.DrawEllipse(
-            GraphPalette.Find(this, "Brush.Accent"), new Pen(GraphPalette.Find(this, "Brush.Background"), 2), centre,
+            Ink("Brush.Accent"), PenOf(Ink("Brush.Background"), 2), centre,
             MarkSize / 2, MarkSize / 2);
-        DrawGlyph(dc, "Icon.Eye", GraphPalette.Find(this, "Brush.Mark.OnAccent"),
+        DrawGlyph(dc, "Icon.Eye", Ink("Brush.Mark.OnAccent"),
             new Point(centre.X - (MarkIconSize / 2), centre.Y - (MarkIconSize / 2)), MarkIconSize);
     }
 
@@ -187,9 +190,8 @@ public sealed partial class GraphCanvas
             DrawRings(dc, middle, RingRadius, line.Idle);
         }
 
-        var accent = GraphPalette.Find(this, line.Idle ? "Brush.Watch.Idle" : "Brush.Accent");
-        dc.DrawGeometry(null, new Pen(accent, 2.5) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round },
-            Geometry(curve));
+        var accent = Ink(line.Idle ? "Brush.Watch.Idle" : "Brush.Accent");
+        dc.DrawGeometry(null, PenOf(accent, 2.5, ends: PenLineCap.Round), CurveGeometry(curve));
         if (line.Label is not { } label)
         {
             return;
@@ -198,8 +200,40 @@ public sealed partial class GraphCanvas
         var text = Text(label, 11, accent, FontWeights.SemiBold);
         var box = new Rect(middle.X - (text.Width / 2) - 5, middle.Y - (text.Height / 2) - 1, text.Width + 10,
             text.Height + 2);
-        dc.DrawRoundedRectangle(GraphPalette.Find(this, "Brush.Background"), null, box, 4, 4);
+        dc.DrawRoundedRectangle(Ink("Brush.Background"), null, box, 4, 4);
         dc.DrawText(text, new Point(box.X + 5, box.Y + 1));
+    }
+
+    /// <summary>
+    /// Draws a tip from the background that waits for Chainsaw's own lookup: a grey dashed line with a hollow eye
+    /// halfway, never the hit's real line, amount or rings; what it is is said on hovering the eye.
+    /// </summary>
+    /// <param name="dc">Where to draw.</param>
+    /// <param name="curve">Its curve.</param>
+    private void DrawPending(DrawingContext dc, EdgeCurve curve)
+    {
+        var pen = PenOf(Ink("Brush.Watch.Idle"), 2, PendingDashes);
+        dc.DrawGeometry(null, pen, CurveGeometry(curve));
+        DrawLineEye(dc, curve.Middle, idle: true);
+    }
+
+    /// <summary>Gives what a waiting tip's eye says on hovering, or <see langword="null"/> when not on one.</summary>
+    /// <param name="surface">The pointer on the surface.</param>
+    /// <returns>The tip.</returns>
+    private string? PendingTipAt(GraphPoint surface)
+    {
+        var model = _model!;
+        foreach (var line in model.WatchOverlay.Lines.Where(line => line.Kind == WatchLineKind.Pending))
+        {
+            if (model.CurveBetween(line.From, line.To) is { } curve
+                && Math.Abs(curve.Middle.X - surface.X) <= LineEyeSize / 2
+                && Math.Abs(curve.Middle.Y - surface.Y) <= LineEyeSize / 2)
+            {
+                return line.Tip;
+            }
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -212,8 +246,8 @@ public sealed partial class GraphCanvas
     /// <param name="idle">Whether lookups cannot be made now (grey).</param>
     private void DrawRings(DrawingContext dc, Point centre, double radius, bool idle)
     {
-        _ringsOnScreen = true;
-        var tint = GraphPalette.Find(this, idle ? "Brush.Watch.Idle" : "Brush.Watch");
+        RingsAt(new GraphRect(centre.X - (radius * 3), centre.Y - (radius * 3), radius * 6, radius * 6));
+        var tint = Ink(idle ? "Brush.Watch.Idle" : "Brush.Watch");
         var phase = AnimationsOn ? _ringPhase : 0;
         for (var ring = 0; ring < 2; ring++)
         {
@@ -221,7 +255,7 @@ public sealed partial class GraphCanvas
             var reach = radius + (AnimationsOn ? step * RingTravel : ring * RingTravel * 0.8);
             var opacity = AnimationsOn ? 0.6 * (1 - step) : (ring == 0 ? 0.55 : 0.25);
             dc.PushOpacity(opacity);
-            dc.DrawEllipse(null, new Pen(tint, ring == 0 ? 1.5 : 1), centre, reach, reach);
+            dc.DrawEllipse(null, PenOf(tint, ring == 0 ? 1.5 : 1), centre, reach, reach);
             dc.Pop();
         }
     }
@@ -232,9 +266,9 @@ public sealed partial class GraphCanvas
     /// <param name="idle">Whether lookups cannot be made now.</param>
     private void DrawLineEye(DrawingContext dc, GraphPoint at, bool idle)
     {
-        var tint = GraphPalette.Find(this, idle ? "Brush.Watch.Idle" : "Brush.Watch");
+        var tint = Ink(idle ? "Brush.Watch.Idle" : "Brush.Watch");
         var centre = new Point(at.X, at.Y);
-        dc.DrawEllipse(GraphPalette.Find(this, "Brush.Background"), new Pen(tint, 1.2), centre, LineEyeSize / 2,
+        dc.DrawEllipse(Ink("Brush.Background"), PenOf(tint, 1.2), centre, LineEyeSize / 2,
             LineEyeSize / 2);
         const double glyph = 10;
         DrawGlyph(dc, "Icon.Eye", tint, new Point(centre.X - (glyph / 2), centre.Y - (glyph / 2)), glyph);
@@ -263,60 +297,35 @@ public sealed partial class GraphCanvas
     /// <summary>Gives the pen of a watch line or a ray.</summary>
     /// <param name="idle">Whether lookups cannot be made now (grey).</param>
     /// <returns>The pen.</returns>
-    private Pen DotPen(bool idle) => new(GraphPalette.Find(this, idle ? "Brush.Watch.Idle" : "Brush.Watch"),
-        WatchLineWidth)
-    {
-        DashStyle = WatchDots,
-        DashCap = PenLineCap.Round,
-        StartLineCap = PenLineCap.Round,
-        EndLineCap = PenLineCap.Round,
-    };
+    private Pen DotPen(bool idle) =>
+        PenOf(Ink(idle ? "Brush.Watch.Idle" : "Brush.Watch"), WatchLineWidth, WatchDots, PenLineCap.Round,
+            PenLineCap.Round);
 
     /// <summary>
-    /// Starts the rings' frames while moving rings are on screen and animations are on, and stops them otherwise, so
-    /// that the graph is drawn again only while something it shows moves (principle 6).
+    /// Starts the rings while moving rings are on screen and animations are on, and stops them otherwise, so that the
+    /// graph is drawn again only while something it shows moves (principle 6).
     /// </summary>
     /// <param name="moves">Whether moving rings were drawn on screen.</param>
     private void KeepRings(bool moves)
     {
-        if (moves && AnimationsOn && IsVisible)
+        if (moves && !_frames.IsRunning(GraphMotion.Rings))
         {
-            if (_rings is null)
-            {
-                _ringStart = DateTime.UtcNow;
-                _rings = new DispatcherTimer(RingFrame, DispatcherPriority.Render, OnRingFrame, Dispatcher);
-            }
-
-            return;
+            _ringStart = DateTime.UtcNow;
         }
 
-        _rings?.Stop();
-        _rings = null;
+        KeepMotion(GraphMotion.Rings, moves);
     }
 
-    /// <summary>Moves the rings one frame and draws again.</summary>
-    /// <param name="sender">The timer.</param>
-    /// <param name="e">The arguments.</param>
-    private void OnRingFrame(object? sender, EventArgs e)
+    /// <summary>Moves the rings one step, by the time since they started.</summary>
+    /// <param name="seconds">The time since the last step; the beat follows the clock.</param>
+    /// <returns>
+    /// What changed: the lines, where the watches' rings are, and what stands over the nodes, where the search's ring
+    /// and the guide's sonar are; the nodes keep their drawing.
+    /// </returns>
+    private GraphChange RingStep(double seconds)
     {
-        if (IsMinimised(this))
-        {
-            return;
-        }
-
         _ringPhase = (DateTime.UtcNow - _ringStart).TotalMilliseconds / RingBeat.TotalMilliseconds % 1;
-        InvalidateVisual();
-    }
-
-    /// <summary>Draws again on a timer's frame, unless the window is minimised.</summary>
-    /// <param name="sender">The timer.</param>
-    /// <param name="e">The arguments.</param>
-    private void OnFrameWhileShown(object? sender, EventArgs e)
-    {
-        if (!IsMinimised(this))
-        {
-            InvalidateVisual();
-        }
+        return GraphChange.Lines | GraphChange.OverNodes;
     }
 
     /// <summary>

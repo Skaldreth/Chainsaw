@@ -43,6 +43,19 @@ public sealed class MonitoringGateTests
     }
 
     [Fact]
+    public void Vpn_ignores_the_presence_which_is_not_probed_then()
+    {
+        var presence = new Presence { IsAvailable = false };
+        var gate = new MonitoringGate(_vault, _route, _connection, _sources, presence);
+        _connection.Status = new ExitStatus(ExitState.Connected, Guid.NewGuid(), null);
+        Assert.Equal(WatchGate.Open, gate.For(Chain.Bitcoin));
+
+        presence.IsAvailable = true;
+        _connection.Status = ExitStatus.NotConnected;
+        Assert.Equal(WatchGate.NoExit, gate.For(Chain.Bitcoin));
+    }
+
+    [Fact]
     public void Closed_while_locked_without_an_exit_and_for_a_chain_off()
     {
         Assert.Equal(WatchGate.NoExit, Gate.For(Chain.Bitcoin));
@@ -98,6 +111,19 @@ public sealed class MonitoringGateTests
 
     private sealed class Sources : IChainSources
     {
+        public event EventHandler<SourceEndpoint>? CertificateRefused
+        {
+            add { }
+            remove { }
+        }
+
+        public Task<Chainsaw.Modules.Network.Contracts.NodeCertificate> ReadCertificateAsync(
+            Chain chain, Guid id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task PinAsync(Chain chain, Guid id, string fingerprint, string by) => Task.CompletedTask;
+
+        public Task UnpinAsync(Chain chain, Guid id, string by) => Task.CompletedTask;
+
         public HashSet<Chain> Off { get; } = [];
 
         public IReadOnlyList<Chain> Chains => [Chain.Bitcoin, Chain.Ethereum];

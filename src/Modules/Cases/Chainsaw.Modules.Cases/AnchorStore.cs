@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -12,9 +13,17 @@ namespace Chainsaw.Modules.Cases;
 /// anchors, and the verification says so.
 /// </summary>
 /// <remarks>
-/// The file holds the case id, chain names, sequence numbers and hashes, nothing about the case's content. Removing it
-/// removes the check, so the verification can only show changes against anchors that exist. Each vault has its own
-/// file per case.
+/// <para>
+/// The file holds the case id, a generation, chain names, sequence numbers and hashes, nothing about the case's
+/// content. Each vault has its own file per case.
+/// </para>
+/// <para>
+/// The generation goes up by one at every write, and the vault keeps the last generation it wrote as a secret of its
+/// own (<see cref="CounterName"/>). A file that is removed, or replaced by an older one together with an older case
+/// file, is then seen: the file is missing or behind the vault. Someone who can also put back an older vault file
+/// (and knows its master key's old wrapping) is not stopped by this; the top hash in the reports is the anchor that
+/// lies beyond this computer.
+/// </para>
 /// </remarks>
 internal static class AnchorStore
 {
@@ -25,7 +34,7 @@ internal static class AnchorStore
     private const string Extension = ".anchor";
 
     /// <summary>The domain of the authenticated bytes, so that the tag cannot be mistaken for another.</summary>
-    private const string Domain = "chainsaw/case/anchor/v1";
+    private const string Domain = "chainsaw/case/anchor/v2";
 
     /// <summary>The domain of the anchor file's name.</summary>
     private const string NameDomain = "chainsaw/case/anchor-name/v1";
@@ -35,6 +44,12 @@ internal static class AnchorStore
 
     /// <summary>The field with the case id.</summary>
     private const string CaseIdField = "caseId";
+
+    /// <summary>The field with the generation, which the tag covers.</summary>
+    private const string GenerationField = "generation";
+
+    /// <summary>The prefix of the vault secret that holds the last generation written.</summary>
+    private const string CounterPrefix = "cases/anchors/";
 
     /// <summary>The field with the chains, as a JSON text that the tag covers exactly.</summary>
     private const string ChainsField = "chains";
@@ -50,19 +65,19 @@ internal static class AnchorStore
     /// <param name="caseId">The case id.</param>
     /// <param name="key">The anchor key.</param>
     /// <returns>
-    /// The anchors (empty when there is no file), or <see langword="null"/> when the file is malformed or its tag
-    /// does not hold.
+    /// The anchors and their generation (no anchors and generation 0 when there is no file), or
+    /// <see langword="null"/> when the file is malformed or its tag does not hold.
     /// </returns>
     /// <exception cref="IOException">
     /// The file could not be read just now (for example held by another program).
     /// </exception>
     /// <exception cref="UnauthorizedAccessException">The file could not be read just now.</exception>
-    public static IReadOnlyList<ChainAnchor>? Read(string directory, Guid caseId, ReadOnlySpan<byte> key)
+    public static AnchorFile? Read(string directory, Guid caseId, ReadOnlySpan<byte> key)
     {
         var path = PathFor(directory, caseId, key);
         if (!File.Exists(path))
         {
-            return [];
+            return AnchorFile.None;
         }
 
         try
@@ -74,17 +89,20 @@ internal static class AnchorStore
             }
 
             var chains = document[ChainsField]?.GetValue<string>() ?? string.Empty;
+            var generation = document[GenerationField]?.GetValue<long>() ?? -1;
             var tag = Convert.FromBase64String(document[TagField]?.GetValue<string>() ?? string.Empty);
             var storedId = document[CaseIdField]?.GetValue<string>();
             var idHolds = string.Equals(storedId, caseId.ToString("D"), StringComparison.Ordinal);
-            if (!idHolds || !CryptographicOperations.FixedTimeEquals(tag, Tag(key, caseId, chains)))
+            if (!idHolds || generation < 1
+                || !CryptographicOperations.FixedTimeEquals(tag, Tag(key, caseId, generation, chains)))
             {
                 return null;
             }
 
-            return JsonSerializer.Deserialize<List<StoredAnchor>>(chains)?
+            var anchors = JsonSerializer.Deserialize<List<StoredAnchor>>(chains)?
                 .Select(anchor => new ChainAnchor(anchor.Chain, anchor.Sequence, Convert.FromHexString(anchor.Hash)))
                 .ToList();
+            return anchors is null ? null : new AnchorFile(anchors, generation);
         }
         catch (Exception exception) when (exception is JsonException or InvalidOperationException
             or FormatException or ArgumentException)
@@ -97,9 +115,11 @@ internal static class AnchorStore
     /// <param name="directory">The anchors folder; created when missing.</param>
     /// <param name="caseId">The case id.</param>
     /// <param name="key">The anchor key.</param>
-    /// <param name="anchors">The anchors.</param>
-    public static void Write(string directory, Guid caseId, ReadOnlySpan<byte> key, IReadOnlyList<ChainAnchor> anchors)
+    /// <param name="file">The anchors and their generation, at least 1.</param>
+    public static void Write(string directory, Guid caseId, ReadOnlySpan<byte> key, AnchorFile file)
     {
+        ArgumentOutOfRangeException.ThrowIfLessThan(file.Generation, 1);
+        var anchors = file.Anchors;
         Directory.CreateDirectory(directory);
         var chains = JsonSerializer.Serialize(anchors
             .OrderBy(anchor => anchor.Chain, StringComparer.Ordinal)
@@ -107,8 +127,9 @@ internal static class AnchorStore
         var document = new JsonObject
         {
             [CaseIdField] = caseId.ToString("D"),
+            [GenerationField] = file.Generation,
             [ChainsField] = chains,
-            [TagField] = Convert.ToBase64String(Tag(key, caseId, chains)),
+            [TagField] = Convert.ToBase64String(Tag(key, caseId, file.Generation, chains)),
         };
         var path = PathFor(directory, caseId, key);
         var temporary = path + ".tmp";
@@ -129,19 +150,37 @@ internal static class AnchorStore
     /// <param name="caseId">The case id.</param>
     /// <param name="key">The anchor key.</param>
     /// <returns>The path.</returns>
-    private static string PathFor(string directory, Guid caseId, ReadOnlySpan<byte> key)
+    private static string PathFor(string directory, Guid caseId, ReadOnlySpan<byte> key) =>
+        Path.Combine(directory, NameFor(caseId, key) + Extension);
+
+    /// <summary>
+    /// Gives the name of the vault secret that holds the last generation this vault wrote for a case; like the file's
+    /// name it is derived from the anchor key, so that it does not show the case id.
+    /// </summary>
+    /// <param name="caseId">The case id.</param>
+    /// <param name="key">The anchor key.</param>
+    /// <returns>The secret's name.</returns>
+    public static string CounterName(Guid caseId, ReadOnlySpan<byte> key) => CounterPrefix + NameFor(caseId, key);
+
+    /// <summary>Gives the name derived from the anchor key and the case id.</summary>
+    /// <param name="caseId">The case id.</param>
+    /// <param name="key">The anchor key.</param>
+    /// <returns>32 lower-case hexadecimal digits.</returns>
+    private static string NameFor(Guid caseId, ReadOnlySpan<byte> key)
     {
         var name = HMACSHA256.HashData(key, Encoding.UTF8.GetBytes($"{NameDomain}\n{caseId:D}"));
-        return Path.Combine(directory, Convert.ToHexStringLower(name.AsSpan(0, NameLength)) + Extension);
+        return Convert.ToHexStringLower(name.AsSpan(0, NameLength));
     }
 
-    /// <summary>Computes the tag over the case id and the chains text.</summary>
+    /// <summary>Computes the tag over the case id, the generation and the chains text.</summary>
     /// <param name="key">The anchor key.</param>
     /// <param name="caseId">The case id.</param>
+    /// <param name="generation">The generation.</param>
     /// <param name="chains">The chains as JSON text.</param>
     /// <returns>The 32-byte tag.</returns>
-    private static byte[] Tag(ReadOnlySpan<byte> key, Guid caseId, string chains) =>
-        HMACSHA256.HashData(key, Encoding.UTF8.GetBytes($"{Domain}\n{caseId:D}\n{chains}"));
+    private static byte[] Tag(ReadOnlySpan<byte> key, Guid caseId, long generation, string chains) =>
+        HMACSHA256.HashData(key, Encoding.UTF8.GetBytes(
+            string.Create(CultureInfo.InvariantCulture, $"{Domain}\n{caseId:D}\n{generation}\n{chains}")));
 
     /// <summary>One anchor as it is stored.</summary>
     /// <param name="Chain">The chain's name.</param>

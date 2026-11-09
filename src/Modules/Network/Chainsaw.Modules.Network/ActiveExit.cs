@@ -23,9 +23,6 @@ internal sealed class ActiveExit(Guid exitId, IExitTunnel tunnel, HttpMessageInv
     /// <summary>Gets the exit.</summary>
     public Guid ExitId => exitId;
 
-    /// <summary>Gets the running tunnel.</summary>
-    public IExitTunnel Tunnel => tunnel;
-
     /// <summary>Gets the pipeline through the tunnel's proxy.</summary>
     public HttpMessageInvoker Invoker => invoker;
 

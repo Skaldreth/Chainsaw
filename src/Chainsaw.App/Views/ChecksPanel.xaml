@@ -250,7 +250,11 @@
         </DataTemplate>
     </UserControl.Resources>
 
-    <DockPanel Background="{StaticResource Brush.Surface}">
+    <!--
+      Where the inspector stands, under the graph's sheet (sketch IN5a): the inspector's darker tone, and 18 px more room
+      on the left than the content's 22, so nothing lies in the sheet's shadow.
+    -->
+    <DockPanel Background="{StaticResource Brush.Underlay}" Margin="18,0,0,0">
         <!-- The header: Förslag, and in a suggestion where it is in the round with the arrows; then close. -->
         <DockPanel DockPanel.Dock="Top" Height="56" Margin="22,0,12,0">
             <Button DockPanel.Dock="Right" Style="{StaticResource Panel.Ghost}" Width="30" Height="30"

@@ -21,6 +21,30 @@ internal sealed class FakeVault : IVault
     public void ChangeMasterKey(ReadOnlySpan<char> currentMasterKey, ReadOnlySpan<char> newMasterKey) =>
         throw new NotSupportedException();
 
+    /// <summary>The master key the vault opens with.</summary>
+    public const string MasterKey = "en lång och riktig huvudnyckel";
+
+    /// <summary>What <see cref="VerifyMasterKey"/> throws, as when the vault file cannot be read.</summary>
+    public VaultException? VerifyFailure { get; set; }
+
+    public void VerifyMasterKey(ReadOnlySpan<char> masterKey)
+    {
+        if (VerifyFailure is not null)
+        {
+            throw VerifyFailure;
+        }
+
+        if (State != VaultState.Unlocked)
+        {
+            throw new VaultException(VaultError.Locked);
+        }
+
+        if (!masterKey.SequenceEqual(MasterKey))
+        {
+            throw new VaultException(VaultError.WrongMasterKey);
+        }
+    }
+
     private void SetState(VaultState state)
     {
         State = state;
@@ -58,4 +82,42 @@ internal sealed class FakeProfiles(FakeVault vault) : IOperatorProfileStore
 internal sealed class FakeClock : IClock
 {
     public DateTimeOffset UtcNow { get; set; } = new(2026, 11, 7, 1, 2, 3, TimeSpan.Zero);
+}
+
+/// <summary>A vault's named secrets in memory, like the real ones in the vault file.</summary>
+internal sealed class FakeSecrets(FakeVault vault) : IVaultSecrets
+{
+    public Dictionary<string, string> Values { get; } = new(StringComparer.Ordinal);
+
+    public IReadOnlyList<string> List(string prefix)
+    {
+        RequireUnlocked();
+        return [.. Values.Keys.Where(name => name.StartsWith(prefix, StringComparison.Ordinal)).Order()];
+    }
+
+    public string? Find(string name)
+    {
+        RequireUnlocked();
+        return Values.GetValueOrDefault(name);
+    }
+
+    public void Save(string name, string value)
+    {
+        RequireUnlocked();
+        Values[name] = value;
+    }
+
+    public bool Remove(string name)
+    {
+        RequireUnlocked();
+        return Values.Remove(name);
+    }
+
+    private void RequireUnlocked()
+    {
+        if (vault.State != VaultState.Unlocked)
+        {
+            throw new VaultException(VaultError.Locked);
+        }
+    }
 }

@@ -1,6 +1,7 @@
 using System.Collections.Specialized;
 using System.Diagnostics;
 using Chainsaw.Modules.Cases.Contracts;
+using Chainsaw.SharedKernel.Commands;
 
 namespace Chainsaw.App.ViewModels;
 
@@ -38,6 +39,12 @@ public sealed class SaveAlarm
     /// <summary>The UI thread, where the case's word from its saving thread is handled.</summary>
     private readonly IUiThread _ui;
 
+    /// <summary>
+    /// The cases, which keep both when the case file was replaced outside Chainsaw, or <see langword="null"/> where
+    /// nobody does.
+    /// </summary>
+    private readonly CaseWorkflow? _workflow;
+
     /// <summary>The case whose saves are followed, or <see langword="null"/>.</summary>
     private ICase? _followed;
 
@@ -48,8 +55,12 @@ public sealed class SaveAlarm
     /// <param name="session">The open case.</param>
     /// <param name="toaster">The toaster.</param>
     /// <param name="ui">The UI thread.</param>
-    public SaveAlarm(CaseSession session, Toaster toaster, IUiThread ui)
+    /// <param name="workflow">
+    /// The cases, which keep both when the case file was replaced outside Chainsaw; <see langword="null"/> for none.
+    /// </param>
+    public SaveAlarm(CaseSession session, Toaster toaster, IUiThread ui, CaseWorkflow? workflow = null)
     {
+        _workflow = workflow;
         _session = session;
         _toaster = toaster;
         _ui = ui;
@@ -63,6 +74,12 @@ public sealed class SaveAlarm
 
     /// <summary>Gets the last <em>Försök igen</em>, which completes once the toaster is told how it went.</summary>
     public Task Retrying { get; private set; } = Task.CompletedTask;
+
+    /// <summary>
+    /// Gets the last keeping of both after the case file was replaced outside Chainsaw, which completes once the
+    /// choice of branch is offered or why not is said.
+    /// </summary>
+    public Task KeepingBoth { get; private set; } = Task.CompletedTask;
 
     /// <summary>
     /// Forgets the warning when its toast is gone (closed by the user, or emptied at a lock), so that the next failure
@@ -122,6 +139,14 @@ public sealed class SaveAlarm
     {
         if (saved is null || !ReferenceEquals(saved, _followed))
         {
+            return;
+        }
+
+        if (state.FileReplaced)
+        {
+            // Not a save to try again: the file is left as it is, and the case's work goes to a branch of its own.
+            TakeWarningAway();
+            KeepingBoth = KeepBothAsync(saved);
             return;
         }
 
@@ -202,6 +227,22 @@ public sealed class SaveAlarm
                 Warn(saved);
             }
         });
+    }
+
+    /// <summary>
+    /// Has the cases close the case and offer the choice of branch; when they cannot, says why in the toaster.
+    /// </summary>
+    /// <param name="replaced">The case whose file was replaced.</param>
+    /// <returns>A task that completes when the choice is offered or why not is said.</returns>
+    private async Task KeepBothAsync(ICase replaced)
+    {
+        var reply = _workflow is null
+            ? CommandReply.Failed(CaseTexts.For(CaseError.Conflict))
+            : await _workflow.KeepBothAsync(replaced);
+        if (reply.IsError)
+        {
+            _toaster.Show(ToastKind.Warning, WarningTitle, reply.Text);
+        }
     }
 
     /// <summary>Takes the warning out of the toaster, if it stands.</summary>

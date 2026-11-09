@@ -138,7 +138,7 @@ public sealed partial class GraphCanvas
     /// <returns>The chip, measured.</returns>
     private SwapChip Chip(string label, string icon)
     {
-        var text = CachedText(label, 11.5, GraphPalette.Find(this, "Brush.Text"), FontWeights.Normal);
+        var text = Text(label, 11.5, GraphPalette.Find(this, "Brush.Text"), FontWeights.Normal);
         return new SwapChip(label, icon, 8 + 12 + 5 + text.Width + 9);
     }
 
@@ -158,7 +158,7 @@ public sealed partial class GraphCanvas
         var ink = GraphPalette.Find(this, lit ? "Brush.Text" : "Brush.TextMuted");
         var middle = frame.Y + (frame.Height / 2);
         DrawGlyph(dc, chip.Icon, ink, new Point(frame.X + 8, middle - 6), 12);
-        var text = CachedText(chip.Label, 11.5, ink, FontWeights.Normal);
+        var text = Text(chip.Label, 11.5, ink, FontWeights.Normal);
         dc.DrawText(text, new Point(frame.X + 8 + 12 + 5, middle - (text.Height / 2)));
     }
 
@@ -170,8 +170,6 @@ public sealed partial class GraphCanvas
     /// <param name="dc">Where to draw.</param>
     private void DrawSwapBox(DrawingContext dc)
     {
-        (_swapPills, _nextSwapPills) = (_nextSwapPills, _swapPills);
-        _nextSwapPills.Clear();
         if (_model!.OpenSwap is null)
         {
             _swapChoice = null;
@@ -190,15 +188,15 @@ public sealed partial class GraphCanvas
         var frame = new Rect(left, top, SwapBoxWidth, height);
         DrawFloatingBox(dc, frame);
         dc.PushClip(new RectangleGeometry(frame, CardRadius, CardRadius));
-        var title = CachedText(box.Title, 13, GraphPalette.Find(this, "Brush.Text"), FontWeights.SemiBold);
+        var title = Text(box.Title, 13, GraphPalette.Find(this, "Brush.Text"), FontWeights.SemiBold);
         dc.DrawText(title, new Point(frame.X + MarkBoxPadding, frame.Y + 10));
-        var sub = CachedText(box.Sub, 11, GraphPalette.Find(this, "Brush.TextDim"), FontWeights.Normal);
+        var sub = Text(box.Sub, 11, GraphPalette.Find(this, "Brush.TextDim"), FontWeights.Normal);
         dc.DrawText(sub, new Point(frame.X + MarkBoxPadding, frame.Y + 10 + title.Height));
         DrawSwapSteps(dc, box, new Rect(frame.X, frame.Y + 46, frame.Width, SwapStepsHeight));
         var footTop = frame.Y + 46 + SwapStepsHeight;
         dc.DrawLine(new Pen(GraphPalette.Find(this, "Brush.Card.Rule"), 1), new Point(frame.X, footTop),
             new Point(frame.Right, footTop));
-        var foot = CachedText(box.Foot, 11, GraphPalette.Find(this, "Brush.TextDim"), FontWeights.Normal);
+        var foot = Text(box.Foot, 11, GraphPalette.Find(this, "Brush.TextDim"), FontWeights.Normal);
         dc.DrawText(foot, new Point(frame.X + MarkBoxPadding, footTop + ((30 - foot.Height) / 2)));
         dc.Pop();
         dc.DrawRoundedRectangle(null, new Pen(GraphPalette.Find(this, "Brush.BorderStrong"), 1.5), frame, CardRadius,
@@ -274,8 +272,18 @@ public sealed partial class GraphCanvas
         if (swap != _hoveredSwap)
         {
             _hoveredSwap = swap;
-            InvalidateVisual();
+            Request(GraphChange.Overlay);
         }
+    }
+
+    /// <summary>
+    /// Takes where the pills stand in the lines just drawn as where they stand now; called only when the lines are
+    /// drawn again, since a pan moves the drawing with its pills and their places on the surface stay the same.
+    /// </summary>
+    private void KeepSwapPills()
+    {
+        (_swapPills, _nextSwapPills) = (_nextSwapPills, _swapPills);
+        _nextSwapPills.Clear();
     }
 
     /// <summary>Says whether the pointer is over a pill or the unfolded choice, which take the hand.</summary>

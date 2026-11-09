@@ -73,6 +73,32 @@ public enum GuideTopic
 
     /// <summary><em>Spåret genom en swap</em>: the traced value follows, and the choice per swap (sketch SW1a).</summary>
     Swaps,
+    /// <summary><em>Vyn Tidslinje</em>: a lane per actor and the transfers in time (sketch TL3a).</summary>
+    TimelineView,
+
+    /// <summary><em>Flödet</em>: the money as bands from the victims, hop by hop (sketch FL1a).</summary>
+    Flow,
+
+    /// <summary><em>Tjänster ur beteende</em>: deposits swept to a hot wallet and payouts in a batch.</summary>
+    ServiceBehaviour,
+
+    /// <summary><em>Uppdelning i många små belopp</em>: an amount split into parts that meet again.</summary>
+    Splitting,
+
+    /// <summary><em>Fördröjning och många hopp</em>: money that only passes through, and lies still between.</summary>
+    Layering,
+
+    /// <summary><em>Damm och adressförgiftning</em>: tiny amounts sent to link addresses or to fool the victim.</summary>
+    Dust,
+
+    /// <summary><em>PayJoin</em>: two owners' inputs in one transaction, which the clustering cannot see.</summary>
+    PayJoin,
+
+    /// <summary><em>Tidsmönster</em>: the hours an owner is active, and the time zone they hint at.</summary>
+    TimePattern,
+
+    /// <summary><em>Ankaret och flera datorer</em>: why an anchor was replaced (sketch AK1a).</summary>
+    Anchors,
 }
 
 /// <summary>Reads <see cref="GuideTopic"/>.</summary>
@@ -113,6 +139,15 @@ public static class GuideTopics
         GuideTopic.Exposure => "exponering",
         GuideTopic.ChainCheck => "kontroll-mot-kedjan",
         GuideTopic.Swaps => "swappar",
+        GuideTopic.TimelineView => "vyn-tidslinje",
+        GuideTopic.Flow => "flodet",
+        GuideTopic.ServiceBehaviour => "tjanster-ur-beteende",
+        GuideTopic.Splitting => "uppdelning",
+        GuideTopic.Layering => "fordrojning-och-hopp",
+        GuideTopic.Dust => "damm-och-forgiftning",
+        GuideTopic.PayJoin => "payjoin",
+        GuideTopic.TimePattern => "tidsmonster",
+        GuideTopic.Anchors => "ankaret",
         _ => "utxo-modellen",
     };
 
@@ -142,6 +177,15 @@ public static class GuideTopics
         GuideTopic.Exposure => "Exponering",
         GuideTopic.ChainCheck => "Hur Chainsaw kontrollerar svaren mot kedjan",
         GuideTopic.Swaps => "Spåret genom en swap",
+        GuideTopic.TimelineView => "Vyn Tidslinje",
+        GuideTopic.Flow => "Flödet",
+        GuideTopic.ServiceBehaviour => "Tjänster ur beteende",
+        GuideTopic.Splitting => "Uppdelning i många små belopp",
+        GuideTopic.Layering => "Fördröjning och många hopp",
+        GuideTopic.Dust => "Damm och adressförgiftning",
+        GuideTopic.PayJoin => "PayJoin",
+        GuideTopic.TimePattern => "Tidsmönster",
+        GuideTopic.Anchors => "Ankaret och flera datorer",
         _ => "UTXO-modellen",
     };
 

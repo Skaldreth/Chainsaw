@@ -91,6 +91,17 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <summary>The text Tab put in the bar last, so that the next Tab goes on to the next way.</summary>
     private string? _completed;
 
+    /// <summary>
+    /// Counts the locks, so that a command that was running when Chainsaw locked does not answer after the unlock.
+    /// </summary>
+    private long _round;
+
+    /// <summary>A start point from a link that waits for the bar to be emptied, or <see langword="null"/>.</summary>
+    private ChainStartPoint? _waitingLink;
+
+    /// <summary>The case already warned of an interrupted replacement of its file key, so that it is said once.</summary>
+    private Chainsaw.Modules.Cases.Contracts.ICase? _warnedOfReplacement;
+
     /// <summary>Creates the shell with every view of <see cref="ViewTable"/> and the start view shown.</summary>
     /// <param name="session">The open case, named in the title bar.</param>
     /// <param name="commands">The command bar's commands.</param>
@@ -118,6 +129,8 @@ public sealed partial class ShellViewModel : ObservableObject
     /// </param>
     /// <param name="labels">The view Etiketter (sketch ET1a), or <see langword="null"/>.</param>
     /// <param name="exposure">The view Exponering (sketch EP1b), or <see langword="null"/>.</param>
+    /// <param name="timeline">The view Tidslinje (sketch TL3a), or <see langword="null"/>.</param>
+    /// <param name="flow">The view Flöde (sketch FL1a), or <see langword="null"/>.</param>
     public ShellViewModel(
         CaseSession session,
         CommandRegistry commands,
@@ -136,8 +149,12 @@ public sealed partial class ShellViewModel : ObservableObject
         RequestsViewModel? requests = null,
         CommandSearchViewModel? search = null,
         LabelsViewModel? labels = null,
-        ExposureViewModel? exposure = null)
+        ExposureViewModel? exposure = null,
+        TimelineViewModel? timeline = null,
+        FlowViewModel? flow = null)
     {
+        Timeline = timeline;
+        Flow = flow;
         Search = search ?? new CommandSearchViewModel(new Guide.GuideLibrary(new Dictionary<string, string>()));
         Labels = labels;
         _toaster = toaster;
@@ -148,6 +165,12 @@ public sealed partial class ShellViewModel : ObservableObject
         _way = exit;
         Settings = settings;
         exitPanel.SettingsWanted += (_, _) => Show(AppView.Settings, SettingsPage.Network);
+        if (settings.Sources is { } sources)
+        {
+            // The toaster's Visa for a node whose certificate changed (sketch KL3b) opens its box at Källor.
+            sources.PinWanted += (_, _) => Show(AppView.Settings, SettingsPage.Sources);
+        }
+
         _session = session;
         _sanctions = sanctions;
         _commands = commands;
@@ -279,7 +302,7 @@ public sealed partial class ShellViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CurrentEntry), nameof(IsGraphShown), nameof(IsGuideShown),
         nameof(IsMonitoringShown), nameof(IsRequestsShown), nameof(IsLabelsShown), nameof(IsExposureShown),
-        nameof(IsReportShown), nameof(IsPlaceholderShown))]
+        nameof(IsReportShown), nameof(IsTimelineShown), nameof(IsFlowShown), nameof(IsPlaceholderShown))]
     public partial AppView Current { get; private set; }
 
     /// <summary>Gets whether the graph is shown (sketch GR4).</summary>
@@ -306,7 +329,19 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <summary>Gets whether the shown view is not built yet, so that the page says so.</summary>
     public bool IsPlaceholderShown =>
         !IsGraphShown && !IsGuideShown && !IsMonitoringShown && !IsRequestsShown && !IsLabelsShown
-        && !IsExposureShown && !IsReportShown;
+        && !IsExposureShown && !IsReportShown && !IsTimelineShown && !IsFlowShown;
+
+    /// <summary>Gets whether the view Tidslinje is shown (sketch TL3a).</summary>
+    public bool IsTimelineShown => Current == AppView.Timeline && Timeline is not null;
+
+    /// <summary>Gets the view Tidslinje, or <see langword="null"/> when the shell is built without it.</summary>
+    public TimelineViewModel? Timeline { get; }
+
+    /// <summary>Gets whether the view Flöde is shown (sketch FL1a).</summary>
+    public bool IsFlowShown => Current == AppView.Flow && Flow is not null;
+
+    /// <summary>Gets the view Flöde, or <see langword="null"/> when the shell is built without it.</summary>
+    public FlowViewModel? Flow { get; }
 
     /// <summary>Gets the view Exponering, or <see langword="null"/> when the shell is built without it.</summary>
     public ExposureViewModel? Exposure { get; }
@@ -329,7 +364,7 @@ public sealed partial class ShellViewModel : ObservableObject
 
     /// <summary>Gets the short answer under the command bar's field, or an empty text when there is none.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShownAbove), nameof(IsShowingError))]
+    [NotifyPropertyChangedFor(nameof(ShownAbove), nameof(IsShowingError), nameof(IsShowingWarning))]
     public partial string CommandAnswer { get; private set; } = string.Empty;
 
     /// <summary>Gets whether the answer is an error.</summary>
@@ -339,6 +374,14 @@ public sealed partial class ShellViewModel : ObservableObject
 
     /// <summary>Gets whether an error is shown under the bar's field (in the error colour).</summary>
     public bool IsShowingError => IsAnswerError && CommandAnswer.Length > 0;
+
+    /// <summary>Gets whether the answer is a warning (in yellow).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsShowingWarning))]
+    public partial bool IsAnswerWarning { get; private set; }
+
+    /// <summary>Gets whether a warning is shown under the bar's field (in yellow).</summary>
+    public bool IsShowingWarning => IsAnswerWarning && CommandAnswer.Length > 0;
 
     /// <summary>Gets the hint for what is written, for example what Tab fills in; empty when there is none.</summary>
     [ObservableProperty]
@@ -367,7 +410,11 @@ public sealed partial class ShellViewModel : ObservableObject
 
     /// <summary>Gets what the exit's tooltip in the title bar says about where lookups go.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ExitToolTip))]
     public partial string SourceText { get; private set; } = OfflineText;
+
+    /// <summary>Gets the exit's tooltip in the title bar: where lookups go, and the shortcut to the exits' panel.</summary>
+    public string ExitToolTip => $"{SourceText} · {ViewTable.ExitsGesture}";
 
     /// <summary>
     /// Gets what the amber dot by the exit in the title bar says on hover while a lookup waits for a source (its pace
@@ -561,6 +608,7 @@ public sealed partial class ShellViewModel : ObservableObject
         }
 
         IsRunning = true;
+        var round = _round;
         CommandReply reply;
         try
         {
@@ -569,6 +617,12 @@ public sealed partial class ShellViewModel : ObservableObject
         finally
         {
             IsRunning = false;
+        }
+
+        if (round != _round)
+        {
+            // Chainsaw locked while the command ran: its answer belongs to before the lock and is not shown after it.
+            return;
         }
 
         if (!reply.IsError && CommandText == text)
@@ -607,7 +661,18 @@ public sealed partial class ShellViewModel : ObservableObject
         CommandText = chosen;
     }
 
-    /// <summary>Clears the command bar and its answer, for example when Chainsaw locks.</summary>
+    /// <summary>
+    /// Clears the command bar when Chainsaw locks, and lets an answer still on its way be dropped when it comes, so
+    /// that nothing from before the lock is shown after the unlock.
+    /// </summary>
+    public void ClearForLock()
+    {
+        _round++;
+        _waitingLink = null;
+        ClearCommand();
+    }
+
+    /// <summary>Clears the command bar and its answer.</summary>
     [RelayCommand]
     public void ClearCommand()
     {
@@ -671,7 +736,8 @@ public sealed partial class ShellViewModel : ObservableObject
     /// Offers a start point from a <c>chainsaw:</c> link. Nothing is written: with Nytt ärende shown it is added as a
     /// line there; with a case open the bar comes up with it, for Enter to add; with none it fills in Nytt ärende.
     /// The value is written with its chain when it is not Bitcoin (<see cref="StartPointText"/>), so that a TRON tx is
-    /// never read as a Bitcoin txid. What the user is writing in the bar is never replaced.
+    /// never read as a Bitcoin txid. What the user is writing in the bar is never replaced: the link waits, and comes
+    /// into the bar as soon as it is empty.
     /// </summary>
     /// <param name="startPoint">The recognised start point.</param>
     public void Offer(ChainStartPoint startPoint)
@@ -687,15 +753,38 @@ public sealed partial class ShellViewModel : ObservableObject
         OpenCommandBar();
         if (CommandText.Length > 0)
         {
-            Answer(CommandReply.Done($"Från en länk: {text}. Raden har redan text, så den lades inte in."));
+            _waitingLink = startPoint;
+            Answer(CommandReply.Done($"Från en länk: {text}. Den kommer i raden när raden är tom."));
             return;
         }
 
-        CommandText = text;
-        Answer(startPoint.IsSupported
-            ? CommandReply.Done($"Från en länk: Enter lägger den som startpunkt i {_session.DisplayName}.")
-            : CommandReply.Failed("Från en länk: " + CaseWorkflow.NotBuiltText(startPoint)));
+        PutInBar(startPoint);
     }
+
+    /// <summary>What the toast says under a start point laid in a case from a link (sketch LN1a).</summary>
+    public const string LinkPlacedText = "Hämtas genom utgången. Journalen säger att adressen kom med en länk.";
+
+    /// <summary>
+    /// Offers the start point of a link that waited while Chainsaw was locked (sketch LN1a): the case picker folds out
+    /// by itself with the link at the top, for the user to lay it in a case or start a new one. With Nytt ärende shown,
+    /// or no picker, it goes as any link does.
+    /// </summary>
+    /// <param name="startPoint">The recognised start point.</param>
+    /// <param name="arrivedUtc">When the link came.</param>
+    public void OfferWaitingLink(ChainStartPoint startPoint, DateTimeOffset arrivedUtc)
+    {
+        ArgumentNullException.ThrowIfNull(startPoint);
+        if (CasePicker is null || NewCase.IsOpen || Settings.IsOpen)
+        {
+            Offer(startPoint);
+            return;
+        }
+
+        CasePicker.OpenForLink(startPoint, arrivedUtc);
+    }
+
+    /// <summary>Gets whether a start point from a link waits for the bar to be empty.</summary>
+    public bool HasWaitingLink => _waitingLink is not null;
 
     /// <summary>Shows an answer that came from elsewhere, for example the first case of the setup.</summary>
     /// <param name="reply">The answer.</param>
@@ -750,6 +839,9 @@ public sealed partial class ShellViewModel : ObservableObject
     private void FollowCasePicker(CasePickerViewModel picker)
     {
         picker.NewCaseWanted += (_, _) => Show(AppView.New);
+        picker.NewCaseWithLinkWanted += (_, text) => NewCase.Show(text);
+        picker.LinkPlaced += (_, reply) => _toaster?.Show(
+            reply.IsError ? ToastKind.Error : ToastKind.Success, reply.Text, LinkPlacedText);
         picker.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(CasePickerViewModel.IsOpen) && picker.IsOpen)
@@ -844,7 +936,28 @@ public sealed partial class ShellViewModel : ObservableObject
             Show(ViewTable.Start);
         }
 
+        WarnOfInterruptedReplacement();
         OnPropertyChanged(nameof(CaseTitle));
+    }
+
+    /// <summary>What the toast says when an interrupted replacement of the file key was found (VT1a).</summary>
+    public const string ReplacementInterruptedText =
+        "Bytet av filnyckeln avbröts. Filen har kvar sina gamla kuvert, så bytet behöver göras om i fliken Kuvert.";
+
+    /// <summary>
+    /// Says once per opening, with a warning that stays, that a replacement of the file key was interrupted: access
+    /// that was to be taken back was not.
+    /// </summary>
+    private void WarnOfInterruptedReplacement()
+    {
+        if (_session.Current is not { FileKeyReplacementInterrupted: true } openCase
+            || ReferenceEquals(openCase, _warnedOfReplacement))
+        {
+            return;
+        }
+
+        _warnedOfReplacement = openCase;
+        _toaster?.Show(ToastKind.Warning, "Filnyckeln byttes inte", ReplacementInterruptedText);
     }
 
     /// <summary>
@@ -856,10 +969,24 @@ public sealed partial class ShellViewModel : ObservableObject
     {
         CommandAnswer = reply.Text;
         IsAnswerError = reply.IsError;
+        IsAnswerWarning = reply.IsWarning;
         if (!IsCommandBarOpen && reply.Text.Length > 0)
         {
-            _toaster?.Show(reply.IsError ? ToastKind.Error : ToastKind.Information, reply.Text);
+            _toaster?.Show(ToastKindOf(reply), reply.Text);
         }
+    }
+
+    /// <summary>Gives the toast's kind for an answer: an error, a warning or information.</summary>
+    /// <param name="reply">The answer.</param>
+    /// <returns>The kind.</returns>
+    private static ToastKind ToastKindOf(CommandReply reply)
+    {
+        if (reply.IsError)
+        {
+            return ToastKind.Error;
+        }
+
+        return reply.IsWarning ? ToastKind.Warning : ToastKind.Information;
     }
 
     /// <summary>Shows the new case: the graph, where the work starts, and the answer from the creation.</summary>
@@ -961,7 +1088,7 @@ public sealed partial class ShellViewModel : ObservableObject
 
     /// <summary>
     /// Clears an old answer as soon as the text changes, so that it never answers something else, and gives the hint
-    /// for the new text.
+    /// for the new text. A start point from a link that waited for the bar comes in when it is emptied.
     /// </summary>
     /// <param name="value">The new text.</param>
     partial void OnCommandTextChanged(string value)
@@ -969,5 +1096,20 @@ public sealed partial class ShellViewModel : ObservableObject
         CommandAnswer = string.Empty;
         CommandHint = _commands.Hint(value);
         _ = Search.SearchAsync(value);
+        if (value.Length == 0 && _waitingLink is { } waiting && _session.Current is not null)
+        {
+            _waitingLink = null;
+            PutInBar(waiting);
+        }
+    }
+
+    /// <summary>Writes a start point from a link in the bar and says what Enter does with it.</summary>
+    /// <param name="startPoint">The start point.</param>
+    private void PutInBar(ChainStartPoint startPoint)
+    {
+        CommandText = StartPointText.Write(startPoint);
+        Answer(startPoint.IsSupported
+            ? CommandReply.Done($"Från en länk: Enter lägger den som startpunkt i {_session.DisplayName}.")
+            : CommandReply.Failed("Från en länk: " + CaseWorkflow.NotBuiltText(startPoint)));
     }
 }

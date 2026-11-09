@@ -38,6 +38,30 @@ internal sealed class TxBuilder(string label, long? height)
 {
     private readonly List<BitcoinInput> _inputs = [];
     private readonly List<BitcoinOutput> _outputs = [];
+    private long _version = 2;
+    private uint _lockTime;
+    private uint _sequence = 0xFFFFFFFD;
+
+    /// <summary>Sets the transaction's version, part of the wallet's fingerprint.</summary>
+    public TxBuilder Version(long version)
+    {
+        _version = version;
+        return this;
+    }
+
+    /// <summary>Sets the locktime, part of the wallet's fingerprint.</summary>
+    public TxBuilder LockTime(uint lockTime)
+    {
+        _lockTime = lockTime;
+        return this;
+    }
+
+    /// <summary>Makes every input final, so that the transaction does not signal RBF.</summary>
+    public TxBuilder Final()
+    {
+        _sequence = 0xFFFFFFFF;
+        return this;
+    }
 
     /// <summary>An input from an output of a transaction that is not in the case.</summary>
     public TxBuilder In(BitcoinAddress address, long satoshi, string? funding = null) =>
@@ -74,13 +98,13 @@ internal sealed class TxBuilder(string label, long? height)
         return new BitcoinTransaction(
             Synthetic.Txid(label),
             height is { } h ? Synthetic.Block(h) : null,
-            _inputs,
+            [.. _inputs.Select(input => input with { Sequence = _sequence })],
             _outputs,
             new Satoshi(inputs - outputs),
             250,
             1000,
-            2,
-            0);
+            _version,
+            _lockTime);
     }
 
     private TxBuilder AddInput(BitcoinAddress address, long satoshi, Txid previous, int index)

@@ -70,4 +70,16 @@ public interface IVault
     /// vault was unlocked) or <see cref="VaultError.UnsupportedVersion"/>.
     /// </exception>
     void ChangeMasterKey(ReadOnlySpan<char> currentMasterKey, ReadOnlySpan<char> newMasterKey);
+
+    /// <summary>
+    /// Checks that a master key opens the vault that is unlocked now, without changing anything, so that a step that
+    /// cannot be undone (replacing a case's file key) can ask for it again. It takes as long as an unlock.
+    /// </summary>
+    /// <param name="masterKey">The master key as typed.</param>
+    /// <exception cref="VaultException">
+    /// <see cref="VaultError.Locked"/>, <see cref="VaultError.WrongMasterKey"/>, <see cref="VaultError.NotCreated"/>
+    /// or <see cref="VaultError.Corrupt"/> (also when the file was replaced while the vault was unlocked).
+    /// </exception>
+    /// <exception cref="NotSupportedException">The vault cannot check a master key (a test's stand-in).</exception>
+    void VerifyMasterKey(ReadOnlySpan<char> masterKey) => throw new NotSupportedException();
 }

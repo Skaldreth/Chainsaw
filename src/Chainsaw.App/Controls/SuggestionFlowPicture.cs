@@ -1,6 +1,5 @@
 using System.Globalization;
 using System.Windows;
-using System.Windows.Documents;
 using System.Windows.Media;
 using Chainsaw.App.ViewModels;
 
@@ -69,12 +68,18 @@ public sealed class SuggestionFlowPicture : FrameworkElement
     /// <summary>How strong another band is.</summary>
     private const double OtherOpacity = 0.45;
 
+    /// <summary>Creates the picture.</summary>
+    public SuggestionFlowPicture() => Ink = new ChartDrawing(this);
+
     /// <summary>Gets or sets the flow to draw.</summary>
     public SuggestionFlow Flow
     {
         get => (SuggestionFlow)GetValue(FlowProperty);
         set => SetValue(FlowProperty, value);
     }
+
+    /// <summary>Gets the text in the page's font, as the other drawn charts write it.</summary>
+    private ChartDrawing Ink { get; }
 
     /// <summary>Takes the panel's width and the sketch's height.</summary>
     /// <param name="availableSize">The room.</param>
@@ -154,9 +159,9 @@ public sealed class SuggestionFlowPicture : FrameworkElement
             RankRadius,
             RankRadius);
         var text = band.IsChosen ? GraphPalette.Find(this, "Brush.OnAccent") : muted;
-        var rank = Text(band.Rank.ToString(CultureInfo.InvariantCulture), 10, text, FontWeights.SemiBold);
+        var rank = Ink.Text(band.Rank.ToString(CultureInfo.InvariantCulture), 10, text, FontWeights.SemiBold);
         dc.DrawText(rank, new Point(RankX - (rank.Width / 2), y - (rank.Height / 2)));
-        var amount = Text(band.AmountText, 11.5, band.IsChosen ? GraphPalette.Find(this, "Brush.Text") : muted);
+        var amount = Ink.Text(band.AmountText, 11.5, band.IsChosen ? GraphPalette.Find(this, "Brush.Text") : muted);
         dc.DrawText(amount, new Point(AmountX, y - (amount.Height / 2)));
     }
 
@@ -170,23 +175,7 @@ public sealed class SuggestionFlowPicture : FrameworkElement
     {
         if (text.Length > 0)
         {
-            dc.DrawText(Text(text, size, ink), at);
+            dc.DrawText(Ink.Text(text, size, ink), at);
         }
     }
-
-    /// <summary>Lays out a text in the page's font.</summary>
-    /// <param name="text">The text.</param>
-    /// <param name="size">The size.</param>
-    /// <param name="ink">The ink.</param>
-    /// <param name="weight">The weight; normal by default.</param>
-    /// <returns>The text.</returns>
-    private FormattedText Text(string text, double size, Brush ink, FontWeight? weight = null) => new(
-        text,
-        CultureInfo.CurrentUICulture,
-        FlowDirection.LeftToRight,
-        new Typeface(
-            TextElement.GetFontFamily(this), FontStyles.Normal, weight ?? FontWeights.Normal, FontStretches.Normal),
-        size,
-        ink,
-        VisualTreeHelper.GetDpi(this).PixelsPerDip);
 }

@@ -27,6 +27,7 @@ internal sealed class Harness : IDisposable
         services.AddSingleton<IVault, FakeVault>();
         services.AddSingleton<IPurposeKeys, FakePurposeKeys>();
         services.AddSingleton<IOperatorProfileStore>(Profiles);
+        services.AddSingleton<IVaultSecrets>(new TestVaultSecrets());
         services.AddSingleton<IClock>(Clock);
         services.AddCasesModule(options =>
         {
@@ -60,6 +61,37 @@ internal sealed class Harness : IDisposable
     {
         Clustering.Analyse(Case, transactions);
         return Service.Run(Case, GraphOf(transactions, mixer));
+    }
+
+    /// <summary>
+    /// Lets the clustering analyse the transactions, then runs the checks over a graph where the given addresses are
+    /// one actor that a label says is an exchange.
+    /// </summary>
+    public CheckRun RunWithExchange(
+        IReadOnlyList<BitcoinTransaction> transactions, string exchangeName, params BitcoinAddress[] exchange)
+    {
+        Clustering.Analyse(Case, transactions);
+        var graph = GraphOf(transactions);
+        var nodes = graph.Nodes.Where(node => !node.GraphAddresses.Any(exchange.Contains)).ToList();
+        nodes.Add(Node(
+            "cluster:" + exchange[0].Value,
+            [.. exchange],
+            [new TrailEndHint(TrailEndReason.Exchange, "egen v1", exchangeName)]));
+        return Service.Run(Case, graph with { Nodes = nodes });
+    }
+
+    /// <summary>
+    /// Lets the clustering analyse the transactions, then runs the checks over a graph where the given addresses are
+    /// start points.
+    /// </summary>
+    public CheckRun RunWithStarts(IReadOnlyList<BitcoinTransaction> transactions, params BitcoinAddress[] starts)
+    {
+        Clustering.Analyse(Case, transactions);
+        var graph = GraphOf(transactions);
+        var nodes = graph.Nodes
+            .Select(node => node.GraphAddresses.Any(starts.Contains) ? node with { IsStartPoint = true } : node)
+            .ToList();
+        return Service.Run(Case, graph with { Nodes = nodes });
     }
 
     public CaseVerification Verify() => _provider.GetRequiredService<ICaseVerifier>().Verify(Case);

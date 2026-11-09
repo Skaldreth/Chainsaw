@@ -19,6 +19,42 @@
     -->
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="Visible" />
+        <!--
+          The panel's edges (sketch IN5a): more room on the left, where the graph's sheet casts its shadow over the panel,
+          so that no text lies in it.
+        -->
+        <Thickness x:Key="Inspector.Edge">40,22,26,0</Thickness>
+        <Thickness x:Key="Inspector.Text">40,14,26,0</Thickness>
+        <Thickness x:Key="Inspector.Rule">40,10,26,0</Thickness>
+        <Thickness x:Key="Inspector.Facts">40,18,14,0</Thickness>
+        <Thickness x:Key="Inspector.Block">40,0,26,10</Thickness>
+        <Thickness x:Key="Inspector.Ids">40,4,26,0</Thickness>
+        <!-- A round button in the panel's row (sketch IN5a): 36 px, raised, with a quiet edge. -->
+        <Style x:Key="Button.PanelAction" TargetType="Button">
+            <Setter Property="Height" Value="36" />
+            <Setter Property="Padding" Value="14,0" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+            <Setter Property="Background" Value="{StaticResource Brush.SurfaceRaised}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Brush.BorderStrong}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Box" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="1" CornerRadius="8" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Box" Property="Background" Value="{StaticResource Brush.SurfaceSelected}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
 
         <!-- Varför? in the heading's corner (sketch IN2b): a round 32 px button with the question in a ring. -->
         <Style x:Key="Button.Why" TargetType="Button" BasedOn="{StaticResource Button.Help}">
@@ -97,7 +133,7 @@
 
     <Grid>
         <TextBlock Text="Välj en aktör eller en linje." FontSize="13" Foreground="{StaticResource Brush.TextDim}"
-                   Margin="22" TextWrapping="Wrap">
+                   Margin="40,22,26,22" TextWrapping="Wrap">
             <TextBlock.Style>
                 <Style TargetType="TextBlock">
                     <Style.Triggers>
@@ -113,27 +149,28 @@
                       Visibility="{Binding HasInspection, Converter={StaticResource Visible}}">
             <StackPanel DataContext="{Binding Inspection}" Margin="0,0,0,22">
 
-                <!-- ===== The heading (sketches IN2b and GR5) ===== -->
-                <Grid Margin="22,22,22,0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
+                <!--
+                  ===== The heading (sketch IN5a): the sort as a small heading in the accent with the sort's icon in its
+                  frame and close at the end, the name large under it, what has happened in a sentence or two, and
+                  Varför? and Historik as a row of round buttons =====
+                -->
+                <DockPanel Margin="{StaticResource Inspector.Edge}" LastChildFill="True">
+                    <Button DockPanel.Dock="Right" Style="{StaticResource Button.CloseInspector}" VerticalAlignment="Center"
+                            Margin="8,0,-6,0" AutomationProperties.Name="Stäng" ToolTip="Stäng · Esc"
+                            Command="{Binding DataContext.DeselectCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" />
 
                     <!-- The sort's icon in the node's own frame: round for an actor, square for a service. -->
-                    <Grid Width="38" Height="38" VerticalAlignment="Center">
+                    <Grid DockPanel.Dock="Left" Width="22" Height="22" VerticalAlignment="Center">
                         <Rectangle x:Name="HeadFrame" StrokeThickness="1.5"
                                    Stroke="{Binding Ink, Converter={x:Static controls:GraphInkConverter.Instance}}">
                             <Rectangle.Style>
                                 <Style TargetType="Rectangle">
-                                    <Setter Property="RadiusX" Value="10" />
-                                    <Setter Property="RadiusY" Value="10" />
+                                    <Setter Property="RadiusX" Value="6" />
+                                    <Setter Property="RadiusY" Value="6" />
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding Shape}" Value="{x:Static graph:NodeShape.Round}">
-                                            <Setter Property="RadiusX" Value="19" />
-                                            <Setter Property="RadiusY" Value="19" />
+                                            <Setter Property="RadiusX" Value="11" />
+                                            <Setter Property="RadiusY" Value="11" />
                                         </DataTrigger>
                                         <DataTrigger Binding="{Binding IsDashed}" Value="True">
                                             <Setter Property="StrokeDashArray" Value="3 2" />
@@ -142,81 +179,107 @@
                                 </Style>
                             </Rectangle.Style>
                         </Rectangle>
-                        <controls:GridIcon Size="18" HorizontalAlignment="Center" VerticalAlignment="Center"
+                        <controls:GridIcon Size="12" HorizontalAlignment="Center" VerticalAlignment="Center"
                                            Foreground="{Binding Ink, Converter={x:Static controls:GraphInkConverter.Instance}}"
                                            Data="{Binding Icon, Converter={x:Static controls:ResourceKeyConverter.Instance}}" />
                     </Grid>
 
-                    <!-- The name, in grey when it is only the address shortened (GR5), and the line under it (IN2b). -->
-                    <StackPanel Grid.Column="1" Margin="12,0,10,0" VerticalAlignment="Center">
-                        <TextBlock Text="{Binding Title}" FontSize="17" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
-                                   ToolTip="{Binding Title}">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsNamed}" Value="False">
-                                            <Setter Property="Foreground" Value="{StaticResource Brush.TextMuted}" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
-                        <TextBlock Text="{Binding Subtitle}" FontSize="12.5" Margin="0,2,0,0" TextTrimming="CharacterEllipsis"
-                                   Foreground="{StaticResource Brush.TextDim}" ToolTip="{Binding Subtitle}" />
-                    </StackPanel>
+                    <TextBlock Text="{Binding Kicker}" FontSize="12" FontWeight="SemiBold" Margin="10,0,0,0"
+                               VerticalAlignment="Center" Foreground="{StaticResource Brush.Accent}"
+                               TextTrimming="CharacterEllipsis" ToolTip="{Binding Subtitle}" />
+                </DockPanel>
 
-                    <!-- Varför? as a round icon in the heading's corner: the Guide's answers beside the graph. -->
-                    <Button Grid.Column="2" Style="{StaticResource Button.Why}" VerticalAlignment="Center"
-                            Visibility="{Binding HasWhy, Converter={StaticResource Visible}}"
-                            AutomationProperties.Name="Varför?" ToolTip="Varför? Förklaringen i Guiden, bredvid grafen"
-                            Command="{Binding DataContext.AskWhyCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" />
-                    <Button Grid.Column="3" Style="{StaticResource Button.CloseInspector}" VerticalAlignment="Center"
-                            Margin="4,0,0,0" AutomationProperties.Name="Stäng" ToolTip="Stäng · Esc"
-                            Command="{Binding DataContext.DeselectCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" />
-                </Grid>
+                <!-- The name large, in grey when it is only the address shortened (GR5). -->
+                <TextBlock Text="{Binding Title}" FontSize="22" FontWeight="SemiBold" Margin="{StaticResource Inspector.Text}"
+                           TextTrimming="CharacterEllipsis" ToolTip="{Binding Title}">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsNamed}" Value="False">
+                                    <Setter Property="Foreground" Value="{StaticResource Brush.TextMuted}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
 
-                <!-- ===== The tabs (sketches IN2b and AN1b): Fakta and Historik, on a line of their own ===== -->
-                <Border Margin="22,18,22,0" BorderThickness="0,0,0,1" BorderBrush="{StaticResource Brush.Border}"
-                        DataContext="{Binding DataContext.History, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                        Visibility="{Binding HasNode, Converter={StaticResource Visible}}">
-                    <StackPanel Orientation="Horizontal">
-                        <Button Command="{Binding ShowFactsCommand}" AutomationProperties.Name="Fakta">
-                            <Button.Style>
-                                <Style TargetType="Button" BasedOn="{StaticResource Button.InspectorTab}">
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsFactsShown}" Value="True">
-                                            <Setter Property="BorderBrush" Value="{StaticResource Brush.Accent}" />
-                                            <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Button.Style>
+                <!-- What has happened, in airy sentences. -->
+                <ItemsControl ItemsSource="{Binding Summary}" Focusable="False" Margin="{StaticResource Inspector.Text}"
+                              Visibility="{Binding HasSummary, Converter={StaticResource Visible}}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding}" FontSize="13.5" LineHeight="21" TextWrapping="Wrap" Margin="0,0,0,12"
+                                       Foreground="{StaticResource Brush.TextMuted}" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <!-- Varför? and the facts or the history, as a row of round buttons (sketch IN5a). -->
+                <WrapPanel Margin="{StaticResource Inspector.Text}"
+                           DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                    <Button Style="{StaticResource Button.PanelAction}" Margin="0,0,8,8"
+                            Visibility="{Binding Inspection.HasWhy, Converter={StaticResource Visible}}"
+                            AutomationProperties.Name="Varför?" ToolTip="Förklaringen i Guiden, bredvid grafen"
+                            Command="{Binding AskWhyCommand}">
+                        <StackPanel Orientation="Horizontal">
+                            <controls:GridIcon Size="14" Data="{StaticResource Icon.Why}" Margin="0,0,7,0"
+                                               Foreground="{StaticResource Brush.TextMuted}" />
+                            <TextBlock Text="Varför?" />
+                        </StackPanel>
+                    </Button>
+                    <!-- Som etikett … (sketch TJ1b): a likely service becomes a label in the form at the node. -->
+                    <Button Style="{StaticResource Button.PanelAction}" Margin="0,0,8,8"
+                            Visibility="{Binding HasServiceCheck, Converter={StaticResource Visible}}"
+                            AutomationProperties.Name="Som etikett" ToolTip="{Binding ServiceCheckTip}"
+                            Command="{Binding LabelServiceCommand}">
+                        <StackPanel Orientation="Horizontal">
+                            <controls:GridIcon Size="14" Data="{StaticResource Icon.Tag}" Margin="0,0,7,0"
+                                               Foreground="{StaticResource Brush.Kind.CashOut}" />
+                            <TextBlock Text="Som etikett …" />
+                        </StackPanel>
+                    </Button>
+                    <!-- Historik while the facts show, Fakta while the history shows (sketch AN1b). -->
+                    <Button Margin="0,0,8,8" AutomationProperties.Name="Historik" ToolTip="Det som hänt, i tidsordning"
+                            Command="{Binding History.ShowHistoryCommand}">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource Button.PanelAction}">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding History.HasNode}" Value="True" />
+                                            <Condition Binding="{Binding History.IsFactsShown}" Value="True" />
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </MultiDataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                        <StackPanel Orientation="Horizontal">
+                            <controls:GridIcon Size="14" Data="{StaticResource Icon.Clock}" Margin="0,0,7,0"
+                                               Foreground="{StaticResource Brush.TextMuted}" />
+                            <TextBlock Text="Historik" />
+                            <TextBlock Text="{Binding History.CountText}" Margin="6,0,0,0" FontSize="11.5"
+                                       VerticalAlignment="Center" Foreground="{StaticResource Brush.TextDim}" />
+                        </StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource Button.PanelAction}" Margin="0,0,8,8" AutomationProperties.Name="Fakta"
+                            Visibility="{Binding History.IsShown, Converter={StaticResource Visible}}"
+                            Command="{Binding History.ShowFactsCommand}">
+                        <StackPanel Orientation="Horizontal">
+                            <controls:GridIcon Size="14" Data="{StaticResource Icon.ListOrdered}" Margin="0,0,7,0"
+                                               Foreground="{StaticResource Brush.TextMuted}" />
                             <TextBlock Text="Fakta" />
-                        </Button>
-                        <Button Command="{Binding ShowHistoryCommand}" AutomationProperties.Name="Historik"
-                                ToolTip="Det som hänt, i tidsordning">
-                            <Button.Style>
-                                <Style TargetType="Button" BasedOn="{StaticResource Button.InspectorTab}">
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsShown}" Value="True">
-                                            <Setter Property="BorderBrush" Value="{StaticResource Brush.Accent}" />
-                                            <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Button.Style>
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="Historik" />
-                                <TextBlock Text="{Binding CountText}" Margin="6,0,0,0" FontSize="11.5"
-                                           VerticalAlignment="Center" Foreground="{StaticResource Brush.TextDim}" />
-                            </StackPanel>
-                        </Button>
-                    </StackPanel>
-                </Border>
+                        </StackPanel>
+                    </Button>
+                </WrapPanel>
+
+                <!-- A thin rule, and under it the facts or the history. -->
+                <Border Height="1" Background="{StaticResource Brush.Surface}" Margin="{StaticResource Inspector.Rule}" />
 
                 <!-- The history (sketch AN1b), in place of the facts while its tab is chosen. -->
-                <views:InspectorHistoryView Margin="22,0,22,0"
+                <views:InspectorHistoryView Margin="{StaticResource Inspector.Text}"
                     DataContext="{Binding DataContext.History, RelativeSource={RelativeSource AncestorType=UserControl}}"
                     Visibility="{Binding IsShown, Converter={StaticResource Visible}}" />
 
@@ -224,7 +287,7 @@
                                                  RelativeSource={RelativeSource AncestorType=UserControl}}">
 
                     <!-- ===== The facts, two to a row (sketch IN2b) ===== -->
-                    <ItemsControl ItemsSource="{Binding Facts}" Focusable="False" Margin="22,16,10,0">
+                    <ItemsControl ItemsSource="{Binding Facts}" Focusable="False" Margin="{StaticResource Inspector.Facts}">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
                                 <UniformGrid Columns="2" />
@@ -240,8 +303,76 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
 
+                    <!--
+                      ===== Adressförgiftning (sketch DM1a): the look-alike against the genuine address character by
+                      character, what differs in red, and the genuine one as the default to copy =====
+                    -->
+                    <Border Margin="{StaticResource Inspector.Block}" Padding="14,12" CornerRadius="10" BorderThickness="1"
+                            Background="{StaticResource Brush.Surface}"
+                            DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                            Visibility="{Binding HasPoison, Converter={StaticResource Visible}}">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="BorderBrush" Value="{StaticResource Brush.BorderStrong}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsPoisonAsked}" Value="True">
+                                        <Setter Property="BorderBrush" Value="{StaticResource Brush.Kind.Risk}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal">
+                                <controls:GridIcon Size="14" Data="{StaticResource Icon.Poison}" Margin="0,0,8,0"
+                                                   Foreground="{StaticResource Brush.Kind.Risk}" VerticalAlignment="Center" />
+                                <TextBlock Text="Adressförgiftning" FontSize="13.5" FontWeight="SemiBold" />
+                            </StackPanel>
+                            <TextBlock FontSize="12" Margin="0,4,0,8" Foreground="{StaticResource Brush.TextMuted}"
+                                       Text="Samma början och slut, annat i mitten" />
+                            <ItemsControl ItemsSource="{Binding PoisonPairs}" Focusable="False">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type vm:CharPair}">
+                                        <StackPanel Width="8.5" Margin="0,0,0,6">
+                                            <TextBlock Text="{Binding Genuine}" FontFamily="{StaticResource Font.Mono}" FontSize="12"
+                                                       Foreground="{StaticResource Brush.TextMuted}" HorizontalAlignment="Center" />
+                                            <TextBlock x:Name="Suspect" Text="{Binding Suspect}" FontFamily="{StaticResource Font.Mono}"
+                                                       FontSize="12" HorizontalAlignment="Center"
+                                                       Foreground="{StaticResource Brush.TextMuted}" />
+                                        </StackPanel>
+                                        <DataTemplate.Triggers>
+                                            <DataTrigger Binding="{Binding Differs}" Value="True">
+                                                <Setter TargetName="Suspect" Property="Foreground" Value="{StaticResource Brush.Kind.Risk}" />
+                                                <Setter TargetName="Suspect" Property="FontWeight" Value="Bold" />
+                                            </DataTrigger>
+                                        </DataTemplate.Triggers>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <DockPanel Margin="0,6,0,0" LastChildFill="False">
+                                <Button DockPanel.Dock="Right" Style="{StaticResource Button.Primary}" Height="30" Padding="10,0"
+                                        FontSize="12.5" Command="{Binding CopyGenuineCommand}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{Binding PoisonCopyText}" />
+                                        <TextBlock Text="Enter" Margin="7,0,0,0" FontWeight="Normal" Opacity="0.6" />
+                                    </StackPanel>
+                                </Button>
+                                <Button DockPanel.Dock="Right" Style="{StaticResource Button.Secondary}" Height="30" Padding="10,0"
+                                        FontSize="12.5" Margin="0,0,8,0" Content="Kopiera ändå" Command="{Binding CopySuspectCommand}" />
+                            </DockPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- ===== Varför är de en plånbok? (sketch KV1a): the heuristics behind a cluster ===== -->
+                    <views:ClusterWhyView Margin="{StaticResource Inspector.Block}"
+                        DataContext="{Binding DataContext.ClusterWhy, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+
                     <!-- ===== The balance per token (sketch TK1a): what is left, its worth, the issuer ===== -->
-                    <StackPanel Margin="22,0,22,10" Visibility="{Binding HasBalances, Converter={StaticResource Visible}}">
+                    <StackPanel Margin="{StaticResource Inspector.Block}" Visibility="{Binding HasBalances, Converter={StaticResource Visible}}">
                         <TextBlock Text="Saldo per token" FontSize="11.5" Foreground="{StaticResource Brush.TextDim}"
                                    Margin="0,0,0,4" />
                         <ItemsControl ItemsSource="{Binding Balances}" Focusable="False">
@@ -328,7 +459,7 @@
                     </StackPanel>
 
                     <!-- Här (sketch KF1a): the checks and suggestions that concern the chosen actor. -->
-                    <ItemsControl Focusable="False" Margin="22,0,22,10"
+                    <ItemsControl Focusable="False" Margin="{StaticResource Inspector.Block}"
                                   ItemsSource="{Binding DataContext.Checks.Here, RelativeSource={RelativeSource AncestorType=UserControl}}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate DataType="{x:Type vm:HereLine}">
@@ -358,7 +489,11 @@
                       ===== The ids in full (sketch IN2b): in a dark box, in Cascadia Mono, each with copy, so that every
                       step can be checked against the chain with any tool (principle 1) =====
                     -->
-                    <Border Margin="22,4,22,0" Padding="12" CornerRadius="10" Background="{StaticResource Brush.Background}"
+                    <!-- A look-alike's ids are not shown: the comparison above shows both addresses (DM1a). -->
+                    <Border Visibility="{Binding DataContext.ShowsIds, Converter={StaticResource Visible},
+                                                 RelativeSource={RelativeSource AncestorType=UserControl}}">
+                    <Border Margin="{StaticResource Inspector.Ids}" Padding="12" CornerRadius="10" Background="{StaticResource Brush.Background}"
+                            BorderBrush="{StaticResource Brush.Surface}" BorderThickness="1"
                             Visibility="{Binding HasIds, Converter={StaticResource Visible}}">
                         <StackPanel>
                             <ItemsControl ItemsSource="{Binding Ids}" Focusable="False">
@@ -393,6 +528,7 @@
                             <TextBlock Text="{Binding MoreIds}" FontSize="12" Foreground="{StaticResource Brush.TextDim}"
                                        Visibility="{Binding HasMoreIds, Converter={StaticResource Visible}}" />
                         </StackPanel>
+                    </Border>
                     </Border>
                 </StackPanel>
             </StackPanel>

@@ -592,6 +592,28 @@ public sealed class ExposureTests
     }
 
     [Fact]
+    public void OnAnAccountChainReadInTheShareOfADepositLinkedToAnotherChainContinuesThere()
+    {
+        // V's 0.7 to K is linked to another chain; by FIFO K's 0.5 to S came from it, and goes on there.
+        var cases = ReadInCase();
+        var linked = cases.Edges.Single(edge => edge.Key == "V>K");
+        var onward = new GraphEdge(
+            "K>Y", "K", "Y", GraphEdgeKind.ContinuesOnOtherChain, linked.Amount, linked.Transfers, linked.FirstTime,
+            EdgeDirection.Forward);
+        var graph = cases with
+        {
+            Nodes = [.. cases.Nodes, Node("Y", GraphNodeKind.OtherChain)],
+            Edges = [.. cases.Edges, onward],
+        };
+
+        var result = In(graph, depth: 2, TracingMethodKind.Fifo, "V", "X");
+
+        Assert.DoesNotContain(result.Reached, reach => reach.NodeKey == "V");
+        Assert.Equal(50_000_000, (long)result.Rest[ExposureRest.OtherChain].Units);
+        Assert.False(result.Rest.ContainsKey(ExposureRest.BeforeHistory));
+    }
+
+    [Fact]
     public void ATallyThatCountsMoreThanTheTotalIsRefused()
     {
         var request = Request(TwoHops(), ExposureDirection.Out, 2, TracingMethodKind.Fifo, "E");

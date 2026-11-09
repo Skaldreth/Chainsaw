@@ -32,6 +32,19 @@ public sealed record SourceEndpoint(
     /// never asks it faster; a source that asks Chainsaw to wait (<c>429</c>, <c>Retry-After</c>) is waited for too.
     /// </summary>
     public TimeSpan Interval { get; init; } = SourcePace.Public;
+
+    /// <summary>
+    /// Gets the certificate pinned for it (sketch KL3b), or <see langword="null"/> for none: only an endpoint marked
+    /// <see cref="Local"/> has one. The node must then show exactly that certificate, trusted by Windows or not, and
+    /// is refused while it shows another.
+    /// </summary>
+    public EndpointCertificate? Pin { get; init; }
+
+    /// <summary>
+    /// Gets the certificates pinned for it before, the latest first, each with when and by whom it was replaced or
+    /// removed; at most <see cref="EndpointCertificate.MaximumFormer"/>.
+    /// </summary>
+    public IReadOnlyList<EndpointCertificate> FormerPins { get; init; } = [];
 }
 
 /// <summary>

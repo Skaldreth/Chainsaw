@@ -101,7 +101,8 @@ public interface ICase : IDisposable
     /// The password, at least <see cref="SharingPasswordRules.MinimumLength"/> characters.
     /// </param>
     /// <exception cref="CaseException">
-    /// <see cref="CaseError.PasswordTooShort"/> or <see cref="CaseError.Closed"/>.
+    /// <see cref="CaseError.PasswordTooShort"/>, <see cref="CaseError.TooManyEnvelopes"/> or
+    /// <see cref="CaseError.Closed"/>.
     /// </exception>
     void SetSharingPassword(ReadOnlySpan<char> password);
 
@@ -117,7 +118,8 @@ public interface ICase : IDisposable
     /// it, and saves the file. Nothing happens when this vault already has one.
     /// </summary>
     /// <exception cref="CaseException">
-    /// <see cref="CaseError.VaultLocked"/> or <see cref="CaseError.Closed"/>.
+    /// <see cref="CaseError.VaultLocked"/>, <see cref="CaseError.TooManyEnvelopes"/> or
+    /// <see cref="CaseError.Closed"/>.
     /// </exception>
     void AddOperatorAccess();
 
@@ -132,8 +134,41 @@ public interface ICase : IDisposable
     /// </exception>
     IReadOnlyList<CaseEnvelope> DescribeEnvelopes();
 
+    /// <summary>
+    /// Replaces the case's file key (sketch VT1a), so that access can be taken back: a new random file key, the
+    /// database encrypted anew under it, the envelopes for this vault and the organisation's recovery key wrapped
+    /// anew, and every other envelope dropped (see <see cref="FileKeyReplacement.Keeps"/>); the seal over the file
+    /// follows the new key. It is journalled and sealed in the same file. The case file is replaced in one move, so a
+    /// crash leaves either the old file or the new one whole. Copies of the file handed out before are not affected:
+    /// they still open with the envelopes they hold.
+    /// </summary>
+    /// <param name="masterKey">The master key, asked for again since the step cannot be undone.</param>
+    /// <param name="sharingPassword">
+    /// A new case password to give the file in the same step, at least <see cref="SharingPasswordRules.MinimumLength"/>
+    /// characters, or empty for none.
+    /// </param>
+    /// <returns>The replacement, as the journal tells it.</returns>
+    /// <exception cref="CaseException">
+    /// <see cref="CaseError.WrongMasterKey"/>, <see cref="CaseError.VaultFailed"/>, <see cref="CaseError.Corrupt"/>,
+    /// <see cref="CaseError.PasswordTooShort"/>,
+    /// <see cref="CaseError.WouldLoseAccess"/> when this vault has no envelope of its own,
+    /// <see cref="CaseError.VaultLocked"/>, <see cref="CaseError.NoOperatorProfile"/>, <see cref="CaseError.Conflict"/>
+    /// when the case file was changed outside Chainsaw, or <see cref="CaseError.Closed"/>.
+    /// </exception>
+    FileKeyReplacement ReplaceFileKey(ReadOnlySpan<char> masterKey, ReadOnlySpan<char> sharingPassword);
+
+    /// <summary>
+    /// Gets whether this opening found that a replacement of the file key had been interrupted before the new file was
+    /// in place, so that the case still has its old key and envelopes; the journal says it too. The user is told, since
+    /// access that was to be taken back was not.
+    /// </summary>
+    bool FileKeyReplacementInterrupted => false;
+
     /// <summary>Writes the working copy back into the case file, atomically.</summary>
-    /// <exception cref="CaseException"><see cref="CaseError.Closed"/>.</exception>
+    /// <exception cref="CaseException">
+    /// <see cref="CaseError.Closed"/>, or <see cref="CaseError.LockedWhileSaving"/> when the vault was locked while the
+    /// file was written: the file is saved, but the case is closing.
+    /// </exception>
     void Save();
 
     /// <summary>
@@ -144,9 +179,9 @@ public interface ICase : IDisposable
     event EventHandler<CaseSaveState>? SaveStateChanged;
 
     /// <summary>
-    /// Saves, closes the database, removes the working copy and clears the file key from memory. Closing twice is
-    /// harmless. If the save fails, the working copy is kept so that the next opening recovers it, and the failure
-    /// is thrown.
+    /// Saves what was written since the last save (a case only read is not written again), closes the database,
+    /// removes the working copy and clears the file key from memory. Closing twice is harmless. If the save fails, the
+    /// working copy is kept so that the next opening recovers it, and the failure is thrown.
     /// </summary>
     void Close();
 }

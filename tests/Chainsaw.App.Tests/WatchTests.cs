@@ -225,6 +225,35 @@ public sealed class MonitoringViewModelTests
     }
 
     [Fact]
+    public async Task The_background_s_tips_are_shown_as_unchecked_never_as_hits_and_a_rejected_one_stays_faint()
+    {
+        var watch = _source.Add(WatchSamples.Subject(V), WatchSamples.Filter(WatchDirection.Out, [WatchSamples.On(E)]));
+        var match = WatchSamples.Out(WatchSamples.On(E), 0.42m);
+        _source.Tips.Add(new WatchTip(1, watch.Id, Chain.Bitcoin, match, Guid.NewGuid(), [], 1, TestWatchSource.At));
+        _source.Tips.Add(new WatchTip(2, watch.Id, Chain.Bitcoin, match, Guid.NewGuid(), [], 2, TestWatchSource.At)
+        {
+            State = WatchTipState.Rejected,
+        });
+        _source.Tips.Add(new WatchTip(3, watch.Id, Chain.Bitcoin, match, Guid.NewGuid(), [], 3, TestWatchSource.At)
+        {
+            State = WatchTipState.Confirmed,
+            Hit = 7,
+        });
+        var view = View(out var board);
+        await board.ReloadAsync();
+
+        view.Choose(view.Rows[0]);
+
+        Assert.Empty(view.Hits);
+        Assert.False(view.Rows[0].HasNew);
+        Assert.Equal([2L, 1L], view.Tips.Select(tip => tip.Tip.Sequence));
+        Assert.Equal([false, true], view.Tips.Select(tip => tip.IsPending));
+        Assert.Equal(WatchWords.TipPendingText, view.Tips[1].State);
+        Assert.Equal(WatchWords.TipRejectedText, view.Tips[0].State);
+        Assert.Contains("väntar på kontroll", view.Tips[1].State, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Without_an_exit_the_head_says_so_and_the_rows_wait()
     {
         _source.Add(WatchSamples.Subject(V), WatchSamples.Filter());
@@ -361,6 +390,30 @@ public sealed class WatchRunnerTests
     }
 
     [Fact]
+    public async Task A_new_block_heard_of_asks_at_once_and_a_closed_gate_stops_the_listening()
+    {
+        _source.Add(WatchSamples.Subject(V), WatchSamples.Filter(), start: 900_000);
+        var news = new CountingNews();
+        var (_, board) = WatchSamples.Board(_source);
+        var runner = new WatchRunner(board, _clock, (_, _) => Task.CompletedTask, news: news);
+
+        await runner.RunOnceAsync();
+        _clock.UtcNow += TimeSpan.FromSeconds(10);
+        await runner.RunOnceAsync();
+        Assert.Equal(1, _source.HeightsAsked);
+
+        news.Count++;
+        _clock.UtcNow += TimeSpan.FromSeconds(10);
+        await runner.RunOnceAsync();
+        Assert.Equal(2, _source.HeightsAsked);
+        Assert.Equal(3, news.Kept);
+
+        _source.GateState = WatchGate.Locked;
+        await runner.RunOnceAsync();
+        Assert.Equal(1, news.Released);
+    }
+
+    [Fact]
     public async Task Nothing_is_asked_without_a_case_or_with_the_gate_closed_or_only_paused_watches()
     {
         _source.Add(WatchSamples.Subject(V), WatchSamples.Filter());
@@ -458,6 +511,31 @@ public sealed class GraphWatchesTests
     }
 
     [Fact]
+    public void A_tip_from_the_background_is_a_grey_dashed_line_that_waits_and_never_a_hit()
+    {
+        var watch = _source.Add(WatchSamples.Subject(V), WatchSamples.Filter(WatchDirection.Out, [WatchSamples.On(E)]));
+        var tip = new WatchTip(
+            1, watch.Id, Chain.Bitcoin, WatchSamples.Out(WatchSamples.On(E), 0.3m), Guid.NewGuid(), [], 1,
+            TestWatchSource.At);
+        var snapshot = new WatchSnapshot(_source.Watches, _source.Records, [], _source.Checked, _source.Seen)
+        {
+            Tips = [tip],
+        };
+
+        var overlay = GraphWatches.Build(Scene(), snapshot, _ => WatchGate.Open);
+        var closed = GraphWatches.Build(
+            Scene(), snapshot with { Tips = [tip with { State = WatchTipState.Rejected }] }, _ => WatchGate.Open);
+
+        var line = Assert.Single(overlay.Lines);
+        Assert.Equal((WatchLineKind.Pending, VKey, EKey), (line.Kind, line.From, line.To));
+        Assert.True(line.Idle);
+        Assert.Null(line.Label);
+        Assert.False(overlay.Moves);
+        Assert.Contains("väntar på kontroll", line.Tip, StringComparison.Ordinal);
+        Assert.Equal(WatchLineKind.Guard, Assert.Single(closed.Lines).Kind);
+    }
+
+    [Fact]
     public void Grey_when_lookups_cannot_be_made_and_a_paused_watch_keeps_only_its_eye()
     {
         _source.Add(WatchSamples.Subject(V), WatchSamples.Filter(WatchDirection.Out, [WatchSamples.On(E)]));
@@ -471,4 +549,20 @@ public sealed class GraphWatchesTests
         Assert.Equal([VKey, UKey], overlay.Marks.Select(mark => mark.NodeKey));
         Assert.DoesNotContain(overlay.Rays, ray => ray.NodeKey == UKey);
     }
+}
+
+/// <summary>News of new blocks that a test counts by hand.</summary>
+internal sealed class CountingNews : IBlockNews
+{
+    public long Count { get; set; }
+
+    public int Kept { get; private set; }
+
+    public int Released { get; private set; }
+
+    public long Heard(Chain chain) => Count;
+
+    public void Keep(Chain chain) => Kept++;
+
+    public void Release(Chain chain) => Released++;
 }

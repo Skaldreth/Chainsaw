@@ -11,4 +11,7 @@ internal static class RecoveryDetails
 
     /// <summary>The fingerprints of the revoked keys whose envelopes were removed.</summary>
     public const string Removed = "removed";
+
+    /// <summary>How many damaged envelopes for the configured key were replaced by a sound one.</summary>
+    public const string Replaced = "replaced";
 }

@@ -141,6 +141,9 @@ public sealed class TlsPipelineTests
         using var client = await socks.AcceptTcpClientAsync();
         var stream = client.GetStream();
         var buffer = new byte[512];
+        await stream.ReadExactlyAsync(buffer.AsMemory(0, SocksHandlerFactory.ProofNonceSize));
+        await stream.WriteAsync(SocksHandlerFactory.ProofFor(
+            new FakeConnector().Credentials, buffer.AsSpan(0, SocksHandlerFactory.ProofNonceSize)));
         await stream.ReadExactlyAsync(buffer.AsMemory(0, 2));
         await stream.ReadExactlyAsync(buffer.AsMemory(0, buffer[1]));
         await stream.WriteAsync(new byte[] { 5, 2 });

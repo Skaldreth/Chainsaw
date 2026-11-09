@@ -155,6 +155,58 @@ public sealed class VerificationTests : IDisposable
     }
 
     [Fact]
+    public async Task A_description_that_once_contradicted_its_header_is_fetched_again_not_refused_for_good()
+    {
+        var forged = JsonNode.Parse(Fixtures.Text("block-real.json"))!;
+        forged["merkle_root"] = Fixtures.Repeat("5f", 32);
+        Http.AnswerBytes(
+            Fixtures.Url($"block/{Fixtures.RealBlock}"), Encoding.UTF8.GetBytes(forged.ToJsonString()), 200);
+        Assert.Equal(LookupStatus.Failed, (await Source.GetBlockAsync(_harness.Case, Fixtures.RealBlock)).Status);
+
+        _harness.AnswerReal();
+        var again = await Source.GetBlockAsync(_harness.Case, Fixtures.RealBlock);
+
+        Assert.NotNull(again.Value);
+        Assert.True(again.Value.HeaderVerified);
+    }
+
+    [Fact]
+    public async Task A_block_whose_bits_or_nonce_differ_from_its_header_is_refused()
+    {
+        var forged = JsonNode.Parse(Fixtures.Text("block-real.json"))!;
+        forged["nonce"] = 12_345;
+        Http.AnswerBytes(
+            Fixtures.Url($"block/{Fixtures.RealBlock}"), Encoding.UTF8.GetBytes(forged.ToJsonString()), 200);
+
+        var lookup = await Source.GetBlockAsync(_harness.Case, Fixtures.RealBlock);
+
+        Assert.Equal(LookupStatus.Failed, lookup.Status);
+    }
+
+    [Fact]
+    public void A_header_easier_than_the_network_allows_is_refused()
+    {
+        // Bitcoin's first block meets mainnet's limit exactly; the recorded block was mined at regtest's ease.
+        const string Genesis = "0100000000000000000000000000000000000000000000000000000000000000000000003ba3edfd7a7b12"
+            + "b27ac72c3e67768f617fc81bc3888a51323a9fb8aa4b1e5e4a29ab5f49ffff001d1dac2b7c";
+        var hash = BlockHash.Parse("000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f");
+
+        var genesis = BlockHeaderReader.ParseHex(Encoding.ASCII.GetBytes(Genesis), hash, BitcoinNetwork.Mainnet);
+
+        Assert.Equal(0x1d00ffffu, genesis.Bits);
+        Assert.Equal(2_083_236_893u, genesis.Nonce);
+        Assert.Throws<EsploraFormatException>(() => BlockHeaderReader.ParseHex(
+            Fixtures.Bytes("block-real-header.txt"), Fixtures.RealBlock, BitcoinNetwork.Mainnet));
+        Assert.True(BlockHeaderReader.WithinLimit(0x1d00ffff, BitcoinNetwork.Mainnet));
+        Assert.False(BlockHeaderReader.WithinLimit(0x1d01ffff, BitcoinNetwork.Mainnet));
+        Assert.False(BlockHeaderReader.WithinLimit(0x207fffff, BitcoinNetwork.Testnet));
+        Assert.True(BlockHeaderReader.WithinLimit(0x1d00ffff, BitcoinNetwork.Testnet));
+
+        // Signet's easier limit is not testnet's; Chainsaw has no network value for signet.
+        Assert.False(BlockHeaderReader.WithinLimit(0x1e0377ae, BitcoinNetwork.Testnet));
+    }
+
+    [Fact]
     public async Task A_block_whose_header_cannot_be_had_is_given_unchecked_and_says_so()
     {
         var lookup = await Source.GetBlockAsync(_harness.Case, Fixtures.Block);

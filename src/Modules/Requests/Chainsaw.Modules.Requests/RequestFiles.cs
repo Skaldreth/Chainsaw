@@ -1,3 +1,6 @@
+using System.Security.Cryptography;
+using System.Text;
+
 namespace Chainsaw.Modules.Requests;
 
 /// <summary>
@@ -10,6 +13,21 @@ internal static class RequestFiles
     /// <summary>The most numbers tried before the folder is given up on.</summary>
     public const int MostNumbers = 999;
 
+    /// <summary>The file's encoding: UTF-8 without a byte order mark, which every program reads.</summary>
+    private static readonly UTF8Encoding FileEncoding = new(encoderShouldEmitUTF8Identifier: false);
+
+    /// <summary>Writes a document's Markdown to a new file, as <see cref="WriteNew"/> does, and hashes it.</summary>
+    /// <param name="path">Where the user wants the file.</param>
+    /// <param name="markdown">The document's text.</param>
+    /// <returns>Where it was written, and the SHA-256 of its bytes in lower-case hexadecimal.</returns>
+    /// <exception cref="ArgumentException">The path names no file.</exception>
+    /// <exception cref="IOException">The file could not be written, or every number is taken.</exception>
+    public static (string Path, string Sha256) WriteMarkdown(string path, string markdown)
+    {
+        var bytes = FileEncoding.GetBytes(markdown);
+        return (WriteNew(path, bytes), Convert.ToHexStringLower(SHA256.HashData(bytes)));
+    }
+
     /// <summary>Writes the bytes to a new file at the path, or at the path with the first free number.</summary>
     /// <param name="path">Where the user wants the file.</param>
     /// <param name="content">The file's bytes.</param>
@@ -18,7 +36,7 @@ internal static class RequestFiles
     /// <exception cref="IOException">
     /// The file could not be written, or every number up to <see cref="MostNumbers"/> is taken.
     /// </exception>
-    public static string WriteNew(string path, ReadOnlySpan<byte> content)
+    private static string WriteNew(string path, ReadOnlySpan<byte> content)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         var full = Path.GetFullPath(path);

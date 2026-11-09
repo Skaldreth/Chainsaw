@@ -13,6 +13,11 @@ namespace Chainsaw.Modules.Network;
 /// <see cref="SettledInterval"/> while it reaches the internet and every <see cref="RetryInterval"/> while it does not,
 /// so that Chainsaw turns green soon after the login. Without a network no probe is sent. Until the first probe has
 /// answered, the network alone counts, so that the start is not red for nothing.
+/// <para>
+/// The probe leaves outside any tunnel, so it runs only while <see cref="ExitRoute.Windows"/> is the way chosen (decided
+/// 2026-11-08): with VPN chosen nothing is sent, a probe in flight is cancelled when Windows is left, and the last
+/// answer is forgotten, so only Windows' own signal is told (all that is known then). Choosing Windows probes at once.
+/// </para>
 /// </remarks>
 internal sealed class NetworkPresence : INetworkPresence, IDisposable
 {
@@ -30,6 +35,9 @@ internal sealed class NetworkPresence : INetworkPresence, IDisposable
 
     /// <summary>Asks whether the internet answers.</summary>
     private readonly IInternetProbe _probe;
+
+    /// <summary>The way out chosen, which must be Windows for a probe to be sent.</summary>
+    private readonly IExitRoute _route;
 
     /// <summary>Times the waits between probes.</summary>
     private readonly TimeProvider _time;
@@ -52,21 +60,31 @@ internal sealed class NetworkPresence : INetworkPresence, IDisposable
     /// <summary>Completed when the network's signals change, so that the loop probes at once.</summary>
     private TaskCompletionSource _wake = NewWake();
 
+    /// <summary>Stops the probe in flight when Windows is left; <see langword="null"/> while none is.</summary>
+    private CancellationTokenSource? _probing;
+
     /// <summary>Creates the presence and starts following the network and probing.</summary>
     /// <param name="signals">Where the network's signals come from.</param>
     /// <param name="probe">Asks whether the internet answers.</param>
+    /// <param name="route">The way out chosen; the probe is sent only while it is Windows.</param>
     /// <param name="time">Times the waits; the tests move it by hand.</param>
     /// <param name="waiting">Told each wait the loop starts; only the tests listen.</param>
     internal NetworkPresence(
-        INetworkSignals signals, IInternetProbe probe, TimeProvider time, Action<TimeSpan?>? waiting = null)
+        INetworkSignals signals,
+        IInternetProbe probe,
+        IExitRoute route,
+        TimeProvider time,
+        Action<TimeSpan?>? waiting = null)
     {
         _signals = signals;
         _probe = probe;
+        _route = route;
         _time = time;
         _waiting = waiting;
 
         // Followed first and read after, so that a change in between is never lost.
         signals.Changed += OnSignalsChanged;
+        route.Changed += OnRouteChanged;
         _hasNetwork = signals.HasNetwork;
         _ = Task.Run(() => RunAsync(_stop.Token));
     }
@@ -100,6 +118,7 @@ internal sealed class NetworkPresence : INetworkPresence, IDisposable
         }
 
         _signals.Changed -= OnSignalsChanged;
+        _route.Changed -= OnRouteChanged;
         _stop.Cancel();
     }
 
@@ -114,6 +133,41 @@ internal sealed class NetworkPresence : INetworkPresence, IDisposable
     {
         var hasNetwork = _signals.HasNetwork;
         Update(() => _hasNetwork = hasNetwork);
+        lock (_gate)
+        {
+            _wake.TrySetResult();
+        }
+    }
+
+    /// <summary>
+    /// Stops the probe in flight and forgets its answer when Windows is left, and wakes the loop, which probes at once
+    /// when Windows is chosen.
+    /// </summary>
+    /// <param name="sender">Not used.</param>
+    /// <param name="route">The way chosen now.</param>
+    private void OnRouteChanged(object? sender, ExitRoute route)
+    {
+        if (route != ExitRoute.Windows)
+        {
+            CancellationTokenSource? probing;
+            lock (_gate)
+            {
+                probing = _probing;
+            }
+
+            // Cancelled outside the gate, since the probe's own callbacks run on it.
+            try
+            {
+                probing?.Cancel();
+            }
+            catch (ObjectDisposedException)
+            {
+                // The probe has just ended; its answer is not kept, since Windows is no longer chosen.
+            }
+
+            Update(() => _reached = null);
+        }
+
         lock (_gate)
         {
             _wake.TrySetResult();
@@ -157,36 +211,66 @@ internal sealed class NetworkPresence : INetworkPresence, IDisposable
         }
     }
 
-    /// <summary>Probes once when the computer has a network, and keeps the answer.</summary>
+    /// <summary>Probes once when the computer has a network and Windows is the way chosen, and keeps the answer.</summary>
     /// <param name="token">Stops the probe.</param>
-    /// <returns>How long to wait before the next probe, or <see langword="null"/> for until the network changes.</returns>
+    /// <returns>
+    /// How long to wait before the next probe, or <see langword="null"/> for until the network or the way changes.
+    /// </returns>
     private async Task<TimeSpan?> ProbeOnceAsync(CancellationToken token)
     {
+        // The way is read and the probe registered under the gate that a change of way takes to cancel it, so that a
+        // probe begun just before VPN was chosen is always stopped.
+        CancellationTokenSource probing;
         lock (_gate)
         {
-            if (!_hasNetwork)
+            if (!_hasNetwork || _route.Current != ExitRoute.Windows)
             {
                 return null;
             }
+
+            probing = CancellationTokenSource.CreateLinkedTokenSource(token);
+            _probing = probing;
         }
 
-        var reached = await ReachesAsync(token).ConfigureAwait(false);
-        Update(() => _reached = reached);
-        return reached ? SettledInterval : RetryInterval;
+        bool? reached;
+        try
+        {
+            reached = await ReachesAsync(probing.Token).ConfigureAwait(false);
+        }
+        finally
+        {
+            lock (_gate)
+            {
+                _probing = null;
+            }
+
+            probing.Dispose();
+        }
+
+        token.ThrowIfCancellationRequested();
+        if (reached is not { } answer)
+        {
+            // Windows was left meanwhile: nothing is kept, and the loop waits for the way or the network.
+            return null;
+        }
+
+        // Kept only while Windows is still chosen: an answer that comes as VPN is chosen is forgotten.
+        Update(() => _reached = _route.Current == ExitRoute.Windows ? answer : null);
+        return answer ? SettledInterval : RetryInterval;
     }
 
     /// <summary>Asks the probe, counting a probe that throws as not reached.</summary>
     /// <param name="token">Stops the probe.</param>
-    /// <returns>Whether the internet answered.</returns>
-    private async Task<bool> ReachesAsync(CancellationToken token)
+    /// <returns>Whether the internet answered, or <see langword="null"/> when the probe was stopped.</returns>
+    private async Task<bool?> ReachesAsync(CancellationToken token)
     {
         try
         {
             return await _probe.ReachesInternetAsync(token).ConfigureAwait(false);
         }
-        catch (Exception exception) when (exception is not OutOfMemoryException && !token.IsCancellationRequested)
+        catch (Exception exception) when (exception is not OutOfMemoryException)
         {
-            return false;
+            return token.IsCancellationRequested ? null : false;
         }
     }
 

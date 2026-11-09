@@ -49,23 +49,8 @@ public sealed class CasePileStore(string directory) : ICasePileStore
     public string FilePath => Path.Combine(directory, FileName);
 
     /// <inheritdoc />
-    public IReadOnlyList<CasePile> Load()
-    {
-        try
-        {
-            if (!File.Exists(FilePath))
-            {
-                return [];
-            }
-
-            var file = JsonSerializer.Deserialize<PileFile>(SettingsFile.ReadShared(FilePath), Json);
-            return [.. (file?.Piles ?? []).Where(IsWhole).Select(ToPile)];
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
-        {
-            return [];
-        }
-    }
+    public IReadOnlyList<CasePile> Load() =>
+        [.. (SettingsFile.ReadJson<PileFile>(FilePath, Json)?.Piles ?? []).Where(IsWhole).Select(ToPile)];
 
     /// <inheritdoc />
     public bool Save(IReadOnlyList<CasePile> piles)
@@ -74,15 +59,7 @@ public sealed class CasePileStore(string directory) : ICasePileStore
         var file = new PileFile([.. piles.Select(pile => new SavedPile(pile.Id, pile.Name, [.. pile.CaseNumbers]))]);
         lock (_writing)
         {
-            try
-            {
-                SettingsFile.WriteReplacing(FilePath, JsonSerializer.Serialize(file, Json));
-                return true;
-            }
-            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-            {
-                return false;
-            }
+            return SettingsFile.TryWriteJson(FilePath, file, Json);
         }
     }
 

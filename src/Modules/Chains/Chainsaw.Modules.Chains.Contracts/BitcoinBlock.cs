@@ -29,4 +29,13 @@ public sealed record BitcoinBlock(
     /// block, merkle root and time.
     /// </summary>
     public bool HeaderVerified { get; init; }
+
+    /// <summary>
+    /// Gets the target in compact form as the source described it (<c>bits</c>), or <see langword="null"/> when it
+    /// did not; checked against the header when given.
+    /// </summary>
+    public uint? Bits { get; init; }
+
+    /// <summary>Gets the nonce as the source described it, or <see langword="null"/>; checked against the header.</summary>
+    public uint? Nonce { get; init; }
 }

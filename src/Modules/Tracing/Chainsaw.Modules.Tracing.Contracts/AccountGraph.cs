@@ -11,7 +11,7 @@ namespace Chainsaw.Modules.Tracing.Contracts;
 /// </summary>
 /// <param name="Transfers">
 /// Every movement of value in the graph, each once, in the order Chainsaw applies them: by block, then by transaction,
-/// then by position in it (<see cref="AccountGraph.ChainOrder"/>).
+/// then by position in it (<see cref="AccountGraph.ChainOrder(EthereumTransfer)"/>).
 /// </param>
 /// <param name="Fees">Every fee the graph knows an account paid, each transaction once.</param>
 /// <param name="Transactions">The transactions read whole (start points and expanded transactions), by hash.</param>
@@ -64,8 +64,22 @@ public sealed record AccountGraph(
         EthereumTransfer transfer)
     {
         ArgumentNullException.ThrowIfNull(transfer);
-        return (transfer.Block?.Height ?? long.MaxValue, transfer.Block?.TransactionIndex ?? long.MaxValue,
-            transfer.Transaction.Value, transfer.Position, (int)transfer.Kind);
+        return ChainOrder(AssetTransfer.OfEthereum(transfer, null));
+    }
+
+    /// <summary>
+    /// Gives the order of a movement as a graph's line carries it, the same as
+    /// <see cref="ChainOrder(EthereumTransfer)"/>, so that the exposure reads an account's ledger in the order the
+    /// graph's trace does.
+    /// </summary>
+    /// <param name="transfer">The movement on an account chain.</param>
+    /// <returns>The key to sort by.</returns>
+    public static (long Block, long Index, string Transaction, long Position, int Kind) ChainOrder(
+        AssetTransfer transfer)
+    {
+        ArgumentNullException.ThrowIfNull(transfer);
+        return (transfer.Height ?? long.MaxValue, transfer.AccountBlock?.TransactionIndex ?? long.MaxValue,
+            transfer.Transaction.Id, transfer.Position, (int?)transfer.Movement ?? 0);
     }
 }
 

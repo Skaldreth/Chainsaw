@@ -22,6 +22,19 @@ public sealed record WatchSnapshot(
         new Dictionary<string, long>());
 
     /// <summary>
+    /// Gets the hits the background said it saw (<see cref="WatchTip"/>), oldest first: no facts until Chainsaw's own
+    /// lookup has checked them, so they are drawn grey and dashed while they wait.
+    /// </summary>
+    public IReadOnlyList<WatchTip> Tips { get; init; } = [];
+
+    /// <summary>Gives a watch's tips that wait for Chainsaw's own lookup, newest first.</summary>
+    /// <param name="watchId">The watch.</param>
+    /// <returns>The tips.</returns>
+    public IReadOnlyList<WatchTip> PendingOf(string watchId) =>
+        [.. Tips.Where(tip => tip.WatchId == watchId && tip.State == WatchTipState.Pending)
+            .OrderByDescending(tip => tip.Sequence)];
+
+    /// <summary>
     /// Gets when the user last looked at the hits, or <see langword="null"/> when never, so that the head can say
     /// <em>2 nya träffar sedan 09:10</em> (sketch BV1a).
     /// </summary>
@@ -130,6 +143,7 @@ public sealed class WatchSource(IMonitoringService monitoring) : IWatchSource
             monitoring.GetSeen(@case))
         {
             LastSeen = monitoring.GetLastSeen(@case),
+            Tips = monitoring.GetTips(@case),
         },
         cancellationToken);
 

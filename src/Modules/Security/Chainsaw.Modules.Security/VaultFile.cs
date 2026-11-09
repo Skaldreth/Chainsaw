@@ -145,6 +145,7 @@ internal sealed class VaultFile
     private static bool IsWellFormed(VaultDocument document) =>
         document.Kdf is { Algorithm: KdfParameters.AlgorithmName, Salt.Length: VaultCrypto.SaltSize } kdf
         && kdf.Iterations is > 0 and <= KdfParameters.MaximumIterations
+        && kdf.Normalization is null or KdfParameters.NormalizationName
         && IsWellFormed(document.DataKey) && document.DataKey.Ciphertext.Length == VaultCrypto.KeySize
         && IsWellFormed(document.Content);
 

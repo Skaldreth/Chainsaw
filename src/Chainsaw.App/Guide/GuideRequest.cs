@@ -16,6 +16,12 @@ public sealed record GuideContext(string Label, IReadOnlyList<WhyLine> Lines)
     /// <see langword="null"/> when the answer is about something else.
     /// </summary>
     public GuideValuation? Valuation { get; init; }
+
+    /// <summary>
+    /// Gets the answer about a replaced anchor (sketch AK1a), shown above the section in its own form, or
+    /// <see langword="null"/> when the answer is about something else.
+    /// </summary>
+    public GuideAnchorChange? AnchorChange { get; init; }
 }
 
 /// <summary>
@@ -115,6 +121,22 @@ public sealed record GuideRequest(GuideTopic Topic, string? Heading, GuideContex
             Valuation = valuation,
         };
         return new GuideRequest(GuideTopic.Prices, ValueHeading, context, subject) { IsChoice = true };
+    }
+
+    /// <summary>
+    /// Gives the request for <em>Varför?</em> on a replaced anchor (sketch AK1a): when, the chain with the anchor and
+    /// the file's head, and the likely cause, above the section on anchors.
+    /// </summary>
+    /// <param name="change">The answer.</param>
+    /// <returns>The request, chosen just now.</returns>
+    public static GuideRequest ForAnchors(GuideAnchorChange change)
+    {
+        ArgumentNullException.ThrowIfNull(change);
+        var context = new GuideContext("Varför? · Ankaret", [new WhyLine(change.ChainText, null)])
+        {
+            AnchorChange = change,
+        };
+        return new GuideRequest(GuideTopic.Anchors, null, context, "anchors") { IsChoice = true };
     }
 
     /// <summary>Gives the request for a section without an answer, for example the visual language.</summary>

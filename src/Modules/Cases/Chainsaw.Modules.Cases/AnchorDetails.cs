@@ -5,9 +5,14 @@ namespace Chainsaw.Modules.Cases;
 /// <summary>The details of a <c>case.anchors-replaced</c> journal entry.</summary>
 /// <param name="Problem">What was wrong (<see cref="AnchorProblem"/>).</param>
 /// <param name="Anchors">The anchors the case no longer reached.</param>
+/// <param name="Heads">
+/// Each chain's head in the case when the problem was found, so that the entry itself says how far the case had come
+/// when the anchors could not be relied on (they are replaced by these at the next save).
+/// </param>
 internal sealed record AnchorDetails(
     [property: JsonPropertyName("problem")] string Problem,
-    [property: JsonPropertyName("anchors")] IReadOnlyList<AnchorDetail> Anchors);
+    [property: JsonPropertyName("anchors")] IReadOnlyList<AnchorDetail> Anchors,
+    [property: JsonPropertyName("heads")] IReadOnlyList<AnchorDetail> Heads);
 
 /// <summary>One anchor that the case no longer reached.</summary>
 /// <param name="Chain">The chain's name.</param>

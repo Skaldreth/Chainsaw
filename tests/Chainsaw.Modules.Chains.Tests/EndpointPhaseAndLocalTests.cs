@@ -65,6 +65,39 @@ public sealed class EndpointPhaseAndLocalTests : IDisposable
     }
 
     [Fact]
+    public async Task The_monitoring_takes_the_chain_height_only_from_an_endpoint_in_step()
+    {
+        _harness.AnswerAll();
+        var lagging = await AddAsync(Lagging);
+        await _harness.Sources.MoveAsync(Chain.Bitcoin, lagging.Id, -1);
+        await _harness.Sources.SetModeAsync(Chain.Bitcoin, SourceMode.Priority);
+        Height(Fixtures.Base, 800_010);
+        Height(Lagging, 800_009);
+        await _harness.Sources.ProbeAsync(Chain.Bitcoin);
+        _harness.Http.Sent.Clear();
+
+        var ordinary = await _harness.Source.GetTipHeightAsync(_harness.Case);
+        var monitoring = await _harness.Source.GetTipHeightAsync(_harness.Case, LookupMode.InStep);
+
+        Assert.Equal(800_009, ordinary.Value!.Height);
+        Assert.Equal(800_010, monitoring.Value!.Height);
+        Assert.Equal(["lagging.example", "esplora.test"], _harness.Http.Sent.Select(r => r.Uri.Host));
+    }
+
+    [Fact]
+    public async Task Not_found_only_from_endpoints_that_cannot_be_believed_is_a_failure_not_an_answer()
+    {
+        // The only endpoint failed its probe (its path changed, say): its 404 says nothing about the chain.
+        await _harness.Sources.ProbeAsync(Chain.Bitcoin);
+        Assert.Equal(ProbeOutcome.Failed, _harness.Sources.Get(Chain.Bitcoin).Endpoints[0].Probe!.Outcome);
+
+        var lookup = await _harness.Source.GetTransactionAsync(_harness.Case, Fixtures.Unconfirmed);
+
+        Assert.Equal(LookupStatus.Failed, lookup.Status);
+        Assert.Equal(SourceLookups.UntrustedNotFoundText, lookup.Problem);
+    }
+
+    [Fact]
     public async Task The_monitoring_sends_nothing_when_no_endpoint_is_known_to_be_in_step()
     {
         _harness.AnswerAll();

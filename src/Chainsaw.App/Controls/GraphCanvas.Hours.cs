@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Media;
 using Chainsaw.App.Graph;
+using static Chainsaw.App.Controls.Freezing;
 
 namespace Chainsaw.App.Controls;
 
@@ -50,7 +51,7 @@ public sealed partial class GraphCanvas
     {
         var axis = _model!.Timeline.Axis;
         var y = _viewport.ToSurface(new GraphPoint(0, HourNameTop)).Y;
-        var ink = GraphPalette.Find(this, "Brush.TextDim");
+        var ink = Ink("Brush.TextDim");
         foreach (var hours in HoursShown(bands))
         {
             if (bands.Line(hours) is not { } line)
@@ -60,7 +61,7 @@ public sealed partial class GraphCanvas
 
             var x = _viewport.ToScreen(new GraphPoint(line.XAt(y), 0)).X;
             var name = axis.HourOf(axis.Time(hours)).ToString("00", CultureInfo.InvariantCulture);
-            var text = CachedText(name, 10.5, ink, FontWeights.Normal);
+            var text = Text(name, 10.5, ink, FontWeights.Normal);
             if (x > 0 && x < ActualWidth)
             {
                 dc.DrawText(text, new Point(x - (text.Width / 2), HourNameTop));

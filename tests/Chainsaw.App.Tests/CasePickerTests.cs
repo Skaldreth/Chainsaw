@@ -193,6 +193,107 @@ public sealed class CasePickerTests
     }
 
     [Fact]
+    public async Task Verifiera_says_the_chain_is_whole_with_its_rows_and_head()
+    {
+        var rig = new Rig();
+        rig.Session.Open(new TestCase("2026-0098"));
+        rig.Verifier.Result = new CaseVerification(
+            new DateTimeOffset(2026, 11, 8, 10, 42, 0, TimeSpan.Zero),
+            [],
+            [new ChainVerification(CaseChains.Journal, 431, 431, new string('9', 64), null)]);
+
+        await rig.Picker.VerifyAsync();
+
+        Assert.Equal(CasePickerViewModel.VerifiedText, rig.Picker.VerifyText);
+        Assert.Equal("431 rader · 10:42 · topp 99999999…99999999", rig.Picker.VerifyDetail);
+        Assert.False(rig.Picker.HasAnchorChange);
+    }
+
+    [Fact]
+    public async Task A_replaced_anchor_is_a_calm_yellow_line_and_Varfor_opens_the_Guide()
+    {
+        var rig = new Rig();
+        var openCase = new TestCase("2026-0098");
+        openCase.Entries.Add(AnchorsReplaced(before: 447, after: 431));
+        rig.Session.Open(openCase);
+        rig.Verifier.Result = new CaseVerification(
+            DateTimeOffset.UnixEpoch,
+            [CaseProblem.AnchorsReplaced],
+            [new ChainVerification(CaseChains.Journal, 432, 432, new string('9', 64), null)]);
+        Guide.GuideRequest? asked = null;
+        rig.Picker.GuideWanted += (_, request) => asked = request;
+
+        await rig.Picker.VerifyAsync();
+
+        Assert.False(rig.Picker.IsVerifyFailed);
+        Assert.Equal(CasePickerViewModel.VerifiedText, rig.Picker.VerifyText);
+        Assert.True(rig.Picker.HasAnchorChange);
+        Assert.StartsWith("Ankaret byttes", rig.Picker.AnchorText, StringComparison.Ordinal);
+        Assert.Equal("Troligast: äldre kopia", rig.Picker.AnchorCauseText);
+
+        rig.Picker.WhyAnchor();
+
+        Assert.NotNull(asked);
+        Assert.Equal(Graph.GuideTopic.Anchors, asked.Topic);
+        var change = asked.Context!.AnchorChange!;
+        Assert.Equal(Guide.AnchorCause.OlderCopy, change.Cause);
+        Assert.Equal("447", change.Before.Row);
+        Assert.Equal("431", change.After.Row);
+        Assert.Contains("De 16 raderna efter 431", change.Todo, StringComparison.Ordinal);
+        Assert.Contains("från rad 1 till 432", change.ChainText, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("Diverged", 418, 431, Guide.AnchorCause.TwoComputers)]
+    [InlineData("Diverged", 447, 431, Guide.AnchorCause.OlderCopy)]
+    [InlineData("Missing", 0, 431, Guide.AnchorCause.AnchorsMissing)]
+    [InlineData("RolledBack", 447, 447, Guide.AnchorCause.AnchorsRolledBack)]
+    [InlineData("Unreadable", 0, 431, Guide.AnchorCause.AnchorsUnreadable)]
+    public void The_likely_cause_follows_the_problem_and_the_rows(
+        string problem, long before, long after, Guide.AnchorCause expected)
+    {
+        var entry = AnchorsReplaced(before, after, problem);
+
+        var replacement = AnchorReplacement.FromJournal(entry)!;
+
+        Assert.Equal(expected, Guide.GuideAnchorChange.CauseOf(replacement));
+    }
+
+    [Fact]
+    public async Task A_broken_chain_is_still_an_error()
+    {
+        var rig = new Rig();
+        rig.Session.Open(new TestCase("2026-0098"));
+        rig.Verifier.Result = new CaseVerification(
+            DateTimeOffset.UnixEpoch,
+            [CaseProblem.AnchorsReplaced],
+            [new ChainVerification(CaseChains.Journal, 3, 3, "ab", new ChainBreak(2, ChainBreakReason.RecordChanged))]);
+
+        await rig.Picker.VerifyAsync();
+
+        Assert.True(rig.Picker.IsVerifyFailed);
+        Assert.False(rig.Picker.HasAnchorChange);
+    }
+
+    /// <summary>A journal line <c>case.anchors-replaced</c> as the Cases module writes it.</summary>
+    /// <param name="before">The anchored line of the journal's chain, or 0 for none.</param>
+    /// <param name="after">The journal's head in the file.</param>
+    /// <param name="problem">The problem's name.</param>
+    /// <returns>The line.</returns>
+    private static JournalEntry AnchorsReplaced(long before, long after, string problem = "Diverged")
+    {
+        var anchors = before == 0
+            ? "[]"
+            : $"[{{\"chain\":\"cases.journal\",\"sequence\":{before},\"hash\":\"{new string('5', 64)}\"}}]";
+        var details = $"{{\"problem\":\"{problem}\",\"anchors\":{anchors},"
+            + $"\"heads\":[{{\"chain\":\"cases.journal\",\"sequence\":{after},\"hash\":\"{new string('9', 64)}\"}}]}}";
+        return new JournalEntry(
+            after + 1, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, "UTC",
+            new OperatorProfile("Testa Testsson", string.Empty, string.Empty), CaseJournalKinds.AnchorsReplaced,
+            "Ankarna ersattes", details, string.Empty);
+    }
+
+    [Fact]
     public async Task Another_opening_has_not_been_verified()
     {
         var rig = new Rig();

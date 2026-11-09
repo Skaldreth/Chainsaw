@@ -366,55 +366,151 @@ internal sealed class RawResponseStore(TimeZoneInfo timeZone, string chainName)
     private const long NotFoundStatus = 404;
 
     /// <summary>
+    /// The blocks more than its pace a chain may make between two times when a lower bound is counted from a later
+    /// height (<see cref="LowestAt"/>): blocks come at random, and over a short time many may come close together.
+    /// </summary>
+    private const long Burst = 24;
+
+    /// <summary>
     /// Gives the highest block an endpoint had shown up to an answer: the chain's heights it answered and the blocks of
-    /// the transactions in its answers, all sealed. A newer answer from an endpoint that had not come as far as a block
-    /// says nothing about that block, since the endpoint may only lag behind (finding C1 of GR9a).
+    /// the transactions in its answers. A newer answer from an endpoint that had not come as far as a block says
+    /// nothing about that block, since the endpoint may only lag behind (finding C1 of GR9a). The heights are read as
+    /// <see cref="Heights"/> describes.
     /// </summary>
     /// <param name="reader">The case's reader.</param>
     /// <param name="endpointId">The endpoint's id as sealed.</param>
     /// <param name="upTo">The last answer to count.</param>
     /// <returns>The height, or <see langword="null"/> when its answers show none.</returns>
-    public long? EndpointHeight(ICaseReader reader, string endpointId, long upTo)
-    {
-        using var command = reader.CreateCommand(
-            $"""
-            SELECT MAX(height) FROM (
-                SELECT MAX(l.height) AS height FROM chains_lookup l
-                    JOIN {ChainsSchema.RawResponsesTable} r ON r.sequence = l.sequence
-                    WHERE l.chain = $chain AND r.endpoint_id = $endpoint AND l.sequence <= $upTo
-                UNION ALL SELECT MAX(s.block_height) FROM chains_bitcoin_seen s
-                    JOIN {ChainsSchema.RawResponsesTable} r ON r.sequence = s.sequence
-                    WHERE s.chain = $chain AND r.endpoint_id = $endpoint AND s.sequence <= $upTo)
-            """);
-        Add(command, "$chain", ChainName);
-        Add(command, "$endpoint", endpointId);
-        Add(command, "$upTo", upTo);
-        return command.ExecuteScalar() as long?;
-    }
+    public long? EndpointHeight(ICaseReader reader, string endpointId, long upTo) =>
+        Heights(reader, endpointId, upTo);
 
     /// <summary>
     /// Gives the highest block the case knows of: the newest height fetched, or the highest block a fetched
-    /// transaction is in, whichever is higher. The chain is at least this high.
+    /// transaction is in, whichever is higher. The chain is at least this high. The heights are read as
+    /// <see cref="Heights"/> describes.
     /// </summary>
     /// <param name="reader">The case's reader.</param>
     /// <param name="upTo">
     /// The last response to count, so that the height the case knew when a response was sealed can be read; every
     /// response when <see langword="null"/>.
     /// </param>
+    /// <param name="receivedBy">
+    /// Only responses received at or before this time, so that the height the case knew at a time can be read; every
+    /// response when <see langword="null"/>.
+    /// </param>
     /// <returns>The height, or <see langword="null"/> when the case knows of no block.</returns>
-    public long? KnownHeight(ICaseReader reader, long? upTo = null)
+    public long? KnownHeight(ICaseReader reader, long? upTo = null, DateTimeOffset? receivedBy = null) =>
+        Heights(reader, null, upTo, receivedBy);
+
+    /// <summary>
+    /// Gives the lowest the chain can have been at a time, from the heights fetched after it: each, as
+    /// <see cref="Heights"/> counts it, less the most blocks the chain can have made between (twice as fast as it has
+    /// ever made them on average, and a burst more for the chance of many blocks close together). It gives a bound
+    /// when the case had fetched no height by then; it is lower than the chain was, never higher.
+    /// </summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <param name="at">The time.</param>
+    /// <returns>
+    /// The height, or <see langword="null"/> when no counted answer came after it or the chain's pace is not known.
+    /// </returns>
+    public long? LowestAt(ICaseReader reader, DateTimeOffset at)
     {
+        if (ChainLimits.Pace(ChainName) is not { } pace)
+        {
+            return null;
+        }
+
         using var command = reader.CreateCommand(
-            """
-            SELECT MAX(height) FROM (
-                SELECT MAX(height) AS height FROM chains_lookup
-                WHERE chain = $chain AND ($upTo IS NULL OR sequence <= $upTo)
-                UNION ALL SELECT MAX(block_height) FROM chains_bitcoin_seen
-                WHERE chain = $chain AND ($upTo IS NULL OR sequence <= $upTo))
+            $"""
+            SELECT l.height, unixepoch(r.received_utc) FROM chains_lookup l
+                JOIN {ChainsSchema.RawResponsesTable} r ON r.sequence = l.sequence AND r.chain = l.chain
+                    AND r.kind = l.kind AND r.subject = l.subject AND r.status_code BETWEEN 200 AND 299
+                WHERE l.chain = $chain AND l.height IS NOT NULL AND unixepoch(r.received_utc) > $at
             """);
         Add(command, "$chain", ChainName);
-        Add(command, "$upTo", upTo);
-        return command.ExecuteScalar() as long?;
+        Add(command, "$at", at.ToUnixTimeSeconds());
+        var fastest = (long)pace.Fastest.TotalSeconds;
+        long? lowest = null;
+        using var rows = command.ExecuteReader();
+        while (rows.Read())
+        {
+            if (rows.IsDBNull(1))
+            {
+                continue;
+            }
+
+            var received = rows.GetInt64(1);
+            var height = Math.Min(rows.GetInt64(0), (received - pace.Made.ToUnixTimeSeconds()) / fastest);
+            var made = ((received - at.ToUnixTimeSeconds()) / fastest) + 1 + Burst;
+            lowest = Math.Max(lowest ?? 0, Math.Max(0, height - made));
+        }
+
+        return lowest;
+    }
+
+    /// <summary>
+    /// Gives the highest block the indexes show. The indexes are not sealed, so a height only counts when its row
+    /// points at a sealed successful answer of this chain (of the kind and subject the lookup row names), and never
+    /// above the highest the chain can have come by when that answer was received (<see cref="ChainLimits"/>). A row
+    /// written by hand into the file can then move the height no further than the chain's plausible bound. The rows
+    /// are read highest first and the reading stops at the first row no higher than the height found, so that a case
+    /// with many answers is not read through on every lookup.
+    /// </summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <param name="endpointId">Only answers of this endpoint, or <see langword="null"/> for every answer.</param>
+    /// <param name="upTo">The last answer to count, or <see langword="null"/> for every answer.</param>
+    /// <param name="receivedBy">
+    /// Only answers received at or before this time, or <see langword="null"/> for every answer.
+    /// </param>
+    /// <returns>The height, or <see langword="null"/> when no counted answer shows one.</returns>
+    private long? Heights(ICaseReader reader, string? endpointId, long? upTo, DateTimeOffset? receivedBy = null)
+    {
+        const string Filter = """
+            AND r.status_code BETWEEN 200 AND 299
+            AND ($endpoint IS NULL OR r.endpoint_id = $endpoint) AND ($upTo IS NULL OR r.sequence <= $upTo)
+            AND ($by IS NULL OR unixepoch(r.received_utc) <= $by)
+            """;
+        var pace = ChainLimits.Pace(ChainName);
+        long? highest = null;
+        foreach (var query in (string[])[
+            $"""
+            SELECT l.height, unixepoch(r.received_utc) FROM chains_lookup l
+                JOIN {ChainsSchema.RawResponsesTable} r ON r.sequence = l.sequence AND r.chain = l.chain
+                    AND r.kind = l.kind AND r.subject = l.subject {Filter}
+                WHERE l.chain = $chain AND l.height IS NOT NULL ORDER BY l.height DESC
+            """,
+            $"""
+            SELECT s.block_height, unixepoch(r.received_utc) FROM chains_bitcoin_seen s
+                JOIN {ChainsSchema.RawResponsesTable} r ON r.sequence = s.sequence AND r.chain = s.chain {Filter}
+                WHERE s.chain = $chain AND s.block_height IS NOT NULL ORDER BY s.block_height DESC
+            """])
+        {
+            using var command = reader.CreateCommand(query);
+            Add(command, "$chain", ChainName);
+            Add(command, "$endpoint", endpointId);
+            Add(command, "$upTo", upTo);
+            Add(command, "$by", receivedBy?.ToUnixTimeSeconds());
+            using var rows = command.ExecuteReader();
+            while (rows.Read() && !(rows.GetInt64(0) <= highest))
+            {
+                var height = rows.GetInt64(0);
+                if (pace is { } known)
+                {
+                    if (rows.IsDBNull(1))
+                    {
+                        // A received time SQLite cannot read gives no bound to hold the height to: not counted.
+                        continue;
+                    }
+
+                    var most = (rows.GetInt64(1) - known.Made.ToUnixTimeSeconds()) / (long)known.Fastest.TotalSeconds;
+                    height = Math.Min(height, Math.Max(0, most));
+                }
+
+                highest = Math.Max(highest ?? height, height);
+            }
+        }
+
+        return highest;
     }
 
     /// <summary>

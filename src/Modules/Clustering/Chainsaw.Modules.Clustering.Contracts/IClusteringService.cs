@@ -13,7 +13,10 @@ namespace Chainsaw.Modules.Clustering.Contracts;
 /// </remarks>
 public interface IClusteringService
 {
-    /// <summary>Gets the analyses that run on Bitcoin, in the order they run.</summary>
+    /// <summary>
+    /// Gets the analyses that run on Bitcoin, in the order they run: the highest registered version of each. A case
+    /// that has drawn a version back runs the highest version it has not drawn back instead.
+    /// </summary>
     IReadOnlyList<HeuristicId> Heuristics { get; }
 
     /// <summary>
@@ -216,4 +219,122 @@ public interface IClusteringService
     /// <param name="reader">The case's reader or write transaction.</param>
     /// <returns>The merges and their undoing.</returns>
     IReadOnlyList<MergeHistoryEntry> GetMergeHistory(ICaseReader reader);
+
+    /// <summary>
+    /// Gives everything the analyses concluded about many transactions at once, reading the case once, so that the
+    /// checks over a large graph do not ask transaction by transaction.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="txids">The transactions.</param>
+    /// <returns>The conclusions of each transaction asked for; empty lists when one has not been analysed.</returns>
+    IReadOnlyDictionary<Txid, TransactionConclusions> GetConclusions(
+        ICase @case, IReadOnlyCollection<Txid> txids)
+    {
+        ArgumentNullException.ThrowIfNull(txids);
+        return txids.Distinct().ToDictionary(txid => txid, txid => GetConclusions(@case, txid));
+    }
+
+    /// <summary>
+    /// Draws a version of an analysis back (<see cref="VersionWithdrawal"/>): its conclusions stop counting, without
+    /// being removed, it no longer runs on the case's transactions, and the highest registered version of the same
+    /// analysis that is not drawn back runs and counts instead. A proposal that was weighed against the version before
+    /// it was drawn back (for example stopped by its CoinJoin) counts as a suggestion until the transaction is analysed
+    /// again, so that a version drawn back never vetoes. Sealed with a line in the journal; drawing back a version
+    /// that is already drawn back gives the earlier record.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="heuristic">The analysis and version.</param>
+    /// <param name="reason">Why, or <see langword="null"/>; the reason is optional.</param>
+    /// <returns>The withdrawal in force.</returns>
+    /// <exception cref="ArgumentException">
+    /// It names an analysis and version that is not registered, the user's own merges (which are undone one by one),
+    /// or the only version of an analysis left in force (without it nothing would, for example, stop a CoinJoin's
+    /// inputs from being merged); or the reason is too long.
+    /// </exception>
+    /// <exception cref="CaseException">
+    /// <see cref="CaseError.NoOperatorProfile"/> or <see cref="CaseError.Closed"/>.
+    /// </exception>
+    VersionWithdrawal Withdraw(ICase @case, HeuristicId heuristic, string? reason);
+
+    /// <summary>
+    /// Takes a withdrawal back (sketch AN1b): the version runs and counts again. Sealed as a record of its own with a
+    /// line in the journal; the withdrawal stays as it was.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="withdrawalSequence">The withdrawal's <see cref="VersionWithdrawal.Sequence"/>.</param>
+    /// <param name="reason">Why, or <see langword="null"/>; the reason is optional.</param>
+    /// <returns>
+    /// The taking back, or <see langword="null"/> when no withdrawal in force has that number (nothing is sealed).
+    /// </returns>
+    /// <exception cref="ArgumentException">The reason is too long.</exception>
+    /// <exception cref="CaseException">
+    /// <see cref="CaseError.NoOperatorProfile"/> or <see cref="CaseError.Closed"/>.
+    /// </exception>
+    VersionWithdrawalUndo? TakeBackWithdrawal(ICase @case, long withdrawalSequence, string? reason);
+
+    /// <summary>Reads every withdrawal, also those taken back, oldest first.</summary>
+    /// <param name="case">The open case.</param>
+    /// <returns>The withdrawals, each with its taking back.</returns>
+    IReadOnlyList<VersionWithdrawal> GetWithdrawals(ICase @case);
+
+    /// <summary>
+    /// Says what drawing a version back would do to the clusters (<see cref="WithdrawPreview"/>), for the
+    /// confirmation the user sees first (sketch KV1a). Nothing is stored.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="heuristic">The analysis and version.</param>
+    /// <returns>
+    /// The preview, or <see langword="null"/> when the version could not be drawn back (see
+    /// <see cref="Withdraw"/>) or is drawn back already.
+    /// </returns>
+    WithdrawPreview? PreviewWithdraw(ICase @case, HeuristicId heuristic);
+
+    /// <summary>
+    /// Reads the conclusions the latest run held back (<see cref="ClusteringRun.HeldBack"/>) that still count, each
+    /// with what was missing and the user's latest decision about it (sketch HB1a).
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <returns>The held back conclusions, in the order the latest run gave them.</returns>
+    IReadOnlyList<HeldBackConclusion> GetHeldBack(ICase @case);
+
+    /// <summary>
+    /// Seals the user's decision about a conclusion the latest run held back, with a line in the journal: let it
+    /// stand, or let it go (<see cref="ConclusionChoice"/>). Nothing is removed.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="txid">The transaction whose conclusions are held back.</param>
+    /// <param name="choice">What the user decided.</param>
+    /// <param name="reason">Why, or <see langword="null"/>; the reason is optional.</param>
+    /// <returns>
+    /// The decision, or <see langword="null"/> when the transaction's conclusions are not held back now (nothing is
+    /// sealed).
+    /// </returns>
+    /// <exception cref="ArgumentException">The reason is too long.</exception>
+    /// <exception cref="CaseException">
+    /// <see cref="CaseError.NoOperatorProfile"/> or <see cref="CaseError.Closed"/>.
+    /// </exception>
+    HeldBackDecision? DecideHeldBack(ICase @case, Txid txid, ConclusionChoice choice, string? reason);
+
+    /// <summary>
+    /// Takes the latest decision about a held back conclusion back (sketch AN1b), sealed as a new decision
+    /// <see cref="ConclusionChoice.Reopen"/> with a line in the journal: a conclusion let go counts again, and one let
+    /// stand waits again. The decision stays as it was.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="decisionSequence">The decision's <see cref="HeldBackDecision.Sequence"/>.</param>
+    /// <param name="reason">Why, or <see langword="null"/>; the reason is optional.</param>
+    /// <returns>
+    /// The taking back, or <see langword="null"/> when the decision does not exist, is not the latest for its
+    /// transaction or is itself a taking back (nothing is sealed).
+    /// </returns>
+    /// <exception cref="ArgumentException">The reason is too long.</exception>
+    /// <exception cref="CaseException">
+    /// <see cref="CaseError.NoOperatorProfile"/> or <see cref="CaseError.Closed"/>.
+    /// </exception>
+    HeldBackDecision? ReopenHeldBack(ICase @case, long decisionSequence, string? reason);
+
+    /// <summary>Reads every decision about held back conclusions, oldest first.</summary>
+    /// <param name="case">The open case.</param>
+    /// <returns>The decisions.</returns>
+    IReadOnlyList<HeldBackDecision> GetHeldBackDecisions(ICase @case);
 }

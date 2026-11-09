@@ -123,10 +123,26 @@
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
-                <!-- ===== Title bar: logo, case, watch, exit, window buttons ===== -->
-                <Border Grid.Row="0" Background="{StaticResource Brush.Surface}" BorderBrush="{StaticResource Brush.Border}"
-                        BorderThickness="0,0,0,1">
-                    <DockPanel LastChildFill="False">
+                <!--
+                  Above an open inspector the window's top is the inspector's darker panel (sketch IN5a), with the window's
+                  buttons on it; it reaches a corner's width in under the title bar, so the title bar's rounded corner
+                  shows the panel behind it.
+                -->
+                <Border x:Name="TitleUnderlay" Grid.Row="0" HorizontalAlignment="Right" Width="0"
+                        Background="{StaticResource Brush.Underlay}" Visibility="Collapsed" />
+
+                <!-- The title bar's shadow over the panel, in a layer of its own so that the title bar's text stays sharp. -->
+                <Border x:Name="TitleShadow" Grid.Row="0" Background="{StaticResource Brush.Surface}" Visibility="Collapsed"
+                        IsHitTestVisible="False">
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="36" ShadowDepth="10" Direction="0" Opacity="0.45" Color="Black" />
+                    </Border.Effect>
+                </Border>
+
+                <!-- ===== Title bar: logo, case, watch, exit; the window buttons lie above it in the corner ===== -->
+                <Border x:Name="TitleBar" Grid.Row="0" Background="{StaticResource Brush.Surface}"
+                        BorderBrush="{StaticResource Brush.Border}" BorderThickness="0,0,0,1">
+                    <DockPanel x:Name="TitleRow" LastChildFill="False" Margin="0,0,138,0">
                         <Image DockPanel.Dock="Left" Source="{StaticResource Logo.Small}" Width="16" Height="16"
                                Margin="14,0,8,0" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality" />
                         <TextBlock DockPanel.Dock="Left" Text="Chainsaw" FontWeight="SemiBold" VerticalAlignment="Center" />
@@ -151,28 +167,12 @@
                             </StackPanel>
                         </Button>
 
-                        <Button DockPanel.Dock="Right" Style="{StaticResource Button.WindowClose}" Click="OnClose"
-                                WindowChrome.IsHitTestVisibleInChrome="True" AutomationProperties.Name="Stäng">
-                            <Path Data="M0,0 L10,10 M10,0 L0,10" Width="10" Height="10" StrokeThickness="1"
-                                  Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
-                        </Button>
-                        <Button DockPanel.Dock="Right" Style="{StaticResource Button.Window}" Click="OnMaximize"
-                                WindowChrome.IsHitTestVisibleInChrome="True" AutomationProperties.Name="Maximera">
-                            <Path Data="M0.5,0.5 L9.5,0.5 L9.5,9.5 L0.5,9.5 Z" Width="10" Height="10" StrokeThickness="1"
-                                  Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
-                        </Button>
-                        <Button DockPanel.Dock="Right" Style="{StaticResource Button.Window}" Click="OnMinimize"
-                                WindowChrome.IsHitTestVisibleInChrome="True" AutomationProperties.Name="Minimera">
-                            <Path Data="M0,5 L10,5" Width="10" Height="10" StrokeThickness="1"
-                                  Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
-                        </Button>
-
                         <!--
                           The exit, honestly (sketch UT1a): a green dot and its name while it is connected, grey words
                           otherwise. A click folds out the exits' panel under it.
                         -->
                         <Button x:Name="ExitChip" DockPanel.Dock="Right" Margin="0,0,14,0" VerticalAlignment="Center"
-                                Command="{Binding ExitPanel.ToggleCommand}" ToolTip="{Binding SourceText}"
+                                Command="{Binding ExitPanel.ToggleCommand}" ToolTip="{Binding ExitToolTip}"
                                 WindowChrome.IsHitTestVisibleInChrome="True" AutomationProperties.Name="Utgångar">
                             <Button.Style>
                                 <Style TargetType="Button" BasedOn="{StaticResource Button.Chip}">
@@ -224,6 +224,25 @@
                     </DockPanel>
                 </Border>
 
+                <!-- The window's buttons in the top right corner: on the title bar, or on the inspector's panel when it is open. -->
+                <StackPanel x:Name="WindowButtons" Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Style="{StaticResource Button.Window}" Click="OnMinimize"
+                                WindowChrome.IsHitTestVisibleInChrome="True" AutomationProperties.Name="Minimera">
+                            <Path Data="M0,5 L10,5" Width="10" Height="10" StrokeThickness="1"
+                                  Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                        </Button>
+                        <Button Style="{StaticResource Button.Window}" Click="OnMaximize"
+                                WindowChrome.IsHitTestVisibleInChrome="True" AutomationProperties.Name="Maximera">
+                            <Path Data="M0.5,0.5 L9.5,0.5 L9.5,9.5 L0.5,9.5 Z" Width="10" Height="10" StrokeThickness="1"
+                                  Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                        </Button>
+                        <Button Style="{StaticResource Button.WindowClose}" Click="OnClose"
+                                WindowChrome.IsHitTestVisibleInChrome="True" AutomationProperties.Name="Stäng">
+                            <Path Data="M0,0 L10,10 M10,0 L0,10" Width="10" Height="10" StrokeThickness="1"
+                                  Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                        </Button>
+                </StackPanel>
+
                 <!-- Clipped at the title bar's lower edge, so that no panel's shadow ever lies over the title bar. -->
                 <Grid Grid.Row="1" ClipToBounds="True">
                     <!--
@@ -239,6 +258,14 @@
                         <!-- Bevakning (sketch BV1a). -->
                         <views:MonitoringView x:Name="MonitoringPage"
                                               Visibility="{Binding DataContext.IsMonitoringShown, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource VisibleWhen}}" />
+
+                        <!-- Tidslinje (sketch TL3a). -->
+                        <views:TimelineView x:Name="TimelinePage"
+                                            Visibility="{Binding DataContext.IsTimelineShown, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource VisibleWhen}}" />
+
+                        <!-- Flöde (sketch FL1a). -->
+                        <views:FlowView x:Name="FlowPage"
+                                        Visibility="{Binding DataContext.IsFlowShown, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource VisibleWhen}}" />
 
                         <!-- Exponering (sketch EP1b). -->
                         <views:ExposureView x:Name="ExposurePage"
@@ -381,6 +408,9 @@
                                                     <Style.Triggers>
                                                         <DataTrigger Binding="{Binding IsShowingError}" Value="True">
                                                             <Setter Property="Foreground" Value="{StaticResource Brush.Error}" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding IsShowingWarning}" Value="True">
+                                                            <Setter Property="Foreground" Value="{StaticResource Brush.Pending}" />
                                                         </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>

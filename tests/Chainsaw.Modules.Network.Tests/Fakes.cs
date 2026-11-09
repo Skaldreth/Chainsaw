@@ -197,11 +197,42 @@ internal sealed class RecordingLocalHandlerFactory : ILocalHandlerFactory
 
     public List<RecordingHandler> Handlers { get; } = [];
 
-    public HttpMessageHandler Create()
+    /// <summary>Gets the pin each pipeline was built with, in order.</summary>
+    public List<string?> Pins { get; } = [];
+
+    /// <summary>Gets or sets the certificate the node shows when it is read.</summary>
+    public Func<DnsEndPoint, NodeCertificate> Shown { get; set; } =
+        _ => throw new HttpRequestException("no node");
+
+    /// <summary>Gets the nodes whose certificate was read.</summary>
+    public List<DnsEndPoint> Read { get; } = [];
+
+    public HttpMessageHandler Create(string? pin)
     {
         var handler = new RecordingHandler((request, token) => Answer(request, token));
         Handlers.Add(handler);
+        Pins.Add(pin);
         return handler;
+    }
+
+    public Task<NodeCertificate> ReadCertificateAsync(DnsEndPoint endpoint, CancellationToken cancellationToken)
+    {
+        Read.Add(endpoint);
+        return Task.FromResult(Shown(endpoint));
+    }
+}
+
+/// <summary>Windows' proxy setting as the test says; none at first.</summary>
+internal sealed class FakeProxyReader : IWindowsProxyReader
+{
+    public WindowsProxySetting Setting { get; set; } = WindowsProxySetting.None;
+
+    public int Reads { get; private set; }
+
+    public WindowsProxySetting Read()
+    {
+        Reads++;
+        return Setting;
     }
 }
 
@@ -238,7 +269,12 @@ internal sealed class ScriptedProbe : IInternetProbe
 
     private int _calls;
 
+    private int _cancelled;
+
     public int Calls => Volatile.Read(ref _calls);
+
+    /// <summary>Gets whether a call was stopped by its token before it was answered.</summary>
+    public bool Cancelled => Volatile.Read(ref _cancelled) == 1;
 
     public void Answer(bool reached) => _answers.Writer.TryWrite(() => reached);
 
@@ -247,7 +283,17 @@ internal sealed class ScriptedProbe : IInternetProbe
     public async Task<bool> ReachesInternetAsync(CancellationToken cancellationToken)
     {
         Interlocked.Increment(ref _calls);
-        var answer = await _answers.Reader.ReadAsync(cancellationToken);
+        Func<bool> answer;
+        try
+        {
+            answer = await _answers.Reader.ReadAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            Volatile.Write(ref _cancelled, 1);
+            throw;
+        }
+
         return answer();
     }
 }
@@ -262,15 +308,18 @@ internal sealed class FakeClock : IClock
 internal sealed class NetworkHarness
 {
     public NetworkHarness(
-        NetworkOptions? options = null, IExitHandlerFactory? handlers = null, bool failingWindows = false)
+        NetworkOptions? options = null,
+        IExitHandlerFactory? handlers = null,
+        bool failingWindows = false,
+        WindowsProxyLogin? login = null)
     {
         WindowsHandlers.Fails = failingWindows;
         Options = options ?? new NetworkOptions();
         Records = new ExitRecords(Secrets);
         Connection = new ExitConnection(Records, Connector, handlers ?? Handlers);
         Store = new ExitStore(Records, Connection);
-        Route = new ExitRouteChoice(Options, WindowsHandlers);
-        Http = new ExitHttp(Connection, Route, Presence, Options, Clock);
+        Route = new ExitRouteChoice(Options, WindowsHandlers, login);
+        Http = new ExitHttp(Connection, Route, Presence, Options, Clock, login);
         Connection.StatusChanged += (_, status) =>
         {
             lock (_events)

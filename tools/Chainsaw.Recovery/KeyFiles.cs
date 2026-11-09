@@ -1,3 +1,4 @@
+using System.Formats.Asn1;
 using System.Security.Cryptography;
 using Chainsaw.Modules.Cases.Contracts;
 
@@ -21,6 +22,17 @@ internal static class KeyFiles
 
     /// <summary>The PBKDF2 iterations that protect the private key (the same as for the master key).</summary>
     public const int Iterations = 600_000;
+
+    /// <summary>
+    /// The most PBKDF2 iterations a key file may ask for (a few seconds), so that a crafted file cannot stall the tool.
+    /// </summary>
+    private const int MaximumIterations = 2_000_000;
+
+    /// <summary>The object identifier of PBES2 (PKCS #5).</summary>
+    private const string Pbes2Oid = "1.2.840.113549.1.5.13";
+
+    /// <summary>The object identifier of PBKDF2 (PKCS #5).</summary>
+    private const string Pbkdf2Oid = "1.2.840.113549.1.5.12";
 
     /// <summary>The largest key file that is read; a key file is well under a kilobyte.</summary>
     private const long MaximumFileSize = 64 * 1024;
@@ -83,6 +95,7 @@ internal static class KeyFiles
             throw new CryptographicException("The file holds no encrypted private key.");
         }
 
+        RequireSaneIterations(text);
         var key = ECDiffieHellman.Create();
         try
         {
@@ -105,6 +118,49 @@ internal static class KeyFiles
         }
     }
 
+    /// <summary>
+    /// Checks, before anything is decrypted, that every encrypted private key in a text is protected the way this tool
+    /// writes it (PBES2 with PBKDF2) with no more iterations than <see cref="MaximumIterations"/>.
+    /// </summary>
+    /// <param name="text">The file's text.</param>
+    /// <exception cref="CryptographicException">
+    /// A key is protected otherwise or asks for too many iterations.
+    /// </exception>
+    private static void RequireSaneIterations(string text)
+    {
+        var rest = text.AsMemory();
+        while (PemEncoding.TryFind(rest.Span, out var fields))
+        {
+            if (rest.Span[fields.Label].SequenceEqual(EncryptedPrivateKeyLabel.AsSpan()))
+            {
+                try
+                {
+                    var der = Convert.FromBase64String(rest.Span[fields.Base64Data].ToString());
+                    var algorithm = new AsnReader(der, AsnEncodingRules.BER).ReadSequence().ReadSequence();
+                    var scheme = algorithm.ReadObjectIdentifier();
+                    var derivation = algorithm.ReadSequence().ReadSequence();
+                    if (scheme != Pbes2Oid || derivation.ReadObjectIdentifier() != Pbkdf2Oid)
+                    {
+                        throw new CryptographicException("The private key is not protected with PBES2 and PBKDF2.");
+                    }
+
+                    var parameters = derivation.ReadSequence();
+                    parameters.ReadEncodedValue();
+                    if (!parameters.TryReadInt32(out var iterations) || iterations is < 1 or > MaximumIterations)
+                    {
+                        throw new CryptographicException("The private key asks for an unreasonable iteration count.");
+                    }
+                }
+                catch (Exception exception) when (exception is AsnContentException or FormatException)
+                {
+                    throw new CryptographicException("The private key cannot be read.", exception);
+                }
+            }
+
+            rest = rest[fields.Location.End..];
+        }
+    }
+
     /// <summary>Reads a small text file.</summary>
     /// <param name="path">The file.</param>
     /// <returns>The text.</returns>
@@ -120,13 +176,11 @@ internal static class KeyFiles
         return File.ReadAllText(path);
     }
 
-    /// <summary>Writes a new file; an existing one is never replaced.</summary>
+    /// <summary>Creates a new file; on Unix, readable only by the owner when asked.</summary>
     /// <param name="path">The file.</param>
-    /// <param name="text">The text.</param>
-    /// <param name="ownerOnly">
-    /// Whether only the owner may read it (on Unix; on Windows the file inherits the folder's rights).
-    /// </param>
-    private static void WriteNew(string path, string text, bool ownerOnly)
+    /// <param name="ownerOnly">Whether only the owner may read it (on Unix).</param>
+    /// <returns>The stream.</returns>
+    private static FileStream Create(string path, bool ownerOnly)
     {
         var options = new FileStreamOptions
         {
@@ -139,7 +193,49 @@ internal static class KeyFiles
             options.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
         }
 
-        using var stream = new FileStream(path, options);
+        return new FileStream(path, options);
+    }
+
+    /// <summary>
+    /// Creates a new file on Windows with an access list that is protected from the folder's and gives the current
+    /// user alone full control, set when the file is created so that it is never readable by others, not even for a
+    /// moment.
+    /// </summary>
+    /// <param name="path">The file.</param>
+    /// <returns>The stream.</returns>
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    private static FileStream CreateOwnerOnlyOnWindows(string path)
+    {
+        using var identity = System.Security.Principal.WindowsIdentity.GetCurrent();
+        var owner = identity.User ?? throw new UnauthorizedAccessException("The current user has no security id.");
+        var security = new System.Security.AccessControl.FileSecurity();
+        security.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+        security.SetOwner(owner);
+        security.AddAccessRule(new System.Security.AccessControl.FileSystemAccessRule(
+            owner,
+            System.Security.AccessControl.FileSystemRights.FullControl,
+            System.Security.AccessControl.AccessControlType.Allow));
+        return new FileInfo(path).Create(
+            FileMode.CreateNew,
+            System.Security.AccessControl.FileSystemRights.Write,
+            FileShare.None,
+            bufferSize: 4096,
+            FileOptions.None,
+            security);
+    }
+
+    /// <summary>Writes a new file; an existing one is never replaced.</summary>
+    /// <param name="path">The file.</param>
+    /// <param name="text">The text.</param>
+    /// <param name="ownerOnly">
+    /// Whether only the owner may read it: on Unix with the file's mode, on Windows with an access list of its own
+    /// that gives the current user alone full control and inherits nothing from the folder.
+    /// </param>
+    private static void WriteNew(string path, string text, bool ownerOnly)
+    {
+        using var stream = ownerOnly && OperatingSystem.IsWindows()
+            ? CreateOwnerOnlyOnWindows(path)
+            : Create(path, ownerOnly);
         using var writer = new StreamWriter(stream);
         writer.Write(text);
         writer.Flush();

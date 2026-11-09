@@ -45,8 +45,8 @@ public sealed record BackgroundWatch(
     WatchChecked? Checked)
 {
     /// <summary>
-    /// Gets the hits the case already has in the look-back above where the watch is read
-    /// (<see cref="WatchSchedule.Key"/>), so that the background never tells of one the open Chainsaw sealed.
+    /// Gets the hits and the background's tips the case already has in the look-back above where the watch is read
+    /// (<see cref="WatchSchedule.Key"/>), so that the background never tells of one the case knows.
     /// </summary>
     public IReadOnlyList<string> Known { get; init; } = [];
 }
@@ -70,6 +70,13 @@ public sealed record BackgroundCase(Guid CaseId, IReadOnlyList<BackgroundWatch> 
 public sealed record BackgroundPlan(
     bool Enabled, ExitRoute Route, WatchAlerts Alerts, IReadOnlyList<BackgroundCase> Cases)
 {
+    /// <summary>
+    /// Gets the proxy set by hand in Windows that the user let Chainsaw log in to with the Windows account (sketch
+    /// PX1a), as <c>host:port</c>, or <see langword="null"/> when the login is off: the background follows the
+    /// choice, through the same gate as Chainsaw (never a proxy found with WPAD, never another address).
+    /// </summary>
+    public string? ProxyLoginFor { get; init; }
+
     /// <summary>Gets the plan when none is written: off, through VPN, nothing to watch.</summary>
     public static BackgroundPlan Empty { get; } = new(false, ExitRoute.Vpn, WatchAlerts.None, []);
 
@@ -288,10 +295,12 @@ public interface IBackgroundProgressFile
 /// <summary>What bringing the background's entries into a case did.</summary>
 /// <param name="Entries">How many entries were brought in.</param>
 /// <param name="Responses">How many raw responses were sealed.</param>
-/// <param name="Hits">The hits sealed.</param>
+/// <param name="Tips">
+/// The hits the background said it saw, sealed as tips to be checked against the chain, never as hits.
+/// </param>
 /// <param name="Problems">What could not be brought in, in Swedish.</param>
 public sealed record BackgroundImport(
-    int Entries, int Responses, IReadOnlyList<WatchHit> Hits, IReadOnlyList<string> Problems)
+    int Entries, int Responses, IReadOnlyList<WatchTip> Tips, IReadOnlyList<string> Problems)
 {
     /// <summary>Gets an import that did nothing.</summary>
     public static BackgroundImport None { get; } = new(0, 0, [], []);
@@ -315,9 +324,12 @@ public interface IBackgroundWatches
 
     /// <summary>
     /// Brings the queued entries of a case into it, oldest first, each in one write: the raw responses sealed again
-    /// unchanged after their SHA-256 is checked, a start sealed when the watch has none, the hits sealed under a line in
-    /// the journal when the watch is still active and unchanged and the hit is new, how far the watch is read, and the
-    /// entry's id, so that it is never brought in twice. The case is saved before the entries are removed.
+    /// unchanged after their SHA-256 is checked, a start sealed when the watch has none, the hits the background says
+    /// it saw sealed as tips (<see cref="WatchTip"/>) under a line in the journal when the watch is still active and
+    /// unchanged and the hit is new, how far the watch is read, and the entry's id, so that it is never brought in
+    /// twice. A tip becomes a hit only when Chainsaw's own lookup gives it
+    /// (<see cref="IMonitoringService.CheckAsync"/>).
+    /// The case is saved before the entries are removed.
     /// </summary>
     /// <param name="case">The open case.</param>
     /// <returns>What was brought in.</returns>
@@ -363,6 +375,37 @@ public static class WatchSchedule
 
         var newBlock = height > last.Tip || last.Status is WatchFeedStatus.Failed or WatchFeedStatus.NotAsked;
         return newBlock && now - last.CheckedUtc >= pace.Interval() - Tolerance;
+    }
+
+    /// <summary>
+    /// Asks a chain's height through its source, as the open Chainsaw and the background both do, only of an endpoint
+    /// in step with the chain (<see cref="LookupMode.InStep"/>).
+    /// </summary>
+    /// <param name="bitcoin">Bitcoin's source.</param>
+    /// <param name="ethereum">Ethereum's source.</param>
+    /// <param name="case">The case the response is sealed in.</param>
+    /// <param name="chain">The chain.</param>
+    /// <param name="cancellationToken">Stops the lookup.</param>
+    /// <returns>The height, or <see langword="null"/> when it was not fetched or the chain cannot be watched.</returns>
+    public static async Task<long?> HeightAsync(
+        IBitcoinSource bitcoin, IEthereumSource ethereum, ICase @case, Chain chain, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(bitcoin);
+        ArgumentNullException.ThrowIfNull(ethereum);
+        switch (chain)
+        {
+            case Chain.Bitcoin:
+                // Only an endpoint in step: a watch never starts or counts from a height one a block behind gave.
+                var tip = await bitcoin.GetTipHeightAsync(@case, LookupMode.InStep, cancellationToken)
+                    .ConfigureAwait(false);
+                return tip.Status == LookupStatus.Fetched ? tip.Value?.Height : null;
+            case Chain.Ethereum:
+                var height = await ethereum.GetTipHeightAsync(@case, LookupMode.InStep, cancellationToken)
+                    .ConfigureAwait(false);
+                return height.Status == LookupStatus.Fetched ? height.Value?.Height : null;
+            default:
+                return null;
+        }
     }
 
     /// <summary>Gives the block a check reads back to: the last read-through height less the look-back.</summary>

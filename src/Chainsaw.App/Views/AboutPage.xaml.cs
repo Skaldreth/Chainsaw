@@ -23,14 +23,10 @@ public partial class AboutPage : UserControl
             return;
         }
 
-        try
+        // A clipboard held by another program copies nothing, and the button stays Kopiera.
+        if (Interop.CaseClipboard.TrySetText(about.Fingerprint))
         {
-            Clipboard.SetText(about.Fingerprint);
             about.MarkCopied();
-        }
-        catch (System.Runtime.InteropServices.ExternalException)
-        {
-            // The clipboard is held by another program; the button stays Kopiera.
         }
     }
 }

@@ -71,6 +71,9 @@ public sealed partial class CaseWorkflow
     /// <summary>Keeps two openings, creations or closings from running at once.</summary>
     private bool _busy;
 
+    /// <summary>The work under way, or a completed task (see <see cref="Running"/>).</summary>
+    private Task _running = Task.CompletedTask;
+
     /// <summary>
     /// The case files as last listed off the UI thread, so that suggestions never read the folder while typing
     /// (principle 6).
@@ -150,6 +153,12 @@ public sealed partial class CaseWorkflow
 
     /// <summary>Gets whether an opening, creation or closing runs.</summary>
     public bool IsBusy => _busy;
+
+    /// <summary>
+    /// Gets the work under way (an opening, a creation or a closing), or a completed task, so that Chainsaw can wait
+    /// for it, with a limit, before it exits instead of leaving a case half made.
+    /// </summary>
+    public Task Running => _running;
 
     /// <summary>Raised on the UI thread when the case files have been listed anew.</summary>
     public event EventHandler? CasesListed;
@@ -341,6 +350,42 @@ public sealed partial class CaseWorkflow
         {
             return CommandReply.Failed(CaseTexts.For(exception.Error));
         }
+    }
+
+    /// <summary>
+    /// Lays a start point that came with a link in the open case (sketch LN1a): it is added as any start point, and a
+    /// line in the journal says that it came with a link from another program, so that where it came from is kept.
+    /// </summary>
+    /// <param name="startPoint">The recognised start point.</param>
+    /// <returns>The answer.</returns>
+    public async Task<CommandReply> AddLinkedStartPointAsync(ChainStartPoint startPoint)
+    {
+        ArgumentNullException.ThrowIfNull(startPoint);
+        var reply = await AddStartPointAsync(startPoint);
+        if (reply.IsError || _session.Current is not { } openCase)
+        {
+            return reply;
+        }
+
+        var draft = new JournalDraft(
+            AppJournalKinds.StartPointFromLink,
+            $"Startpunkten {startPoint.Value} kom med en länk från ett annat program",
+            JsonSerializer.Serialize(new Dictionary<string, string>
+            {
+                ["chain"] = startPoint.Chain?.ToString() ?? string.Empty,
+                ["value"] = startPoint.Value,
+            }));
+        try
+        {
+            await Task.Run(() => openCase.AppendJournal(draft));
+        }
+        catch (CaseException exception)
+        {
+            var why = CaseTexts.For(exception.Error);
+            return CommandReply.Failed($"{reply.Text} Men att den kom med en länk kunde inte journalföras: {why}");
+        }
+
+        return reply;
     }
 
     /// <summary>Says that a start point's chain cannot be traced yet (TRON).</summary>
@@ -608,6 +653,8 @@ public sealed partial class CaseWorkflow
     private async Task<CommandReply> RunBusy(Func<Task<CommandReply>> work)
     {
         _busy = true;
+        var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _running = done.Task;
         try
         {
             // A case that a lock started closing in the background must be closed before it can be opened again.
@@ -625,6 +672,7 @@ public sealed partial class CaseWorkflow
         finally
         {
             _busy = false;
+            done.SetResult();
         }
     }
 }

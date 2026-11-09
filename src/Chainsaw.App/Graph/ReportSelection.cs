@@ -45,6 +45,17 @@ public sealed record ReportMaterial(
 }
 
 /// <summary>
+/// A candidate the user approved among a suggestion's (sketch KF2b), as a mixer's likely payout: a judgement, never a
+/// fact (principle 2), with the analysis that suggested it.
+/// </summary>
+/// <param name="From">The actor the suggestion is about, as the mixer.</param>
+/// <param name="To">The candidate's actor in the graph, or <see langword="null"/> when it is not drawn.</param>
+/// <param name="Address">The candidate's address.</param>
+/// <param name="Txid">The transaction that pays the candidate.</param>
+/// <param name="Analysis">The analysis with its version, for example <c>mixer-exits v1</c>.</param>
+public sealed record ApprovedPayout(string From, string? To, string Address, string Txid, string Analysis);
+
+/// <summary>
 /// Finds a report's material in the graph shown, from the actors marked (sketch RP1b), without WPF. The trails run
 /// along traced money between the marked actors; a transaction drawn as a node of its own (a CoinJoin) is passed
 /// through and is never a step or a hop. What the report may say is decided here (principle 4): an actor is named only
@@ -70,12 +81,16 @@ public static class ReportSelection
     /// <param name="rateAt">
     /// The case's rate of an asset at a time, which values the traced amounts; <see langword="null"/> for none.
     /// </param>
+    /// <param name="approved">
+    /// The candidates the user approved; those out of a marked actor are written as conclusions with their analysis.
+    /// </param>
     /// <returns>The material; empty when nothing marked is drawn.</returns>
     public static ReportMaterial Build(
         GraphScene scene,
         IReadOnlyCollection<string> picked,
         IReadOnlyDictionary<string, Cluster> clusters,
-        Func<Asset, DateTimeOffset, Price?>? rateAt = null)
+        Func<Asset, DateTimeOffset, Price?>? rateAt = null,
+        IReadOnlyList<ApprovedPayout>? approved = null)
     {
         ArgumentNullException.ThrowIfNull(scene);
         ArgumentNullException.ThrowIfNull(picked);
@@ -91,6 +106,7 @@ public static class ReportSelection
         var conclusions = new List<ReportConclusion>();
         conclusions.AddRange(actors.Select(node => ClusterConclusion(node, clusters)).OfType<ReportConclusion>());
         conclusions.AddRange(actors.SelectMany(LabelConclusions));
+        conclusions.AddRange(actors.SelectMany(node => CandidateConclusions(node, approved ?? [])));
         if (trails.Count > 0)
         {
             conclusions.Add(MethodConclusion(scene.MethodText));
@@ -211,6 +227,20 @@ public static class ReportSelection
         node.Labels.Where(IsService).Select(label => new ReportConclusion(
             $"{Subject(node)} är {label.Kind.Describe().ToLowerInvariant()}{NameIn(label)}.",
             Sources(label)));
+
+    /// <summary>
+    /// Gives the likely payouts the user approved out of an actor, each a judgement with the analysis and the
+    /// transaction it rests on; the candidate is named by its address shortened, never by a name.
+    /// </summary>
+    /// <param name="node">The actor.</param>
+    /// <param name="approved">The approved candidates.</param>
+    /// <returns>The conclusions.</returns>
+    private static IEnumerable<ReportConclusion> CandidateConclusions(
+        NodeView node, IReadOnlyList<ApprovedPayout> approved) =>
+        approved.Where(candidate => candidate.From == node.Key).Select(candidate => new ReportConclusion(
+            $"{SafeName(node)}: en trolig utbetalning till {GraphScene.Shorten(candidate.Address)}, ett förslag som "
+                + "användaren godkänt.",
+            $"{candidate.Analysis} · tx {GraphScene.Shorten(candidate.Txid)}"));
 
     /// <summary>Gives the labels on an actor as the report lists them, with their sources.</summary>
     /// <param name="node">The actor.</param>

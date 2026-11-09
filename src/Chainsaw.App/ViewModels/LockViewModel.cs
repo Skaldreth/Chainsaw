@@ -28,6 +28,15 @@ public sealed partial class LockViewModel : ObservableObject
     /// </summary>
     public const string WatchHitText = "En bevakning har slagit till. Den visas efter upplåsning.";
 
+    /// <summary>
+    /// What the lock screen says when a <c>chainsaw:</c> link waits for the unlock (sketch LN1a): only that, never
+    /// the address.
+    /// </summary>
+    public const string LinkWaitingText = "En länk väntar";
+
+    /// <summary>The line under <see cref="LinkWaitingText"/>.</summary>
+    public const string LinkWaitingNote = "Från ett annat program. Vad den gäller visas när Chainsaw är upplåst.";
+
     /// <summary>What the lock screen says when the vault did not open for a reason it does not name.</summary>
     public const string UnknownFailureText = "Valvet gick inte att öppna.";
 
@@ -63,7 +72,7 @@ public sealed partial class LockViewModel : ObservableObject
         _exit = exit;
         AutoLockText = autoLock.Description;
         autoLock.Changed += (_, _) => AutoLockText = autoLock.Description;
-        AboutText = $"Om Chainsaw · {build.ShortCommit}";
+        AboutText = $"Återställningsnyckel · {build.ShortCommit}";
         AboutDetails = $"Chainsaw {build.Version}, commit {build.Commit ?? "okänd"}.";
         ExitText = TextFor(exit);
         exit.Changed += (_, _) => ExitText = TextFor(exit);
@@ -77,6 +86,10 @@ public sealed partial class LockViewModel : ObservableObject
     /// <summary>Gets whether a watch has hit while Chainsaw was closed or locked (the line with the dot).</summary>
     [ObservableProperty]
     public partial bool HasWatchHit { get; private set; }
+
+    /// <summary>Gets or sets whether a link waits for the unlock (sketch LN1a); the gate follows the link inbox.</summary>
+    [ObservableProperty]
+    public partial bool HasWaitingLink { get; set; }
 
     /// <summary>Gets why the last attempt failed, or an empty text.</summary>
     [ObservableProperty]
@@ -102,7 +115,10 @@ public sealed partial class LockViewModel : ObservableObject
     [ObservableProperty]
     public partial string AutoLockText { get; private set; }
 
-    /// <summary>Gets the text in the corner: <c>Om Chainsaw · commit</c>.</summary>
+    /// <summary>
+    /// Gets the text in the corner (sketch LS1b): <c>Återställningsnyckel · commit</c>; a click shows Om Chainsaw with the
+    /// organisation's recovery key, so it can be checked before the unlock.
+    /// </summary>
     public string AboutText { get; }
 
     /// <summary>Gets what *Om Chainsaw* tells where the page cannot be shown: the version and the commit.</summary>

@@ -18,6 +18,11 @@ Varje punkt i *Vägen till 1.0* är märkt med hur den byggs (CLAUDE.md, *Proces
 
 Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`.
 
+**Grafen på grafikkortet** (användarens önskemål 2026-11-08): WPF ritar redan genom DirectX, men varje ruta byggs
+på processorn. Efter optimeringen 2026-11-08 (scenen i ett eget lager som bara flyttas vid panorering och zoom)
+provas grafen först på Windows med ett stort ärende. Räcker det inte är nästa steg att rita grafytan med **SkiaSharp
+på grafikkortet** bakom samma `GraphCanvas`, så att inget annat ändras. *Väntar på:* provet på Windows.
+
 **Från bygget 2026-11-08**, så som det är byggt nu:
 1. **Kandidaternas linjer** i mixerns förslag ritas alltid. Förut ritades de bara när områdena var på. *Nu:* alltid.
 2. **SEK för det som ligger kvar i inspektören** räknas till den senaste kursen ärendet har för tillgången. Kortets
@@ -46,6 +51,32 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`.
     - En etikett på ett offer sprids aldrig till andra ärenden. Den regeln är sessionens egen och står kvar tills du
       säger annat.
     - Ska *Sprid inte* också gå att sätta för ett helt ärende?
+12. **En trolig tjänst** (TJ1b): kontrollen `service-behaviour` är en kontroll, inte ett förslag, så den står inte i
+    KF2b-panelen. *Nu:* *Som etikett …* står i inspektören vid noden. Ska svepet bli ett förslag som väntar i panelen?
+
+**Från kodgranskningen 2026-11-08** (DEV-LOG, *Kodgranskningen i sju varv*):
+12. **Bakgrundens plan när bevakning i bakgrunden är av:** planen behåller alla ärendens bevakade adresser och txid:er
+    (under DPAPI) fast inget använder dem. *Förslag:* töm planen när inställningen är av; ärendena kommer tillbaka när
+    de öppnas. *Nu:* planen ligger kvar.
+13. **Windows felrapportering:** en hård krasch kan ge en minnesdump med dekrypterade ärendedata och nycklar som
+    Microsoft kan begära in. *Förslag:* undanta Chainsaw och bakgrundsprocessen (`WerAddExcludedApplication`, per
+    användare). *Nu:* inte undantagna.
+14. **Recall och skärmdumpar** kan spara grafen. *Förslag:* blockera inte (det stoppar också egna skärmdumpar och
+    skärmdelning), skriv om det i Guiden. *Nu:* ingenting.
+15. **Återställningskuvertet kan bytas mot ett giltigt utseende kuvert med skräp** (av en tjuv eller en kollega med
+    delningslösenordet), och Chainsaw och verktyget säger ändå "täckt". *Förslag:* gör kuvertets tillfälliga nyckel
+    härledd ur filnyckeln och ärendets id, så att Chainsaw kan pröva kuvertet vid varje öppning och skriva ett nytt med
+    en journalrad; en egen etapp, eftersom formatet ändras och EC-importen ska provas på Windows först.
+16. **Programmappens rättigheter:** Run-nyckeln startar bakgrundsprocessen och `chainsaw:` startar Chainsaw ur samma
+    mapp, men bara tunneln har en kontrollerad hash. Packas Chainsaw upp i t.ex. `C:\Chainsaw` (där alla inloggade får
+    ändra) kan en annan användare byta ut programmet. *Förslag:* kontrollera mappens rättigheter vid start, registrera
+    då inte Run-nyckeln eller länken och säg var Chainsaw ska installeras.
+17. **Huvudnyckeln byttes medan Chainsaw låstes:** bytet blir klart men användaren får aldrig veta det och kan få "Fel
+    huvudnyckel" med den gamla. Vilken text, och var (låsskärmen eller efter upplåsningen)?
+18. **Konfliktdialogen** ("X gick åt två håll") säger "…fram till kraschen" också när filen bytts ut på disken medan
+    ärendet var öppet. Ny, neutral text?
+19. **Det en kollega har lagt till** i ett delat ärende efter den här datorns ankare godtas som äkta och visas inte som
+    tillagt någon annanstans. Ska raderna efter det egna ankaret märkas?
 
 **Äldre, där sessionen valt det säkraste:**
 - **Återkallade återställningsnycklar** (etapp 9):
@@ -73,6 +104,9 @@ byggt; det som står här är rester. Inget nytt byggs förrän det som finns k�
 
 ### 1. Provet på Windows
 
+**Bygget och testsviten går på Windows** (användarens körning 2026-11-08): 3 790 tester, alla gröna, på 119 s. Kvar är
+att prova appen för hand efter `docs/TESTER-INFOR-1.0.md`.
+
 Inget sedan etapp 1 är provat på Windows. Användaren provar efter `docs/TESTER-INFOR-1.0.md`, ordnad uppifrån och ner, och det som inte fungerar rättas före allt annat nedan. Särskilt:
 - **Kraschen vid start** (`NewCasePanel`) är rättad men inte bekräftad.
 - **Expansionen gav *Inget nytt att hämta*** med mempool vald (rättat 2026-11-07, väntar på prov).
@@ -91,11 +125,7 @@ Inget sedan etapp 1 är provat på Windows. Användaren provar efter `docs/TESTE
   *Fortsätter på annan kedja*, och ett byte på samma kedja byter inte ägare. Namnet står i *Varför?* för swappen. En
   egen sort, eller en markering i hörnet, skissas.
 - **Sökningen:** en etikett från ett annat ärende kan inte säga vilket, eftersom ursprunget saknar ärendenumret
-  [etapp]; *Lägg tillbaka* direkt på raden *I soptunnan* [direkt] (nu öppnar Enter soptunnan).
-- **Exponering, mixerns troliga utgångar** [direkt, efter EP1b]: godkända troliga utgångar ur en mixer som streckade
-  förslag bortom mixern (en streckad rund nod, en prickad linje och *förslag* i stället för andelen). Ringarna
-  (`Controls/ExposureRings`) har varken streckade linjer eller kandidater i dag, kandidaterna bär inget belopp
-  (`CandidateLine`), och en mixer i tredje ringen har ingen ring bortom sig.
+  [etapp].
 - **Begäran:** kontaktvägar till börserna (katalogen är tom tills en väg kan kontrolleras mot sin källa, med källa
   och datum) och fler mallar per börs, om kryptospåraren vill det.
 - **Chainabuse automatiskt** [etapp], när en partnernyckel finns: en vanlig nyckel ger tio anrop i månaden, så nu
@@ -108,20 +138,58 @@ byggt ur BACKLOG; det som skriver i ärendet granskas oberoende.
 1. **Skisserna är valda** (2026-11-08): TL3a, FL1a, PL1b och SW1a (CLAUDE.md, *Valt för 1.0*).
 2. **Ethereum klart:** Tornado Cash och kända DEX:ar och bryggor, OFAC:s ETH-adresser, kontoheuristikerna, kontrollerna och plånböckerna på Ethereum, egna ytor, Etherscan med nyckel
    och fynden från etapp 23 och 23b.
-3. **Bitcoin-källan, bevakningen och bakgrunden:** fynden under *Bitcoin-källan*, *Bevakning* och *Bevakning i
-   bakgrunden*, och bevakning i realtid (websocket).
+3. **Bitcoin-källan, bevakningen och bakgrunden:** byggt 2026-11-08 (DEV-LOG, *Omgång 3*): VPN i bakgrunden, nya
+   block i realtid, starten i fas, omorganisationer, merkle-beviset och de andra fynden. Det som är kvar står i
+   BACKLOG med en notering om beslutet det väntar på, och ytorna nedan.
 4. **Klustring, förvirring och kontroller:** tjänster ur beteende, fler tecken för växeln, CoinJoin och peel chain,
    centrala mixers, damm och adressförgiftning, jämna belopp och tidsmönster, och fynden under *Kontroller*.
 5. **Attribution och kurser:** EU:s sanktionslista, öppna källor (efter licens), etiketter på tx, och fynden under
    *Attribution* och *Kurser*.
-6. **Säkerhet, ärenden och utgångar:** hashkedjan ankrad utanför ärendet, hela filen autentiserad, *Vem har
-   tillgång*, och fynden under *Säkerhet*, *Ärenden*, *Utgångar* och *Ärenden i appen*.
-7. **Vyerna och appen:** fynden under Exponering, Begäran, Rapport, Undermenyerna, Låsskärmen, Historiken,
-   Kommentarsnoden, Spårning, Testärendet och *Vyerna efter 1.0*; grafens prestanda vid tusentals noder.
+6. **Säkerhet, ärenden och utgångar:** byggt 2026-11-08 (DEV-LOG, *Omgång 6*). Kvar, som behöver ritas först:
+7. **Vyerna och appen:** byggt 2026-11-08 (DEV-LOG, *Omgång 7*). Kvar, som behöver ritas först:
+   - [skiss] **Fråga om det som kan ha ändrats:** grafen visas bara ur ärendet, så ett mynt som låg kvar står som *kan
+     ha flyttats* tills noden expanderas igen. En knapp eller ett kommando som frågar om alla sådana mynt på en gång.
+   - [skiss] **En `chainsaw:`-länk i en lapp till något som inte finns i grafen** säger det bara; den kunde bli en
+     startpunkt.
+   - [skiss] **Fler noder med storlekshandtag** (användarens önskemål 2026-11-07): kommentarsnoden har det; vilka fler
+     som får det (samlingsnoden EX2b, egna ytor).
+   - [skiss] **Startpunkt med ett ärende** (Nytt → Startpunkt) lägger bara markören i kommandoraden; ett eget fält som
+     i Nytt ärende.
+   - [skiss] **Ta tillbaka en egen yta i Historik** (KF1b, Z): samma rad och formulär som för en etikett.
+   - Resterna i BACKLOG under Exponering, Begäran, Låsskärmen, Historik, Testärendet och *Vyerna efter 1.0* står kvar
+     där, med varför.
 8. **TRON med USDT**, sedan **Litecoin**, **BSC**, **Solana** och den genomskinliga delen av **Zcash**.
 9. **Egen nod och eget index**, hitta fortsättningen på en annan kedja själv, och mönsterigenkänning som analys
    (utan språkmodell, princip 5).
-10. **Vyerna Tidslinje och Flöde**, när skisserna är valda.
+
+**Ur omgång 4, ytorna KV1a, HB1a, BU1a, DM1a, HP1a och TJ1b** (byggda 2026-11-08, rester):
+- **Testärendet** (`/testdata`) visar inte de nya kontrollerna och ytorna än [direkt]: damm, en adressförgiftning
+  (en look-alike till Sydbörsen), ett svep till Sydbörsens hot wallet (för *Som etikett …*), en rad med många hopp
+  (fem hopp med en in och en ut, med ett uppehåll på några dygn), en uppdelning med delar som möts och en möjlig
+  PayJoin behöver läggas in i berättelsen (`TestStoryChain`) med stegen som hämtar dem. En slutsats som hålls tillbaka
+  kräver en obekräftad tx som ersätts, som testkedjan inte kan visa än.
+- **Ersatt av** i hovringen av en slutsats som hålls tillbaka (HB1a) väntar på punkten *Ersatt av vilken tx* ovan;
+  nu står bara vilken tx slutsatsen byggde på.
+- **Förhandsvisningen av ett tillbakadragande** (KV1a) räknar på det som är sparat: det v1 slår ihop i tx som v1
+  aldrig kört syns först efter nästa körning. Raden längst ner säger när, men inte vem (det står i journalen).
+- **Dammets linjer** (DM1a) är inte hårfina och prickade och har kvar beloppet; noderna tonas ned och förgiftningens
+  mask står i full styrka. Den liknande adressen visar inte mer av mitten på noden (*TQ5nX7…zmK8e*).
+- **Hoppen utfällda** (HP1a): noderna står på sina vanliga platser och linjerna utan väntan; *Fäll ihop* är en
+  bricka ovanför raden, inte en båge.
+- **Som etikett …** (TJ1b) står i inspektörens rad med *Varför?* och *Historik*, inte i KF2b-panelen: kontrollen
+  `service-behaviour` är en kontroll och inte ett förslag, så den står inte i panelen (*Väntar på dig*, 12). Ingen toast med *Ångra* efter etiketten (den tas tillbaka i Historik).
+
+**Ur omgång 3 (Bitcoin-källan, bevakningen och bakgrunden), väntar på en yta** [skiss]:
+- **VPN i bakgrunden per utgång:** i dag en brytare under Inställningar › Nätverk (*Bevaka genom utgången när Chainsaw
+  är stängt*) som gäller den valda utgången. Ska valet stå per rad i utgångarnas tabell (UT3b), och ska det synas
+  vilka utgångar som har en kopia under DPAPI, skissas raden.
+- **En träff som bytt block** (omorganisation, `WatchHit.MovedFrom`, journalraden `monitoring.hit.moved`): träffen
+  vilar nu på sitt nya block, men listan i Bevakning och vaktlinjen säger det inte. Förslag: GR9a:s runda märke med
+  förut och nu.
+- **Kontrollerad mot blocket** (`IBitcoinSource.VerifyInBlockAsync`, `BitcoinTransaction.InBlock`: *bara källans svar* eller *bekräftad av en annan endpoint*): beviset
+  finns men inget anropar det; var det visas i inspektören (som *kontrollerad mot bytes*) och om det körs när tx:en
+  visas eller i bakgrunden skissas.
+- **Pengar ut ur en CoinJoin som *högst …*** (BACKLOG, *Bevakning*): markeringen och den streckade formen i listan.
 
 **Beslutat 2026-11-08** (står i CLAUDE.md): spårningen genom en swap (byggd, SW1a), VPN i bakgrunden (byggs i
 omgång 3) och metoderna för privacy coins (omgång 9). **LIFO och poison** väntar på kryptospåraren (`docs/KRYPTOSPARAREN.md`, fråga 1).

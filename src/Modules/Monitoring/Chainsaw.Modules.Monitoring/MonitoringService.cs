@@ -31,8 +31,20 @@ internal sealed class MonitoringService(
     public const string TooManyAddressesText =
         "Klustret har {0} adresser; en kontroll läser de {1} första, så resten bevakas inte nu.";
 
-    /// <summary>How much earlier than its pace a watch may be checked (<see cref="WatchSchedule.Tolerance"/>).</summary>
-    public static readonly TimeSpan Tolerance = WatchSchedule.Tolerance;
+    /// <summary>The journal line when Chainsaw's own lookup gave a hit the background said it saw.</summary>
+    public const string TipConfirmedText =
+        "Bevakningen av {0} slog till (bakgrundens träff, kontrollerad mot kedjan): {1}";
+
+    /// <summary>The journal line when the case already had the hit a tip from the background was about.</summary>
+    public const string TipKnownText = "Bakgrundens träff för bevakningen av {0} fanns redan i ärendet: {1}";
+
+    /// <summary>The journal line when a tip from the background did not match the chain.</summary>
+    public const string TipRejectedText =
+        "Bakgrundens träff för bevakningen av {0} stämde inte med kedjan och förseglades inte: {1}";
+
+    /// <summary>The journal line when a tip from the background was not checked: its watch changed first.</summary>
+    public const string TipDroppedText =
+        "Bakgrundens träff för bevakningen av {0} kontrollerades inte, bevakningen ändrades eller togs bort: {1}";
 
     /// <summary>What a check says when a cluster's addresses could not be read.</summary>
     public const string NoClusterText = "Klustrets adresser kunde inte läsas; bara {0} kontrollerades.";
@@ -55,7 +67,78 @@ internal sealed class MonitoringService(
     public IReadOnlyList<WatchHit> GetHits(ICase @case)
     {
         ArgumentNullException.ThrowIfNull(@case);
-        return @case.Read(WatchStore.ReadHits);
+        return Latest(@case.Read(WatchStore.ReadHits));
+    }
+
+    /// <summary>
+    /// How long after a hit was sealed (or last moved) a move to another block is believed: about a block's time, so
+    /// that a hit moves at most once per block however the endpoints disagree.
+    /// </summary>
+    internal static readonly TimeSpan MoveDamping = TimeSpan.FromMinutes(10);
+
+    /// <summary>
+    /// Gives each hit as its latest record leaves it: a hit whose transaction moved to another block is sealed again
+    /// with the new block, and is given once, with the block it was in before (<see cref="WatchHit.MovedFrom"/>).
+    /// </summary>
+    /// <param name="records">The hits' records, oldest first.</param>
+    /// <returns>The hits, in the order of their latest records.</returns>
+    internal static IReadOnlyList<WatchHit> Latest(IReadOnlyList<WatchHit> records)
+    {
+        var latest = new Dictionary<string, WatchHit>(StringComparer.Ordinal);
+        foreach (var record in records)
+        {
+            var key = WatchSchedule.Key(record.WatchId, record.Match);
+            latest[key] = latest.TryGetValue(key, out var before) && !SameBlock(before.Match.Block, record.Match.Block)
+                ? record with { MovedFrom = before.Match.Block }
+                : record;
+        }
+
+        return [.. latest.Values.OrderBy(hit => hit.Sequence)];
+    }
+
+    /// <summary>
+    /// Gives the known hits a check found in another block (a reorganisation), when the move can be believed: the
+    /// check read everything fresh from endpoints in step (<see cref="WatchFeedStatus.Read"/>), and the hit has not moved
+    /// within <see cref="MoveDamping"/>, so that endpoints that disagree cannot make it flap between two blocks.
+    /// </summary>
+    /// <param name="watch">The watch.</param>
+    /// <param name="result">The check.</param>
+    /// <param name="known">The block each known hit rests on, by key.</param>
+    /// <param name="sealedAt">When each known hit's latest record was sealed, by key.</param>
+    /// <param name="now">The time now.</param>
+    /// <returns>The moved hits.</returns>
+    private static List<WatchMatch> MovedHits(
+        Watch watch,
+        WatchCheckResult result,
+        IReadOnlyDictionary<string, WatchBlock> known,
+        IReadOnlyDictionary<string, DateTimeOffset> sealedAt,
+        DateTimeOffset now)
+    {
+        if (result.Status != WatchFeedStatus.Read)
+        {
+            return [];
+        }
+
+        return [.. result.Matches.Where(match =>
+        {
+            var key = WatchSchedule.Key(watch.Id, match);
+            return known.TryGetValue(key, out var block) && !SameBlock(block, match.Block)
+                && now - sealedAt[key] >= MoveDamping;
+        })];
+    }
+
+    /// <summary>Says whether two blocks are the same block: the same height and hash, whatever time a source gave.</summary>
+    /// <param name="first">One block.</param>
+    /// <param name="second">The other.</param>
+    /// <returns><see langword="true"/> when they are.</returns>
+    private static bool SameBlock(WatchBlock first, WatchBlock second) =>
+        first.Height == second.Height && string.Equals(first.Hash, second.Hash, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc/>
+    public IReadOnlyList<WatchTip> GetTips(ICase @case)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        return @case.Read(WatchStore.ReadTips);
     }
 
     /// <inheritdoc/>
@@ -166,8 +249,16 @@ internal sealed class MonitoringService(
             throw new ArgumentException("The reason is too long.", nameof(reason));
         }
 
-        return Update(@case, id, WatchAction.Removed, why, watch => watch with { State = WatchState.Removed })
-            is not null;
+        // Its waiting tips are closed unchecked in the same write: no check of its chain may come again to close them.
+        return Update(@case, id, WatchAction.Removed, why, watch => watch with { State = WatchState.Removed },
+            (transaction, removed) =>
+            {
+                foreach (var tip in WatchStore.ReadTips(transaction)
+                    .Where(tip => tip.WatchId == removed.Id && tip.State == WatchTipState.Pending).ToList())
+                {
+                    CloseTip(transaction, tip, removed, null);
+                }
+            }) is not null;
     }
 
     /// <inheritdoc/>
@@ -177,22 +268,9 @@ internal sealed class MonitoringService(
     public async Task<long?> GetHeightAsync(ICase @case, Chain chain, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(@case);
-        if (gate.For(chain) != WatchGate.Open)
-        {
-            return null;
-        }
-
-        switch (chain)
-        {
-            case Chain.Bitcoin:
-                var tip = await bitcoin.GetTipHeightAsync(@case, cancellationToken).ConfigureAwait(false);
-                return tip.Status == LookupStatus.Fetched ? tip.Value?.Height : null;
-            case Chain.Ethereum:
-                var height = await ethereum.GetTipHeightAsync(@case, cancellationToken).ConfigureAwait(false);
-                return height.Status == LookupStatus.Fetched ? height.Value?.Height : null;
-            default:
-                return null;
-        }
+        return gate.For(chain) == WatchGate.Open
+            ? await WatchSchedule.HeightAsync(bitcoin, ethereum, @case, chain, cancellationToken).ConfigureAwait(false)
+            : null;
     }
 
     /// <inheritdoc/>
@@ -208,10 +286,13 @@ internal sealed class MonitoringService(
 
         var watches = GetWatches(@case).Where(w => w.Chain == chain && w.State == WatchState.Active).ToList();
         Start(@case, watches.Where(watch => watch.StartHeight is null).ToList(), height);
-        var known = GetHits(@case).Select(hit => WatchCodec.Key(hit.WatchId, hit.Match))
-            .ToHashSet(StringComparer.Ordinal);
+        var outcomes = await CheckTipsAsync(@case, chain, cancellationToken).ConfigureAwait(false);
+        var hits = GetHits(@case);
+        var known = hits.ToDictionary(
+            hit => WatchSchedule.Key(hit.WatchId, hit.Match), hit => hit.Match.Block, StringComparer.Ordinal);
+        var sealedAt = hits.ToDictionary(
+            hit => WatchSchedule.Key(hit.WatchId, hit.Match), hit => hit.RecordedUtc, StringComparer.Ordinal);
         var checkedBefore = GetChecked(@case);
-        var outcomes = new List<WatchOutcome>();
         var now = clock.UtcNow;
         var due = watches.Where(watch => watch.StartHeight is not null
             && IsDue(watch, checkedBefore.GetValueOrDefault(watch.Id), height, now));
@@ -224,14 +305,162 @@ internal sealed class MonitoringService(
                 addresses, watch.Filter, feed, start,
                 WatchSchedule.DownTo(start, checkedBefore.GetValueOrDefault(watch.Id)), cancellationToken)
                 .ConfigureAwait(false);
-            var fresh = result.Matches.Where(match => !known.Contains(WatchCodec.Key(watch.Id, match))).ToList();
+            var fresh = result.Matches.Where(match => !known.ContainsKey(WatchSchedule.Key(watch.Id, match))).ToList();
+
+            // A known hit found in another block: the chain was reorganised, and that is sealed and said.
+            var moved = MovedHits(watch, result, known, sealedAt, now);
             var problems = notes.Concat(result.Problems).ToList();
-            var hits = Seal(@case, watch, fresh, result, problems, height, now);
-            outcomes.Add(new WatchOutcome(watch.Id, result.Status, hits, problems));
+            var sealedHits = Seal(@case, watch, new SealedMatches(fresh, moved, known), result, problems, height, now);
+            outcomes.Add(new WatchOutcome(watch.Id, result.Status, sealedHits, problems));
         }
 
         return new WatchRun(chain, open, height, outcomes, clock.UtcNow);
     }
+
+    /// <summary>
+    /// Checks the background's waiting tips on a chain against the chain (decided 2026-11-08): each tip of an active
+    /// watch has its transaction looked up through the case's own source, and the watch's check runs on that answer. A
+    /// tip the answer gives is sealed as a hit from Chainsaw's own answer; one it does not give, or whose transaction
+    /// is not on the chain, is closed with a line in the journal and no hit; one of a watch taken back or changed is
+    /// closed unchecked; and one that cannot be looked up now, or of a paused watch, waits for the next check.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="chain">The chain, whose gate is open.</param>
+    /// <param name="cancellationToken">Stops the lookups.</param>
+    /// <returns>One outcome per watch that got a hit from its tips.</returns>
+    private async Task<List<WatchOutcome>> CheckTipsAsync(
+        ICase @case, Chain chain, CancellationToken cancellationToken)
+    {
+        var outcomes = new List<WatchOutcome>();
+        var waiting = GetTips(@case).Where(tip => tip.Chain == chain && tip.State == WatchTipState.Pending).ToList();
+        if (waiting.Count == 0)
+        {
+            return outcomes;
+        }
+
+        var watches = @case.Read(WatchStore.ReadRecords).GroupBy(record => record.Watch.Id)
+            .ToDictionary(group => group.Key, group => group.Last().Watch, StringComparer.Ordinal);
+        foreach (var tip in waiting)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var watch = watches.GetValueOrDefault(tip.WatchId);
+            if (watch is { State: WatchState.Paused })
+            {
+                continue;
+            }
+
+            var filter = @case.Read(reader => WatchStore.ReadTipFilter(reader, tip));
+            if (watch is not { State: WatchState.Active, StartHeight: { } start }
+                || WatchCodec.Encode(watch.Filter with { Pace = WatchPace.EveryBlock })
+                    != WatchCodec.Encode(filter with { Pace = WatchPace.EveryBlock }))
+            {
+                CloseTip(@case, tip, watch, null);
+                continue;
+            }
+
+            var finding = await TipLookup.ReadAsync(
+                check, bitcoin, ethereum, @case, tip, AddressesOf(@case, watch).Addresses.ToHashSet(), filter, start,
+                cancellationToken).ConfigureAwait(false);
+            if (finding.Verdict == TipVerdict.Wait)
+            {
+                continue;
+            }
+
+            if (CloseTip(@case, tip, watch, finding) is { } hit)
+            {
+                outcomes.Add(new WatchOutcome(watch.Id, WatchFeedStatus.Read, [hit], []));
+            }
+        }
+
+        return outcomes;
+    }
+
+    /// <summary>
+    /// Closes a tip in one write: sealed as a hit from Chainsaw's own answer when the finding confirms it (unless the
+    /// case has the hit already), closed as not matching the chain when it rejects it, and as not checked when there is
+    /// no finding. A tip closed meanwhile is left as it is.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="tip">The tip.</param>
+    /// <param name="watch">Its watch, or <see langword="null"/> when there is none.</param>
+    /// <param name="finding">What Chainsaw's lookup found, or <see langword="null"/> when it was not checked.</param>
+    /// <returns>The hit sealed now, or <see langword="null"/>.</returns>
+    private WatchHit? CloseTip(ICase @case, WatchTip tip, Watch? watch, TipFinding? finding) =>
+        @case.Write(transaction => CloseTip(transaction, tip, watch, finding));
+
+    /// <summary>Closes a tip in the case's write, as the method that takes the case says.</summary>
+    /// <param name="transaction">The case's write.</param>
+    /// <param name="tip">The tip.</param>
+    /// <param name="watch">Its watch, or <see langword="null"/>.</param>
+    /// <param name="finding">What Chainsaw's own lookup found, or <see langword="null"/>.</param>
+    /// <returns>The hit sealed now, or <see langword="null"/>.</returns>
+    private static WatchHit? CloseTip(ICaseTransaction transaction, WatchTip tip, Watch? watch, TipFinding? finding)
+    {
+        if (WatchStore.ReadTips(transaction).FirstOrDefault(each => each.Sequence == tip.Sequence) is not
+            { State: WatchTipState.Pending })
+        {
+            return null;
+        }
+
+        // A watch removed, paused or changed while its tip was looked up gets nothing from the lookup: the next check
+        // looks at the tip again as the watch is then.
+        var now = WatchStore.ReadWatches(transaction).FirstOrDefault(each => each.Id == tip.WatchId);
+        if (finding is not null && (now is null || watch is null || now.State != WatchState.Active
+            || WatchCodec.Encode(now.Filter) != WatchCodec.Encode(watch.Filter)))
+        {
+            return null;
+        }
+
+        var name = watch?.Subject.Name ?? tip.WatchId;
+        var claimed = WatchTexts.Hits([tip.Match]);
+        if (finding is { Verdict: TipVerdict.Confirmed, Match: { } match } && watch is not null)
+        {
+            var key = WatchSchedule.Key(watch.Id, match);
+            var known = WatchStore.ReadHits(transaction)
+                .FirstOrDefault(hit => WatchSchedule.Key(hit.WatchId, hit.Match) == key);
+            if (known is not null)
+            {
+                // The open check sealed it first: the tip points at that hit, and nothing is told twice.
+                WatchStore.CloseTip(transaction, tip, WatchTipState.Confirmed, known.Sequence, Journal(
+                    transaction, MonitoringJournalKinds.Tip, string.Format(
+                        CultureInfo.InvariantCulture, TipKnownText, name, claimed), tip, finding));
+                return null;
+            }
+
+            var journal = Journal(transaction, MonitoringJournalKinds.Hit, string.Format(
+                CultureInfo.InvariantCulture, TipConfirmedText, name, WatchTexts.Hits([match])), tip, finding);
+            var sealedHit = WatchStore.SealHit(transaction, watch, match, finding.Origins, journal);
+            WatchStore.CloseTip(transaction, tip, WatchTipState.Confirmed, sealedHit.Sequence, journal);
+            return sealedHit;
+        }
+
+        var (state, kind, text) = finding is null
+            ? (WatchTipState.Dropped, MonitoringJournalKinds.TipDropped, TipDroppedText)
+            : (WatchTipState.Rejected, MonitoringJournalKinds.TipRejected, TipRejectedText);
+        WatchStore.CloseTip(transaction, tip, state, null, Journal(
+            transaction, kind, string.Format(CultureInfo.InvariantCulture, text, name, claimed), tip, finding));
+        return null;
+    }
+
+    /// <summary>Writes the journal line that closes a tip, with the tip and Chainsaw's own responses.</summary>
+    /// <param name="transaction">The case's write.</param>
+    /// <param name="kind">The journal code.</param>
+    /// <param name="summary">The line.</param>
+    /// <param name="tip">The tip.</param>
+    /// <param name="finding">What Chainsaw's own lookup found, or <see langword="null"/>.</param>
+    /// <returns>The journal entry.</returns>
+    private static JournalEntry Journal(
+        ICaseTransaction transaction, string kind, string summary, WatchTip tip, TipFinding? finding) =>
+        transaction.AppendJournal(new JournalDraft(kind, summary, JsonSerializer.Serialize(new
+        {
+            watch = tip.WatchId,
+            tip = tip.Sequence,
+            entry = tip.Entry,
+            tx = tip.Match.Transaction,
+            verdict = finding?.Verdict.ToString(),
+            origins = finding?.Origins ?? [],
+            backgroundOrigins = tip.Origins,
+        })));
 
     /// <summary>
     /// Says whether a watch is due: a new block has come since it was last checked, and its pace's time has passed
@@ -304,7 +533,7 @@ internal sealed class MonitoringService(
                 var started = watch with { StartHeight = height };
                 var journal = transaction.AppendJournal(new JournalDraft(
                     MonitoringJournalKinds.Started,
-                    $"Bevakningen av {watch.Subject.Name} börjar efter block {Number(height)}",
+                    $"Bevakningen av {watch.Subject.Name} börjar efter block {WatchTexts.Number(height)}",
                     JsonSerializer.Serialize(new { watch = watch.Id, start = height })));
                 WatchStore.Seal(transaction, WatchAction.Started, started with { ChangedUtc = journal.Utc }, null,
                     journal);
@@ -322,7 +551,7 @@ internal sealed class MonitoringService(
     /// </summary>
     /// <param name="case">The open case.</param>
     /// <param name="watch">The watch.</param>
-    /// <param name="fresh">The new matches.</param>
+    /// <param name="matches">The new matches, and the known ones found in another block.</param>
     /// <param name="result">The check.</param>
     /// <param name="problems">What to say about it.</param>
     /// <param name="height">The chain's height.</param>
@@ -331,7 +560,7 @@ internal sealed class MonitoringService(
     private IReadOnlyList<WatchHit> Seal(
         ICase @case,
         Watch watch,
-        IReadOnlyList<WatchMatch> fresh,
+        SealedMatches matches,
         WatchCheckResult result,
         IReadOnlyList<string> problems,
         long height,
@@ -354,6 +583,8 @@ internal sealed class MonitoringService(
                 ?? watch.StartHeight!.Value;
             WatchStore.WriteChecked(
                 transaction, watch.Id, WatchSchedule.After(previous, result, problems, height, started));
+            SealMoved(transaction, watch, matches, result.Origins);
+            var fresh = matches.Fresh;
             if (fresh.Count == 0)
             {
                 return (IReadOnlyList<WatchHit>)[];
@@ -380,14 +611,69 @@ internal sealed class MonitoringService(
         });
     }
 
+    /// <summary>
+    /// Seals the known hits a check found in another block (a reorganisation of the chain), under one journal line that
+    /// says where each was and where it is now; the old records stay, and the hit rests on its new block from now on.
+    /// </summary>
+    /// <param name="transaction">The case's transaction.</param>
+    /// <param name="watch">The watch.</param>
+    /// <param name="matches">The check's matches, with the blocks the hits were sealed in.</param>
+    /// <param name="origins">The sealed raw responses the new blocks rest on.</param>
+    private static void SealMoved(
+        ICaseTransaction transaction, Watch watch, SealedMatches matches, IReadOnlyList<long> origins)
+    {
+        if (matches.Moved.Count == 0)
+        {
+            return;
+        }
+
+        var moves = matches.Moved
+            .Select(match => (Match: match, Before: matches.Known[WatchSchedule.Key(watch.Id, match)]))
+            .ToList();
+        var journal = transaction.AppendJournal(new JournalDraft(
+            MonitoringJournalKinds.HitMoved,
+            $"Bevakningen av {watch.Subject.Name}: {WatchTexts.Moved(moves)}",
+            JsonSerializer.Serialize(new
+            {
+                watch = watch.Id,
+                moved = moves.Select(move => new
+                {
+                    tx = move.Match.Transaction,
+                    before = new { block = move.Before.Height, hash = move.Before.Hash },
+                    now = new { block = move.Match.Block.Height, hash = move.Match.Block.Hash },
+                }),
+                origins,
+            })));
+        foreach (var (match, _) in moves)
+        {
+            WatchStore.SealHit(transaction, watch, match, origins, journal);
+        }
+    }
+
+    /// <summary>What a check found: new hits, and known hits in another block than they were sealed in.</summary>
+    /// <param name="Fresh">The new matches.</param>
+    /// <param name="Moved">The known matches found in another block.</param>
+    /// <param name="Known">The block each known hit rests on now, by key.</param>
+    private sealed record SealedMatches(
+        IReadOnlyList<WatchMatch> Fresh,
+        IReadOnlyList<WatchMatch> Moved,
+        IReadOnlyDictionary<string, WatchBlock> Known);
+
     /// <summary>Seals a change of a watch in force, with a line in the journal.</summary>
     /// <param name="case">The open case.</param>
     /// <param name="id">The watch.</param>
     /// <param name="action">What the change is.</param>
     /// <param name="reason">Why, for a removal.</param>
     /// <param name="change">Makes the changed watch.</param>
+    /// <param name="then">What else the change writes, in the same write, or <see langword="null"/>.</param>
     /// <returns>The changed watch, or <see langword="null"/> when there is no such watch in force.</returns>
-    private static Watch? Update(ICase @case, string id, WatchAction action, string? reason, Func<Watch, Watch> change)
+    private static Watch? Update(
+        ICase @case,
+        string id,
+        WatchAction action,
+        string? reason,
+        Func<Watch, Watch> change,
+        Action<ICaseTransaction, Watch>? then = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         return @case.Write(transaction =>
@@ -404,6 +690,7 @@ internal sealed class MonitoringService(
                 Details(watch.Id, watch.Subject, changed.Filter, reason)));
             changed = changed with { ChangedUtc = journal.Utc };
             WatchStore.Seal(transaction, action, changed, reason, journal);
+            then?.Invoke(transaction, changed);
             return changed;
         });
     }
@@ -512,9 +799,4 @@ internal sealed class MonitoringService(
             ? subject with { Name = name }
             : throw new ArgumentException("The watched node is not an address on its chain.", nameof(subject));
     }
-
-    /// <summary>Writes a block height with spaces between thousands, as the journal does.</summary>
-    /// <param name="height">The height.</param>
-    /// <returns>For example <c>921 344</c>.</returns>
-    private static string Number(long height) => WatchTexts.Number(height);
 }

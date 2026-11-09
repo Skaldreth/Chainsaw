@@ -106,25 +106,63 @@ public static class GraphHitTest
         var room = hopColumns ? LineRouting.Room(places.Select(pair => scene.FrameOf(pair.Key, pair.Value))) : null;
         foreach (var pair in pairs)
         {
-            var lines = pair.OrderBy(edge => edge.Key, StringComparer.Ordinal).ToList();
-            for (var index = 0; index < lines.Count; index++)
-            {
-                var edge = lines[index].Edge;
-                var (from, to) = (scene.FrameOf(edge.From, places[edge.From]), scene.FrameOf(edge.To, places[edge.To]));
-                var curve = EdgeCurve.Between(from, to, hopColumns);
-                var offset = (index - ((lines.Count - 1) / 2.0)) * EdgeCurve.ParallelSpacing;
-                curve = offset == 0 ? curve : curve.Bent(offset);
-                curves[lines[index].Key] = room is null ? curve : LineRouting.AroundNodes(curve, from, to, room);
-            }
+            AddPair([.. pair.OrderBy(edge => edge.Key, StringComparer.Ordinal)], scene, places, room, curves);
         }
 
         return curves;
+    }
+
+    /// <summary>
+    /// Works out the curves of the lines between one pair of nodes, bent apart so that they never lie on each other,
+    /// and in the hop columns around the nodes on their way.
+    /// </summary>
+    /// <param name="lines">The pair's lines, in the order of their keys.</param>
+    /// <param name="scene">The scene.</param>
+    /// <param name="places">Each node's top-left corner; both ends are placed.</param>
+    /// <param name="room">The room the nodes take in the hop columns, or <see langword="null"/> on the free surface.</param>
+    /// <param name="curves">Where the curves are written, by the line's key.</param>
+    /// <param name="lookedIn">
+    /// Where the cells of the room each line looked in to be routed are written (<see cref="LineRouting.Route"/>), or
+    /// <see langword="null"/>.
+    /// </param>
+    public static void AddPair(
+        IReadOnlyList<EdgeView> lines,
+        GraphScene scene,
+        IReadOnlyDictionary<string, GraphPoint> places,
+        RoomGrid? room,
+        IDictionary<string, EdgeCurve> curves,
+        IDictionary<string, IReadOnlySet<(int Column, int Row)>>? lookedIn = null)
+    {
+        ArgumentNullException.ThrowIfNull(lines);
+        ArgumentNullException.ThrowIfNull(scene);
+        ArgumentNullException.ThrowIfNull(places);
+        ArgumentNullException.ThrowIfNull(curves);
+        for (var index = 0; index < lines.Count; index++)
+        {
+            var edge = lines[index].Edge;
+            var (from, to) = (scene.FrameOf(edge.From, places[edge.From]), scene.FrameOf(edge.To, places[edge.To]));
+            var curve = EdgeCurve.Between(from, to, room is not null);
+            var offset = (index - ((lines.Count - 1) / 2.0)) * EdgeCurve.ParallelSpacing;
+            curve = offset == 0 ? curve : curve.Bent(offset);
+            if (room is null)
+            {
+                curves[lines[index].Key] = curve;
+                continue;
+            }
+
+            var (routed, cells) = LineRouting.Route(curve, from, to, room);
+            curves[lines[index].Key] = routed;
+            if (lookedIn is not null)
+            {
+                lookedIn[lines[index].Key] = cells;
+            }
+        }
     }
 
     /// <summary>Gives the two ends of a line in the same order whichever way the money went.</summary>
     /// <param name="from">One end's key.</param>
     /// <param name="to">The other end's key.</param>
     /// <returns>The ends, the lower key first.</returns>
-    private static (string, string) PairOf(string from, string to) =>
+    public static (string, string) PairOf(string from, string to) =>
         string.CompareOrdinal(from, to) <= 0 ? (from, to) : (to, from);
 }

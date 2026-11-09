@@ -320,9 +320,9 @@
 
         <!-- The chosen watch: details, hits and what can be done with it. -->
         <!-- Only while a watch is chosen; otherwise it folds away and the list takes the width (principle 7). -->
-        <Border Grid.Column="1" Width="340" Background="{StaticResource Brush.Surface}"
-                BorderBrush="{StaticResource Brush.Border}" BorderThickness="1.5,0,0,0" Padding="18"
-                Visibility="{Binding HasSelection, Converter={StaticResource Visible}}">
+        <!-- Under the work, as the graph's inspector (sketch IN5a). -->
+        <controls:UnderPanel Grid.Column="1" Width="380" Padding="40,18,26,18"
+                             Visibility="{Binding HasSelection, Converter={StaticResource Visible}}">
             <Grid>
                 <DockPanel>
                     <StackPanel DockPanel.Dock="Top">
@@ -435,6 +435,36 @@
                         </Border>
                         <TextBlock DockPanel.Dock="Top" Text="Inga träffar än." FontSize="13" Foreground="{StaticResource Brush.TextFaint}"
                                    Visibility="{Binding HasNoHits, Converter={StaticResource Visible}}" />
+                        <!-- The background's tips (decided 2026-11-08): no hits until Chainsaw's own lookup has checked them,
+                             so grey and dashed while they wait, faint once the chain did not give them; what they are
+                             is said on hovering (principle 7). -->
+                        <ItemsControl DockPanel.Dock="Top" ItemsSource="{Binding Tips}" Focusable="False" Margin="0,0,0,6"
+                                      Visibility="{Binding HasTips, Converter={StaticResource Visible}}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:WatchTipRow}">
+                                    <Grid x:Name="TipRow" Margin="0,0,0,6" ToolTip="{Binding State}" Background="Transparent">
+                                        <Rectangle RadiusX="6" RadiusY="6" StrokeThickness="1" StrokeDashArray="4 3"
+                                                   SnapsToDevicePixels="True" Stroke="{StaticResource Brush.Watch.Idle}"
+                                                   Visibility="{Binding IsPending, Converter={StaticResource Visible}}" />
+                                        <StackPanel Margin="12,7,8,7">
+                                            <DockPanel>
+                                                <controls:GridIcon Size="14" Data="{StaticResource Icon.Eye}"
+                                                                   Foreground="{StaticResource Brush.Watch.Idle}" Margin="0,0,7,0" />
+                                                <TextBlock Text="{Binding Text}" FontSize="13.5" TextWrapping="Wrap"
+                                                           Foreground="{StaticResource Brush.TextMuted}" />
+                                            </DockPanel>
+                                            <TextBlock Text="{Binding When}" FontSize="12" Foreground="{StaticResource Brush.TextFaint}"
+                                                       Margin="21,3,0,0" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <DataTemplate.Triggers>
+                                        <DataTrigger Binding="{Binding IsPending}" Value="False">
+                                            <Setter TargetName="TipRow" Property="Opacity" Value="0.6" />
+                                        </DataTrigger>
+                                    </DataTemplate.Triggers>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
                         <ItemsControl ItemsSource="{Binding Hits}" Focusable="False" VirtualizingPanel.IsVirtualizing="True"
                                       VirtualizingPanel.ScrollUnit="Pixel">
                             <ItemsControl.Template>
@@ -489,6 +519,6 @@
                     </DockPanel>
                 </DockPanel>
             </Grid>
-        </Border>
+        </controls:UnderPanel>
     </Grid>
 </UserControl>

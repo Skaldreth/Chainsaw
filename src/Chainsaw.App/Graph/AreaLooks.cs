@@ -55,7 +55,10 @@ public static class AreaLooks
         _ => new(AreaIcon, AreaTint.Green),
     };
 
-    /// <summary>Gives an analysis's look: red for mixers and CoinJoin, sand for peel chains, else its sort's.</summary>
+    /// <summary>
+    /// Gives an analysis's look: red for mixers, CoinJoin and mixed coins merged, sand for peel chains, splits, many
+    /// hops and dust, else its sort's.
+    /// </summary>
     /// <param name="analysis">The analysis's name.</param>
     /// <param name="sort">The area's sort.</param>
     /// <returns>The look.</returns>
@@ -64,6 +67,10 @@ public static class AreaLooks
         "mixer-outputs" or "mixer-parts" or "mixer-chain" => new("Icon.Kind.Mixer", AreaTint.Red),
         "coinjoin-area" => new("Icon.Kind.CoinJoin", AreaTint.Red),
         "peel-chain-area" => new(PeelIcon, AreaTint.Sand),
+        "coinjoin-merge" => new("Icon.Join", AreaTint.Red),
+        "split-merge" => new("Icon.Split", AreaTint.Sand),
+        "pass-through" => new("Icon.Layers", AreaTint.Sand),
+        "dust" => new("Icon.Kind.Coin", AreaTint.Sand),
         _ => Of(sort),
     };
 

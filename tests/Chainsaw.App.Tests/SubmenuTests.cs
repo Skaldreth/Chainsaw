@@ -45,12 +45,9 @@ public sealed class SubmenuTableTests
     }
 
     [Fact]
-    public void What_is_not_built_says_so_honestly()
+    public void Etikett_needs_an_open_case()
     {
-        var notBuilt = SubmenuTable.New.Where(r => r.Need == SubmenuNeed.NotBuilt).ToList();
-
-        // Etikett was the last row not built; it opens the label form on the graph's chosen node (sketch ET1a).
-        Assert.Empty(notBuilt);
+        // Etikett opens the label form on the graph's chosen node (sketch ET1a).
         Assert.Equal(
             SubmenuNeed.OpenCase, SubmenuTable.New.Single(r => r.Action == SubmenuAction.Label).Need);
     }

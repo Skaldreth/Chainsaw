@@ -167,7 +167,7 @@ public sealed class CommandSearchTests
 
     /// <summary>
     /// What lies in the trash is still found (sketch SO1a): its row says <em>I soptunnan</em>, it is not shown in the
-    /// graph, and Enter opens the trash.
+    /// graph, and Enter puts it back from the row.
     /// </summary>
     [Fact]
     public void WhatLiesInTheTrashIsFoundWithItsRow()
@@ -183,10 +183,11 @@ public sealed class CommandSearchTests
         var best = SearchIndex.Build(scene, Library).Search(GraphSamples.U.Value).Best!;
 
         Assert.True(best.Entry.IsInTrash);
+        Assert.Equal(new TrashPlace(1, GraphSamples.UKey), best.Entry.TrashPlace);
         Assert.Null(best.Entry.NodeKey);
         Assert.EndsWith("I soptunnan", best.Entry.Sub, StringComparison.Ordinal);
         var row = new SearchRowViewModel(best, isBest: true);
-        Assert.Equal(SearchRowViewModel.InTrashHint, row.Hint);
+        Assert.Equal(SearchRowViewModel.PutBackHint, row.Hint);
         Assert.DoesNotContain(
             "soptunnan",
             SearchIndex.Build(Scene(), Library).Search(GraphSamples.U.Value).Best!.Entry.Sub,

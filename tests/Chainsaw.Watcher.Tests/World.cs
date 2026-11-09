@@ -41,6 +41,7 @@ internal sealed class World : IDisposable
         services.AddSingleton<IVault, FakeVault>();
         services.AddSingleton<IPurposeKeys, FakePurposeKeys>();
         services.AddSingleton<IOperatorProfileStore>(new FakeProfiles());
+        services.AddSingleton<IVaultSecrets>(new TestVaultSecrets());
         services.AddSingleton<IClock>(Clock);
         services.AddSingleton<IExitHttp>(new FakeExitHttp(Clock));
         services.AddSingleton<IWatchGate>(new FakeGate());
@@ -86,7 +87,12 @@ internal sealed class World : IDisposable
         services.AddSingleton<IExitHttp>(Http);
         services.AddSingleton<IClock>(Clock);
         services.AddSingleton<IAlerts>(Alerts);
+        services.AddSingleton<IExitWebSocket>(new NoSockets());
+        Configure?.Invoke(services);
     });
+
+    /// <summary>Gets or sets what a test puts in place in the background process, before it is first made.</summary>
+    public Action<IServiceCollection>? Configure { get; set; }
 
     /// <summary>Bitcoin's endpoints in Chainsaw's settings: only the synthetic Esplora.</summary>
     public async Task UseTestEndpointAsync()
@@ -124,6 +130,27 @@ internal sealed class World : IDisposable
         });
     }
 
+    /// <summary>
+    /// Seals an answer of the case's own lookups that shows the Bitcoin chain at a height: what the background's start
+    /// and read-through height may count up to when brought into the case.
+    /// </summary>
+    public void SeenByTheCase(long height) => Case.Write(transaction =>
+        App<IResponseTransfer>().Seal(
+            transaction,
+            Answer(height.ToString(CultureInfo.InvariantCulture)),
+            new SealedResponseIndex(height, [])));
+
+    /// <summary>A synthetic Esplora answer, as an open Chainsaw's lookup seals it.</summary>
+    private static SealedResponse Answer(string body)
+    {
+        var bytes = Encoding.UTF8.GetBytes(body);
+        var at = new DateTimeOffset(2026, 11, 7, 3, 0, 0, TimeSpan.Zero).ToString("O", CultureInfo.InvariantCulture);
+        return new SealedResponse(
+            1, "bitcoin-mainnet", "esplora", Guid.Parse("0b9e1e4a-5c39-4a8e-9a55-3f1f6a1c0009"), "esplora.test",
+            Base + "blocks/tip/height", "tip-height", "tip", 200, "text/plain", at, at, at, "UTC", null, "windows",
+            "{}", Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(bytes)), bytes);
+    }
+
     public void Height(long height) => Http.Answer(
         Base + "blocks/tip/height",
         Encoding.ASCII.GetBytes(height.ToString(CultureInfo.InvariantCulture)),
@@ -150,4 +177,11 @@ internal sealed class RecordingAlerts : IAlerts
     public List<WatchAlerts> Raised { get; } = [];
 
     public void Raise(WatchAlerts ways) => Raised.Add(ways);
+}
+
+/// <summary>No websockets: the tests never reach the network, and the watching asks as before.</summary>
+internal sealed class NoSockets : IExitWebSocket
+{
+    public Task<IExitSocket> ConnectAsync(Uri address, CancellationToken cancellationToken = default) =>
+        throw new ExitNotConnectedException();
 }

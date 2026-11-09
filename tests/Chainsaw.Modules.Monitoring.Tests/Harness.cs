@@ -33,6 +33,7 @@ internal sealed class Harness : IDisposable
         services.AddSingleton<IVault, FakeVault>();
         services.AddSingleton<IPurposeKeys, FakePurposeKeys>();
         services.AddSingleton<IOperatorProfileStore>(Profiles);
+        services.AddSingleton<IVaultSecrets>(new TestVaultSecrets());
         services.AddSingleton<IClock>(Clock);
         services.AddSingleton<IWatchGate>(Gate);
         services.AddSingleton<IBitcoinSource>(Bitcoin);
@@ -61,6 +62,16 @@ internal sealed class Harness : IDisposable
 
     public T Get<T>()
         where T : notnull => _provider.GetRequiredService<T>();
+
+    /// <summary>
+    /// Seals an answer of the case's own lookups that shows the Bitcoin chain at a height, as far as the background's
+    /// read-through height may then count.
+    /// </summary>
+    public void SeenByTheCase(long height, DateTimeOffset? received = null) => Case.Write(transaction =>
+        Get<IResponseTransfer>().Seal(
+            transaction,
+            Responses.Make(1, height.ToString(System.Globalization.CultureInfo.InvariantCulture), received),
+            new SealedResponseIndex(height, [])));
 
     public FakeClock Clock { get; } = new();
 

@@ -10,6 +10,7 @@ using Chainsaw.App.Controls;
 using Chainsaw.App.Interop;
 using Chainsaw.App.Navigation;
 using Chainsaw.App.ViewModels;
+using Chainsaw.App.Views;
 using Microsoft.Win32;
 
 namespace Chainsaw.App;
@@ -139,12 +140,24 @@ public partial class MainWindow : Window
         WireRequests(shell, graph);
         WireLabels(shell, graph);
         WireExposure(shell, graph);
+        WireTimeline(shell, graph, monitoring.Board);
+        WireFlow(shell, graph);
         WireReport(shell, graph, report);
         WireEmptyGraph(shell, graph.Start);
         watchRunner.Start();
         shell.Settings.SettingsChanged += (_, settings) => _ = background.ApplyAsync(settings);
         background.Start();
         gate.PropertyChanged += OnGateChanged;
+        GraphPage.InspectorReachChanged += (_, _) => ShowSheet();
+        UnderPanel.Changed += (_, _) => Dispatcher.BeginInvoke(ShowSheet, DispatcherPriority.Render);
+        shell.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(ShellViewModel.IsGraphShown))
+            {
+                ShowSheet();
+            }
+        };
+        ShowSheet();
         ShowGate();
 
         BindViewKeys();
@@ -273,6 +286,7 @@ public partial class MainWindow : Window
 
         ExposurePage.Attach(exposure);
         exposure.Update(graph.Scene);
+        graph.Checks.Changed += (_, _) => exposure.UpdateWaysOut(graph.Checks.ApprovedWaysOut);
         graph.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(GraphViewModel.Scene))
@@ -316,6 +330,104 @@ public partial class MainWindow : Window
         };
     }
 
+    /// <summary>
+    /// Wires the view Tidslinje (sketch TL3a): it follows the graph shown and reads the case's own events (the labels,
+    /// the watches' hits and the decisions) with it, <em>Visa i grafen</em> shows the graph with the event lit,
+    /// <em>Varför?</em> opens the Guide's panel beside it, and the page takes the keyboard when it is shown.
+    /// </summary>
+    /// <param name="shell">The shell.</param>
+    /// <param name="graph">The graph.</param>
+    /// <param name="watches">The case's watches and their hits.</param>
+    private void WireTimeline(ShellViewModel shell, GraphViewModel graph, WatchBoard watches)
+    {
+        if (shell.Timeline is not { } timeline)
+        {
+            return;
+        }
+
+        TimelinePage.Attach(timeline);
+
+        // Read off the UI thread: the watches' snapshot and the sealed checks are replaced whole, never changed.
+        timeline.Moments = tracedGraph =>
+        [
+            .. Graph.TimelineReading.Hits(tracedGraph, watches.Snapshot.Watches, watches.Snapshot.Hits),
+            .. Graph.TimelineReading.Decisions(tracedGraph, graph.Checks.Stored),
+        ];
+        timeline.Update(graph.Scene);
+        graph.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(GraphViewModel.Scene))
+            {
+                timeline.Update(graph.Scene);
+            }
+        };
+        watches.Changed += (_, _) => timeline.MomentsChanged();
+        graph.Checks.Changed += (_, _) => timeline.MomentsChanged();
+        timeline.PathWanted += (_, path) =>
+        {
+            shell.Show(AppView.Graph);
+            graph.ShowPath(path);
+        };
+        timeline.GuideWanted += (_, request) => _guidePanel.Ask(request);
+        shell.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName != nameof(ShellViewModel.IsTimelineShown))
+            {
+                return;
+            }
+
+            // The reading runs only while the view is shown (principle 6).
+            timeline.IsShown = shell.IsTimelineShown;
+            if (shell.IsTimelineShown)
+            {
+                Dispatcher.BeginInvoke(() => TimelinePage.Focus(), DispatcherPriority.Input);
+            }
+        };
+    }
+
+    /// <summary>
+    /// Wires the view Flöde (sketch FL1a): it follows the graph shown, <em>Visa vägen i grafen</em> shows the graph with
+    /// the way lit, <em>Varför?</em> opens the Guide's panel beside it, and the page takes the keyboard when it is shown.
+    /// </summary>
+    /// <param name="shell">The shell.</param>
+    /// <param name="graph">The graph.</param>
+    private void WireFlow(ShellViewModel shell, GraphViewModel graph)
+    {
+        if (shell.Flow is not { } flow)
+        {
+            return;
+        }
+
+        FlowPage.Attach(flow);
+        flow.Update(graph.Scene);
+        graph.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(GraphViewModel.Scene))
+            {
+                flow.Update(graph.Scene);
+            }
+        };
+        flow.PathWanted += (_, path) =>
+        {
+            shell.Show(AppView.Graph);
+            graph.ShowPath(path);
+        };
+        flow.GuideWanted += (_, request) => _guidePanel.Ask(request);
+        shell.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName != nameof(ShellViewModel.IsFlowShown))
+            {
+                return;
+            }
+
+            // The flow is counted only while the view is shown (principle 6).
+            flow.IsShown = shell.IsFlowShown;
+            if (shell.IsFlowShown)
+            {
+                Dispatcher.BeginInvoke(() => FlowPage.Focus(), DispatcherPriority.Input);
+            }
+        };
+    }
 
     /// <summary>
     /// Wires the view Etiketter (sketch ET1a): its list follows the graph shown, <em>Visa i grafen</em> shows the graph
@@ -578,6 +690,12 @@ public partial class MainWindow : Window
             _shell.Show(AppView.Graph);
             _graph.ChooseFound(key);
         }
+        else if (row.Entry.TrashPlace is { } place)
+        {
+            // Put back from the row (TODO, Lägg tillbaka direkt på raden I soptunnan): the graph shows it again.
+            _shell.Show(AppView.Graph);
+            _ = _graph.PutBackFoundAsync(place);
+        }
         else if (row.Entry.IsInTrash)
         {
             // What lies in the trash is not drawn; it is found there, where it can be put back (sketch SO1a).
@@ -596,6 +714,9 @@ public partial class MainWindow : Window
     {
         var covered = _guidePanel.IsOpen ? GuidePanel.Width : 0;
         GraphPage.MakeRoom(covered);
+        TimelinePage.MakeRoom(covered);
+        FlowPage.MakeRoom(covered);
+        ExposurePage.MakeRoom(covered);
         CommandPanel.Margin = new Thickness(CommandBarGutter, 0, covered + CommandBarGutter, 0);
     }
 
@@ -632,8 +753,66 @@ public partial class MainWindow : Window
         }
 
         ShellRoot.Visibility = _gate.IsShellVisible ? Visibility.Visible : Visibility.Collapsed;
+        if (!_gate.IsGateVisible && Gate.Visibility == Visibility.Visible)
+        {
+            // Opened from the lock screen: the page stays over the shell while the helix becomes Nytt ärende (LS1b).
+            ShellRoot.UpdateLayout();
+            if (Gate.PlayUnlock(NewCaseNode, () => Gate.Visibility = Visibility.Collapsed))
+            {
+                CommandManager.InvalidateRequerySuggested();
+                return;
+            }
+        }
+
         Gate.Visibility = _gate.IsGateVisible ? Visibility.Visible : Visibility.Collapsed;
         CommandManager.InvalidateRequerySuggested();
+    }
+
+    /// <summary>
+    /// Lets the title bar stop where the graph's inspector, or any other panel under the work, starts (sketch IN5a): over
+    /// an open one the window's top is the panel's darker underlay with the window's buttons on it, and the title bar ends in a rounded corner with
+    /// its shadow over the panel, as the graph's sheet does below it. Without the inspector the title bar spans the
+    /// window under the buttons.
+    /// </summary>
+    private void ShowSheet()
+    {
+        var graph = _shell.IsGraphShown ? GraphPage.InspectorReach : 0;
+        var reach = Math.Max(graph, UnderPanel.Reach(ShellRoot));
+        var open = reach >= WindowButtonsWidth;
+        var corner = open ? new CornerRadius(0, GraphView.SheetCorner, 0, 0) : default;
+        var margin = open ? new Thickness(0, 0, reach, 0) : default;
+        TitleBar.Margin = margin;
+        TitleBar.CornerRadius = corner;
+        TitleShadow.Margin = margin;
+        TitleShadow.CornerRadius = corner;
+        TitleShadow.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
+        TitleUnderlay.Width = open ? reach + GraphView.SheetCorner : 0;
+        TitleUnderlay.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
+        TitleRow.Margin = new Thickness(0, 0, open ? 0 : WindowButtonsWidth, 0);
+    }
+
+    /// <summary>The window's three buttons' width, kept free at the title bar's right end when they lie on it.</summary>
+    private const double WindowButtonsWidth = 138;
+
+    /// <summary>Finds the node Nytt ärende on the graph's start page, where the shell shows it.</summary>
+    /// <returns>The node, or null when the start page or the node is not shown.</returns>
+    private FrameworkElement? NewCaseNode() =>
+        Descendants(ShellRoot).OfType<GraphStartView>().FirstOrDefault(view => view.IsVisible)?.NewCaseNode;
+
+    /// <summary>Walks the visual tree under an element, depth first.</summary>
+    /// <param name="root">The element.</param>
+    /// <returns>Every visual under it.</returns>
+    private static IEnumerable<DependencyObject> Descendants(DependencyObject root)
+    {
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            yield return child;
+            foreach (var below in Descendants(child))
+            {
+                yield return below;
+            }
+        }
     }
 
     /// <summary>Gives every view in the table its shortcut, so that the rail and the keys never disagree.</summary>
@@ -902,11 +1081,19 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Follows the exits' panel (sketch UT1a): the keyboard goes into it when it folds out, and back to the exit in the
-    /// title bar when it folds in while the keyboard was in it.
+    /// Follows the exits' panel (sketch UT1a): Ctrl+U folds it out and in, the keyboard goes into it when it folds
+    /// out, and back to the exit in the title bar when it folds in while the keyboard was in it.
     /// </summary>
     private void WatchExitPanel()
     {
+        if (Shortcuts.TryParse(ViewTable.ExitsGesture) is { } gesture)
+        {
+            var toggle = new RoutedCommand();
+            CommandBindings.Add(new CommandBinding(
+                toggle, (_, _) => _shell.ExitPanel.Toggle(), (_, e) => e.CanExecute = _gate.IsShellVisible));
+            InputBindings.Add(new KeyBinding(toggle, gesture));
+        }
+
         _shell.ExitPanel.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName != nameof(ExitPanelViewModel.IsOpen))
@@ -938,6 +1125,7 @@ public partial class MainWindow : Window
         }
 
         CasePickerView.Attach(picker);
+        picker.GuideWanted += (_, request) => _guidePanel.Ask(request);
         if (Shortcuts.TryParse(CasePickerGesture) is { } gesture)
         {
             var open = new RoutedCommand();

@@ -45,10 +45,21 @@ internal static class CaseChecks
             problems.Add(CaseProblem.AnchorsReplaced);
         }
 
+        if (HasForeignTrigger(database, transaction))
+        {
+            problems.Add(CaseProblem.TriggerAdded);
+        }
+
         var results = new List<ChainVerification>();
         foreach (var chain in chains)
         {
             var result = HashChain.Verify(database, transaction, chain, registered.GetValueOrDefault(chain.Name));
+            if (result.Break is null && !BodiesMatchTheirHash(database, transaction, chain)
+                && !problems.Contains(CaseProblem.BodyHashMismatch))
+            {
+                problems.Add(CaseProblem.BodyHashMismatch);
+            }
+
             var anchor = anchors?.FirstOrDefault(item => item.Chain == chain.Name);
             if (result.Break is null && anchor is not null && !Reaches(database, transaction, chain, anchor))
             {
@@ -87,6 +98,35 @@ internal static class CaseChecks
 
         var hash = HashChain.ReadRecordHash(database, transaction, chain, anchor.Sequence);
         return hash is not null && CryptographicOperations.FixedTimeEquals(hash, anchor.Hash);
+    }
+
+    /// <summary>
+    /// Checks that every record of a chain with a <c>sha256</c> and a <c>body</c> column (the sealed raw responses)
+    /// holds the SHA-256 of its body. The rows are read one at a time, so a large case is not held in memory.
+    /// </summary>
+    /// <param name="database">The database.</param>
+    /// <param name="transaction">The transaction.</param>
+    /// <param name="chain">The chain, whose table is known to hold its columns.</param>
+    /// <returns><see langword="true"/> when every body matches, or the chain has no such columns.</returns>
+    private static bool BodiesMatchTheirHash(CaseDatabase database, SqliteTransaction transaction, SealedChain chain)
+    {
+        if (!chain.ContentColumns.Contains("sha256") || !chain.ContentColumns.Contains("body"))
+        {
+            return true;
+        }
+
+        using var command = database.Command($"SELECT sha256, body FROM {chain.Table}", transaction);
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            if (reader.GetValue(0) is not byte[] stored || reader.GetValue(1) is not byte[] body
+                || !SHA256.HashData(body).AsSpan().SequenceEqual(stored))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /// <summary>
@@ -202,6 +242,35 @@ internal static class CaseChecks
         using var command = database.Command("SELECT count(*) FROM journal WHERE kind = $kind", transaction);
         command.Parameters.AddWithValue("$kind", CaseJournalKinds.AnchorsReplaced);
         return command.ExecuteScalar() is long count && count > 0;
+    }
+
+    /// <summary>
+    /// Checks for a trigger that Chainsaw does not make: every trigger must be one of the Cases module's protecting
+    /// triggers or a sealed table's, exactly as created. A trigger on a table that is not sealed (for example one that
+    /// drops a module's index rows with <c>RAISE(IGNORE)</c>) is otherwise seen by no check, and runs on every write.
+    /// </summary>
+    /// <param name="database">The database.</param>
+    /// <param name="transaction">The transaction.</param>
+    /// <returns><see langword="true"/> when there is such a trigger.</returns>
+    private static bool HasForeignTrigger(CaseDatabase database, SqliteTransaction transaction)
+    {
+        using var command = database.Command(
+            "SELECT name, tbl_name, sql FROM sqlite_schema WHERE type = 'trigger'", transaction);
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            var name = reader.GetValue(0) as string ?? string.Empty;
+            var table = reader.GetValue(1) as string ?? string.Empty;
+            var sql = reader.GetValue(2) as string;
+            var known = CasesSchema.ProtectingTriggers.Any(trigger => trigger.Name == name && trigger.Table == table)
+                || HashChain.Triggers(table).Any(trigger => trigger.Name == name && trigger.Sql == sql);
+            if (!known)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>

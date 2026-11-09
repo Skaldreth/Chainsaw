@@ -436,6 +436,9 @@ public sealed class StartPointPrefetchTests
 
         public IReadOnlyList<CaseEnvelope> DescribeEnvelopes() => [];
 
+        public FileKeyReplacement ReplaceFileKey(ReadOnlySpan<char> masterKey, ReadOnlySpan<char> sharingPassword) =>
+            throw new NotSupportedException();
+
         public void Save()
         {
         }

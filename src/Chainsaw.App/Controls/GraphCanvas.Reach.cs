@@ -4,6 +4,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using Chainsaw.App.Graph;
 using Chainsaw.App.ViewModels;
+using static Chainsaw.App.Controls.Freezing;
 
 namespace Chainsaw.App.Controls;
 
@@ -54,7 +55,7 @@ public sealed partial class GraphCanvas
             if (e.PropertyName is nameof(GraphViewModel.ShowsOffline) or nameof(GraphViewModel.IsExpanding)
                 or nameof(GraphViewModel.HasCase))
             {
-                InvalidateVisual();
+                Redraw();
             }
         };
     }
@@ -150,12 +151,12 @@ public sealed partial class GraphCanvas
             _sections = (model.Places, ChainSections.Of(scene, model.Places));
         }
 
-        var ink = GraphPalette.Find(this, "Brush.TextFaint");
+        var ink = Ink("Brush.TextFaint");
         var shown = _sections.Parts.Where(part => part.Bounds.Inflate(ChainSections.HeadingLift).Intersects(visible));
         foreach (var part in shown)
         {
             var name = CaseTexts.ChainName(part.Chain).ToUpperInvariant();
-            dc.DrawText(CachedText(name, 11, ink, FontWeights.Normal), new Point(part.HeadingAt.X, part.HeadingAt.Y));
+            dc.DrawText(Text(name, 11, ink, FontWeights.Normal), new Point(part.HeadingAt.X, part.HeadingAt.Y));
         }
     }
 
@@ -173,22 +174,22 @@ public sealed partial class GraphCanvas
             return;
         }
 
-        var accent = GraphPalette.Find(this, "Brush.Accent");
-        var faint = GraphPalette.Find(this, "Brush.BorderStrong");
+        var accent = Ink("Brush.Accent");
+        var faint = Ink("Brush.BorderStrong");
         DrawGuideLine(dc, guide.ToExpand, accent, 0.7);
         DrawGuideLine(dc, guide.ToExit, faint, 0.45);
         DrawSonar(dc, guide.Expand, accent);
         DrawGuideNode(dc, guide.Expand, StartGuide.ExpandTitle, model.StartGuideHint, accent);
-        DrawGuideIcon(dc, guide.Expand, "Icon.Plus", GraphPalette.Find(this, "Brush.TextMuted"), round: true);
+        DrawGuideIcon(dc, guide.Expand, "Icon.Plus", Ink("Brush.TextMuted"), round: true);
 
-        var text = Text(model.StartGuideText, 12, GraphPalette.Find(this, "Brush.TextMuted"), FontWeights.Normal);
+        var text = NewText(model.StartGuideText, 12, Ink("Brush.TextMuted"), FontWeights.Normal);
         text.MaxTextWidth = GuideTextWidth;
         text.TextAlignment = TextAlignment.Center;
         dc.DrawText(text, new Point(guide.Expand.Centre.X - (GuideTextWidth / 2), guide.Expand.Bottom + 10));
 
         dc.PushOpacity(FaintGuideOpacity);
         DrawGuideNode(dc, guide.Exit, StartGuide.ExitTitle, StartGuide.ExitHint, faint);
-        DrawGuideIcon(dc, guide.Exit, "Icon.Kind.Bank", GraphPalette.Find(this, "Brush.Kind.CashOut"), round: false);
+        DrawGuideIcon(dc, guide.Exit, "Icon.Kind.Bank", Ink("Brush.Kind.CashOut"), round: false);
         dc.Pop();
     }
 
@@ -197,15 +198,11 @@ public sealed partial class GraphCanvas
     /// <param name="curve">The line.</param>
     /// <param name="ink">Its colour.</param>
     /// <param name="opacity">How strong it is.</param>
-    private static void DrawGuideLine(DrawingContext dc, EdgeCurve curve, Brush ink, double opacity)
+    private void DrawGuideLine(DrawingContext dc, EdgeCurve curve, Brush ink, double opacity)
     {
-        var pen = new Pen(ink, 1.5)
-        {
-            DashStyle = StartGuideDots, DashCap = PenLineCap.Round, StartLineCap = PenLineCap.Round,
-            EndLineCap = PenLineCap.Round,
-        };
+        var pen = PenOf(ink, 1.5, StartGuideDots, PenLineCap.Round, PenLineCap.Round);
         dc.PushOpacity(opacity);
-        dc.DrawGeometry(null, pen, Geometry(curve));
+        dc.DrawGeometry(null, pen, CurveGeometry(curve));
         dc.Pop();
     }
 
@@ -218,8 +215,8 @@ public sealed partial class GraphCanvas
     /// <param name="accent">The accent.</param>
     private void DrawSonar(DrawingContext dc, GraphRect frame, Brush accent)
     {
-        _ringsOnScreen = true;
-        var pen = new Pen(accent, 1.5);
+        RingsAt(frame.Inflate(frame.Width));
+        var pen = PenOf(accent, 1.5);
         for (var ring = 0; ring < 2; ring++)
         {
             var step = AnimationsOn ? (_ringPhase + (ring * 0.5)) % 1 : 0.5;
@@ -243,11 +240,11 @@ public sealed partial class GraphCanvas
     private void DrawGuideNode(DrawingContext dc, GraphRect frame, string title, string hint, Brush edge)
     {
         var rect = new Rect(frame.X, frame.Y, frame.Width, frame.Height);
-        var pen = new Pen(edge, 1.5) { DashStyle = StartGuideDash };
-        dc.DrawRoundedRectangle(GraphPalette.Find(this, "Brush.Surface"), pen, rect, GuideRadius, GuideRadius);
+        var pen = PenOf(edge, 1.5, StartGuideDash);
+        dc.DrawRoundedRectangle(Ink("Brush.Surface"), pen, rect, GuideRadius, GuideRadius);
         var left = frame.X + 10 + GuideIconBox + 10;
-        var name = Text(title, 12.5, GraphPalette.Find(this, "Brush.Text"), FontWeights.SemiBold);
-        var second = Text(hint, 11, GraphPalette.Find(this, "Brush.TextDim"), FontWeights.Normal);
+        var name = Text(title, 12.5, Ink("Brush.Text"), FontWeights.SemiBold);
+        var second = Text(hint, 11, Ink("Brush.TextDim"), FontWeights.Normal);
         var top = frame.Y + ((frame.Height - name.Height - second.Height - 2) / 2);
         dc.DrawText(name, new Point(left, top));
         dc.DrawText(second, new Point(left, top + name.Height + 2));
@@ -264,7 +261,7 @@ public sealed partial class GraphCanvas
         var corner = new Point(frame.X + 10, frame.Y + ((frame.Height - GuideIconBox) / 2));
         var radius = round ? GuideIconBox / 2 : 7;
         var square = new Rect(corner, new Size(GuideIconBox, GuideIconBox));
-        dc.DrawRoundedRectangle(null, new Pen(ink, 1.5) { DashStyle = StartGuideDash }, square, radius, radius);
+        dc.DrawRoundedRectangle(null, PenOf(ink, 1.5, StartGuideDash), square, radius, radius);
         var offset = (GuideIconBox - GuideIconSize) / 2;
         DrawGlyph(dc, icon, ink, new Point(corner.X + offset, corner.Y + offset), GuideIconSize);
     }

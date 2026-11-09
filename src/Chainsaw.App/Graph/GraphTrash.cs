@@ -21,6 +21,11 @@ public sealed record TrashStub(string NodeKey, bool IsOut)
     public const string WatchedLabel = "i soptunnan · bevakad";
 }
 
+/// <summary>Where a node lies in the trash: the throw and the member it is put back by.</summary>
+/// <param name="Throw">The throw's record in the sealed chain.</param>
+/// <param name="Key">The member's key in the throw.</param>
+public sealed record TrashPlace(long Throw, string Key);
+
 /// <summary>
 /// What the trash hides in the graph (sketch SO1a): every key its throws are found by. A node is hidden when its key
 /// lies in the trash, or every key it is known by does (<see cref="TrashMember.IsHidden"/>), so that a cluster that got
@@ -78,6 +83,58 @@ public sealed class TrashFilter
         return Hides(address.Chain == Chain.Bitcoin
             ? GraphPile.AddressKeyPrefix + address.Value
             : GraphPile.AccountKey(address));
+    }
+
+    /// <summary>
+    /// Finds how a hidden node is put back from elsewhere than the trash's view (TODO, <em>Lägg tillbaka direkt på
+    /// raden I soptunnan</em>): only when the user threw the node itself, under its own key, and putting that member
+    /// back with what followed it leaves the node shown. A node that only followed another into the trash, or whose
+    /// keys lie in more than one throw, has no place, and its row opens the trash with the tree instead, so that
+    /// nothing is put back that the user did not see.
+    /// </summary>
+    /// <param name="node">The node.</param>
+    /// <returns>The throw and the member, or <see langword="null"/> when it is put back from the trash's view.</returns>
+    public TrashPlace? PlaceOf(GraphNode node)
+    {
+        ArgumentNullException.ThrowIfNull(node);
+        foreach (var thrown in Throws.OrderByDescending(each => each.Sequence))
+        {
+            if (thrown.Members.FirstOrDefault(member => member.IsRoot && member.Key == node.Key) is not { } root)
+            {
+                continue;
+            }
+
+            var back = Branch(thrown, root.Key);
+            var left = Throws
+                .SelectMany(each => each.Members.Where(member => each != thrown || !back.Contains(member.Key)))
+                .SelectMany(member => member.FoundBy.Append(member.Key))
+                .ToHashSet(StringComparer.Ordinal);
+            return TrashMember.IsHidden(node.Key, KeysOf(node), left)
+                ? null
+                : new TrashPlace(thrown.Sequence, root.Key);
+        }
+
+        return null;
+    }
+
+    /// <summary>Gives the keys of a member and of everything that followed it into the trash, in one throw.</summary>
+    /// <param name="thrown">The throw.</param>
+    /// <param name="key">The member's key.</param>
+    /// <returns>The keys.</returns>
+    private static HashSet<string> Branch(TrashThrow thrown, string key)
+    {
+        var branch = new HashSet<string>(StringComparer.Ordinal) { key };
+        var grew = true;
+        while (grew)
+        {
+            grew = false;
+            foreach (var member in thrown.Members.Where(m => m.Parent is { } parent && branch.Contains(parent)))
+            {
+                grew |= branch.Add(member.Key);
+            }
+        }
+
+        return branch;
     }
 
     /// <summary>

@@ -62,21 +62,28 @@ public sealed class ChainSourcesTests : IDisposable
     }
 
     [Fact]
-    public async Task Snabbast_asks_only_for_the_height_and_takes_the_fastest_that_is_not_behind()
+    public async Task Snabbast_asks_for_the_height_and_its_hash_and_takes_the_fastest_that_is_not_behind()
     {
         var sources = Create(Endpoints(Slow, Lagging, Fast));
         Height(Slow, 921_404, 240);
         Height(Lagging, 921_402, 38);
         Height(Fast, 921_404, 180);
+        const string Hash = "00000000000000000001a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f7";
+        _http.AnswerBytes(Fast + "block-height/921404", Encoding.ASCII.GetBytes(Hash), 200);
 
         var run = await sources.ProbeAsync(Chain.Bitcoin);
 
         Assert.Equal(ProbeRun.Probed, run);
         Assert.Equal(3, _http.Sent.Count(request => request.Uri.AbsoluteUri.EndsWith("/blocks/tip/height")));
         Assert.Equal(3, _http.Sent.Count(request => request.Uri.AbsoluteUri.EndsWith("/block-height/0")));
-        Assert.Equal(6, _http.Sent.Count);
+
+        // The hash at the height each answered, so that the card shows both (KL2b).
+        Assert.Equal(3, _http.Sent.Count(request => request.Uri.AbsoluteUri.Contains("/block-height/9214")));
+        Assert.Equal(9, _http.Sent.Count);
         var view = sources.Get(Chain.Bitcoin);
         Assert.Equal(Fast, view.InUse!.Endpoint.Address.AbsoluteUri);
+        Assert.Equal(Hash, view.InUse.Probe!.BlockHash);
+        Assert.Null(view.Endpoints.Single(e => e.Endpoint.Address.AbsoluteUri == Slow).Probe!.BlockHash);
         var behind = view.Endpoints.Single(e => e.Endpoint.Address.AbsoluteUri == Lagging).Probe!;
         Assert.Equal(ProbeOutcome.Behind, behind.Outcome);
         Assert.Equal(921_402, behind.Height);
@@ -279,8 +286,8 @@ public sealed class ChainSourcesTests : IDisposable
 
         await sources.ProbeAsync(Chain.Bitcoin);
 
-        // The height and the chain's first block, each with the key.
-        Assert.Equal(2, _http.Sent.Count);
+        // The height, the chain's first block and the block's hash at the height, each with the key.
+        Assert.Equal(3, _http.Sent.Count);
         Assert.All(_http.Sent, request =>
         {
             Assert.Equal(new ExitCredential("Authorization", "Bearer s3cret"), request.Credential);

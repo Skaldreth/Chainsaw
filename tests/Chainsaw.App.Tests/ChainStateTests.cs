@@ -576,6 +576,19 @@ public sealed class ChainStateTests
     /// <summary>Bitcoin's sources as the test sets them.</summary>
     private sealed class FakeSources : IChainSources
     {
+        public event EventHandler<SourceEndpoint>? CertificateRefused
+        {
+            add { }
+            remove { }
+        }
+
+        public Task<Chainsaw.Modules.Network.Contracts.NodeCertificate> ReadCertificateAsync(
+            Chain chain, Guid id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task PinAsync(Chain chain, Guid id, string fingerprint, string by) => Task.CompletedTask;
+
+        public Task UnpinAsync(Chain chain, Guid id, string by) => Task.CompletedTask;
+
         public ChainSourcesView View { get; set; } = ChainStateTests.View((null, false));
 
         public IReadOnlyList<Chain> Chains { get; } = [Chain.Bitcoin];

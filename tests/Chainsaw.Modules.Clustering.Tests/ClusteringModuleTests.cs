@@ -21,20 +21,21 @@ public sealed class ClusteringModuleTests
     }
 
     [Fact]
-    public void The_module_registers_four_heuristics_coinjoin_first_and_its_sealed_tables()
+    public void The_module_registers_five_heuristics_coinjoin_first_and_its_sealed_tables()
     {
         using var provider = new ServiceCollection().AddClusteringModule().BuildServiceProvider();
 
         var service = provider.GetRequiredService<IClusteringService>();
         Assert.Equal(
-            ["coinjoin v1", "common-input-ownership v1", "change-address v1", "peel-chain v1"],
+            ["coinjoin v2", "common-input-ownership v1", "change-address v2", "peel-chain v2", "payjoin v2"],
             service.Heuristics.Select(heuristic => heuristic.ToString()));
         var schema = Assert.Single(provider.GetServices<ICaseSchemaContributor>());
         Assert.Equal("clustering", schema.Module);
         Assert.Equal(
             [
                 "clustering.evidence", "clustering.splits", "clustering.split_undos", "clustering.merges",
-                "clustering.merge_undos",
+                "clustering.merge_undos", "clustering.withdrawals", "clustering.withdrawal_undos",
+                "clustering.held_back_decisions",
             ],
             schema.SealedChains.Select(chain => chain.Name));
     }

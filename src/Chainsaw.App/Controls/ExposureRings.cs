@@ -1,10 +1,10 @@
 using System.Globalization;
 using System.Windows;
-using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
 using Chainsaw.App.Graph;
 using Chainsaw.Modules.Tracing.Contracts;
+using static Chainsaw.App.Controls.Freezing;
 
 namespace Chainsaw.App.Controls;
 
@@ -70,6 +70,9 @@ public sealed class ExposureRings : FrameworkElement
     /// <summary>The place under the pointer, for the hand and the tooltip.</summary>
     private RingPlace? _hovered;
 
+    /// <summary>Creates the rings.</summary>
+    public ExposureRings() => Ink = new ChartDrawing(this);
+
     /// <summary>Gets or sets the picture.</summary>
     public ExposurePicture Picture
     {
@@ -97,6 +100,9 @@ public sealed class ExposureRings : FrameworkElement
         get => (ICommand?)GetValue(PickCommandProperty);
         set => SetValue(PickCommandProperty, value);
     }
+
+    /// <summary>Gets the text and its halo, as the other drawn charts write them.</summary>
+    private ChartDrawing Ink { get; }
 
     /// <summary>Gets how much the picture is scaled to fit, and where its corner stands.</summary>
     private (double Scale, Point Corner) Fit
@@ -139,7 +145,7 @@ public sealed class ExposureRings : FrameworkElement
             DrawVia(dc, via);
         }
 
-        foreach (var service in picture.Services)
+        foreach (var service in picture.Services.Concat(picture.Candidates))
         {
             DrawService(dc, service);
         }
@@ -213,12 +219,15 @@ public sealed class ExposureRings : FrameworkElement
         }
 
         var muted = GraphPalette.Find(this, "Brush.TextMuted");
-        var left = Text(picture.InText, 12, muted);
+        var left = Ink.Text(picture.InText, 12, muted);
         dc.DrawText(left, new Point(centre.X - 16 - left.Width, centre.Y + TotalsBelow - left.Height));
-        dc.DrawText(Text(picture.OutText, 12, muted), new Point(centre.X + 16, centre.Y + TotalsBelow - left.Height));
+        dc.DrawText(
+            Ink.Text(picture.OutText, 12, muted), new Point(centre.X + 16, centre.Y + TotalsBelow - left.Height));
     }
 
-    /// <summary>Draws a line of the money: a soft curve, lit or dimmed by the choice.</summary>
+    /// <summary>
+    /// Draws a line of the money: a soft curve, lit or dimmed by the choice; dotted to an approved likely way out.
+    /// </summary>
     /// <param name="dc">Where to draw.</param>
     /// <param name="line">The line.</param>
     private void DrawLine(DrawingContext dc, RingLine line)
@@ -246,8 +255,14 @@ public sealed class ExposureRings : FrameworkElement
         }
 
         dc.PushOpacity(HasChoice && !lit ? DimLine : 1);
-        dc.DrawGeometry(null, new Pen(ink, line.Width) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round },
-            geometry);
+        var pen = new Pen(ink, line.Width)
+        {
+            StartLineCap = PenLineCap.Round,
+            EndLineCap = PenLineCap.Round,
+            DashCap = PenLineCap.Round,
+            DashStyle = line.IsDotted ? RingDash : DashStyles.Solid,
+        };
+        dc.DrawGeometry(null, pen, geometry);
         dc.Pop();
     }
 
@@ -269,7 +284,8 @@ public sealed class ExposureRings : FrameworkElement
 
     /// <summary>
     /// Draws a service: its frame in its sort's shape and colour with the sort's icon, larger the larger its share, the
-    /// sanction mark in the corner, and its name and amount beside it, outwards from the axis.
+    /// sanction mark in the corner, and its name and amount beside it, outwards from the axis. An approved likely way
+    /// out beyond a mixer is drawn the same, dashed, with <em>förslag</em> beside it.
     /// </summary>
     /// <param name="dc">Where to draw.</param>
     /// <param name="place">The service.</param>
@@ -294,7 +310,7 @@ public sealed class ExposureRings : FrameworkElement
 
         var frame = new Pen(chosen ? accent : ink, chosen ? 2 : 1.5)
         {
-            DashStyle = place.Look.IsDashed ? FrameDash : DashStyles.Solid,
+            DashStyle = place.Look.IsDashed || place.IsCandidate ? FrameDash : DashStyles.Solid,
         };
         dc.DrawRoundedRectangle(GraphPalette.Find(this, "Brush.Surface"), frame, box, radius, radius);
         var icon = place.Size * 0.54;
@@ -376,8 +392,8 @@ public sealed class ExposureRings : FrameworkElement
     /// <param name="weight">Its weight; normal by default.</param>
     private void WriteCentred(DrawingContext dc, string text, double size, Brush ink, Point top, FontWeight? weight = null)
     {
-        var formatted = Text(text, size, ink, weight);
-        Halo(dc, formatted, new Point(top.X - (formatted.Width / 2), top.Y));
+        var formatted = Ink.Text(text, size, ink, weight);
+        Ink.Halo(dc, formatted, new Point(top.X - (formatted.Width / 2), top.Y));
     }
 
     /// <summary>
@@ -399,51 +415,14 @@ public sealed class ExposureRings : FrameworkElement
             return;
         }
 
-        var formatted = Text(text, size, ink);
+        var formatted = Ink.Text(text, size, ink);
         var x = rightwards ? at.X : at.X - formatted.Width;
         var y = above ? at.Y - formatted.Height : at.Y;
-        Halo(dc, formatted, new Point(x, y));
+        Ink.Halo(dc, formatted, new Point(x, y));
     }
-
-    /// <summary>Draws a text with a halo of the background, so that lines under it never cross the letters.</summary>
-    /// <param name="dc">Where to draw.</param>
-    /// <param name="formatted">The text.</param>
-    /// <param name="origin">Its top-left corner.</param>
-    private void Halo(DrawingContext dc, FormattedText formatted, Point origin)
-    {
-        var outline = formatted.BuildGeometry(origin);
-        var pen = new Pen(GraphPalette.Find(this, "Brush.Background"), 4) { LineJoin = PenLineJoin.Round };
-        dc.DrawGeometry(null, pen, outline);
-        dc.DrawText(formatted, origin);
-    }
-
-    /// <summary>Lays out a text in the page's font.</summary>
-    /// <param name="text">The text.</param>
-    /// <param name="size">The size.</param>
-    /// <param name="ink">The ink.</param>
-    /// <param name="weight">The weight; normal by default.</param>
-    /// <returns>The text.</returns>
-    private FormattedText Text(string text, double size, Brush ink, FontWeight? weight = null) => new(
-        text,
-        CultureInfo.CurrentUICulture,
-        FlowDirection.LeftToRight,
-        new Typeface(
-            TextElement.GetFontFamily(this), FontStyles.Normal, weight ?? FontWeights.Normal, FontStretches.Normal),
-        size,
-        ink,
-        VisualTreeHelper.GetDpi(this).PixelsPerDip);
 
     /// <summary>Turns a point of the picture into WPF's.</summary>
     /// <param name="point">The point.</param>
     /// <returns>The same point.</returns>
     private static Point ToPoint(GraphPoint point) => new(point.X, point.Y);
-
-    /// <summary>Freezes a dash style, so that it can be shared.</summary>
-    /// <param name="style">The style.</param>
-    /// <returns>The same style, frozen.</returns>
-    private static DashStyle Frozen(DashStyle style)
-    {
-        style.Freeze();
-        return style;
-    }
 }

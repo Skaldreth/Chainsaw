@@ -16,8 +16,8 @@ redan säger var du är.
 | --- | --- | --- |
 | Nytt | Ctrl+N | En meny som fälls ut ur knappen: Startpunkt (S), Bevakning (B), Importera sanktionslista … (I) och Ärende (Ctrl+N). Etikett och Begäran är tonade |
 | Graf | Ctrl+1 | Byggd. Där spåret följs, se [Grafen och bildspråket](grafen.md) |
-| Tidslinje | Ctrl+2 | Inte byggd än. Tiden finns redan under grafen, se [Tidslinjen under grafen](tidslinjen.md) |
-| Flöde | Ctrl+3 | Inte byggd än. Pengar in och ut som ett flöde |
+| Tidslinje | Ctrl+2 | Byggd. En bana per aktör och tx:erna i tidsordning, se [Vyn Tidslinje](vyn-tidslinje.md) |
+| Flöde | Ctrl+3 | Byggd. Offrens pengar som band, hopp för hopp, se [Flödet](flodet.md) |
 | Exponering | Ctrl+4 | Byggd. Vilka tjänster ett kluster har betalat till eller fått från, se [Exponering](exponering.md) |
 | Begäran | Ctrl+5 | Inte byggd än, se [Begäran om uppgifter](begaran.md) |
 | Bevakning | Ctrl+6 | Byggd, se [Bevakning](bevakning.md) |

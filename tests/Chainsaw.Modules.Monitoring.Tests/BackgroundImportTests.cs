@@ -5,8 +5,8 @@ using Chainsaw.SharedKernel;
 namespace Chainsaw.Modules.Monitoring.Tests;
 
 /// <summary>
-/// What the background saw, brought into the case when it is opened: raw responses sealed again, hits sealed with a
-/// journal line, starts and progress, each entry once.
+/// What the background saw, brought into the case when it is opened: raw responses sealed again, its hits sealed as
+/// tips (never as hits) with a journal line, starts and progress, each entry once.
 /// </summary>
 public sealed class BackgroundImportTests : IDisposable
 {
@@ -45,31 +45,37 @@ public sealed class BackgroundImportTests : IDisposable
     }
 
     [Fact]
-    public async Task A_check_from_the_background_is_sealed_with_its_responses_hits_and_journal()
+    public async Task A_check_from_the_background_is_sealed_with_its_responses_and_its_hits_only_as_tips()
     {
         var watch = await StartedWatch();
+        _harness.SeenByTheCase(900_010);
         var entry = Hit(watch, 900_003);
         Queue.Add(entry);
 
         var result = Background.Import(_harness.Case);
 
         Assert.Equal((1, 2), (result.Entries, result.Responses));
-        var hit = Assert.Single(result.Hits);
+        var hit = Assert.Single(result.Tips);
         Responses.AssertSame(entry.Matches[0], hit.Match);
         var sealedResponses = ResponseSequences();
-        Assert.Equal(2, sealedResponses.Count);
-        Assert.Equal([sealedResponses[1]], hit.Origins);
-        Assert.Equal(hit.Sequence, Assert.Single(_harness.Service.GetHits(_harness.Case)).Sequence);
-        var line = Assert.Single(_harness.Journal(MonitoringJournalKinds.Hit));
-        Assert.Contains("i bakgrunden", line.Summary, StringComparison.Ordinal);
+        Assert.Equal(3, sealedResponses.Count);
+        Assert.Equal([sealedResponses[2]], hit.Origins);
+        Assert.Equal(hit.Sequence, Assert.Single(_harness.Service.GetTips(_harness.Case)).Sequence);
+        Assert.Equal(WatchTipState.Pending, hit.State);
+        Assert.Equal(entry.Id, hit.Entry);
+        Assert.Empty(_harness.Service.GetHits(_harness.Case));
+        Assert.Empty(_harness.Journal(MonitoringJournalKinds.Hit));
+        var line = Assert.Single(_harness.Journal(MonitoringJournalKinds.Tip));
+        Assert.Contains("väntar på kontroll", line.Summary, StringComparison.Ordinal);
         Assert.Equal(line.Sequence, hit.JournalSequence);
         Assert.Single(_harness.Journal(MonitoringJournalKinds.Imported));
-        Assert.Equal(900_004, _harness.Service.GetChecked(_harness.Case)[watch.Id].Height);
+        Assert.Equal(900_000, _harness.Service.GetChecked(_harness.Case)[watch.Id].Height);
         Assert.Empty(Queue.List(CaseId));
         Assert.True(_harness.Verify().IsIntact);
         var fetchedBy = _harness.Case.Read(reader =>
         {
-            using var command = reader.CreateCommand("SELECT fetched_by, exit_route FROM chains_raw_responses");
+            using var command = reader.CreateCommand(
+                "SELECT fetched_by, exit_route FROM chains_raw_responses ORDER BY sequence DESC");
             using var row = command.ExecuteReader();
             row.Read();
             return (row.GetString(0), row.GetString(1));
@@ -91,13 +97,13 @@ public sealed class BackgroundImportTests : IDisposable
         var again = Background.Import(_harness.Case);
 
         Assert.Equal(0, again.Entries);
-        Assert.Single(_harness.Service.GetHits(_harness.Case));
+        Assert.Single(_harness.Service.GetTips(_harness.Case));
         Assert.Equal(2, ResponseSequences().Count);
         Assert.Empty(Queue.List(CaseId));
     }
 
     [Fact]
-    public async Task A_hit_seen_twice_by_the_background_or_already_in_the_case_is_sealed_once()
+    public async Task A_hit_seen_twice_by_the_background_comes_in_as_one_tip()
     {
         var watch = await StartedWatch();
         Queue.Add(Hit(watch, 900_003));
@@ -106,7 +112,7 @@ public sealed class BackgroundImportTests : IDisposable
         var result = Background.Import(_harness.Case);
 
         Assert.Equal(2, result.Entries);
-        Assert.Single(result.Hits);
+        Assert.Single(result.Tips);
         Assert.Equal(4, ResponseSequences().Count);
     }
 
@@ -124,8 +130,8 @@ public sealed class BackgroundImportTests : IDisposable
         var result = Background.Import(_harness.Case);
 
         Assert.Equal(2, result.Entries);
-        Assert.Empty(result.Hits);
-        Assert.Empty(_harness.Service.GetHits(_harness.Case));
+        Assert.Empty(result.Tips);
+        Assert.Empty(_harness.Service.GetTips(_harness.Case));
         Assert.Equal(4, ResponseSequences().Count);
     }
 
@@ -138,7 +144,7 @@ public sealed class BackgroundImportTests : IDisposable
 
         var result = Background.Import(_harness.Case);
 
-        Assert.Equal(900_003, Assert.Single(result.Hits).Match.Block.Height);
+        Assert.Equal(900_003, Assert.Single(result.Tips).Match.Block.Height);
     }
 
     [Fact]
@@ -149,7 +155,7 @@ public sealed class BackgroundImportTests : IDisposable
 
         var result = Background.Import(_harness.Case);
 
-        Assert.Single(result.Hits);
+        Assert.Single(result.Tips);
         Assert.Equal(900_000, _harness.Service.GetChecked(_harness.Case)[watch.Id].Height);
     }
 
@@ -160,11 +166,11 @@ public sealed class BackgroundImportTests : IDisposable
         Queue.Add(Hit(watch, 900_003));
         _harness.Service.Change(_harness.Case, watch.Id, watch.Filter with { Pace = WatchPace.FifteenMinutes });
 
-        Assert.Single(Background.Import(_harness.Case).Hits);
+        Assert.Single(Background.Import(_harness.Case).Tips);
     }
 
     [Fact]
-    public async Task The_plan_carries_the_hits_the_case_has_in_the_look_back()
+    public async Task The_plan_carries_the_tips_the_case_has_in_the_look_back()
     {
         var watch = await StartedWatch();
         Queue.Add(Hit(watch, 900_003));
@@ -172,8 +178,8 @@ public sealed class BackgroundImportTests : IDisposable
 
         var described = Assert.Single(Background.Describe(_harness.Case, Seen).Watches);
 
-        var hit = _harness.Service.GetHits(_harness.Case).Single();
-        Assert.Equal([WatchSchedule.Key(watch.Id, hit.Match)], described.Known);
+        var tip = _harness.Service.GetTips(_harness.Case).Single();
+        Assert.Equal([WatchSchedule.Key(watch.Id, tip.Match)], described.Known);
     }
 
     [Fact]
@@ -182,13 +188,14 @@ public sealed class BackgroundImportTests : IDisposable
         var watch = await StartedWatch();
         Queue.Add(Hit(watch, 900_000));
 
-        Assert.Empty(Background.Import(_harness.Case).Hits);
+        Assert.Empty(Background.Import(_harness.Case).Tips);
     }
 
     [Fact]
     public void A_start_the_background_set_is_sealed_when_the_watch_has_none()
     {
         var watch = _harness.WatchBitcoin(Synthetic.Wpkh("s"));
+        _harness.SeenByTheCase(900_010);
         Queue.Add(new QueuedCheck(
             Guid.NewGuid(), CaseId, watch.Id, QueuedKind.Started, watch.Filter, 900_010, 900_010, null, [], [],
             [Responses.Make(1, "900010")], Seen));
@@ -203,17 +210,94 @@ public sealed class BackgroundImportTests : IDisposable
     }
 
     [Fact]
-    public void A_check_whose_start_never_came_in_brings_its_start_and_its_hits()
+    public void A_start_beyond_what_the_case_has_seen_waits_in_the_queue_until_the_case_has_seen_that_far()
     {
-        // The start's entry was set aside, so the watch has no start when the background's check comes in.
+        // A forged start far ahead would hide every real hit, since only money above the start is one; taken lower
+        // than the background set it, money from before the watch was made would be hits.
+        var watch = _harness.WatchBitcoin(Synthetic.Wpkh("s"));
+        _harness.SeenByTheCase(900_010);
+        Queue.Add(Started(watch, 900_020));
+
+        Assert.Equal(0, Background.Import(_harness.Case).Entries);
+        Assert.Null(Assert.Single(_harness.Service.GetWatches(_harness.Case)).StartHeight);
+        Assert.Single(Queue.List(CaseId));
+
+        _harness.SeenByTheCase(900_025);
+        Assert.Equal(1, Background.Import(_harness.Case).Entries);
+
+        Assert.Equal(900_020, Assert.Single(_harness.Service.GetWatches(_harness.Case)).StartHeight);
+        Assert.Equal(900_020, _harness.Service.GetChecked(_harness.Case)[watch.Id].Height);
+        Assert.Empty(Queue.List(CaseId));
+    }
+
+    [Fact]
+    public void A_case_that_saw_the_chain_long_before_the_watch_never_starts_it_back_there_nor_loses_its_hits()
+    {
+        // The case traced a year back and the watch was made, and closed, before Chainsaw asked the height: the
+        // background started it and saw a hit. Neither the old height nor the open check's later start may stand.
+        _harness.SeenByTheCase(800_000, Seen.AddYears(-1));
+        _harness.Clock.UtcNow = Seen.AddMinutes(-30);
         var watch = _harness.WatchBitcoin(Synthetic.Wpkh("w"));
+        Queue.Add(Started(watch, 900_000) with { Utc = Seen.AddMinutes(-10) });
+        Queue.Add(Hit(watch, 900_003));
+
+        Assert.Equal(0, Background.Import(_harness.Case).Entries);
+        _harness.SeenByTheCase(900_010, Seen.AddHours(1));
+        var result = Background.Import(_harness.Case);
+
+        Assert.Equal(2, result.Entries);
+        Assert.Single(result.Tips);
+        Assert.Equal(900_000, Assert.Single(_harness.Service.GetWatches(_harness.Case)).StartHeight);
+        Assert.Equal(900_000, _harness.Service.GetChecked(_harness.Case)[watch.Id].Height);
+    }
+
+    [Fact]
+    public void A_start_is_never_taken_lower_than_the_case_had_seen_when_the_watch_was_made()
+    {
+        // The case's own lookup came before the watch was made, so the chain was at least that high then.
+        _harness.Clock.UtcNow = Seen;
+        _harness.SeenByTheCase(900_010);
+        var watch = _harness.WatchBitcoin(Synthetic.Wpkh("s"));
+        _harness.SeenByTheCase(900_050, Seen.AddHours(1));
+        Queue.Add(Started(watch, 0));
+
+        Background.Import(_harness.Case);
+
+        // At least that, or what the later lookup bounds the chain to have been then.
+        Assert.InRange(Assert.Single(_harness.Service.GetWatches(_harness.Case)).StartHeight!.Value, 900_010, 900_050);
+    }
+
+    [Fact]
+    public void No_start_is_taken_from_the_background_while_the_case_has_seen_no_block()
+    {
+        var watch = _harness.WatchBitcoin(Synthetic.Wpkh("s"));
+        Queue.Add(Started(watch, 9_999_999));
         Queue.Add(Hit(watch, 900_003));
 
         var result = Background.Import(_harness.Case);
 
-        Assert.Single(result.Hits);
+        // Both wait in the queue: the start, and the check that would bring it.
+        Assert.Empty(result.Tips);
+        Assert.Equal(0, result.Entries);
+        Assert.Equal(2, Queue.List(CaseId).Count);
+        Assert.Null(Assert.Single(_harness.Service.GetWatches(_harness.Case)).StartHeight);
+        Assert.Empty(_harness.Journal(MonitoringJournalKinds.Started));
+        Assert.False(_harness.Service.GetChecked(_harness.Case).ContainsKey(watch.Id));
+    }
+
+    [Fact]
+    public void A_check_whose_start_never_came_in_brings_its_start_and_its_hits()
+    {
+        // The start's entry was set aside, so the watch has no start when the background's check comes in.
+        var watch = _harness.WatchBitcoin(Synthetic.Wpkh("w"));
+        _harness.SeenByTheCase(900_010);
+        Queue.Add(Hit(watch, 900_003));
+
+        var result = Background.Import(_harness.Case);
+
+        Assert.Single(result.Tips);
         Assert.Equal(900_000, Assert.Single(_harness.Service.GetWatches(_harness.Case)).StartHeight);
-        Assert.Equal(900_004, _harness.Service.GetChecked(_harness.Case)[watch.Id].Height);
+        Assert.False(_harness.Service.GetChecked(_harness.Case).ContainsKey(watch.Id));
         Assert.Single(_harness.Journal(MonitoringJournalKinds.Started));
         Assert.True(_harness.Verify().IsIntact);
     }
@@ -243,6 +327,97 @@ public sealed class BackgroundImportTests : IDisposable
         Background.Import(_harness.Case);
 
         Assert.Equal(900_020, _harness.Service.GetChecked(_harness.Case)[watch.Id].Height);
+    }
+
+    [Fact]
+    public async Task A_read_through_height_is_never_taken_from_the_background_however_far_the_case_has_seen()
+    {
+        var watch = await StartedWatch();
+        _harness.SeenByTheCase(900_010);
+        var forged = Hit(watch, 900_003);
+        Queue.Add(forged with { Checked = forged.Checked! with { Height = 9_999_999, Tip = 9_999_999 } });
+
+        var result = Background.Import(_harness.Case);
+
+        Assert.Single(result.Tips);
+        var checkedAt = _harness.Service.GetChecked(_harness.Case)[watch.Id];
+        Assert.Equal((900_000, 900_000), (checkedAt.Height, checkedAt.Tip));
+    }
+
+    [Fact]
+    public async Task A_check_from_the_background_never_moves_how_far_the_case_has_read()
+    {
+        // How far a check read, and when, are only the background's word: a forged entry that said it read to the
+        // chain's tip, or in a far future, would let the open check skip or never come to the blocks it never read.
+        var watch = await StartedWatch();
+        var before = _harness.Service.GetChecked(_harness.Case)[watch.Id];
+        _harness.SeenByTheCase(900_010);
+        var forged = Hit(watch, 900_003);
+        Queue.Add(forged with
+        {
+            Checked = forged.Checked! with { CheckedUtc = Seen.AddYears(100), Height = 900_010, Tip = 900_010 },
+        });
+
+        var result = Background.Import(_harness.Case);
+
+        Assert.Single(result.Tips);
+        Assert.Equal(before, _harness.Service.GetChecked(_harness.Case)[watch.Id]);
+        Assert.True(MonitoringService.IsDue(watch, before, 900_011, _harness.Clock.UtcNow));
+    }
+
+    [Fact]
+    public void A_start_from_the_background_never_notes_the_watch_as_checked_later_than_now()
+    {
+        // A start dated in a far future would make the watch never due, so that no check ever came.
+        var watch = _harness.WatchBitcoin(Synthetic.Wpkh("s"));
+        _harness.SeenByTheCase(900_010);
+        Queue.Add(Started(watch, 900_010) with { Utc = Seen.AddYears(100) });
+
+        Background.Import(_harness.Case);
+
+        Assert.True(_harness.Service.GetChecked(_harness.Case)[watch.Id].CheckedUtc <= _harness.Clock.UtcNow);
+    }
+
+    [Fact]
+    public void A_start_is_never_taken_far_below_the_chain_when_the_case_had_seen_no_block_as_the_watch_was_made()
+    {
+        // The case had no height when the watch was made (made offline, say), so only its later lookup bounds it: the
+        // chain made at most so many blocks between, and a start far below would make old money hits.
+        _harness.Clock.UtcNow = Seen.AddMinutes(-30);
+        var forged = _harness.WatchBitcoin(Synthetic.Wpkh("f"));
+        var honest = _harness.WatchBitcoin(Synthetic.Wpkh("h"));
+        _harness.SeenByTheCase(900_050, Seen);
+        _harness.Clock.UtcNow = Seen.AddMinutes(1);
+        Queue.Add(Started(forged, 1));
+        Queue.Add(Started(honest, 900_045));
+
+        Background.Import(_harness.Case);
+
+        var starts = _harness.Service.GetWatches(_harness.Case).ToDictionary(each => each.Id, each => each.StartHeight);
+        Assert.InRange(starts[forged.Id]!.Value, 900_050 - 6 - 1 - 24, 900_050);
+        Assert.Equal(900_045, starts[honest.Id]);
+    }
+
+    [Fact]
+    public void A_start_waits_in_the_queue_while_its_watch_is_paused_before_it_had_one()
+    {
+        // Brought in while paused, the start would be dropped, and the open check would start the watch only when
+        // it is resumed, losing what the background saw in between.
+        var watch = _harness.WatchBitcoin(Synthetic.Wpkh("s"));
+        Queue.Add(Started(watch, 900_020));
+        Queue.Add(Hit(watch, 900_023) with { Start = 900_020 });
+        _harness.Service.SetPaused(_harness.Case, watch.Id, true);
+        _harness.SeenByTheCase(900_025);
+
+        Assert.Equal(0, Background.Import(_harness.Case).Entries);
+        Assert.Equal(2, Queue.List(CaseId).Count);
+
+        _harness.Service.SetPaused(_harness.Case, watch.Id, false);
+        var result = Background.Import(_harness.Case);
+
+        Assert.Equal(900_020, Assert.Single(_harness.Service.GetWatches(_harness.Case)).StartHeight);
+        Assert.Single(result.Tips);
+        Assert.Empty(Queue.List(CaseId));
     }
 
     [Fact]
@@ -297,7 +472,7 @@ public sealed class BackgroundImportTests : IDisposable
         var result = Background.Import(_harness.Case);
 
         Assert.Equal(1, result.Entries);
-        Assert.Single(result.Hits);
+        Assert.Single(result.Tips);
         Assert.Equal([BackgroundWatches.UnreadableText], result.Problems);
         Assert.Empty(Queue.List(CaseId));
         Assert.True(_harness.Verify().IsIntact);
@@ -333,7 +508,7 @@ public sealed class BackgroundImportTests : IDisposable
         var result = Background.Import(_harness.Case);
 
         Assert.Equal(0, result.Entries);
-        Assert.Empty(_harness.Service.GetHits(_harness.Case));
+        Assert.Empty(_harness.Service.GetTips(_harness.Case));
         Assert.Equal([BackgroundWatches.UnreadableText], result.Problems);
     }
 
@@ -346,12 +521,17 @@ public sealed class BackgroundImportTests : IDisposable
         Queue.Add(Hit(watch, 900_003));
         var held = new HeldQueue((WatchQueue)Queue, forged);
         var transfer = _harness.Get<Chains.Contracts.IResponseTransfer>();
-        var background = new BackgroundWatches(_harness.Get<MonitoringService>(), held, transfer, _harness.Clock);
+        var background = new BackgroundWatches(
+            _harness.Get<MonitoringService>(),
+            held,
+            transfer,
+            _harness.Get<Chains.Contracts.ICaseHeights>(),
+            _harness.Clock);
 
         var result = background.Import(_harness.Case);
 
         Assert.Equal(1, result.Entries);
-        Assert.Single(result.Hits);
+        Assert.Single(result.Tips);
         Assert.Equal([BackgroundWatches.UnreadableText], result.Problems);
         Assert.Empty(Queue.List(CaseId));
     }
@@ -391,6 +571,9 @@ public sealed class BackgroundImportTests : IDisposable
         _harness.Clock.UtcNow = Seen.AddMinutes(-30);
         return _harness.Service.GetWatches(_harness.Case).Single(each => each.Id == watch.Id);
     }
+
+    private QueuedCheck Started(Watch watch, long start) => new(
+        Guid.NewGuid(), CaseId, watch.Id, QueuedKind.Started, watch.Filter, start, start, null, [], [], [], Seen);
 
     private QueuedCheck Hit(Watch watch, long height) => new(
         Guid.NewGuid(),

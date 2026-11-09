@@ -28,9 +28,6 @@ public sealed partial class GraphCanvas
     /// <summary>The pointer's speed during a pan, for the glide.</summary>
     private readonly VelocityTracker _panVelocity = new();
 
-    /// <summary>The time between the glide's frames.</summary>
-    private readonly FrameClock _glideClock = new();
-
     /// <summary>The button that holds the pan, or <see langword="null"/> while none does.</summary>
     private MouseButton? _panButton;
 
@@ -45,9 +42,6 @@ public sealed partial class GraphCanvas
 
     /// <summary>The glide's speed, in pixels per second, while it runs.</summary>
     private Vector _glideVelocity;
-
-    /// <summary>Whether the surface glides after a pan.</summary>
-    private bool _gliding;
 
     /// <summary>Starts a pan with the right button.</summary>
     /// <param name="e">The press.</param>
@@ -132,7 +126,7 @@ public sealed partial class GraphCanvas
         _viewport = _viewport.Pan(at.X - _panLast.X, at.Y - _panLast.Y);
         _panLast = at;
         _panVelocity.Add(e.Timestamp, at.X, at.Y);
-        InvalidateVisual();
+        Request(GraphChange.View);
         return true;
     }
 
@@ -153,6 +147,12 @@ public sealed partial class GraphCanvas
         {
             _model?.ViewportChanged(_viewport);
             StartGlide(new Vector(x, y));
+            if (!_frames.IsRunning(GraphMotion.Glide))
+            {
+                // The scene is made again once the surface stands still, so that it never shows a moved drawing
+                // longer than the motion lasts.
+                Redraw();
+            }
         }
 
         e.Handled = moved;
@@ -185,9 +185,7 @@ public sealed partial class GraphCanvas
         }
 
         _glideVelocity = velocity;
-        _glideClock.Reset();
-        _gliding = true;
-        CompositionTarget.Rendering += OnGlideFrame;
+        StartMotion(GraphMotion.Glide);
     }
 
     /// <summary>Stops a glide where it is, and stores the place it reached.</summary>
@@ -196,6 +194,7 @@ public sealed partial class GraphCanvas
         if (DropGlide())
         {
             _model?.ViewportChanged(_viewport);
+            Redraw();
         }
     }
 
@@ -203,34 +202,29 @@ public sealed partial class GraphCanvas
     /// <returns><see langword="true"/> when a glide was running.</returns>
     private bool DropGlide()
     {
-        if (!_gliding)
+        if (!_frames.IsRunning(GraphMotion.Glide))
         {
             return false;
         }
 
-        _gliding = false;
-        CompositionTarget.Rendering -= OnGlideFrame;
+        _frames.Stop(GraphMotion.Glide);
         return true;
     }
 
-    /// <summary>Moves the surface one frame of the glide, by the rendering time rather than counting frames.</summary>
-    /// <param name="sender">The rendering.</param>
-    /// <param name="e">The frame.</param>
-    private void OnGlideFrame(object? sender, EventArgs e)
+    /// <summary>Moves the surface one step of the glide, by the time since the last step.</summary>
+    /// <param name="seconds">The time since the last step.</param>
+    /// <returns>What changed: the view.</returns>
+    private GraphChange GlideStep(double seconds)
     {
-        if (_glideClock.Tick(((RenderingEventArgs)e).RenderingTime) is not { } seconds)
-        {
-            return;
-        }
-
         _viewport = _viewport.Pan(
             Easing.GlideDistance(_glideVelocity.X, seconds, GlideFade),
             Easing.GlideDistance(_glideVelocity.Y, seconds, GlideFade));
         _glideVelocity *= Easing.Fade(seconds, GlideFade);
-        InvalidateVisual();
         if (_glideVelocity.Length < GlideStopSpeed)
         {
             StopGlide();
         }
+
+        return GraphChange.View;
     }
 }

@@ -6,6 +6,7 @@ using System.Windows.Media.Animation;
 using System.Windows.Shapes;
 using Path = System.Windows.Shapes.Path;
 using Chainsaw.App.Graph;
+using static Chainsaw.App.Controls.Freezing;
 
 namespace Chainsaw.App.Controls;
 
@@ -470,14 +471,5 @@ public sealed class FanOutLayer : Canvas
     {
         animation.BeginTime = begin;
         return animation;
-    }
-
-    /// <summary>Freezes an ease, so that it is shared between animations and threads.</summary>
-    /// <param name="ease">The ease.</param>
-    /// <returns>The frozen ease.</returns>
-    private static IEasingFunction Frozen(EasingFunctionBase ease)
-    {
-        ease.Freeze();
-        return ease;
     }
 }

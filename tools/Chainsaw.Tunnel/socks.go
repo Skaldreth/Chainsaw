@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
 	"crypto/subtle"
 	"errors"
 	"io"
@@ -31,6 +33,12 @@ const (
 	replyCommand         = 0x07
 	replyAddressType     = 0x08
 )
+
+// proofDomain is put in front of Chainsaw's nonce in the proof, so that the proof cannot be taken for anything else.
+const proofDomain = "chainsaw/tunnel/proof/v1\n"
+
+// nonceSize is the size of the nonce Chainsaw sends before the SOCKS5 handshake.
+const nonceSize = 32
 
 // handshakeTimeout bounds how long a client may take to authenticate and ask; a connection that stalls is closed.
 const handshakeTimeout = 10 * time.Second
@@ -120,11 +128,14 @@ func isTemporary(err error) bool {
 	return errors.As(err, &temporary) && temporary.Temporary()
 }
 
-// handle serves one client: authentication, the request and then the relay in both directions.
+// handle serves one client: the proof, authentication, the request and then the relay in both directions.
 func (s *socksServer) handle(ctx context.Context, client net.Conn) {
 	defer client.Close()
 	_ = client.SetDeadline(time.Now().Add(handshakeTimeout))
 
+	if err := s.prove(client); err != nil {
+		return
+	}
 	if err := s.authenticate(client); err != nil {
 		return
 	}
@@ -148,6 +159,26 @@ func (s *socksServer) handle(ctx context.Context, client net.Conn) {
 	}
 	_ = client.SetDeadline(time.Time{})
 	relay(client, target)
+}
+
+// prove answers Chainsaw's nonce with HMAC-SHA256 under the tunnel's password, before anything of SOCKS5 is said.
+// Chainsaw sends the credentials only once the proof holds, so a program that has taken the port after this helper
+// ended (it does not know the password) is found before it learns them or a single request.
+func (s *socksServer) prove(client net.Conn) error {
+	nonce := make([]byte, nonceSize)
+	if _, err := io.ReadFull(client, nonce); err != nil {
+		return errProtocol
+	}
+	_, err := client.Write(proofFor(s.password, nonce))
+	return err
+}
+
+// proofFor gives the proof of a nonce under a password.
+func proofFor(password, nonce []byte) []byte {
+	mac := hmac.New(sha256.New, password)
+	mac.Write([]byte(proofDomain))
+	mac.Write(nonce)
+	return mac.Sum(nil)
 }
 
 // authenticate offers only user name and password and checks them in constant time.

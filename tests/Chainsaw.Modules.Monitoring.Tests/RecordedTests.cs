@@ -46,6 +46,7 @@ public sealed class RecordedTests : IDisposable
         services.AddSingleton<IVault, FakeVault>();
         services.AddSingleton<IPurposeKeys, FakePurposeKeys>();
         services.AddSingleton<IOperatorProfileStore>(new FakeProfiles());
+        services.AddSingleton<IVaultSecrets>(new TestVaultSecrets());
         services.AddSingleton<IClock>(_clock);
         services.AddSingleton<IExitHttp>(_http);
         services.AddSingleton<IWatchGate>(new FakeGate());

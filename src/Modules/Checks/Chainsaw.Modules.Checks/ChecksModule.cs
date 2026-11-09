@@ -28,6 +28,13 @@ public static class ChecksModule
         services.AddSingleton<ICheckAnalysis, CoinJoinCheck>();
         services.AddSingleton<ICheckAnalysis, PeelChainCheck>();
         services.AddSingleton<ICheckAnalysis, WalletCheck>();
+        services.AddSingleton<ICheckAnalysis, CoinJoinMergeCheck>();
+        services.AddSingleton<ICheckAnalysis, ServiceBehaviourCheck>();
+        services.AddSingleton<ICheckAnalysis, SplitMergeCheck>();
+        services.AddSingleton<ICheckAnalysis, PassThroughCheck>();
+        services.AddSingleton<ICheckAnalysis, DustCheck>();
+        services.AddSingleton<ICheckAnalysis, PayJoinCheck>();
+        services.AddSingleton<ICheckAnalysis, ActiveHoursCheck>();
         services.AddSingleton<ICheckService, CheckService>();
         return services;
     }

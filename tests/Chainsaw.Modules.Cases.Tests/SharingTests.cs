@@ -145,19 +145,35 @@ public sealed class SharingTests : IDisposable
         {
         }
 
-        var first = File.ReadAllBytes(_owner.CaseFile("A1"));
         var second = File.ReadAllBytes(_owner.CaseFile("B2"));
-        using var firstStream = new MemoryStream(first);
         using var secondStream = new MemoryStream(second);
-        var firstHeader = CaseContainer.ReadHeader(firstStream);
         var secondHeader = CaseContainer.ReadHeader(secondStream);
-        using (var output = File.Create(_owner.CaseFile("A1")))
-        {
-            CaseContainer.WriteHeader(output, firstHeader.WithEnvelopes(secondHeader.Envelopes));
-            output.Write(first.AsSpan((int)firstStream.Position));
-        }
+        CaseFileSurgery.RewriteHeader(
+            _owner, _owner.CaseFile("A1"), header => header.WithEnvelopes(secondHeader.Envelopes));
 
         Assert.Equal(CaseError.NoAccess, Assert.Throws<CaseException>(() => store.Open("A1")).Error);
+    }
+
+    [Fact]
+    public void A_sharing_envelope_weaker_than_accepted_never_opens_and_is_removed_when_the_case_is_opened()
+    {
+        // Someone with the key wrapped it again at a count that makes the password cheap to guess.
+        _owner.SharingIterations = 10;
+        var path = CreateShared();
+
+        var error = Assert.Throws<CaseException>(
+            () => _colleague.CreateStore().OpenWithPassword(path, CaseFixture.Password));
+        using (var opened = _owner.CreateStore().Open("A1"))
+        {
+            Assert.False(opened.HasSharingPassword);
+            Assert.Equal(CaseJournalKinds.SharingPasswordRemoved, opened.ReadJournal()[^1].Kind);
+        }
+
+        Assert.Equal(CaseError.Corrupt, error.Error);
+        Assert.Equal(
+            CaseError.NoAccess,
+            Assert.Throws<CaseException>(
+                () => _colleague.CreateStore().OpenWithPassword(path, CaseFixture.Password)).Error);
     }
 
     private string CreateShared()

@@ -24,7 +24,7 @@ public sealed class ObfuscationChecksTests
         Assert.Equal([whirlpool.Txid], check.Finding.Transactions);
         Assert.Equal(5, check.Finding.Addresses.Count);
         Assert.Equal(900_000, Assert.Single(check.Finding.Basis).Block!.Height);
-        Assert.Contains("coinjoin v1", check.Finding.Why, StringComparison.Ordinal);
+        Assert.Contains("coinjoin v2", check.Finding.Why, StringComparison.Ordinal);
         Assert.Contains("Spåret tar slut här", check.Finding.Why, StringComparison.Ordinal);
         Assert.Equal(0, check.Waiting);
     }

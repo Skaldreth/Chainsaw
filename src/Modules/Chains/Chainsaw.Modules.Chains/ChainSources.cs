@@ -99,6 +99,12 @@ internal sealed class ChainSources : IChainSources
     /// <summary>Each chain's state.</summary>
     private readonly Dictionary<Chain, ChainState> _chains = [];
 
+    /// <summary>
+    /// The endpoints and pins whose refused certificate has been told, so that it is told once (guarded by
+    /// <see cref="_gate"/>).
+    /// </summary>
+    private readonly HashSet<(Guid Id, string Pin)> _refused = [];
+
     /// <summary>Creates the sources from the file, with each chain's defaults where the file says nothing.</summary>
     /// <param name="apis">The sorts of API Chainsaw speaks.</param>
     /// <param name="http">The only way out.</param>
@@ -140,13 +146,13 @@ internal sealed class ChainSources : IChainSources
     public event EventHandler<Chain>? Changed;
 
     /// <inheritdoc/>
+    public event EventHandler<SourceEndpoint>? CertificateRefused;
+
+    /// <inheritdoc/>
     public IReadOnlyList<Chain> Chains { get; }
 
     /// <summary>Gets each endpoint's pace and its requests to wait, shared by the lookups and the probes.</summary>
     public EndpointPacer Pacer { get; }
-
-    /// <summary>Gets the time now.</summary>
-    public DateTimeOffset Now => _clock.UtcNow;
 
     /// <inheritdoc/>
     public IReadOnlyList<SourceApiInfo> Apis(Chain chain) =>
@@ -167,6 +173,7 @@ internal sealed class ChainSources : IChainSources
                 endpoint.Id == first)
             {
                 WaitUntil = Pacer.WaitUntil(endpoint.Id),
+                CertificateRefused = endpoint.Pin is { } pin && _refused.Contains((endpoint.Id, pin.Fingerprint)),
             }).ToList();
             var now = _clock.UtcNow;
             var waiting = state.Waits.Where(until => until > now).DefaultIfEmpty().Max();
@@ -221,9 +228,144 @@ internal sealed class ChainSources : IChainSources
     public Task<ExitResponse> SendAsync(
         SourceEndpoint endpoint, ExitRequest request, CancellationToken cancellationToken) =>
         endpoint.Local
-            ? _local?.SendAsync(request, cancellationToken)
-                ?? Task.FromException<ExitResponse>(new ExitException(ExitError.RequestFailed))
+            ? SendToOwnNodeAsync(endpoint, request, cancellationToken)
             : _http.SendAsync(request, cancellationToken);
+
+    /// <summary>
+    /// Sends a request straight to the user's own node with the endpoint's pinned certificate, if any (sketch KL3b),
+    /// and tells the first refusal of a certificate that has changed.
+    /// </summary>
+    /// <param name="endpoint">The endpoint, marked local.</param>
+    /// <param name="request">The request under its address.</param>
+    /// <param name="cancellationToken">Stops the request.</param>
+    /// <returns>The response.</returns>
+    /// <exception cref="ExitException">The request failed, or there is no way to the own node.</exception>
+    private async Task<ExitResponse> SendToOwnNodeAsync(
+        SourceEndpoint endpoint, ExitRequest request, CancellationToken cancellationToken)
+    {
+        if (_local is null)
+        {
+            throw new ExitException(ExitError.RequestFailed);
+        }
+
+        try
+        {
+            var pinned = request with { CertificatePin = endpoint.Pin?.Fingerprint };
+            return await _local.SendAsync(pinned, cancellationToken).ConfigureAwait(false);
+        }
+        catch (ExitException exception) when (exception.Error == ExitError.CertificateChanged)
+        {
+            TellRefused(endpoint);
+            throw;
+        }
+    }
+
+    /// <summary>Tells that an endpoint's node showed another certificate, once per endpoint and pin.</summary>
+    /// <param name="endpoint">The endpoint.</param>
+    private void TellRefused(SourceEndpoint endpoint)
+    {
+        lock (_gate)
+        {
+            if (!_refused.Add((endpoint.Id, endpoint.Pin?.Fingerprint ?? string.Empty)))
+            {
+                return;
+            }
+        }
+
+        foreach (var handler in CertificateRefused?.GetInvocationList() ?? [])
+        {
+            try
+            {
+                ((EventHandler<SourceEndpoint>)handler)(this, endpoint);
+            }
+            catch (Exception exception) when (exception is not OutOfMemoryException)
+            {
+                // The lookup goes on to the other endpoints; a listener's failure is its own.
+            }
+        }
+
+        Tell(endpoint.Chain);
+    }
+
+    /// <inheritdoc/>
+    public async Task<NodeCertificate> ReadCertificateAsync(
+        Chain chain, Guid id, CancellationToken cancellationToken = default)
+    {
+        var endpoint = LocalEndpoint(chain, id);
+        if (_local is null)
+        {
+            throw new ExitException(ExitError.RequestFailed);
+        }
+
+        return await _local.ReadCertificateAsync(endpoint.Address, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc/>
+    public Task PinAsync(Chain chain, Guid id, string fingerprint, string by)
+    {
+        if (!CertificatePin.IsValid(fingerprint))
+        {
+            throw new ArgumentException("Not a certificate's fingerprint.", nameof(fingerprint));
+        }
+
+        ArgumentException.ThrowIfNullOrWhiteSpace(by);
+        LocalEndpoint(chain, id);
+        var now = _clock.UtcNow;
+        return Change(chain, state => Repin(state, id, new EndpointCertificate(fingerprint, now, by.Trim()), by, now));
+    }
+
+    /// <inheritdoc/>
+    public Task UnpinAsync(Chain chain, Guid id, string by)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(by);
+        var now = _clock.UtcNow;
+        return Change(chain, state => Repin(state, id, null, by, now));
+    }
+
+    /// <summary>
+    /// Replaces an endpoint's pin, keeping the one it had first among the former ones with when and by whom, and
+    /// forgetting that the old pin's refusal was told, so that a new change is told again.
+    /// </summary>
+    /// <param name="state">The chain's state.</param>
+    /// <param name="id">The endpoint.</param>
+    /// <param name="pin">The new pin, or <see langword="null"/> to remove it.</param>
+    /// <param name="by">Who makes the change.</param>
+    /// <param name="now">When, in UTC.</param>
+    private void Repin(ChainState state, Guid id, EndpointCertificate? pin, string by, DateTimeOffset now)
+    {
+        var index = state.Endpoints.FindIndex(endpoint => endpoint.Id == id);
+        if (index < 0 || !state.Endpoints[index].Local)
+        {
+            return;
+        }
+
+        var endpoint = state.Endpoints[index];
+        var former = endpoint.Pin is { } old
+            ? [old with { EndedAt = now, EndedBy = by.Trim() }, .. endpoint.FormerPins]
+            : endpoint.FormerPins;
+        state.Endpoints[index] = endpoint with
+        {
+            Pin = pin,
+            FormerPins = [.. former.Take(EndpointCertificate.MaximumFormer)],
+        };
+        _refused.RemoveWhere(refusal => refusal.Id == id);
+        state.FailedSince.Remove(id);
+        state.Probes.Remove(id);
+    }
+
+    /// <summary>Finds an endpoint marked local.</summary>
+    /// <param name="chain">The chain.</param>
+    /// <param name="id">The endpoint.</param>
+    /// <returns>The endpoint.</returns>
+    /// <exception cref="ArgumentException">It is not there or not marked local.</exception>
+    private SourceEndpoint LocalEndpoint(Chain chain, Guid id)
+    {
+        lock (_gate)
+        {
+            return State(chain).Endpoints.FirstOrDefault(endpoint => endpoint.Id == id && endpoint.Local)
+                ?? throw new ArgumentException("No endpoint marked local with that id.", nameof(id));
+        }
+    }
 
     /// <summary>Waits for an endpoint's turn.</summary>
     /// <param name="wait">How long.</param>
@@ -414,8 +556,10 @@ internal sealed class ChainSources : IChainSources
         EndpointProbe[] probes;
         try
         {
+            // The block's hash is asked too (KL2b), so that the card shows it with the height; an endpoint whose hash
+            // does not come still counts by its height.
             probes = await Task.WhenAll(endpoints.Select(planned => ProbeOneAsync(
-                planned.Endpoint, planned.Api, withHash: false, cancellationToken))).ConfigureAwait(false);
+                planned.Endpoint, planned.Api, ProbeHash.Optional, cancellationToken))).ConfigureAwait(false);
         }
         catch (ExitException exception) when (IsTheWayOuts(exception))
         {
@@ -449,16 +593,38 @@ internal sealed class ChainSources : IChainSources
         try
         {
             var key = string.IsNullOrWhiteSpace(apiKey) ? null : apiKey.Trim();
+
+            // An address that is already an endpoint follows that endpoint's pace (etapp 25, M): Prova never asks it
+            // faster than the lookups may.
+            var known = Known(chain, checkedAddress);
             var candidate = new SourceEndpoint(
-                Guid.Empty, chain, SourceAddress.NameOf(checkedAddress), checkedAddress, sort.Info.Code, key, true)
+                known?.Id ?? Guid.Empty, chain, SourceAddress.NameOf(checkedAddress), checkedAddress,
+                sort.Info.Code, key, true)
             {
                 Local = local,
+                Interval = known?.Interval ?? (local ? SourcePace.Local : SourcePace.Public),
             };
-            return await ProbeOneAsync(candidate, sort, withHash: true, cancellationToken).ConfigureAwait(false);
+            var probe = await ProbeOneAsync(candidate, sort, ProbeHash.Required, cancellationToken)
+                .ConfigureAwait(false);
+            return probe with { EndpointId = Guid.Empty };
         }
         catch (ExitException exception) when (IsTheWayOuts(exception))
         {
             return NotSent(Guid.Empty, exception.Message);
+        }
+    }
+
+    /// <summary>Finds the endpoint a chain already has at an address.</summary>
+    /// <param name="chain">The chain.</param>
+    /// <param name="address">The address.</param>
+    /// <returns>The endpoint, or <see langword="null"/> when the address is not one of its endpoints.</returns>
+    private SourceEndpoint? Known(Chain chain, Uri address)
+    {
+        lock (_gate)
+        {
+            return _chains.TryGetValue(chain, out var state)
+                ? state.Endpoints.FirstOrDefault(endpoint => endpoint.Address == address)
+                : null;
         }
     }
 
@@ -573,12 +739,12 @@ internal sealed class ChainSources : IChainSources
     /// </summary>
     /// <param name="endpoint">The endpoint, with <see cref="Guid.Empty"/> as id when it is not added yet.</param>
     /// <param name="api">Its sort of API.</param>
-    /// <param name="withHash">Whether to ask for the block's hash too.</param>
+    /// <param name="hashMode">Whether to ask for the block's hash too, and whether the probe fails without it.</param>
     /// <param name="cancellationToken">Stops the probe.</param>
     /// <returns>What it answered.</returns>
     /// <exception cref="ExitNotConnectedException">The exit does not allow lookups; nothing was sent.</exception>
     private async Task<EndpointProbe> ProbeOneAsync(
-        SourceEndpoint endpoint, ISourceApi api, bool withHash, CancellationToken cancellationToken)
+        SourceEndpoint endpoint, ISourceApi api, ProbeHash hashMode, CancellationToken cancellationToken)
     {
         var (id, address, apiKey) = (endpoint.Id, endpoint.Address, endpoint.ApiKey);
         var at = _clock.UtcNow;
@@ -598,23 +764,8 @@ internal sealed class ChainSources : IChainSources
             return NotSent(id, Pacer.WaitUntil(id) is { } until ? WaitText(until) : PacedText, at);
         }
 
-        ((long Value, TimeSpan Duration)? Answer, string? Problem) asked;
-        try
-        {
-            asked = await AskAsync(endpoint, heightRequest, api.ReadHeight, cancellationToken).ConfigureAwait(false);
-        }
-        catch (ExitException exception) when (IsTheWayOuts(exception))
-        {
-            // Nothing was sent, or what was sent was cut by the way out: the turn goes back.
-            if (turn is not null)
-            {
-                Pacer.Release(turn);
-            }
-
-            throw;
-        }
-
-        var (height, heightProblem) = asked;
+        var (height, heightProblem) = await AskAsync(endpoint, heightRequest, api.ReadHeight, turn, cancellationToken)
+            .ConfigureAwait(false);
         if (Pacer.WaitUntil(id) is { } busy && height is null)
         {
             return NotSent(id, WaitText(busy), at);
@@ -632,7 +783,7 @@ internal sealed class ChainSources : IChainSources
         }
 
         string? hash = null;
-        if (withHash)
+        if (hashMode != ProbeHash.None)
         {
             if (IsLocked)
             {
@@ -645,18 +796,67 @@ internal sealed class ChainSources : IChainSources
                 return NotSent(id, hashKeyProblem!, at);
             }
 
-            var (read, hashProblem) = await AskAsync(endpoint, hashRequest, api.ReadHash, cancellationToken)
+            var (read, hashProblem) = await AskHashAsync(endpoint, hashRequest, api, hashMode, cancellationToken)
                 .ConfigureAwait(false);
-            if (read is null)
+            if (read is null && hashMode == ProbeHash.Required)
             {
                 return new EndpointProbe(id, ProbeOutcome.Failed, answer.Value, null, answer.Duration, at,
                     "Höjden kom, men inte blockets hash: " + hashProblem);
             }
 
-            hash = read.Value.Value;
+            hash = read?.Value;
         }
 
         return new EndpointProbe(id, ProbeOutcome.Answered, answer.Value, hash, answer.Duration, at, null);
+    }
+
+    /// <summary>
+    /// Asks for the block's hash at the height. A known endpoint's turn is waited for again, as for any request, and in a
+    /// round (<see cref="ProbeHash.Optional"/>) a hash that does not come leaves the probe as its height made it.
+    /// </summary>
+    /// <param name="endpoint">The endpoint.</param>
+    /// <param name="request">The request for the hash.</param>
+    /// <param name="api">Its sort of API.</param>
+    /// <param name="hashMode">Whether the hash is required.</param>
+    /// <param name="cancellationToken">Stops the probe.</param>
+    /// <returns>The hash, or why it did not come.</returns>
+    private async Task<((string Value, TimeSpan Duration)? Answer, string? Problem)> AskHashAsync(
+        SourceEndpoint endpoint, ExitRequest request, ISourceApi api, ProbeHash hashMode,
+        CancellationToken cancellationToken)
+    {
+        EndpointTurn? turn = null;
+        if (endpoint.Id != Guid.Empty)
+        {
+            // A second request to a known endpoint waits for its turn too.
+            (var mayAsk, turn) = await TurnAsync(endpoint, api, cancellationToken).ConfigureAwait(false);
+            if (!mayAsk)
+            {
+                return (null, PacedText);
+            }
+        }
+
+        try
+        {
+            return await AskAsync(endpoint, request, api.ReadHash, turn, cancellationToken).ConfigureAwait(false);
+        }
+        catch (ExitException) when (hashMode == ProbeHash.Optional && !cancellationToken.IsCancellationRequested)
+        {
+            // The height counted; a hash cut off by the way out says nothing more about the endpoint.
+            return (null, null);
+        }
+    }
+
+    /// <summary>Whether a probe asks for the block's hash at the height, and whether it needs it.</summary>
+    private enum ProbeHash
+    {
+        /// <summary>Only the height.</summary>
+        None,
+
+        /// <summary>The hash too, but the probe stands on its height without it (the round at start).</summary>
+        Optional,
+
+        /// <summary>The hash too, and without it the probe fails (the form's <em>Prova</em>).</summary>
+        Required,
     }
 
     /// <summary>
@@ -697,21 +897,7 @@ internal sealed class ChainSources : IChainSources
             return null;
         }
 
-        ((string Value, TimeSpan Duration)? Answer, string? Problem) asked;
-        try
-        {
-            asked = await AskAsync(endpoint, request, api.ReadHash, cancellationToken).ConfigureAwait(false);
-        }
-        catch (ExitException exception) when (IsTheWayOuts(exception))
-        {
-            if (turn is not null)
-            {
-                Pacer.Release(turn);
-            }
-
-            throw;
-        }
-
+        var asked = await AskAsync(endpoint, request, api.ReadHash, turn, cancellationToken).ConfigureAwait(false);
         if (asked.Answer is not { } first)
         {
             return null;
@@ -810,7 +996,8 @@ internal sealed class ChainSources : IChainSources
     /// <param name="exception">The failure.</param>
     /// <returns><see langword="true"/> when it is the way out's.</returns>
     internal static bool IsTheWayOuts(ExitException exception) =>
-        exception is ExitNotConnectedException || exception.Error == ExitError.ConnectionLost;
+        exception is ExitNotConnectedException
+        || exception.Error is ExitError.ConnectionLost or ExitError.ProxyLoginRequired;
 
     /// <summary>
     /// Tells whether a probe sent nothing only because of a wait (the endpoint's or Chainsaw's own pace): it says
@@ -824,17 +1011,20 @@ internal sealed class ChainSources : IChainSources
 
     /// <summary>
     /// Sends one request of a probe the endpoint's way (<see cref="SendAsync"/>) and reads its answer; a source that
-    /// asks Chainsaw to wait is noted (<see cref="EndpointPacer.AskedToWait"/>).
+    /// asks Chainsaw to wait is noted (<see cref="EndpointPacer.AskedToWait"/>). When the way out fails (nothing was
+    /// sent, or what was sent was cut), the turn goes back before the failure is thrown on.
     /// </summary>
     /// <typeparam name="T">What is read.</typeparam>
     /// <param name="endpoint">The endpoint.</param>
     /// <param name="request">The request.</param>
     /// <param name="read">Reads a successful body; throws <see cref="FormatException"/> when it cannot.</param>
+    /// <param name="turn">The turn the request uses, or <see langword="null"/> when it took none.</param>
     /// <param name="cancellationToken">Stops the request.</param>
     /// <returns>The answer and how long it took, or why there is none, in Swedish.</returns>
     /// <exception cref="ExitNotConnectedException">The exit does not allow lookups; nothing was sent.</exception>
     private async Task<((T Value, TimeSpan Duration)? Answer, string? Problem)> AskAsync<T>(
-        SourceEndpoint endpoint, ExitRequest request, ReadBody<T> read, CancellationToken cancellationToken)
+        SourceEndpoint endpoint, ExitRequest request, ReadBody<T> read, EndpointTurn? turn,
+        CancellationToken cancellationToken)
     {
         using var limit = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         limit.CancelAfter(ProbeTimeout);
@@ -845,6 +1035,11 @@ internal sealed class ChainSources : IChainSources
         }
         catch (ExitException exception) when (IsTheWayOuts(exception))
         {
+            if (turn is not null)
+            {
+                Pacer.Release(turn);
+            }
+
             throw;
         }
         catch (ExitException exception)

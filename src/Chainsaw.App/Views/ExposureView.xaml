@@ -129,15 +129,15 @@
                        Foreground="{StaticResource Brush.TextDim}" />
         </StackPanel>
 
-        <Grid x:Name="Room" Margin="84,16,20,16" Visibility="{Binding HasSubject, Converter={StaticResource Visible}}">
+        <Grid x:Name="Room" Margin="84,0,0,0" Visibility="{Binding HasSubject, Converter={StaticResource Visible}}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="16" />
-                <ColumnDefinition Width="360" />
+                <ColumnDefinition Width="20" />
+                <ColumnDefinition Width="380" />
             </Grid.ColumnDefinitions>
 
             <!-- ===== The rings, with the subject, the depth and the method over them. ===== -->
-            <Grid Grid.Column="0">
+            <Grid Grid.Column="0" Margin="0,16,0,16">
                 <controls:ExposureRings Margin="0,52,0,0" Picture="{Binding Picture}" SelectedId="{Binding SelectedId}"
                                         Lit="{Binding Lit}" PickCommand="{Binding PickCommand}" />
 
@@ -228,12 +228,12 @@
             </Grid>
 
             <!-- ===== The side: the shares, the services and the chosen way. ===== -->
-            <Border Grid.Column="2" CornerRadius="14" BorderThickness="1" BorderBrush="{StaticResource Brush.Border}"
-                    Background="{StaticResource Brush.Surface}" ClipToBounds="True">
+            <!-- Under the work, as the graph's inspector (sketch IN5a): 20 px more room on the left than the content's 20. -->
+            <controls:UnderPanel Grid.Column="2" Padding="20,0,6,0">
                 <DockPanel>
                     <!-- The chosen service, fixed at the bottom. -->
                     <Border DockPanel.Dock="Bottom" BorderThickness="0,1,0,0" BorderBrush="{StaticResource Brush.Border}"
-                            Background="{StaticResource Brush.Floating}" Padding="20,16,20,18" CornerRadius="0,0,13,13"
+                            Background="{StaticResource Brush.Floating}" Padding="20,16,20,18" CornerRadius="0"
                             Visibility="{Binding HasDetail, Converter={StaticResource Visible}}">
                         <StackPanel>
                             <DockPanel>
@@ -285,25 +285,13 @@
 
                             <!-- What it rests on, and Varför?. -->
                             <WrapPanel Margin="0,10,0,0">
-                                <ItemsControl ItemsSource="{Binding Detail.Basis}" Focusable="False">
+                                <ItemsControl ItemsSource="{Binding Detail.Basis}" Focusable="False"
+                                              ItemTemplate="{StaticResource ExposureBasisChip}">
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate>
                                             <WrapPanel />
                                         </ItemsPanelTemplate>
                                     </ItemsControl.ItemsPanel>
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate DataType="{x:Type vm:ExposureBasis}">
-                                            <Border Height="22" Padding="6,0,8,0" Margin="0,0,6,6" CornerRadius="6"
-                                                    Background="{StaticResource Brush.SurfaceRaised}" ToolTip="{Binding ToolTip}">
-                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                                    <controls:GridIcon Size="12" Foreground="{StaticResource Brush.TextMuted}"
-                                                                       Data="{Binding Icon, Converter={x:Static controls:ResourceKeyConverter.Instance}}" />
-                                                    <TextBlock Text="{Binding Text}" FontSize="11.5" Margin="5,0,0,0"
-                                                               Foreground="{StaticResource Brush.TextMuted}" />
-                                                </StackPanel>
-                                            </Border>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
                                 </ItemsControl>
                                 <Button Style="{StaticResource Row}" Height="22" Margin="0,0,0,6" Command="{Binding AskWhyCommand}"
                                         ToolTip="Öppnar Guiden bredvid · ?">
@@ -412,7 +400,7 @@
                         </StackPanel>
                     </ScrollViewer>
                 </DockPanel>
-            </Border>
+            </controls:UnderPanel>
         </Grid>
     </Grid>
 </UserControl>

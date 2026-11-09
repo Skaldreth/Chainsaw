@@ -442,17 +442,40 @@ public partial class GraphView : UserControl
         SetInspectorVisibility(Visibility.Collapsed);
     }
 
-    /// <summary>Shows or hides the inspector, its shadow and the edge that drags its width, together.</summary>
+    /// <summary>
+    /// Shows or hides the inspector and the edge that drags its width, and with them the sheet's rounded corner and its
+    /// shadow over the panel (sketch IN5a); without the inspector the sheet fills the page square.
+    /// </summary>
     /// <param name="visibility">The visibility.</param>
     private void SetInspectorVisibility(Visibility visibility)
     {
+        var shown = visibility == Visibility.Visible;
         Inspector.Visibility = visibility;
-        InspectorShadow.Visibility = visibility;
         InspectorEdge.Visibility = visibility;
+        Sheet.CornerRadius = shown ? new CornerRadius(0, 0, SheetCorner, 0) : default;
+        SheetShadow.Opacity = shown ? SheetShadowStrength : 0;
+        InspectorReachChanged?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>The sheet's corner towards the inspector, as the title bar's (sketch IN5a).</summary>
+    public const double SheetCorner = 14;
+
+    /// <summary>How dark the sheet's shadow over the inspector is.</summary>
+    private const double SheetShadowStrength = 0.45;
+
+    /// <summary>Occurs when the inspector opens, closes or changes width, so the title bar can stop where it starts.</summary>
+    public event EventHandler? InspectorReachChanged;
+
+    /// <summary>Gets how far in from the right edge the inspector reaches, or 0 when it is closed.</summary>
+    public double InspectorReach => Inspector.Visibility == Visibility.Visible ? InspectorColumn.ActualWidth : 0;
+
+    /// <summary>Tells the window the inspector's new width while its edge is dragged.</summary>
+    /// <param name="sender">The inspector.</param>
+    /// <param name="e">Not used.</param>
+    private void OnInspectorSized(object sender, SizeChangedEventArgs e) => InspectorReachChanged?.Invoke(this, EventArgs.Empty);
+
     /// <summary>
-    /// Slides the inspector and its shadow sideways, easing out on the way in and in on the way out; without
+    /// Slides the inspector sideways, easing out on the way in and in on the way out; without
     /// animations it jumps to the end at once.
     /// </summary>
     /// <param name="from">The offset to the right it starts at.</param>
@@ -462,7 +485,6 @@ public partial class GraphView : UserControl
     {
         var slide = new TranslateTransform();
         Inspector.RenderTransform = slide;
-        InspectorShadow.RenderTransform = slide;
         if (!SystemParameters.ClientAreaAnimation)
         {
             slide.X = to;
@@ -544,15 +566,5 @@ public partial class GraphView : UserControl
 
     /// <summary>Copies a node's address to the clipboard; a clipboard held by another program is left alone.</summary>
     /// <param name="text">The address.</param>
-    private static void CopyText(string text)
-    {
-        try
-        {
-            Clipboard.SetText(text);
-        }
-        catch (System.Runtime.InteropServices.ExternalException)
-        {
-            // Another program holds the clipboard; nothing is lost but the copy.
-        }
-    }
+    private static void CopyText(string text) => Interop.CaseClipboard.TrySetText(text);
 }

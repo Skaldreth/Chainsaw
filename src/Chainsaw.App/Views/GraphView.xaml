@@ -219,12 +219,36 @@
         <KeyBinding Key="Escape" Command="{Binding Timeline.ToNowCommand}" />
     </UserControl.InputBindings>
 
-    <!-- The page clips at its edges, so that the inspector's shadow never reaches up over the title bar. -->
-    <Grid ClipToBounds="True">
+    <!--
+      The page clips at its edges, so that the sheet's shadow never reaches up over the title bar. Under the work lies the
+      inspector's darker panel (sketch IN5a): the graph is a sheet over it, rounded towards it and casting its shadow on it.
+    -->
+    <Grid ClipToBounds="True" Background="{StaticResource Brush.Underlay}">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*" />
             <ColumnDefinition x:Name="InspectorColumn" Width="0" />
         </Grid.ColumnDefinitions>
+
+        <!-- ===== The inspector (sketches IN5a, IN2b, GR5, TK1a and AN1b): pure reading, under the graph ===== -->
+        <Border x:Name="Inspector" Grid.Column="1" Background="{StaticResource Brush.Underlay}" SizeChanged="OnInspectorSized">
+            <Grid>
+                <views:InspectorView />
+
+                <!-- The checks and suggestions (sketch KF1a) fold out where the inspector stands, over it. -->
+                <views:ChecksPanel DataContext="{Binding Checks}"
+                                   Visibility="{Binding IsOpen, Converter={StaticResource Visible}}" />
+            </Grid>
+        </Border>
+
+        <!--
+          The sheet: the graph's own ground, rounded towards the inspector and casting its shadow over it, in a layer of
+          its own under the surface, so that the graph is never drawn through the effect and stays sharp.
+        -->
+        <Border x:Name="Sheet" Grid.Column="0" Background="{StaticResource Brush.Background}" IsHitTestVisible="False">
+            <Border.Effect>
+                <DropShadowEffect x:Name="SheetShadow" BlurRadius="36" ShadowDepth="10" Direction="0" Opacity="0" Color="Black" />
+            </Border.Effect>
+        </Border>
 
         <!-- ===== The surface ===== -->
         <Grid Grid.Column="0">
@@ -930,27 +954,6 @@
                                          Converter={StaticResource Visible}}" />
         </Grid>
 
-        <!--
-          The inspector's shadow over the graph, in a layer of its own as under the pill, so that the inspector's text is
-          never drawn through the effect and stays sharp.
-        -->
-        <Border x:Name="InspectorShadow" Grid.Column="1" Background="{StaticResource Brush.Surface}" IsHitTestVisible="False">
-            <Border.Effect>
-                <DropShadowEffect BlurRadius="28" ShadowDepth="6" Direction="180" Opacity="0.4" Color="Black" />
-            </Border.Effect>
-        </Border>
-
-        <!-- ===== The inspector (sketches IN2b, GR5, TK1a and AN1b): pure reading, in a view of its own ===== -->
-        <Border x:Name="Inspector" Grid.Column="1" Background="{StaticResource Brush.Surface}" BorderBrush="{StaticResource Brush.Border}"
-                BorderThickness="1,0,0,0">
-            <Grid>
-                <views:InspectorView />
-
-                <!-- The checks and suggestions (sketch KF1a) fold out where the inspector stands, over it. -->
-                <views:ChecksPanel DataContext="{Binding Checks}"
-                                   Visibility="{Binding IsOpen, Converter={StaticResource Visible}}" />
-            </Grid>
-        </Border>
 
         <!--
           The inspector's left edge is dragged to make it wider or narrower; the width is kept while Chainsaw runs. A small

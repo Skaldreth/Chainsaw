@@ -35,7 +35,7 @@ internal static class KeyEnvelopes
     private const string NonceField = "nonce";
 
     /// <summary>The field with the wrapped file key.</summary>
-    private const string KeyField = "key";
+    public const string KeyField = "key";
 
     /// <summary>The field with the tag.</summary>
     private const string TagField = "tag";
@@ -58,21 +58,25 @@ internal static class KeyEnvelopes
     /// </summary>
     private const int MaximumIterations = 2_000_000;
 
-    /// <summary>Wraps the file key for a vault.</summary>
+    /// <summary>Wraps the file key for a vault, with the operator's name encrypted under the file key.</summary>
     /// <param name="caseId">The case id.</param>
     /// <param name="fileKey">The file key.</param>
     /// <param name="wrappingKey">The vault's purpose key.</param>
+    /// <param name="name">The operator's name (see <see cref="EnvelopeLabels"/>), or none.</param>
     /// <returns>The envelope.</returns>
-    public static JsonObject CreateOperator(Guid caseId, ReadOnlySpan<byte> fileKey, ReadOnlySpan<byte> wrappingKey)
+    public static JsonObject CreateOperator(
+        Guid caseId, ReadOnlySpan<byte> fileKey, ReadOnlySpan<byte> wrappingKey, string? name)
     {
         var (nonce, ciphertext, tag) = CaseCrypto.Wrap(wrappingKey, fileKey, OperatorData(caseId));
-        return new JsonObject
+        var envelope = new JsonObject
         {
             [KindField] = OperatorKind,
             [NonceField] = Convert.ToBase64String(nonce),
             [KeyField] = Convert.ToBase64String(ciphertext),
             [TagField] = Convert.ToBase64String(tag),
         };
+        EnvelopeLabels.Add(envelope, caseId, fileKey, name);
+        return envelope;
     }
 
     /// <summary>Wraps the file key with a sharing password under a new salt.</summary>
@@ -174,9 +178,14 @@ internal static class KeyEnvelopes
     /// <param name="header">The header.</param>
     /// <param name="password">The password.</param>
     /// <param name="fileKey">Receives the file key when the envelope opens.</param>
+    /// <param name="minimumIterations">The fewest iterations an envelope may have to be used.</param>
     /// <returns><see langword="true"/> when the envelope opened.</returns>
-    /// <exception cref="CaseException"><see cref="CaseError.Corrupt"/> when the envelope is malformed.</exception>
-    public static bool TryOpenPassword(CaseHeader header, ReadOnlySpan<char> password, Span<byte> fileKey)
+    /// <exception cref="CaseException">
+    /// <see cref="CaseError.Corrupt"/> when the envelope is malformed or has fewer iterations than
+    /// <paramref name="minimumIterations"/>.
+    /// </exception>
+    public static bool TryOpenPassword(
+        CaseHeader header, ReadOnlySpan<char> password, Span<byte> fileKey, int minimumIterations)
     {
         var envelope = OfKind(header, PasswordKind).FirstOrDefault();
         if (envelope is null)
@@ -185,6 +194,12 @@ internal static class KeyEnvelopes
         }
 
         var (iterations, salt) = ReadKdf(envelope);
+        if (iterations < minimumIterations)
+        {
+            // Wrapped again by someone with the key at a count that makes the password cheap to guess; never used.
+            throw new CaseException(CaseError.Corrupt);
+        }
+
         var (nonce, ciphertext, tag) = ReadSealed(envelope);
         var wrappingKey = CaseCrypto.AllocateSecret(CaseCrypto.KeySize);
         try
@@ -196,6 +211,30 @@ internal static class KeyEnvelopes
         finally
         {
             CryptographicOperations.ZeroMemory(wrappingKey);
+        }
+    }
+
+    /// <summary>
+    /// Says whether an envelope is a sharing envelope with fewer iterations than this build accepts. Chainsaw never
+    /// writes one; someone with the file key can, so that a copy handed on lets the password be guessed cheaply.
+    /// </summary>
+    /// <param name="envelope">The envelope.</param>
+    /// <param name="minimumIterations">The fewest iterations accepted.</param>
+    /// <returns><see langword="true"/> when it is such an envelope.</returns>
+    public static bool IsWeakPassword(JsonObject envelope, int minimumIterations)
+    {
+        if (!IsKind(envelope, PasswordKind))
+        {
+            return false;
+        }
+
+        try
+        {
+            return envelope[IterationsField]?.GetValue<int>() < minimumIterations;
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or FormatException)
+        {
+            return false;
         }
     }
 

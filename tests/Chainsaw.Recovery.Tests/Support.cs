@@ -63,6 +63,7 @@ internal sealed class OperatorComputer : IDisposable
             options.AnchorDirectory = System.IO.Path.Combine(Root, "Ankare");
             options.RecoveryKey = recoveryKey;
             options.SharingIterations = 1_000;
+            options.MinimumSharingIterations = 1_000;
         });
         _provider = services.BuildServiceProvider();
         Vault.Create(MasterKey);

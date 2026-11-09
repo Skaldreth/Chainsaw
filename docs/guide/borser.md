@@ -34,7 +34,8 @@ nästlad tjänst, OTC och P2P, kryptoautomat och kryptokort. När spårade penga
 hörnet. Om tjänster inuti andra tjänster, se [Nästlade tjänster](nastlade-tjanster.md).
 
 Att en adress är en börs vet Chainsaw från en **etikett**, din egen, en kollegas genom biblioteket eller en öppen källa.
-Den är alltid en bedömning (princip 2). Att känna igen börsens mönster av sig själv är inte byggt än.
+Den är alltid en bedömning (princip 2). Chainsaw känner också igen börsens mönster av sig själv, se
+[Tjänster ur beteende](tjanster-ur-beteende.md), men säger då bara *trolig tjänst*, aldrig vilken.
 
 ## Nästa steg
 

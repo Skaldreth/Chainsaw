@@ -1,4 +1,6 @@
 using Chainsaw.App.ViewModels;
+using Chainsaw.Modules.Cases.Contracts;
+using Chainsaw.Modules.Security.Contracts;
 
 namespace Chainsaw.App.Tests;
 
@@ -145,5 +147,47 @@ public sealed class SaveAlarmTests
 
         Assert.False(alarm.IsWarning);
         Assert.Empty(Standing);
+    }
+
+    [Fact]
+    public async Task A_file_replaced_outside_chainsaw_closes_the_case_and_offers_its_work_as_a_case_of_its_own()
+    {
+        var store = new TestCaseStore
+        {
+            Conflict = new WorkingCopyConflict(
+                "2026-0001", DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, "2026-0001-B"),
+        };
+        var workflow = new CaseWorkflow(store, new TestTracing(), new TestVault(VaultState.Unlocked), _session);
+        WorkingCopyConflict? offered = null;
+        workflow.ConflictFound += (_, conflict) => offered = conflict;
+        var alarm = new SaveAlarm(_session, _toaster, new InlineUi(), workflow);
+        _session.Open(_case);
+        _case.SayHowSavesGo(SaveAlarm.FailuresBeforeWarning);
+
+        _case.SayFileReplaced();
+        await alarm.KeepingBoth;
+
+        Assert.Null(_session.Current);
+        Assert.True(_case.Disposed > 0);
+        Assert.Equal("2026-0001-B", offered?.SuggestedBranchNumber);
+        Assert.False(alarm.IsWarning);
+        Assert.Empty(Standing);
+    }
+
+    [Fact]
+    public async Task A_file_replaced_without_a_conflict_to_offer_is_said_in_the_toaster()
+    {
+        var workflow = new CaseWorkflow(
+            new TestCaseStore(), new TestTracing(), new TestVault(VaultState.Unlocked), _session);
+        var alarm = new SaveAlarm(_session, _toaster, new InlineUi(), workflow);
+        _session.Open(_case);
+
+        _case.SayFileReplaced();
+        await alarm.KeepingBoth;
+
+        Assert.Null(_session.Current);
+        var toast = Assert.Single(Standing);
+        Assert.Equal(ToastKind.Warning, toast.Kind);
+        Assert.EndsWith(CaseTexts.For(CaseError.Conflict), toast.Text, StringComparison.Ordinal);
     }
 }

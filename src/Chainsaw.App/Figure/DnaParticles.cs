@@ -1,9 +1,10 @@
 namespace Chainsaw.App.Figure;
 
 /// <summary>
-/// The particles around the helix (sketch ID8c): characters that come loose from the strands' edges, now and then a
-/// base, and drift slowly outward and down the axis while they fade in and out. The chain itself lets nothing go. It
-/// knows nothing of WPF, so that it is tested in Chainsaw.App.Tests.
+/// The particles around the helix (sketches ID8c and ID8f): characters that come loose from the strands' edges, now and
+/// then a base, and drift slowly away from the axis while they fade in and out. The chains let nothing go. A puff lets
+/// many go at once, faster and shorter, when the long link lets go or a wrong key jerks the band, and a typed character
+/// lets one base go. It knows nothing of WPF, so that it is tested in Chainsaw.App.Tests.
 /// </summary>
 /// <remarks>Not thread-safe: stepped from one timer on the UI thread.</remarks>
 public sealed class DnaParticles
@@ -17,16 +18,19 @@ public sealed class DnaParticles
     /// <summary>The bases, which come loose now and then.</summary>
     public const string Bases = "ATGC";
 
+    /// <summary>How many particles a puff may add above <see cref="Count"/>, so a wild typist never floods the page.</summary>
+    private const int MostAtOnce = Count + 160;
+
     /// <summary>How often a particle is a base.</summary>
     private const double BaseShare = 0.14;
 
     /// <summary>How far into the twist the strands start to let particles go.</summary>
     private const double LooseFrom = 0.3;
 
-    /// <summary>How far from the chain's end particles start, so that none comes from the chain.</summary>
+    /// <summary>How far from the chains particles start, so that none comes from a chain.</summary>
     private const double ClearOfChain = 20;
 
-    /// <summary>How many places are tried for a new particle before the step gives up for now.</summary>
+    /// <summary>How many places are tried for a new particle before giving up for now.</summary>
     private const int Tries = 4;
 
     /// <summary>How far outside the page a particle may start.</summary>
@@ -45,79 +49,120 @@ public sealed class DnaParticles
     /// <summary>Gets the particles.</summary>
     public IReadOnlyList<Particle> Items => _items;
 
-    /// <summary>
-    /// Fills the figure with particles at ages spread over their lives, so that the page never opens on a bare helix.
-    /// </summary>
-    /// <param name="figure">The figure the particles come loose from.</param>
-    public void Fill(DnaFigure figure)
+    /// <summary>Lets every particle go at once, as when the figure starts again.</summary>
+    public void Clear() => _items.Clear();
+
+    /// <summary>Lets new particles come loose until there are <see cref="Count"/>, a few a step.</summary>
+    /// <param name="band">The band the particles come loose from.</param>
+    public void Keep(ChainBand band)
     {
-        _items.Clear();
-        for (var i = 0; i < Count * Tries && _items.Count < Count; i++)
+        for (var i = 0; i < 20 && _items.Count < Count; i++)
         {
-            if (Spawn(figure) is { } particle)
+            if (Spawn(band, puff: false) is not { } particle)
             {
-                particle.Age = _random.NextDouble() * particle.Life;
+                return;
+            }
+
+            _items.Add(particle);
+        }
+    }
+
+    /// <summary>Lets a puff of particles go from the middle of the helix, faster and shorter-lived than the rest.</summary>
+    /// <param name="band">The band.</param>
+    /// <param name="count">How many.</param>
+    public void Burst(ChainBand band, int count)
+    {
+        for (var i = 0; i < count && _items.Count < MostAtOnce; i++)
+        {
+            if (Spawn(band, puff: true) is { } particle)
+            {
                 _items.Add(particle);
             }
         }
     }
 
-    /// <summary>Moves every particle on, and lets a new one come loose in place of each that has faded out.</summary>
-    /// <param name="figure">The figure the particles come loose from.</param>
-    /// <param name="seconds">The time since the last step.</param>
-    public void Step(DnaFigure figure, double seconds)
+    /// <summary>Lets one base go from the helix, a little faster than the dust: a character was typed.</summary>
+    /// <param name="band">The band.</param>
+    public void LetGoBase(ChainBand band)
     {
-        for (var i = 0; i < _items.Count; i++)
+        if (_items.Count >= MostAtOnce || Spawn(band, puff: false) is not { } particle)
         {
-            var particle = _items[i];
+            return;
+        }
+
+        _items.Add(new Particle(Bases[_random.Next(Bases.Length)], isBase: true, life: 2.2)
+        {
+            X = particle.X,
+            Y = particle.Y,
+            VelocityX = particle.VelocityX * 1.8,
+            VelocityY = particle.VelocityY * 1.8,
+        });
+    }
+
+    /// <summary>Moves every particle on, and lets those that have faded out go.</summary>
+    /// <param name="seconds">The time since the last step.</param>
+    public void Step(double seconds)
+    {
+        foreach (var particle in _items)
+        {
             particle.Age += seconds;
             particle.X += particle.VelocityX * seconds;
             particle.Y += particle.VelocityY * seconds;
-            if (particle.Age >= particle.Life && Spawn(figure) is { } fresh)
-            {
-                _items[i] = fresh;
-            }
         }
+
+        _items.RemoveAll(particle => particle.Age >= particle.Life);
     }
 
     /// <summary>
     /// Lets a particle come loose at a random place on the twisted helix, just outside one strand's edge, heading away
-    /// from the axis on that side and a little down it, at a few pixels a second.
+    /// from the axis on that side and a little along it, at a few pixels a second; a puff's near the middle and faster.
     /// </summary>
-    /// <param name="figure">The figure.</param>
+    /// <param name="band">The band.</param>
+    /// <param name="puff">Whether it belongs to a puff.</param>
     /// <returns>The particle, or <see langword="null"/> when no place on the page was found.</returns>
-    private Particle? Spawn(DnaFigure figure)
+    private Particle? Spawn(ChainBand band, bool puff)
     {
+        var from = band.Start + ClearOfChain;
+        var to = puff ? Math.Min(band.End - ClearOfChain, from + 260) : band.End - ClearOfChain;
+        if (puff)
+        {
+            var half = (to - from) / 2;
+            from = band.Centre - half;
+            to = band.Centre + half;
+        }
+
         for (var attempt = 0; attempt < Tries; attempt++)
         {
-            var along = figure.Start + ClearOfChain + _random.NextDouble() * (figure.End - figure.Start - ClearOfChain);
-            var slice = figure.Helix(along);
-            if (slice.Twist < LooseFrom)
+            var along = from + (_random.NextDouble() * Math.Max(1, to - from));
+            var slice = band.Helix(along);
+            if (slice.Twist < LooseFrom && !puff)
             {
                 continue;
             }
 
             var strand = _random.NextDouble() < 0.5 ? slice.First : slice.Second;
             var side = _random.NextDouble() < 0.5 ? -1 : 1;
-            var across = strand + side * (DnaFigure.StrandThickness / 2 + 2 + _random.NextDouble() * 6);
-            var point = figure.At(along, across);
-            if (point.X < -Margin || point.Y < -Margin
-                || point.X > figure.Width + Margin || point.Y > figure.Height + Margin)
+            var across = strand + (side * ((ChainBand.StrandThickness / 2) + 2 + (_random.NextDouble() * 6)));
+            var point = band.At(along, across);
+            if (point.X < -Margin || point.Y < -Margin || point.X > band.Width + Margin || point.Y > band.Height + Margin)
             {
                 continue;
             }
 
-            var outward = across == 0 ? side : Math.Sign(across);
-            var speedAcross = outward * (5 + _random.NextDouble() * 12);
-            var speedAlong = 2 + _random.NextDouble() * 6;
+            var outward = across == band.Middle ? side : Math.Sign(across - band.Middle);
+            var speed = puff ? 4 : 1;
+            var speedAcross = outward * (5 + (_random.NextDouble() * 12)) * speed;
+            var speedAlong = (_random.NextDouble() - 0.5) * 8 * (puff ? 3 : 1);
             var isBase = _random.NextDouble() < BaseShare;
             var character = isBase ? Bases[_random.Next(Bases.Length)] : Dust[_random.Next(Dust.Length)];
-            return new Particle(character, isBase, 2.5 + _random.NextDouble() * 3)
+            var life = puff ? 1.2 + (_random.NextDouble() * 1.6) : 2.5 + (_random.NextDouble() * 3);
+            return new Particle(character, isBase, life)
             {
                 X = point.X,
                 Y = point.Y,
-                VelocityX = figure.Along.X * speedAlong + figure.Across.X * speedAcross,
-                VelocityY = figure.Along.Y * speedAlong + figure.Across.Y * speedAcross,
+                VelocityX = speedAlong,
+                VelocityY = -speedAcross,
+                Age = puff ? 0 : _random.NextDouble() * 0.2 * life,
             };
         }
 

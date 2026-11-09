@@ -26,10 +26,11 @@ public sealed record LabelHistoryEntry(LabelEntry Label, LabelRetraction? Retrac
     public bool IsRetracted => Retraction is not null;
 
     /// <summary>
-    /// Gets whether the label is the user's own judgement in this case: one set with the form, as own or from an open
-    /// source. A label from a sanction list, from another case or from an analysis of behaviour is not.
+    /// Gets whether the label is the user's own judgement in this case (<see cref="LabelSources.IsUsersOwn"/>): one
+    /// set with the form, as own, from an open source, or from an analysis of behaviour the user approved as a label
+    /// (sketch TJ1b). A label from a sanction list, from another case or from a supplier is not.
     /// </summary>
-    public bool IsUsersOwn => Label.Origin.Source is LabelSource.Own or LabelSource.OpenSource;
+    public bool IsUsersOwn => LabelSources.IsUsersOwn(Label.Origin.Source);
 
     /// <summary>
     /// Gets whether the user can take the label back: it is the user's own, or a supplier's report the user does not

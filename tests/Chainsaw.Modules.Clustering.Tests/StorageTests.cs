@@ -69,7 +69,7 @@ public sealed class StorageTests : IDisposable
         var run = _harness.Analyse(chain[1]);
 
         Assert.Equal([chain[1].Txid], run.HeldBack);
-        Assert.Equal(ClusteringJournalKinds.Analysed, run.Journal!.Kind);
+        Assert.Null(run.Journal);
         Assert.Equal(before, _harness.Count("clustering_evidence"));
         Assert.Contains(
             _harness.Service.GetConclusions(_harness.Case, chain[1].Txid).Findings,
@@ -110,18 +110,18 @@ public sealed class StorageTests : IDisposable
     [Fact]
     public void A_newer_version_replaces_an_older_versions_results_which_stay_sealed()
     {
-        using var harness = new CaseHarness(services =>
-            services.AddSingleton<IClusteringHeuristic, SilentCoinJoinV2>());
+        using var harness = new CaseHarness();
         harness.Analyse(Patterns.Whirlpool());
+        new ClusteringService([new SilentCoinJoinNext()]).Analyse(harness.Case, [Patterns.Whirlpool()]);
         var conclusions = harness.Service.GetConclusions(harness.Case, Txid("whirlpool"));
 
         Assert.Null(conclusions.TrailEnd);
         var coinJoin = Assert.Single(conclusions.Findings, found => found.Heuristic.Name == HeuristicNames.CoinJoin);
-        Assert.Equal(2, coinJoin.Heuristic.Version);
+        Assert.Equal(3, coinJoin.Heuristic.Version);
         Assert.Equal(1L, harness.Case.Read(reader =>
         {
             using var command = reader.CreateCommand(
-                "SELECT COUNT(*) FROM clustering_evidence WHERE heuristic = 'coinjoin' AND heuristic_version = 1");
+                "SELECT COUNT(*) FROM clustering_evidence WHERE heuristic = 'coinjoin' AND heuristic_version = 2");
             return (long)command.ExecuteScalar()!;
         }));
     }

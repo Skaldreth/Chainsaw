@@ -9,6 +9,8 @@ namespace Chainsaw.Modules.Network;
 /// not available), a cancelled attempt and any connection or disconnection by the user end it.
 /// </summary>
 /// <remarks>
+/// The network's return is Windows' own signal (<see cref="INetworkSignals"/>), not the internet probe, which runs only
+/// while Windows is the way out and must send nothing outside the tunnel otherwise.
 /// The connection's own events decide only when to begin and when the user has taken over. Whether to go on after an
 /// attempt is read from what the attempt gave, and whether the exit is still lost from the connection's status before
 /// each attempt, so that an event that comes late can never start an attempt nobody wants.
@@ -32,9 +34,10 @@ internal sealed class ExitReconnector : IExitReconnect, IDisposable
     private readonly IExitConnection _connection;
 
     /// <summary>
-    /// Whether the computer reaches the internet, whose return wakes the wait; none when <see langword="null"/>.
+    /// What Windows says about the computer's network, whose return or new address wakes the wait; none when
+    /// <see langword="null"/>.
     /// </summary>
-    private readonly INetworkPresence? _presence;
+    private readonly INetworkSignals? _signals;
 
     /// <summary>Times the waits; the tests move it by hand.</summary>
     private readonly TimeProvider _time;
@@ -65,17 +68,17 @@ internal sealed class ExitReconnector : IExitReconnect, IDisposable
 
     /// <summary>Creates the reconnecting and follows the connection and the network.</summary>
     /// <param name="connection">The connection to the exit.</param>
-    /// <param name="presence">Whether the computer reaches the internet; none when <see langword="null"/>.</param>
+    /// <param name="signals">What Windows says about the computer's network; none when <see langword="null"/>.</param>
     /// <param name="time">Times the waits.</param>
-    internal ExitReconnector(IExitConnection connection, INetworkPresence? presence, TimeProvider time)
+    internal ExitReconnector(IExitConnection connection, INetworkSignals? signals, TimeProvider time)
     {
         _connection = connection;
-        _presence = presence;
+        _signals = signals;
         _time = time;
         connection.StatusChanged += OnStatusChanged;
-        if (presence is not null)
+        if (signals is not null)
         {
-            presence.Changed += OnNetworkChanged;
+            signals.Changed += OnNetworkChanged;
         }
     }
 
@@ -110,9 +113,9 @@ internal sealed class ExitReconnector : IExitReconnect, IDisposable
     public void Dispose()
     {
         _connection.StatusChanged -= OnStatusChanged;
-        if (_presence is not null)
+        if (_signals is not null)
         {
-            _presence.Changed -= OnNetworkChanged;
+            _signals.Changed -= OnNetworkChanged;
         }
 
         CancellationTokenSource? run;
@@ -191,12 +194,12 @@ internal sealed class ExitReconnector : IExitReconnect, IDisposable
         Cancel(stop);
     }
 
-    /// <summary>Ends the wait at once when the network comes back.</summary>
-    /// <param name="sender">The presence.</param>
-    /// <param name="available">Whether the computer reaches the internet now.</param>
-    private void OnNetworkChanged(object? sender, bool available)
+    /// <summary>Ends the wait at once when the network comes back or changes address while there.</summary>
+    /// <param name="sender">The signals.</param>
+    /// <param name="e">Not used: whether there is a network is read again.</param>
+    private void OnNetworkChanged(object? sender, EventArgs e)
     {
-        if (!available)
+        if (_signals is not { HasNetwork: true })
         {
             return;
         }

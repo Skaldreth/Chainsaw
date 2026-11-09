@@ -20,6 +20,8 @@ public sealed partial class GraphViewModel
     {
         Timeline.Show(value);
         KeepOpenSwap();
+        UpdateObfuscation();
+        _ = ReadHeldBackAsync();
     }
 
     /// <summary>Makes the time line, which draws the graph again when its times change.</summary>

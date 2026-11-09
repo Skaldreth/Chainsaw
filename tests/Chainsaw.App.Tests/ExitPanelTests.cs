@@ -87,6 +87,80 @@ public sealed class ExitPanelTests
     }
 
     [Fact]
+    public async Task With_Windows_and_no_exit_connected_the_panel_shows_no_exits()
+    {
+        var rig = new Rig();
+        rig.Route.Choose(ExitRoute.Windows);
+        await rig.OpenAsync();
+
+        Assert.False(rig.Panel.ShowsExits);
+    }
+
+    [Fact]
+    public async Task With_Windows_a_connected_exit_stands_idle_and_the_others_are_toned()
+    {
+        var rig = new Rig();
+        rig.Connection.Set(new ExitStatus(ExitState.Connected, Stockholm.Id, null));
+        rig.Route.Choose(ExitRoute.Windows);
+        await rig.OpenAsync();
+
+        Assert.True(rig.Panel.ShowsExits);
+        var stockholm = rig.Row("Stockholm");
+        Assert.True(stockholm.IsIdle);
+        Assert.False(stockholm.IsToned);
+        Assert.StartsWith("Ansluten sedan ", stockholm.RowTip, StringComparison.Ordinal);
+        Assert.Contains("läget är Windows", stockholm.RowTip, StringComparison.Ordinal);
+        var amsterdam = rig.Row("Amsterdam");
+        Assert.True(amsterdam.IsToned);
+        Assert.False(amsterdam.IsIdle);
+        Assert.Equal(ExitRowViewModel.TonedTip, amsterdam.RowTip);
+    }
+
+    [Fact]
+    public async Task With_Windows_the_idle_exit_can_be_disconnected_and_the_list_goes()
+    {
+        var rig = new Rig();
+        await rig.OpenAsync();
+        await rig.Panel.PowerAsync(rig.Row("Stockholm"));
+        rig.Route.Choose(ExitRoute.Windows);
+
+        await rig.Panel.PowerAsync(rig.Row("Stockholm"));
+
+        Assert.Equal(1, rig.Connection.Disconnects);
+        Assert.False(rig.Panel.ShowsExits);
+        Assert.Equal(ExitRoute.Windows, rig.Route.Current);
+    }
+
+    [Fact]
+    public async Task With_Windows_a_toned_exit_is_never_connected()
+    {
+        var rig = new Rig();
+        rig.Connection.Set(new ExitStatus(ExitState.Connected, Stockholm.Id, null));
+        rig.Route.Choose(ExitRoute.Windows);
+        await rig.OpenAsync();
+
+        await rig.Panel.PowerAsync(rig.Row("Amsterdam"));
+
+        Assert.Equal(0, rig.Connection.Connects);
+        Assert.True(rig.Row("Stockholm").IsIdle);
+    }
+
+    [Fact]
+    public async Task Choosing_VPN_again_makes_every_row_ordinary()
+    {
+        var rig = new Rig();
+        rig.Connection.Set(new ExitStatus(ExitState.Connected, Stockholm.Id, null));
+        rig.Route.Choose(ExitRoute.Windows);
+        await rig.OpenAsync();
+
+        rig.Route.Choose(ExitRoute.Vpn);
+
+        Assert.True(rig.Panel.ShowsExits);
+        Assert.All(rig.Panel.Rows, row => Assert.False(row.IsIdle || row.IsToned));
+        Assert.Equal(ExitRowViewModel.ConnectedText, rig.Row("Stockholm").RowTip);
+    }
+
+    [Fact]
     public async Task A_connect_replaced_while_it_chooses_its_exit_never_connects()
     {
         var rig = new Rig();

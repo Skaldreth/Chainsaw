@@ -210,6 +210,15 @@ den låses upp, och användaren väljer ärende.
 - Central pakethantering (`Directory.Packages.props`), `TreatWarningsAsErrors`, nullable på. Lösning: `Chainsaw.slnx`.
 - **Allt dokumenteras** (användarens krav 2026-11-06): varje typ och metod, också `internal` och `private`, har
   XML-dokumentation som säger vad den gör och, där det inte är självklart, varför.
+- **Grafens rendering är eventstyrd** (användarens krav 2026-11-08): grafytan har **en enda bildruteslinga**
+  (`FramePump` och `GraphCanvas.Frames.cs`). Indata, vymodellens `Redraw` och rörelserna begär en ändring
+  (`GraphChange`: Scene, View, Overlay), och slingan gör det minsta arbete som rutans ändringar kräver tillsammans.
+  Scenen ritas i tre lager i sin ritordning (linjer, noder, det över noderna) som bara flyttas vid panorering
+  (`SceneWindow`). Varje nod är en egen visual i ordningen, så att ett drag (`GraphMoved`), en hovring
+  (`GraphHovered`) eller ett timglas ritar om bara sina noder. Det som står på skärmen över scenen ritas i ett eget
+  lager. Uppslagen (vad som syns, vad som ligger under pekaren) går genom ett rutnät (`GraphIndex`). **Ingen optimering får sänka kvaliteten** (användarens krav
+  2026-11-08): varje bildruta visar exakt det en hel ritning skulle visa. Ritkoden begär aldrig omritning och startar inga rörelser; ingen annan del håller
+  bildrutor, kör egna timrar eller anropar `InvalidateVisual` (ett test vaktar det).
 - **Varje förmåga är ett steg** med tydlig in- och utdata, som kan köras i bakgrunden och misslyckas för sig, och vars
   resultat vet varifrån det kommer (steg, version, data och tid). Det gör att heuristiker, analyser och senare en lokal
   modell kan läggas till på samma sätt.
@@ -250,7 +259,9 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   ett valfritt **delningskuvert** med ett ärendelösenord som kan lämnas till en kollega (användarens beslut
   2026-11-07), och ett kuvert för **organisationens återställningsnyckel** (se *Säkerhet*). Ärendena ligger i
   `%LOCALAPPDATA%\Chainsaw\Ärenden`, inte i Dokument, som ofta synkas till molnet (användarens beslut 2026-11-07). Medan ärendet är öppet arbetar SQLite i en krypterad arbetskopia
-  bredvid filen, som skrivs tillbaka vid sparning och tas tillbaka efter en krasch.
+  bredvid filen, som skrivs tillbaka vid sparning och tas tillbaka efter en krasch. Hela filen (huvudet med alla kuvert
+  och databasen) förseglas vid varje sparning med HMAC-SHA256 under en nyckel ur filnyckeln, och en fil vars sigill
+  inte håller öppnas inte (omgång 6, 2026-11-08).
 - **Appdata** i `%LOCALAPPDATA%\Chainsaw\`: valv, inställningar, delade listor (sanktionslistor, öppna etikettkällor) och
   etikettbiblioteket.
 - **Etiketter smittar** (användarens beslut 2026-11-07). En etikett hör hemma i ärendet där den sattes, men det finns också
@@ -320,12 +331,27 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   släpper länkarna, och den sista länkens två stänger fortsätter som en **dubbelspiral** med stängernas bredd, som vidgas
   mot nederkanten, med basparen som streck mellan strängarna. Figuren är ritad som **vektor**, utan teckenfält bakom;
   bara **partiklar** i tecken (och ibland en bas) lossnar från spiralen och driver ut.
+  **Figuren blir ID8f** (användarens beslut 2026-11-08, ersätter ID8c): **kedja, DNA och kedja vågrätt under
+  formuläret**. Vid start glider kättingarna in från var sin sida, länken mellan dem sträcks och darrar, och släpper
+  sedan med en fjädrande knyck till en spiral som är bredast på mitten, medan den högra kättingen snurrar ett helt varv
+  runt sin axel. Strängarna tonas efter djupet. Bandet hänger som ett **stramt rep** fäst vid fönstrets kanter, med ett
+  litet häng: när fönstret dras svajar det som en båge och stannar fort. Med animeringar avstängda står figuren
+  färdig och stilla.
+  **Formuläret är LS1b** (användarens beslut 2026-11-08): loggan och *Chainsaw* stort ovanför **ett enda fält** med
+  *Huvudnyckel* som ledtext, och *Lås upp · Enter* visas först när något är skrivet. Titelraden är tom. Förklaringen
+  om nyckeln ligger bakom ett *?* nere i vänstra hörnet, och nere till höger står *Återställningsnyckel · <commit>*.
+  Ingen prick för bevakningen (användarens beslut: brus). **Kedjan svarar på nyckeln:** varje tecken får en bas att
+  lossna ur spiralen; fel nyckel rycker i bandet, som pulserar **rött** (`#D7322B`, inte den rosa felfärgen) och släpper
+  en pust tecken medan fältet skakar; rätt nyckel sträcker bandet, vrider spiralen runt sin axel tills ett helt varv ligger i mitten med strängarna
+  längst isär, trycker ihop det till en rundad rektangel, och den krymper till noden *Nytt ärende* där den står i den
+  tomma grafen (GR6c), medan kättingarna och resten av spiralen släpper.
 - **Färger: ID9b, terrakotta och skiffer** (användarens beslut 2026-11-07, ersätter Gawks gråskala och Magenta): en
   sval blågrå skiffer som botten (bakgrund `#22262A`, paneler `#2B2E32`, upphöjt `#33373A`, markerat `#404346`, kanter
-  `#33373A` / `#45474A`), text i kräm och grått (`#FBF6F0` / `#9AA2A6` / `#7C8387`), lyckat `#8CC98F`, fel `#EC8C8C`,
+  `#33373A` / `#45474A`), text i kräm och grått (`#FBF6F0` / `#9AA2A6` / `#7C8387`), lyckat `#8CC98F`, fel `#FF6B5E` (ett klart rött, inte rosa;
+  användarens beslut 2026-11-08),
   och **accenten terrakotta `#C55A3D`** med kräm på. Stegen räknas ut ur paletten i `Themes/Colors.xaml`. Accenten
-  betyder alltid offrens pengar och det valda; den ligger nära risk (rött) och spenderas (gult), som får hållas isär
-  på ljushet.
+  betyder alltid offrens pengar och det valda; den ligger nära risk (rött, `#FF5A4E`, inte rosa: användarens beslut
+  2026-11-08) och spenderas (gult), som får hållas isär på ljushet.
 - **Typsnitt:** Segoe UI Variable, Cascadia Mono bara för hashar, txid och adresser i inspektören samt terminalen.
 - **Grafen är hjärtat.** Det är där man arbetar mest. Den bygger på idéerna från Gawks Byggare (en duk med noder, portar och
   kopplingar), anpassad för spårning. Scrubbern, tidslinjen och kolumner med kort tas över i formen.
@@ -425,7 +451,15 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   liten flytande list med ikoner ovanför sig (Expandera i accent, Etikett, Bevaka, Bryt upp, Annan kedja, Kopiera),
   bara de som går att använda på noden, och under noden när det är trångt ovanför. Etikett (L), Bryt upp (U) och Annan
   kedja (K) fälls ut i en ruta bredvid noden med en liten pil mot den, inte i inspektören. **Inspektören är ren
-  läsning:** huvudet med *Varför?* som rund ikon, fakta, historik och adresserna med kopiera. **Skälet är frivilligt**
+  läsning:** huvudet med *Varför?* som rund ikon, fakta, historik och adresserna med kopiera.
+  **Inspektören är IN5a** (användarens beslut 2026-11-08): en mörkare panel (`Brush.Underlay`) som ligger *under*
+  arbetet i fönstrets hela höjd, med fönstrets knappar uppe på den; titelraden och grafen är ett lyft blad med rundat
+  hörn och skugga mot panelen. Innehållet står som skissernas spalt: sorten som en liten rubrik i accentfärgen och
+  versaler, namnet stort, vad som hänt i luftiga meningar, *Varför?* och *Historik* som en rad rundade knappar, och
+  under en tunn linje fakta och adresserna. Texten står 40 px in från bladets kant, fri från skuggan.
+  **Alla paneler på inspektörens plats ligger under arbetet på samma sätt** (användarens krav 2026-11-08): Guidens
+  panel, förslagen (KF2b) och vyernas valda till höger (Bevakning, Tidslinje, Flöde, Exponering, Etiketter) är
+  `UnderPanel`, med panelens ton, bladets skugga och rundade hörn och 40 px luft, och titelraden slutar där de börjar. **Skälet är frivilligt**
   i alla formulär (användarens beslut 2026-11-07). **Utgångarna är UT2b** (användarens beslut 2026-11-07, ersätter UT1a): utgången i titelraden fäller ut en
   ruta med vägen som en stor bild (Datorn, utgångens namn i en stor ring i lägets färg, Blockkedjor; linjen hel och grön
   när uppslag går, streckad och röd annars), med VPN utgångarna under med en rund knapp för att ansluta, och längst ner
@@ -512,16 +546,39 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
     kuvert, egenskaperna har fliken *Kuvert*, och efter en krasch väljer man gren (filen eller arbetskopian).
   - **KR1a:** sökningen i kommandoraden är en lista med *Bästa träff* överst och grupperna Etiketter, Adresser, Tx,
     Kluster och Guide; den valda raden visas direkt i grafen.
-  - **TL3a** (vald 2026-11-08): vyn Tidslinje har en vågrät bana per aktör, en tx är ett lodrätt streck mellan banorna,
+  - **TL3a** (vald och byggd 2026-11-08): vyn Tidslinje har en vågrät bana per aktör, en tx är ett lodrätt streck mellan banorna,
     tx som ligger tätt samlas med en siffra som zoomar till timmar, ärendets egna händelser står på en egen bana, och
     en inspektör till höger visar fakta ur kedjan.
-  - **FL1a** (vald 2026-11-08): vyn Flöde är en Sankey med en kolumn per hopp från vänster till höger, varje band delat
+  - **FL1a** (vald och byggd 2026-11-08): vyn Flöde är en Sankey med en kolumn per hopp från vänster till höger, varje band delat
     i trådar i färgen för var pengarna till sist hamnade, det som ligger kvar som en stump, och spårningsmetoden som
     räknar om delningen.
   - **PL1b** (vald 2026-11-08): att ångra en godkänd plånbok (Ctrl+Z eller *Ångra* i KF2b) bekräftas i grafen, där
     klustret öppnas som ett kort med adresserna och en liten ruta under som i IN1b; panelen säger *Bekräfta i grafen*.
   - **SW1a** (vald 2026-11-08): valet per swap görs i pillret ₮ → Ξ, som fälls ut på plats till *Följer* och *Följer
     inte*; följer värdet är linjen efter streckad i accent, annars grå med ett stopp och en person-markering.
+  - **VT1a** (vald 2026-11-08): *Byt filnyckel* i fliken *Kuvert* (ÄR1b); korten får *Lindas om* eller *Faller
+    bort*, och bekräftelsen fälls ut under dem med huvudnyckeln och valet att skapa ett nytt ärendelösenord. Kuvertens
+    kort ritas **utan kuvertlinjen** (fliken som gör dem till brev), också i ÄR1b.
+  - **LN1a** (vald 2026-11-08): en länk som väntat på upplåsningen står överst i ärendeväljaren (ÄV1a), som fälls ut av
+    sig själv, med sökfältet, *Lägg i ärende* och *Nytt ärende med adressen …* (NC2a med adressen hämtad); låsskärmen
+    säger bara att en länk väntar, aldrig adressen.
+  - **AK1a** (vald 2026-11-08): *Verifiera* säger att hashkedjan är hel och, med en lugn gul rad, att ankaret byttes;
+    *Varför?* öppnar Guidens panel med förklaringen, kedjan som prickar och den troligaste orsaken streckad.
+  - **Valda 2026-11-08 (andra omgången):** **DX1b** (en DEX:s router är en liten markering i swap-pillrets hörn;
+    hovring visar vägen genom poolerna, klick öppnar *Varför?*, en aggregator visar antalet steg), **KV1a** (dra
+    tillbaka en heuristiks version i menyn på heuristikens rad i inspektörens *Varför?*, med före och efter per
+    kluster och adresserna som lämnar eller kommer tillbaka streckade i grafen), **HB1a** (en slutsats som hålls
+    tillbaka är en tyst hörnmarkering på klustret, en streckad gul ring med pausmärke; Historik har *Låt stå* och
+    *Släpp slutsatsen*), **BU1a** (bryta upp ett par i formuläret Bryt upp vid noden: vägen mellan adresserna som en
+    kedja med saxen på den svagaste länken, och en varning när de inte är i samma kluster), **DM1a** (damm och
+    adressförgiftning som två nedtonade områden; förgiftningen behåller en röd maskmarkering, och att kopiera den
+    liknande adressen jämför de två tecken för tecken med den riktiga som förval), **HP1a** (många hopp blir en linje
+    med en streckad bricka *N hopp · tid* och en pärla per hopp efter tid, som fälls ut på plats), **PX1a** (proxy
+    med inloggning är rader i Inställningar › Nätverk med en brytare som fäller ut vad som skickas, till vem och vad
+    som aldrig skickas), **UT4a** (en ansluten VPN-utgång i läget Windows: listan står kvar tonad och bara den
+    anslutna raden har färg, *används inte* och strömknappen), **KL3b** (den egna nodens certifikat: en nål på raden
+    öppnar en ruta med fingeravtrycket som rutnät, och vid byte står de två bredvid varandra) och **TJ1b** (en trolig
+    tjänst blir en etikett i en ruta vid noden, med sorterna som ikoner, och noden byter utseende medan man väljer).
   - **Tornado Cash** (användarens beslut 2026-11-08): märks *Mixer* med markeringen **tidigare sanktionerad**
     (OFAC tog bort den ur SDN-listan 2025-03-21), en liten hörnmarkering som sanktionerad men nedtonad, med datumen i
     *Varför?*.
@@ -604,11 +661,11 @@ Canvas: https://claude.ai/artifact/LVMLEqgJteM68jjc7vuq1h. **Den är uppdelad i 
 | Sida | Skisser | Läge |
 | --- | --- | --- |
 | **Stil och ikoner** | ID1 (Bitcoin-myntet), ID3 (sågkedjan), ID5 (kättingen); ID6 (accentfärgen), GR3a och GR3c (bildspråket); ID9a–c (accentfärgen i varma jordtoner); IK1 (grafens ikon) | ID1 och ID3 avvisade, ID5 ersatt av loggan i `assets/logo/`; ID6 Magenta ersatt, GR3a och GR3c godkända; ID9b vald och byggd; IK1 kandidat 2, *Förgrening*, vald och byggd |
-| **Låsskärm och förstagång** | ID2, ID4, ID7a, ID7b (låsskärmen); FS1a, FS1b (förstagångsinställningen); ID8a–d (kättingen som blir DNA) | ID8c (ersätter ID7a) och FS1a valda och byggda |
+| **Låsskärm och förstagång** | ID2, ID4, ID7a, ID7b (låsskärmen); FS1a, FS1b (förstagångsinställningen); ID8a–d (kättingen som blir DNA); ID8e, ID8f (startanimationen och ett spänt rep som svajar när fönstret skakas); LS1a, LS1b (formuläret ovanför bandet, kedjan som svarar på nyckeln och spiralen som blir noden Nytt ärende) | ID8c (ersätter ID7a) och FS1a valda och byggda; ID8f (stram, ersätter ID8c) och LS1b valda och byggda 2026-11-08 |
 | **Skalet** | SH1a (sidopanel), SH1b (pillret) | SH1b vald och byggd |
 | **Vänsternavigering** | PN1 (undermenyer i pillret), B9 från Gawk (förlaga) | PN1 godkänd, byggs i etapp 11b |
 | **Ärenden** | NC1a (panel), NC1b (dialog); NC2a, NC2b (startpunkterna som lista som förhandshämtar) | NC2a vald 2026-11-08 och byggd (ersätter NC1a) |
-| **Grafen** | GR1a, GR1b; GR2a, GR2b; GR3b, GR4; GR5 (startpunkten och namnen), IN1a, IN1b (inspektörens formulär); AN1a, AN1b (ta tillbaka och ångra); TK1a, TK1b (tokens och Kan frysas); TL1a, TL1b (tidslinjen under grafen); EX1a, EX1b (det som hölls tillbaka vid en expansion); EX2a, EX2b (filtren och var de utplockade hamnar); GR6a, GR6b, GR6c (tom graf med guidenoder); IN2a, IN2b (inspektören med ikoner); KN1a, KN1b (kommentarsnoden); GR7a, GR7b (bildspråkets ruta); GR8a, GR8b (ärenden i högar i startvyn) | GR4 godkänd, förlagan för grafen; GR5 variant A, IN1a, AN1b och TK1a valda; TL1a vald; EX1a och EX1b båda, som två lägen, med filter och samlingsnoden; EX2b vald, med dimmad bakgrund; GR6c vald och byggd; IN2b vald (ikonlisten vid noden), med formulären vid noden som i IN1b; KN1a vald; GR7a vald; GR8a vald, med grafens stöt och centrering |
+| **Grafen** | GR1a, GR1b; GR2a, GR2b; GR3b, GR4; GR5 (startpunkten och namnen), IN1a, IN1b (inspektörens formulär); AN1a, AN1b (ta tillbaka och ångra); TK1a, TK1b (tokens och Kan frysas); TL1a, TL1b (tidslinjen under grafen); EX1a, EX1b (det som hölls tillbaka vid en expansion); EX2a, EX2b (filtren och var de utplockade hamnar); GR6a, GR6b, GR6c (tom graf med guidenoder); IN2a, IN2b (inspektören med ikoner); KN1a, KN1b (kommentarsnoden); GR7a, GR7b (bildspråkets ruta); GR8a, GR8b (ärenden i högar i startvyn); IN5a, IN5b (inspektören under grafen, i skissernas stil) | GR4 godkänd, förlagan för grafen; GR5 variant A, IN1a, AN1b och TK1a valda; TL1a vald; EX1a och EX1b båda, som två lägen, med filter och samlingsnoden; EX2b vald, med dimmad bakgrund; GR6c vald och byggd; IN2b vald (ikonlisten vid noden), med formulären vid noden som i IN1b; KN1a vald; GR7a vald; GR8a vald, med grafens stöt och centrering; IN5a vald och byggd 2026-11-08 |
 | **Utgångar** | UT1a (i titelraden), UT1b (undermeny i pillret); UT2a, UT2b (lättare att läsa) | UT2b vald (ersätter UT1a) |
 | **Guiden** | GD1a (vy), GD1b (panel bredvid arbetet) | GD1b vald och byggd (etapp 18) |
 | **Inställningar** | ST1a (dialog som i Gawk), ST1b (vy); KL1a, KL1b (källornas endpoints) | ST1a vald och byggd (etapp 19); KL1a vald, ersatt av KL2b (vald 2026-11-08 utan linjerna vid raderna och byggd, med Chainabuse under *Etiketter*) |

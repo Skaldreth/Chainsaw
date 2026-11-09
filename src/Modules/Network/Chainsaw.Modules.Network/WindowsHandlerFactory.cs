@@ -9,21 +9,35 @@ namespace Chainsaw.Modules.Network;
 /// Builds the pipeline for the way out through Windows (decided 2026-11-07): the computer's own network, through the
 /// proxy Windows is set up with, so that the protection installed for the whole computer sees and carries the lookup.
 /// Everything else is as through an exit: no cookies, no redirects, no credentials, no trace headers, no resumed TLS
-/// sessions, HTTP/1.1, and a certificate chain built without fetching anything around the request.
+/// sessions, HTTP/1.1, and a certificate chain built without fetching anything around the request. The one exception
+/// is the user's choice to log in to a proxy set by hand with the Windows account (sketch PX1a): the system's proxy
+/// then gets credentials that answer only that proxy (<see cref="WindowsProxyLogin"/>); a source never gets any.
 /// </summary>
 /// <param name="options">The limits on requests.</param>
-internal sealed class WindowsHandlerFactory(NetworkOptions options) : IWindowsHandlerFactory
+/// <param name="login">The login to Windows' proxy; without it no credentials are ever given.</param>
+internal sealed class WindowsHandlerFactory(NetworkOptions options, WindowsProxyLogin? login = null)
+    : IWindowsHandlerFactory
 {
     /// <inheritdoc />
+    /// <remarks>
+    /// The pipeline is wrapped in <see cref="ProxiedNameGuard"/>, so that a name the system's proxy would resolve is
+    /// held to the same rule as one the pipeline resolves itself.
+    /// </remarks>
     public HttpMessageHandler Create() =>
-        new SocketsHttpHandler
+        new ProxiedNameGuard(CreateSockets(), ProxiedNameGuard.SystemProxyFor, Dns.GetHostAddressesAsync);
+
+    /// <summary>Builds the socket pipeline itself.</summary>
+    /// <returns>The handler.</returns>
+    internal SocketsHttpHandler CreateSockets() =>
+        new()
         {
             // No proxy of its own: HttpClient.DefaultProxy, which on Windows is the system's proxy (also from a PAC
-            // file or automatic detection), or none. Its credentials are never sent on their own (see DEV-LOG, etapp
-            // 19): a proxy that asks for them answers 407, which is shown honestly.
+            // file or automatic detection), or none. The Windows account is given to it only when the user turned the
+            // login on, and then only to the proxy set by hand it was turned on for (sketch PX1a); a proxy that asks
+            // for a login it does not get answers 407, which is shown honestly.
             UseProxy = true,
             Proxy = null,
-            DefaultProxyCredentials = null,
+            DefaultProxyCredentials = login?.ProxyCredentials(),
             Credentials = null,
             PreAuthenticate = false,
             UseCookies = false,

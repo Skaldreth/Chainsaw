@@ -34,6 +34,14 @@ public sealed record ExposureNames(
 }
 
 /// <summary>
+/// A way out of an actor that the user approved among a suggestion's candidates (sketch KF2b), as a mixer's likely
+/// payout: a judgement, never a fact (principle 2).
+/// </summary>
+/// <param name="From">The actor the suggestion is about.</param>
+/// <param name="To">The approved candidate's actor.</param>
+public sealed record ApprovedWayOut(string From, string To);
+
+/// <summary>
 /// An actor in the rings of the view Exponering (sketch EP1b): a service as a node in the visual language, larger the
 /// larger its share, or an actor on the way as a small point.
 /// </summary>
@@ -47,6 +55,10 @@ public sealed record ExposureNames(
 /// <param name="Name">Its name, as the graph gives it.</param>
 /// <param name="Line">Its second line: the amount and the share, for a service.</param>
 /// <param name="IsSanctioned">Whether it carries the sanction mark.</param>
+/// <param name="IsCandidate">
+/// Whether it is an approved likely way out beyond a mixer: drawn dashed, with <em>förslag</em> instead of a share,
+/// and never counted (TODO, <em>Exponering, mixerns troliga utgångar</em>).
+/// </param>
 public sealed record RingPlace(
     string Key,
     ExposureDirection Side,
@@ -57,7 +69,8 @@ public sealed record RingPlace(
     SortLook Look,
     string Name,
     string Line,
-    bool IsSanctioned)
+    bool IsSanctioned,
+    bool IsCandidate = false)
 {
     /// <summary>Gets the place's id: the side and the key, since an actor may stand on both sides.</summary>
     public string Id => ExposureLayout.IdOf(Side, Key);
@@ -73,8 +86,15 @@ public sealed record RingPlace(
 /// <param name="To">Its end farther away.</param>
 /// <param name="Width">Its thickness.</param>
 /// <param name="Ink">Its colour.</param>
+/// <param name="IsDotted">Whether it is a suggestion, drawn dotted: the way to an approved likely way out.</param>
 public sealed record RingLine(
-    string EdgeKey, ExposureDirection Side, GraphPoint From, GraphPoint To, double Width, GraphInk Ink)
+    string EdgeKey,
+    ExposureDirection Side,
+    GraphPoint From,
+    GraphPoint To,
+    double Width,
+    GraphInk Ink,
+    bool IsDotted = false)
 {
     /// <summary>
     /// Gets the curve's control point: the middle, pushed a little away from the centre, so that the lines bow
@@ -118,6 +138,12 @@ public sealed record ExposurePicture(
 
     /// <summary>Gets whether there is anything to draw.</summary>
     public bool HasSubject => SubjectName.Length > 0;
+
+    /// <summary>
+    /// Gets the approved likely ways out beyond the mixers the money was paid to, which are suggestions and never
+    /// counted (TODO, <em>Exponering, mixerns troliga utgångar</em>).
+    /// </summary>
+    public IReadOnlyList<RingPlace> Candidates { get; init; } = [];
 
     /// <summary>Gives what is under a point: a service or an actor on the way, with its name beside it.</summary>
     /// <param name="point">The point, in the picture's units.</param>
@@ -186,6 +212,20 @@ public static class ExposureLayout
     /// <summary>The ring the money of each hop stands on: its radius, from the centre outwards.</summary>
     public static IReadOnlyList<double> Rings { get; } = [0, 130, 232, 330];
 
+    /// <summary>
+    /// Where the likely ways out beyond a mixer on the last ring stand: past the last ring, inside the picture.
+    /// </summary>
+    public const double Beyond = 404;
+
+    /// <summary>The word a likely way out has in place of its share.</summary>
+    public const string CandidateWord = "förslag";
+
+    /// <summary>The room between two likely ways out of one mixer, in degrees.</summary>
+    private const double CandidateStep = 9;
+
+    /// <summary>How far from the side's middle a likely way out may stand, in degrees, so that it stays in the picture.</summary>
+    private const double CandidateSpan = 62;
+
     /// <summary>The most room between two actors on a ring, in degrees, per ring.</summary>
     private static readonly double[] WidestStep = [0, 40, 30, 24];
 
@@ -204,9 +244,14 @@ public static class ExposureLayout
     /// <param name="paid">What it paid out, or <see langword="null"/>.</param>
     /// <param name="got">What it got, or <see langword="null"/>.</param>
     /// <param name="graph">The graph's actors and sorts, for their names and looks.</param>
+    /// <param name="waysOut">The approved likely ways out, drawn beyond the services they leave; none when null.</param>
     /// <returns>The picture.</returns>
     public static ExposurePicture Build(
-        NodeView subject, ExposureResult? paid, ExposureResult? got, ExposureNames graph)
+        NodeView subject,
+        ExposureResult? paid,
+        ExposureResult? got,
+        ExposureNames graph,
+        IReadOnlyList<ApprovedWayOut>? waysOut = null)
     {
         ArgumentNullException.ThrowIfNull(subject);
         ArgumentNullException.ThrowIfNull(graph);
@@ -220,6 +265,8 @@ public static class ExposureLayout
             lines.AddRange(side.Lines);
         }
 
+        var candidates = WaysOut(subject.Key, places, waysOut ?? [], graph);
+        lines.AddRange(candidates.Lines);
         return new ExposurePicture(
             depth,
             [.. places.Where(place => place.IsService)],
@@ -228,7 +275,54 @@ public static class ExposureLayout
             subject.Name,
             subject.Look,
             "← Fått från · " + Total(got),
-            "Betalat till · " + Total(paid) + " →");
+            "Betalat till · " + Total(paid) + " →")
+        {
+            Candidates = candidates.Places,
+        };
+    }
+
+    /// <summary>
+    /// Places the approved likely ways out beyond each service the money was paid out to (TODO, <em>Exponering,
+    /// mixerns troliga utgångar</em>): on the next ring around the service's angle, or past the last ring, each with a
+    /// dotted line from the service. A way out to an actor already drawn on that side is left out, since the money's
+    /// own line reaches it, and so is one back to the subject.
+    /// </summary>
+    /// <param name="subject">The subject's key.</param>
+    /// <param name="places">The actors placed on both sides.</param>
+    /// <param name="waysOut">The approved ways out.</param>
+    /// <param name="graph">The graph's names and looks.</param>
+    /// <returns>The likely ways out and their lines.</returns>
+    private static (List<RingPlace> Places, List<RingLine> Lines) WaysOut(
+        string subject, IReadOnlyList<RingPlace> places, IReadOnlyList<ApprovedWayOut> waysOut, ExposureNames graph)
+    {
+        var paid = places.Where(place => place.Side == ExposureDirection.Out).ToList();
+        var drawn = paid.Select(place => place.Key).Append(subject).ToHashSet(StringComparer.Ordinal);
+        var result = (Places: new List<RingPlace>(), Lines: new List<RingLine>());
+        foreach (var service in paid.Where(place => place.IsService))
+        {
+            var ways = waysOut.Where(way => way.From == service.Key && drawn.Add(way.To)).ToList();
+            var radius = service.Hop + 1 < Rings.Count ? Rings[service.Hop + 1] : Beyond;
+            var angle = Math.Atan2(service.At.Y - Centre.Y, service.At.X - Centre.X) * 180 / Math.PI;
+            // The group is moved, not each one clamped, so that ways out near the edge never lie on each other.
+            var spread = (ways.Count - 1) * CandidateStep;
+            var last = Math.Max(-CandidateSpan, CandidateSpan - spread);
+            var first = Math.Clamp(angle - (spread / 2), -CandidateSpan, last);
+            for (var index = 0; index < ways.Count; index++)
+            {
+                var radians = (first + (index * CandidateStep)) * Math.PI / 180;
+                var at = new GraphPoint(Centre.X + (radius * Math.Cos(radians)), Centre.Y + (radius * Math.Sin(radians)));
+                var key = ways[index].To;
+                var look = graph.LookOf(key);
+                result.Places.Add(new RingPlace(
+                    key, ExposureDirection.Out, at, SmallestService, service.Hop + 1, false, look, graph.NameOf(key),
+                    CandidateWord, false, IsCandidate: true));
+                result.Lines.Add(new RingLine(
+                    service.Key + ">" + key, ExposureDirection.Out, service.At, at, ThinnestLine, look.Ink,
+                    IsDotted: true));
+            }
+        }
+
+        return result;
     }
 
     /// <summary>Writes a side's total with its unit, or a dash when it was not read.</summary>

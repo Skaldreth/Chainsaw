@@ -5,6 +5,7 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using Chainsaw.App.Graph;
 using Chainsaw.App.ViewModels;
+using static Chainsaw.App.Controls.Freezing;
 
 namespace Chainsaw.App.Controls;
 
@@ -444,14 +445,5 @@ public sealed partial class TimeStrip : FrameworkElement
             size,
             ink,
             VisualTreeHelper.GetDpi(this).PixelsPerDip);
-    }
-
-    /// <summary>Freezes a dash style, so that it can be shared.</summary>
-    /// <param name="style">The style.</param>
-    /// <returns>The frozen style.</returns>
-    private static DashStyle Frozen(DashStyle style)
-    {
-        style.Freeze();
-        return style;
     }
 }

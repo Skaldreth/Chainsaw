@@ -22,11 +22,18 @@ Den stora outputen är **växeln**: samma ägare som hoppets input. De små är 
 
 ## Hur Chainsaw känner igen den
 
-`peel-chain v1` räknar ett hopp när tx:en har exakt en input och två outputs, och den stora är minst fyra gånger den
-lilla. När ärendet känner till **minst tre hopp i rad**, där den stora outputen i ett hopp är inputen i nästa, är det
-en peel chain:
+`peel-chain v2` räknar ett hopp när tx:en har två outputs. Den output som går vidare är den stora, när den är minst
+fyra gånger den lilla. När ärendet känner till **minst
+tre hopp i rad**, där den output som går vidare i ett hopp är en input i nästa, är det en peel chain:
 
-- den stora outputen i varje hopp **föreslås** som hoppets [växel](vaxeladress.md), men slås inte ihop automatiskt i version 1. Formen
+- **Hopp som fylls på:** ett hopp får ha fler inputs än myntet från hoppet före. Det är vanligt att kedjan fylls på
+  med nya pengar på vägen, och slutsatsen säger hur många inputs som kom till.
+- **Växeln behöver inte vara den största:** den mindre följs bara när ärendet vet vad som hände med **båda**: den
+  mindre spenderas av ett hopp av samma form (där det som går vidare är minst fyra gånger det som skalas av), och den
+  större av en tx som inte är ett hopp. En betalning följs aldrig bara för att den är den enda spenderingen du har
+  hämtat, eftersom det beror på vad du har expanderat. *Varför?* säger när den mindre går vidare.
+
+- den output som går vidare i varje hopp **föreslås** som hoppets [växel](vaxeladress.md), men slås inte ihop automatiskt. Formen
   räcker inte: många vanliga betalningar ser likadana ut, så ett offers egna betalningar kan få betalningen till
   bedragaren att se ut som ett hopp mitt i en kedja, och det sista hoppet kan skicka huvuddelen till en börs. Du
   godkänner förslagen när du har sett kedjan (godkännandet byggs med gränssnittet);
@@ -37,4 +44,6 @@ den nya slutsatsen bredvid den gamla. Slutsatsen säger vilka andra hopp (tx) de
 
 ## I utredningen
 
-Följ den stora outputen för att hålla jämna steg med pengarna, och titta på de avskalade för att hitta uttagen.
+Följ den output som går vidare för att hålla jämna steg med pengarna, och titta på de avskalade för att hitta uttagen.
+Slutar kedjan vid en börs (den sista växeln går till en adress som en etikett säger är en börs) säger kontrollen
+*Peel chain till börs*: där tas pengarna troligen ut, och insättningen hör till en begäran.

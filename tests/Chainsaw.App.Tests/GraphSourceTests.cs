@@ -127,6 +127,28 @@ internal sealed class TestClustering : IClusteringService
         ICase @case, IReadOnlyCollection<BitcoinAddress> addresses) =>
         addresses.Distinct().ToDictionary(address => address, address => GetCluster(@case, address));
 
+    public WithdrawPreview? PreviewWithdraw(ICase @case, HeuristicId heuristic) => Preview;
+
+    public IReadOnlyList<HeldBackConclusion> GetHeldBack(ICase @case) => HeldBack;
+
+    public HeldBackDecision? DecideHeldBack(ICase @case, Txid txid, ConclusionChoice choice, string? reason)
+    {
+        var decision = new HeldBackDecision(
+            Decisions.Count + 1, txid, [], [], choice, reason, Decisions.Count + 1, DateTimeOffset.UnixEpoch);
+        Decisions.Add(decision);
+        return decision;
+    }
+
+    public IReadOnlyList<HeldBackDecision> GetHeldBackDecisions(ICase @case) => Decisions;
+
+    public HeldBackDecision? ReopenHeldBack(ICase @case, long decisionSequence, string? reason) => null;
+
+    public WithdrawPreview? Preview { get; set; }
+
+    public List<HeldBackConclusion> HeldBack { get; } = [];
+
+    public List<HeldBackDecision> Decisions { get; } = [];
+
     public ClusteringRun Analyse(ICase @case, IReadOnlyCollection<BitcoinTransaction> transactions) =>
         throw new NotSupportedException();
 
@@ -177,6 +199,14 @@ internal sealed class TestClustering : IClusteringService
     public IReadOnlyList<MergeHistoryEntry> GetMergeHistory(ICase @case) => MergeHistory;
 
     public IReadOnlyList<MergeHistoryEntry> GetMergeHistory(ICaseReader reader) => MergeHistory;
+
+    public VersionWithdrawal Withdraw(ICase @case, HeuristicId heuristic, string? reason) =>
+        throw new NotSupportedException();
+
+    public VersionWithdrawalUndo? TakeBackWithdrawal(ICase @case, long withdrawalSequence, string? reason) =>
+        throw new NotSupportedException();
+
+    public IReadOnlyList<VersionWithdrawal> GetWithdrawals(ICase @case) => [];
 }
 
 /// <summary>The graph's way into the modules: labels, seeds, the trace and the expansion, off the UI thread.</summary>

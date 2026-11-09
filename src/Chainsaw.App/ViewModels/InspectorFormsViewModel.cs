@@ -371,6 +371,7 @@ public sealed partial class InspectorFormsViewModel : ObservableObject
     public string SubmitText => Form switch
     {
         InspectorForm.Label => "Sätt etikett",
+        InspectorForm.Split when IsPairMode => "Bryt upp",
         InspectorForm.Split => "Bryt ut " + Picked().Count.ToString(CultureInfo.InvariantCulture),
         InspectorForm.CrossChain => "Knyt",
         _ => string.Empty,
@@ -380,6 +381,7 @@ public sealed partial class InspectorFormsViewModel : ObservableObject
     public bool CanSubmit => !IsSaving && _session.Current is not null && Form switch
     {
         InspectorForm.Label => LabelDraft() is not null,
+        InspectorForm.Split when IsPairMode => !IsApart && PairRequests().Count > 0,
         InspectorForm.Split => SplitRequests().Count > 0,
         InspectorForm.CrossChain => ChosenCoin() is { } coin && RecognisedTx is { } target
             && target.Chain != coin.Chain && HasReason(Reason),
@@ -648,7 +650,7 @@ public sealed partial class InspectorFormsViewModel : ObservableObject
         }
 
         // The cluster is read again just before, so that links that came since the rows were read are split too.
-        var picked = Picked();
+        List<BitcoinAddress> picked = IsPairMode ? [.. PairLeaving] : Picked();
         var fresh = await _editor.ReadClusterAsync(openCase, shown.Start, CancellationToken.None);
         var requests = InspectorForms.BreakOut(fresh, [.. picked.Where(fresh.Contains)], Reason);
         var outcome = await _editor.SplitAsync(openCase, requests);
@@ -728,7 +730,7 @@ public sealed partial class InspectorFormsViewModel : ObservableObject
             return null;
         }
 
-        var draft = InspectorForms.Draft(
+        var draft = FromCheck(InspectorForms.Draft(
             subject,
             Kind,
             LabelName,
@@ -736,7 +738,7 @@ public sealed partial class InspectorFormsViewModel : ObservableObject
             SourceName,
             Reason,
             DoNotSpread,
-            DateOnly.FromDateTime(_clock.UtcNow.ToLocalTime().DateTime));
+            DateOnly.FromDateTime(_clock.UtcNow.ToLocalTime().DateTime)));
         return draft.Reason.Length <= InspectorForms.MostReasonLength ? draft : null;
     }
 
@@ -797,6 +799,8 @@ public sealed partial class InspectorFormsViewModel : ObservableObject
         DoNotSpread = false;
         Reason = string.Empty;
         _cluster = null;
+        ForgetCheck();
+        LeavePair();
         Members.Clear();
         MembersNotice = string.Empty;
         UpdatePicked();

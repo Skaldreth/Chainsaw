@@ -9,7 +9,8 @@ namespace Chainsaw.App.Controls;
 /// Asks for a file with Windows' own dialog, over the main window. The automatic lock is held while the dialog is
 /// open, since what the user does there never reaches the window and a lock would otherwise fall behind the dialog.
 /// A file chosen after Chainsaw was locked meanwhile (Ctrl+L, Windows' lock or sleep) is dropped, so that nothing is
-/// done behind the lock screen.
+/// done behind the lock screen. No file is added to Windows' recent items, whose names (a case number, a request)
+/// would otherwise stay in the user's profile outside the case (principle 4).
 /// </summary>
 /// <param name="autoLock">The automatic lock, held while the dialog is open.</param>
 /// <param name="vault">The vault, which says whether Chainsaw is still unlocked when the dialog closes.</param>
@@ -30,6 +31,7 @@ public sealed class WpfFilePicker(AutoLock autoLock, IVault vault) : IFilePicker
             AddExtension = true,
             FileName = suggestedName,
             OverwritePrompt = false,
+            AddToRecent = false,
         };
         using (autoLock.Hold())
         {
@@ -68,6 +70,7 @@ public sealed class WpfFilePicker(AutoLock autoLock, IVault vault) : IFilePicker
             Filter = filter,
             CheckFileExists = true,
             Multiselect = false,
+            AddToRecent = false,
         };
         using (autoLock.Hold())
         {

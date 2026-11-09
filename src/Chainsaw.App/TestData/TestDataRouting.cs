@@ -44,6 +44,11 @@ public sealed class TestDataBitcoinRouter(IBitcoinSource real, Lazy<IBitcoinSour
         For(@case).VerifyTransactionAsync(@case, txid, cancellationToken);
 
     /// <inheritdoc/>
+    public Task<BitcoinLookup<BitcoinTransaction>> VerifyInBlockAsync(
+        ICase @case, Txid txid, CancellationToken cancellationToken = default) =>
+        For(@case).VerifyInBlockAsync(@case, txid, cancellationToken);
+
+    /// <inheritdoc/>
     public Task<BitcoinLookup<BitcoinAddressSummary>> GetAddressSummaryAsync(
         ICase @case, BitcoinAddress address, CancellationToken cancellationToken = default) =>
         For(@case).GetAddressSummaryAsync(@case, address, cancellationToken);
@@ -61,6 +66,11 @@ public sealed class TestDataBitcoinRouter(IBitcoinSource real, Lazy<IBitcoinSour
     /// <inheritdoc/>
     public Task<BitcoinLookup<BitcoinTip>> GetTipHeightAsync(ICase @case, CancellationToken cancellationToken = default) =>
         For(@case).GetTipHeightAsync(@case, cancellationToken);
+
+    /// <inheritdoc/>
+    public Task<BitcoinLookup<BitcoinTip>> GetTipHeightAsync(
+        ICase @case, LookupMode mode, CancellationToken cancellationToken = default) =>
+        For(@case).GetTipHeightAsync(@case, mode, cancellationToken);
 
     /// <inheritdoc/>
     public Task<BitcoinLookup<ChainTip>> GetTipAsync(ICase @case, CancellationToken cancellationToken = default) =>

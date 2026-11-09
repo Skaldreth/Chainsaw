@@ -17,4 +17,13 @@ public static class ClusteringJournalKinds
 
     /// <summary>The user undid a merge of their own, so that the addresses are no longer merged by it.</summary>
     public const string MergeUndone = "clustering.merge-undone";
+
+    /// <summary>A version of an analysis was drawn back, so that its conclusions no longer count.</summary>
+    public const string VersionWithdrawn = "clustering.version-withdrawn";
+
+    /// <summary>A withdrawal of a version was taken back, so that the version runs and counts again.</summary>
+    public const string WithdrawalTakenBack = "clustering.withdrawal-taken-back";
+
+    /// <summary>The user decided about a conclusion a run held back: let it stand or let it go (sketch HB1a).</summary>
+    public const string HeldBackDecided = "clustering.held-back-decided";
 }

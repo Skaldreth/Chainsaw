@@ -194,7 +194,7 @@ public sealed class LabelTests : IDisposable
         var history = _harness.Labels.GetHistory(_harness.Case, [address]);
 
         Assert.True(history.Single(entry => entry.Label.Sequence == open.Sequence).CanRetract);
-        Assert.False(history.Single(entry => entry.Label.Sequence == behaviour.Sequence).CanRetract);
+        Assert.True(history.Single(entry => entry.Label.Sequence == behaviour.Sequence).CanRetract);
         Assert.Empty(_harness.Labels.GetHistory(_harness.Case, [Wpkh("nothing")]));
         Assert.Empty(_harness.Labels.GetHistory(_harness.Case, Array.Empty<BitcoinAddress>()));
     }
