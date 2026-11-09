@@ -193,6 +193,18 @@ public sealed class ChainStateTests
     }
 
     [Fact]
+    public void A_box_says_when_the_end_rests_on_one_source_and_how_far_the_coins_were_asked()
+    {
+        var single = Gone(Tx[1]) with { IsSingleSource = true, GoneHosts = ["esplora.test"] };
+        var replacement = Replaced(Tx[3], inBlock: true) with { PreviousCount = 25, PreviousAnswered = 20 };
+
+        var mark = BlockMarks.ForLines(GoneScene(replacement, [], single), [single], Now, Utc)[VK];
+
+        Assert.Contains(GoneTransaction.OneSourceText("esplora.test"), mark.Foot, StringComparison.Ordinal);
+        Assert.Contains("Frågat om 20 av 25", mark.Foot, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Every_replacer_of_a_double_spend_has_its_own_row()
     {
         var replacement = new TransactionReplacement(Tx[1],

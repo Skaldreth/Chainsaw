@@ -108,9 +108,15 @@ public static class BlockMarks
     /// without an end.
     /// </summary>
     public const string UncertainFoot =
-        "Källan säger att den inte känner till tx:en, men det är inte bekräftat: bara en endpoint har sagt det, eller "
+        "Källan säger att den inte känner till tx:en, men det är inte bekräftat: bara en värd har sagt det, eller "
         + "svaren om mynten säger att tx:en fortfarande spenderar dem. Spåret stannar här utan att sluta, i stället "
         + "för att gissa. Alla svar står kvar i ärendet.";
+
+    /// <summary>
+    /// What a box adds when the coins' transactions have only partly been asked about, with how many: the rest are
+    /// asked at the next lookup.
+    /// </summary>
+    public const string PartlyAskedFormat = "Frågat om {0} av {1} tx som mynten kom ur; resten vid nästa uppslag.";
 
     /// <summary>What a row says after the replacer's id when it is unconfirmed.</summary>
     public const string UnconfirmedText = "obekräftad";
@@ -222,6 +228,26 @@ public static class BlockMarks
     /// <returns>The foot.</returns>
     private static string GoneFootOf(GoneReading? gone)
     {
+        var foot = BaseGoneFoot(gone);
+        if (gone?.Gone is { RestsOnOneSource: true } single)
+        {
+            foot += " " + GoneTransaction.OneSourceText(single.OneSource);
+        }
+
+        if (gone?.Gone.Replacement is { } replacement && replacement.PreviousAnswered < replacement.PreviousCount)
+        {
+            var (answered, count) = (replacement.PreviousAnswered, replacement.PreviousCount);
+            foot += " " + string.Format(CultureInfo.InvariantCulture, PartlyAskedFormat, answered, count);
+        }
+
+        return foot;
+    }
+
+    /// <summary>Gives the first part of a gone transaction's foot, after how far the answers go.</summary>
+    /// <param name="gone">The graph's reading of it, or <see langword="null"/>.</param>
+    /// <returns>The text.</returns>
+    private static string BaseGoneFoot(GoneReading? gone)
+    {
         if (gone is { Gone.IsSettled: false })
         {
             return UncertainFoot;
@@ -267,7 +293,7 @@ public static class BlockMarks
         ];
     }
 
-    /// <summary>Writes the block a replacer is in, as the answers about the coins say, or that it is not in one.</summary>
+    /// <summary>Writes the block a replacer is in, as the answers about the coins say, or that it is in none.</summary>
     /// <param name="replacement">The answers.</param>
     /// <param name="replacer">The replacer.</param>
     /// <returns>For example <c>921 345</c> or <c>obekräftad</c>.</returns>

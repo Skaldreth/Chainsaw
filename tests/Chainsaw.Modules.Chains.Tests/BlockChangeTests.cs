@@ -113,6 +113,8 @@ public sealed class BlockChangeTests : IDisposable
         Assert.Equal(800_000, change.Before.Height);
         Assert.Null(change.Now.Hash);
         Assert.True(change.IsCorroborated);
+        Assert.True(change.IsSingleSource);
+        Assert.Equal(["esplora.test"], change.GoneHosts);
     }
 
     [Fact]
@@ -123,6 +125,10 @@ public sealed class BlockChangeTests : IDisposable
         var first = _harness.Sources.Get(Chain.Bitcoin).Endpoints[0].Endpoint;
         var (second, saved) = _harness.Sources.Add(Chain.Bitcoin, new Uri(Second), "esplora", null);
         await saved;
+        // The case has heard from the second host too, so that a lone word from the first is not all there is.
+        await _harness.Sources.SetEnabledAsync(Chain.Bitcoin, first.Id, false);
+        await TipAsync(Second, 800_001);
+        await _harness.Sources.SetEnabledAsync(Chain.Bitcoin, first.Id, true);
         await _harness.Sources.SetEnabledAsync(Chain.Bitcoin, second.Id, false);
 
         // The first endpoint lies: it says twice, a block apart, that it does not know the transaction.
@@ -142,8 +148,10 @@ public sealed class BlockChangeTests : IDisposable
 
         Assert.Equal(BlockChangeKind.Gone, alone.Kind);
         Assert.False(alone.IsCorroborated);
+        Assert.False(alone.IsSingleSource);
         Assert.Equal(BlockChangeKind.Gone, both.Kind);
         Assert.True(both.IsCorroborated);
+        Assert.Equal(["esplora.test", "second.example"], both.GoneHosts);
     }
 
     [Fact]

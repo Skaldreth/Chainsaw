@@ -207,19 +207,49 @@ public sealed class GoneTransactionTests : IDisposable
 
         Assert.Equal(TrailEndReason.GoneUncertain, end.Reason);
         Assert.False(end.Reason.EndsTrail());
-        Assert.Contains("Bara en endpoint", end.Explanation, StringComparison.Ordinal);
+        Assert.Contains("Bara en värd", end.Explanation, StringComparison.Ordinal);
         Assert.False(graph.TransactionEnds.ContainsKey(_gone.Txid));
     }
 
     [Fact]
-    public async Task The_answers_about_the_coins_settle_what_one_endpoint_said()
+    public async Task An_honest_second_host_answering_about_the_coins_settles_what_one_endpoint_said()
     {
         await ExpandAsync();
-        MarkGone(new TransactionReplacement(
-            _gone.Txid, [new ReplacedCoin(0, _fund.Txid, 0, ReplacedCoinState.Unspent, null, 70)]), corroborated: false);
+        MarkGone(Free("second.example"), corroborated: false);
 
-        Assert.Equal(TrailEndReason.TransactionGone, Assert.Single(Trace(await _harness.Load()).Ends).Reason);
+        var end = Assert.Single(Trace(await _harness.Load()).Ends);
+
+        Assert.Equal(TrailEndReason.TransactionGone, end.Reason);
+        Assert.DoesNotContain("enda källa", end.Explanation, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public async Task A_lying_endpoint_among_two_cannot_confirm_itself_through_the_coins()
+    {
+        await ExpandAsync();
+        MarkGone(Free("esplora.test"), corroborated: false);
+
+        var end = Assert.Single(Trace(await _harness.Load()).Ends);
+
+        Assert.Equal(TrailEndReason.GoneUncertain, end.Reason);
+        Assert.Contains("Bara en värd", end.Explanation, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task With_a_single_source_the_end_says_it_rests_on_it()
+    {
+        await ExpandAsync();
+        MarkGone(Free("esplora.test"), corroborated: true, singleSource: true);
+
+        var end = Assert.Single(Trace(await _harness.Load()).Ends);
+
+        Assert.Equal(TrailEndReason.TransactionGone, end.Reason);
+        Assert.Contains(GoneTransaction.OneSourceText("esplora.test"), end.Explanation, StringComparison.Ordinal);
+    }
+
+    /// <summary>The answer, from a host, that the victim's coin is free again.</summary>
+    private TransactionReplacement Free(string host) => new(
+        _gone.Txid, [new ReplacedCoin(0, _fund.Txid, 0, ReplacedCoinState.Unspent, null, 70) { Host = host }]);
 
     [Fact]
     public async Task Answers_that_still_name_the_gone_transaction_never_end_the_trail_nor_let_a_replacer_be_followed()
@@ -326,7 +356,7 @@ public sealed class GoneTransactionTests : IDisposable
     }
 
     /// <summary>Says, as Chains would from the sealed answers, that the gone transaction left the chain.</summary>
-    private void MarkGone(TransactionReplacement? replacement, bool corroborated = true)
+    private void MarkGone(TransactionReplacement? replacement, bool corroborated = true, bool singleSource = false)
     {
         var before = new BlockSighting(900_001, _gone.Block!.Hash.Value, DateTimeOffset.UnixEpoch, 10)
         {
@@ -334,7 +364,10 @@ public sealed class GoneTransactionTests : IDisposable
         };
         var now = new BlockSighting(null, null, DateTimeOffset.UnixEpoch.AddHours(1), 60) { Endpoint = "esplora.test" };
         _harness.Source.Changes.Add(
-            new BlockChange(_gone.Txid, BlockChangeKind.Gone, before, now) { IsCorroborated = corroborated });
+            new BlockChange(_gone.Txid, BlockChangeKind.Gone, before, now)
+            {
+                IsCorroborated = corroborated, GoneHosts = ["esplora.test"], IsSingleSource = singleSource,
+            });
         if (replacement is not null)
         {
             _harness.Source.Replacements[_gone.Txid] = replacement;

@@ -29,7 +29,14 @@ public enum ReplacedCoinState
 /// <param name="Sequence">The sealed answer's number in the case, or <see langword="null"/> when not asked.</param>
 public sealed record ReplacedCoin(
     int InputIndex, Txid PreviousTxid, int PreviousIndex, ReplacedCoinState State, BitcoinSpend? SpentBy,
-    long? Sequence);
+    long? Sequence)
+{
+    /// <summary>
+    /// Gets the host the answer came from, in lower case, as sealed, or <see langword="null"/> when not asked; an
+    /// answer from another host than the one that said the transaction is gone confirms it.
+    /// </summary>
+    public string? Host { get; init; }
+}
 
 /// <summary>What the coins of a transaction the source no longer knows are, taken together.</summary>
 public enum ReplacementKind
@@ -62,6 +69,19 @@ public enum ReplacementKind
 /// <param name="Coins">Every coin it spent, in its inputs' order; a coinbase has none.</param>
 public sealed record TransactionReplacement(Txid Transaction, IReadOnlyList<ReplacedCoin> Coins)
 {
+    /// <summary>Gets how many transactions its coins came from.</summary>
+    public int PreviousCount { get; init; }
+
+    /// <summary>
+    /// Gets how many of those the case has an answer about; fewer than <see cref="PreviousCount"/> when a lookup asks
+    /// about at most a set number at a time, and the rest are asked at the next.
+    /// </summary>
+    public int PreviousAnswered { get; init; }
+
+    /// <summary>Gets the hosts the answers about its coins came from, each once.</summary>
+    public IReadOnlyList<string> Hosts =>
+        [.. Coins.Select(coin => coin.Host).OfType<string>().Distinct(StringComparer.Ordinal)];
+
     /// <summary>Gets the transactions that spend its coins now, each once, in the order of the inputs.</summary>
     public IReadOnlyList<Txid> Replacers =>
         [.. Coins.Where(coin => coin.SpentBy is not null).Select(coin => coin.SpentBy!.Txid).Distinct()];

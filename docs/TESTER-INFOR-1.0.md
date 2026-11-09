@@ -1652,8 +1652,10 @@ källan svarat `404` två gånger efter att ha visat tx:en i ett block.
       igen och ersättaren lämnar grafen.
 - [ ] Raden *Ersatt av …* visar ersättarens blockhöjd eller *obekräftad*; vid en dubbelspendering med flera
       ersättare har var och en sin rad och sin länk.
-- [ ] Med två endpoints påslagna och bara den ena som svarat `404`: spåret stannar med *Tx:en kanske inte finns;
-      uppgifterna går inte ihop* (inget slut), och rutan säger att det inte är bekräftat.
+- [ ] Med två endpoints som båda svarat i ärendet och bara den ena som svarat `404`: spåret stannar med *Tx:en
+      kanske inte finns; uppgifterna går inte ihop* (inget slut), och frågan om mynten går till den andra värden. Svarar
+      den att mynten är spenderade eller fria slutar spåret. Med bara en endpoint säger rutan och *Varför?* att slutet
+      vilar på en enda källa, med värden.
 - [ ] Hovra en slutsats som hålls tillbaka (HB1a) som byggde på en ersatt tx: raden *Ersatt av …* står under
       *Byggde på …*.
 - [ ] Exponering från en aktör vars pengar gick in i en borta tx: det räknas som *Spåret tar slut*, och efter *Följ

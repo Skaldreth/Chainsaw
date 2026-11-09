@@ -170,6 +170,44 @@ public sealed class ReplacementTests : IDisposable
     }
 
     [Fact]
+    public async Task The_coins_are_asked_about_on_another_host_than_the_one_that_said_the_transaction_is_gone()
+    {
+        await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
+        Http.AnswerBytes(Fixtures.Url($"tx/{Fixtures.Confirmed}"), Encoding.UTF8.GetBytes("Transaction not found"), 404);
+        await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
+        var (_, saved) = _harness.Sources.Add(Chain.Bitcoin, new Uri(Second), "esplora", null);
+        await saved;
+        Http.AnswerBytes(Second + $"tx/{FirstPrevious}/outspends", Encoding.UTF8.GetBytes($"[{Unspent}]"), 200);
+        Http.AnswerBytes(
+            Second + $"tx/{Fixtures.Older}/outspends", Encoding.UTF8.GetBytes($"[{Unspent},{Unspent}]"), 200);
+        Http.Sent.Clear();
+
+        var replacement = (await Source.GetReplacementAsync(
+            _harness.Case, Fixtures.Confirmed, LookupMode.AsNeeded)).Value!;
+
+        Assert.All(Http.Sent, request => Assert.Equal("second.example", request.Uri.Host));
+        Assert.Equal(["second.example"], replacement.Hosts);
+        Assert.Equal(2, replacement.PreviousCount);
+        Assert.Equal(2, replacement.PreviousAnswered);
+    }
+
+    [Fact]
+    public async Task With_only_the_host_that_said_it_is_gone_that_host_is_asked_and_named()
+    {
+        await Source.GetTransactionAsync(_harness.Case, Fixtures.Confirmed);
+        AnswerSpends(FirstPrevious, Unspent);
+        AnswerSpends(Fixtures.Older, Unspent, Unspent);
+
+        var replacement = (await Source.GetReplacementAsync(
+            _harness.Case, Fixtures.Confirmed, LookupMode.AsNeeded)).Value!;
+
+        Assert.Equal(["esplora.test"], replacement.Hosts);
+    }
+
+    /// <summary>A second endpoint's address, on another host.</summary>
+    private const string Second = "https://second.example/api/";
+
+    [Fact]
     public async Task A_transaction_the_case_does_not_hold_is_not_asked_about()
     {
         var lookup = await Source.GetReplacementAsync(_harness.Case, Replacer, LookupMode.AsNeeded);
@@ -185,7 +223,7 @@ public sealed class ReplacementTests : IDisposable
     private static string Spent(Txid spender, int input, bool confirmed)
     {
         var status = confirmed
-            ? $$$"""{"confirmed":true,"block_height":800005,"block_hash":"{{{Fixtures.Block}}}","block_time":1700003000}"""
+            ? $$$"""{"confirmed":true,"block_height":800005,"block_hash":"{{{Fixtures.Block}}}","block_time":1700003}"""
             : """{"confirmed":false}""";
         return $$$"""{"spent":true,"txid":"{{{spender}}}","vin":{{{input}}},"status":{{{status}}}}""";
     }

@@ -4950,3 +4950,16 @@ offline), App 6 i `ChainStateTests` (rutans rad och fot, länken, en fråga per 
   *Följ ersättaren*, och ett misslyckat uppslag säger varför (`ReplacementUnavailableException`) i stället för ett
   oväntat fel, **M-6** varje ersättare i en dubbelspendering har en egen rad och länk (högst tre), **M-7** HB1a frågar
   bara om tx som regeln säger är borta.
+
+**Andra granskningens rättelser (1 I, 4 M):**
+- **I-1:** svaren om mynten bekräftar att en tx är borta bara när de kommer från en annan värd än de som sa `404`
+  (`GoneTransaction.ConfirmedByTheCoins`, värden sparas per mynt), och de frågas då i första hand av en annan värd
+  (`SourceLookups.FetchAsync` med `preferNotHosts`). En ensam värds ord avslutar spåret bara när ärendet bara har hört
+  från den värden; då säger *Varför?* och GR9a-rutan att slutet vilar på en enda källa, med värden. Annars
+  `GoneUncertain`. Tester: en lögnaktig endpoint bland två, en ärlig andra värd, en enda källa.
+- **M-1:** antalet värdar räknas ur de förseglade svarens adresser (`RawResponseStore.NotFoundHosts`,
+  `AnsweringHosts`), inte ur det som är påslaget nu (`BlockChange.GoneHosts`, `IsSingleSource`).
+- **M-2:** en fråga tar högst 20 tx, de som saknar svar först, och rutan säger *Frågat om 20 av N tx som mynten kom ur;
+  resten vid nästa uppslag*.
+- **M-3:** det instabila App-testet gick inte att framkalla (App.Tests tre gånger i rad, alla gröna); lämnat.
+- **M-4:** raderna i `ersatt-tx.md` är brutna.

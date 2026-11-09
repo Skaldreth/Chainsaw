@@ -31,18 +31,32 @@ public sealed record GoneTransaction(Txid Txid, BlockChange Change, TransactionR
     public IReadOnlyList<Txid> Replacers => Replacement?.Replacers ?? [];
 
     /// <summary>
-    /// Gets whether the answers settle that it is gone, so that the trail ends at it: another transaction spends its
-    /// coins or they are free again (<see cref="ReplacementKind.Replaced"/>,
-    /// <see cref="ReplacementKind.PartlyReplaced"/> or <see cref="ReplacementKind.Dropped"/>), or, while the coins are not asked about, endpoints on two hosts (or
-    /// the only one switched on) said the source does not know it. Answers about the coins that still name it as
-    /// their spender never settle it.
+    /// Gets whether the answers settle that it is gone, so that the trail ends at it: endpoints on two hosts said the
+    /// source does not know it, or the case has only ever heard from one host (<see cref="RestsOnOneSource"/>), or
+    /// answers about its coins from another host than those say another transaction spends them or they are free
+    /// again (<see cref="ConfirmedByTheCoins"/>). Answers about the coins that still name it as their spender never
+    /// settle it.
     /// </summary>
-    public bool IsSettled => (Replacement?.Kind ?? ReplacementKind.Unknown) switch
-    {
-        ReplacementKind.Replaced or ReplacementKind.PartlyReplaced or ReplacementKind.Dropped => true,
-        ReplacementKind.Unknown => Change.IsCorroborated,
-        _ => false,
-    };
+    public bool IsSettled => Replacement?.Kind != ReplacementKind.Conflicting
+        && (Change.IsCorroborated || ConfirmedByTheCoins);
+
+    /// <summary>
+    /// Gets whether answers about its coins confirm that it is gone: they say another transaction spends them or they
+    /// are free again, and every one came from another host than those that said the source does not know it.
+    /// </summary>
+    public bool ConfirmedByTheCoins => Replacement is
+        { Kind: ReplacementKind.Replaced or ReplacementKind.PartlyReplaced or ReplacementKind.Dropped } replacement
+        && replacement.Coins.All(coin => coin.Host is { } host && !Change.GoneHosts.Contains(host));
+
+    /// <summary>
+    /// Gets whether the end rests on a single source: the case has only ever heard from one host on the chain, so its
+    /// word is all there is; the end says so, with the host.
+    /// </summary>
+    public bool RestsOnOneSource => IsSettled && Change.IsSingleSource && Change.GoneHosts.Count < 2
+        && !ConfirmedByTheCoins;
+
+    /// <summary>Gets the host a single-source end rests on, as sealed, or the endpoint's name.</summary>
+    public string OneSource => Change.GoneHosts.FirstOrDefault() ?? Change.Now.Endpoint;
 
     /// <summary>
     /// Gets the end of the trail at it, with why, when the answers settle that it is gone (<see cref="IsSettled"/>);
@@ -71,17 +85,25 @@ public sealed record GoneTransaction(Txid Txid, BlockChange Change, TransactionR
             return head + UnsettledText();
         }
 
+        var single = RestsOnOneSource ? " " + OneSourceText(OneSource) : string.Empty;
         return head + "Den finns inte i kedjan, så spåret följs inte genom den; alla svar står kvar i ärendet. "
-            + ReplacementText();
+            + ReplacementText() + single;
     }
+
+    /// <summary>Says that an end rests on a single source, naming it.</summary>
+    /// <param name="host">The host.</param>
+    /// <returns>The sentence.</returns>
+    public static string OneSourceText(string host) =>
+        $"Slutet vilar på en enda källa, {host}: ärendet har inte hört från någon annan, så det är inte bekräftat "
+        + "på annat håll.";
 
     /// <summary>Says why the answers do not settle that it is gone, in plain Swedish.</summary>
     /// <returns>The sentences.</returns>
     private string UnsettledText() => Replacement?.Kind == ReplacementKind.Conflicting
         ? "Men källan säger samtidigt att tx:en spenderar ett av mynten, så svaren går inte ihop. Spåret stannar här i "
             + "stället för att gissa; att fråga igen kan reda ut det."
-        : "Bara en endpoint har sagt det, fast fler är påslagna, och vad som spenderar mynten är inte hämtat. Spåret "
-            + "stannar här i stället för att gissa; när en annan endpoint eller svaret om mynten bekräftar det slutar "
+        : "Bara en värd har sagt det, fast ärendet har svar från fler, och ingen annan värd har bekräftat vad som "
+            + "spenderar mynten. Spåret stannar här i stället för att gissa; när en annan värd bekräftar det slutar "
             + "spåret vid tx:en.";
 
     /// <summary>Says what spends the coins now, in plain Swedish.</summary>

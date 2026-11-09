@@ -62,4 +62,16 @@ public sealed record BlockChange(string TransactionId, BlockChangeKind Kind, Blo
     /// <see langword="true"/> for the other kinds and for a source that cannot tell.
     /// </summary>
     public bool IsCorroborated { get; init; } = true;
+
+    /// <summary>
+    /// Gets, for <see cref="BlockChangeKind.Gone"/>, the hosts whose sealed answers said the source does not know the
+    /// transaction since the case last saw it in a block, in lower case; empty for the other kinds.
+    /// </summary>
+    public IReadOnlyList<string> GoneHosts { get; init; } = [];
+
+    /// <summary>
+    /// Gets whether every sealed answer on the chain in the case came from one host, so that a lone word is all there
+    /// can be: an end that rests on it says it rests on a single source.
+    /// </summary>
+    public bool IsSingleSource { get; init; }
 }

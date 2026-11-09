@@ -373,31 +373,37 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
         var answers = new Dictionary<Txid, BitcoinLookup<IReadOnlyList<BitcoinOutputSpend>>>();
         var problems = new List<string>();
         var status = LookupStatus.FromCase;
+        var asked = 0;
         foreach (var (previous, stored) in known.Previous)
         {
             var answer = stored is { } found
                 ? new BitcoinLookup<IReadOnlyList<BitcoinOutputSpend>>(
                     LookupStatus.FromCase, found.Value, [found.Response.Origin], null)
                 : null;
-            if (mode != LookupMode.CaseOnly && !Settled(known.Transaction, previous, txid, answer?.Value))
+            var ask = mode != LookupMode.CaseOnly && !Settled(known.Transaction, previous, txid, answer?.Value);
+            if (ask && asked < MostReplacedPrevious)
             {
+                // Asked of another host than those that said the transaction is gone, when one can be, so that the
+                // answer can confirm what they said.
+                asked++;
                 answer = await _lookups.FetchAsync(
-                        @case, ReplacedSpendsQuery(previous), stored, cancellationToken, mode == LookupMode.InStep)
+                        @case, ReplacedSpendsQuery(previous), stored, cancellationToken, mode == LookupMode.InStep,
+                        preferNotHosts: known.GoneHosts)
                     .ConfigureAwait(false);
                 status = Worse(status, answer.Status);
                 problems.AddRange(answer.Problem is { } problem ? [problem] : []);
             }
 
-            if (answer is not null)
+            if (answer is { Value: not null })
             {
                 answers[previous] = answer;
             }
         }
 
-        if (known.Capped)
+        if (answers.Count < known.Previous.Count && asked == MostReplacedPrevious)
         {
-            problems.Add(string.Create(CultureInfo.InvariantCulture,
-                $"Tx:en spenderar mynt ur fler än {MostReplacedPrevious} tx; bara de första är frågade."));
+            var count = known.Previous.Count.ToString(CultureInfo.InvariantCulture);
+            problems.Add($"Frågat om {MostReplacedPrevious} av {count} tx som mynten kom ur; resten vid nästa uppslag.");
         }
 
         var coins = known.Transaction.Inputs
@@ -406,29 +412,33 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
             .ToList();
         var origins = answers.Values.SelectMany(answer => answer.Origins).DistinctBy(origin => origin.Sequence);
         var said = problems.Distinct().ToList();
+        var replacement = new TransactionReplacement(txid, coins)
+        {
+            PreviousCount = known.Previous.Count,
+            PreviousAnswered = answers.Count,
+        };
         return new BitcoinLookup<TransactionReplacement>(
-            status, new TransactionReplacement(txid, coins), SourceLookups.Ordered(origins),
-            said.Count == 0 ? null : string.Join(" ", said));
+            status, replacement, SourceLookups.Ordered(origins), said.Count == 0 ? null : string.Join(" ", said));
     }
 
     /// <summary>
-    /// The most transactions whose coins a gone transaction spent that are asked about, so that one with very many
-    /// inputs does not send a request for each.
+    /// The most transactions whose coins a gone transaction spent that one lookup asks about, so that one with very many
+    /// inputs does not send a request for each at once; the rest are asked at the next lookup.
     /// </summary>
     internal const int MostReplacedPrevious = 20;
 
     /// <summary>What the case holds about a gone transaction's coins, read at once.</summary>
     /// <param name="Transaction">The gone transaction.</param>
     /// <param name="Previous">
-    /// Each transaction whose coins it spent, up to <see cref="MostReplacedPrevious"/>, with the newest sealed answer
-    /// about who spends them.
+    /// Each transaction whose coins it spent, with the newest sealed answer about who spends them, those without an
+    /// answer first, so that a lookup capped at <see cref="MostReplacedPrevious"/> asks about new ones each time.
     /// </param>
-    /// <param name="Capped">Whether there were more than were taken.</param>
+    /// <param name="GoneHosts">The hosts whose sealed answers said the source does not know the transaction.</param>
     private sealed record ReplacementReading(
         BitcoinTransaction Transaction,
         IReadOnlyList<(Txid Previous, (IReadOnlyList<BitcoinOutputSpend> Value, StoredResponse Response)? Stored)>
             Previous,
-        bool Capped);
+        IReadOnlySet<string> GoneHosts);
 
     /// <summary>Reads a gone transaction and the newest answers about the coins it spent, in one reading.</summary>
     /// <param name="reader">The case's reader.</param>
@@ -445,13 +455,13 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
             .Where(input => input is { IsCoinbase: false, PreviousTxid: not null })
             .Select(input => input.PreviousTxid!)
             .Distinct()
-            .ToList();
-        var taken = previous.Take(MostReplacedPrevious)
             .Select(each => (each, SourceLookups.StoredAs(
                 _store.Latest(reader, ResponseKinds.ReplacedSpends, each.Value),
                 body => EsploraParser.ParseOutputSpends(body))))
+            .OrderBy(each => each.Item2 is null ? 0 : 1)
             .ToList();
-        return new ReplacementReading(transaction, taken, previous.Count > MostReplacedPrevious);
+        var goneHosts = _store.NotFoundHosts(reader, txid, 0).ToHashSet(StringComparer.Ordinal);
+        return new ReplacementReading(transaction, previous, goneHosts);
     }
 
     /// <summary>
@@ -524,7 +534,10 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
             _ => ReplacedCoinState.SpentByOther,
         };
         var spender = state == ReplacedCoinState.SpentByOther ? spend!.SpentBy : null;
-        return new ReplacedCoin(input.Index, input.PreviousTxid!, index, state, spender, sequence);
+        var host = sequence is { } at
+            ? answer!.Origins.First(origin => origin.Sequence == at).Url.Host.ToLowerInvariant()
+            : null;
+        return new ReplacedCoin(input.Index, input.PreviousTxid!, index, state, spender, sequence) { Host = host };
     }
 
     /// <inheritdoc/>
@@ -708,28 +721,22 @@ internal sealed class EsploraBitcoinSource : IBitcoinSource
             return null;
         }
 
-        // The answers that it is gone since the case last saw it in a block, by host.
-        var hosts = notFound.Where(each => each.Sequence > change.Before.Sequence)
-            .Select(each => HostOf(each.EndpointId, each.Endpoint))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Count();
+        if (change.Kind != BlockChangeKind.Gone)
+        {
+            return new BlockChange(txid, change.Kind, change.Before, change.Now);
+        }
+
+        // The hosts that said it is gone since the case last saw it in a block, and every host the case has heard
+        // from on the chain, both from the sealed addresses: what the case knew, not what is switched on now.
+        var goneHosts = _store.NotFoundHosts(reader, txid, change.Before.Sequence);
+        var single = _store.AnsweringHosts(reader).Count <= 1;
         return new BlockChange(txid, change.Kind, change.Before, change.Now)
         {
-            IsCorroborated = change.Kind != BlockChangeKind.Gone || hosts >= 2 || EnabledEndpoints() <= 1,
+            GoneHosts = goneHosts,
+            IsSingleSource = single,
+            IsCorroborated = goneHosts.Count >= 2 || single,
         };
     }
-
-    /// <summary>Gives the host of an endpoint as sealed, or its name when it is no longer among the endpoints.</summary>
-    /// <param name="endpointId">The endpoint's id as sealed.</param>
-    /// <param name="name">The endpoint's name as sealed.</param>
-    /// <returns>The host, so that two addresses of one service count as one.</returns>
-    private string HostOf(string endpointId, string name) =>
-        _sources.Get(Chain.Bitcoin).Endpoints
-            .FirstOrDefault(each => each.Endpoint.Id.ToString("D") == endpointId)?.Endpoint.Address.Host ?? name;
-
-    /// <summary>Counts Bitcoin's endpoints that are switched on.</summary>
-    /// <returns>How many.</returns>
-    private int EnabledEndpoints() => _sources.Get(Chain.Bitcoin).Endpoints.Count(each => each.Endpoint.Enabled);
 
     /// <summary>Reads every sealed answer that has a transaction, oldest first, with where it put it.</summary>
     /// <param name="reader">The case's reader.</param>
