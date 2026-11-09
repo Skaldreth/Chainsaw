@@ -1615,6 +1615,22 @@ Uniswap och ether tillbaka i samma tx. Testärendet har ingen Ethereum-källa ä
       (₮ → Ξ) i tx …* med andelen och `swap-value v1`, eller *Spåret slutar i swappen* efter ditt val; skälet står aldrig
       med.
 
+### En DEX:s router i swap-pillret (DX1b)
+
+Kräver samma sorts Ethereum-ärende som SW1a, med en swap genom en känd router (Uniswap, 1inch eller 0x).
+- [ ] Pillret **₮ → Ξ** har en liten grå fyrkant i övre högra hörnet med routerns ikon; genom 1inch eller 0x står
+      antalet byten i stället. En swap genom en okänd DEX har ingen fyrkant.
+- [ ] Hovra över fyrkanten: en ruta ovanför pillret med routerns namn, *Känt kontrakt · byter token, inte ägare*
+      (eller *N byten i en tx*), vägen som brickor med belopp och poolen under, *Spåret går igenom* med en grön bock,
+      *Klicka för Varför?* och kontraktet och tx:en i Cascadia Mono. Pillrets egen ruta visas inte samtidigt, och
+      handen visas över fyrkanten.
+- [ ] En swap som bara syns i adressens historik: rutan säger *vägen kan vara ofullständig*. Expandera tx:en (E):
+      vägen visar varje pool, och för en aggregator stämmer antalet i fyrkanten med stegen.
+- [ ] Klicka på fyrkanten: Guidens panel öppnas med *Varför? · <routerns namn>* och fyra rader (vad som skickades,
+      vägen, regeln, listans källa och version), på *En DEX:s router* i avsnittet om swappar. Pillret fälls inte ut.
+- [ ] Klicka på pillret utanför fyrkanten: valet *Följer* / *Följer inte* fälls ut som förut. Välj *Följer inte*:
+      personen står i vänstra hörnet, fyrkanten kvar i det högra, och rutan säger *Spåret slutar i swappen*.
+
 ### Grafens rester mot 1.0 (breda noder, högen, bytt block och utgångsrutan, 2026-11-08)
 - [ ] Ge några aktörer långa namn (etikett *Misstänktes plånbok* och liknande) och välj *Sortera grafen*: kolumnen
       med en bred nod flyttar nästa kolumn åt höger, så att beloppen fortfarande har luft mellan noderna och ingen nod

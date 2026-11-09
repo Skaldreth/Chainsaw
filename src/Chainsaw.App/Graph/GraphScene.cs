@@ -312,6 +312,12 @@ public sealed record EdgeView(
 
     /// <summary>Gets whether the line's swap price could not be tested: the pill is dashed in a quiet tone.</summary>
     public bool IsSwapPriceUntested => Swaps.Count > 0 && SwapPrice?.Verdict is null or SwapPriceVerdict.NotTested;
+
+    /// <summary>
+    /// Gets the way the line's first swap went through a known exchange's router (sketch DX1b), shown as a small mark
+    /// in the pill's corner, or <see langword="null"/> when the line carries no swap through a known exchange.
+    /// </summary>
+    public SwapRoute? SwapRoute { get; init; }
 }
 
 /// <summary>The marks of what was sold and what was bought in a swap, as its pill on the line shows them.</summary>
@@ -712,6 +718,7 @@ public sealed record GraphScene(
         SwapStops = [.. graph.SwapStops.Where(stop => edge.Swaps.Any(stop.Is))],
         SwapConversions = [.. edge.Swaps.Select(swap => trace?.SwapOf(swap)).OfType<SwapConversion>()],
         SwapPrice = trace?.PriceOf(edge.Swaps[0]),
+        SwapRoute = SwapRoute.Read(edge.Swaps[0], graph.Account),
     };
 
     /// <summary>Writes a swap's pill: the sold asset's mark, an arrow and the bought one's (<c>₮ → Ξ</c>).</summary>

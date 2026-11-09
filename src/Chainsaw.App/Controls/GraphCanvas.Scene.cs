@@ -343,6 +343,7 @@ public sealed partial class GraphCanvas
         _ringsOnScreen = false;
         _nextMarkCentres.Clear();
         _nextSwapPills.Clear();
+        _nextRouteMarks.Clear();
         dc.PushTransform(FanPush());
         dc.PushOpacity(HeldBackMotion.LineOpacity(_blast, BlastK));
         if (model.IsHopColumns)

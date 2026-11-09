@@ -88,6 +88,23 @@ public sealed partial class GraphViewModel
     public void OpenSwapGuide() => GuideWanted?.Invoke(
         this, GuideRequest.ForTopic(GuideTopic.Swaps) with { Heading = SwapPill.GuideHeading, IsChoice = true });
 
+    /// <summary>
+    /// Opens <em>Varför?</em> for the router's mark in a swap's pill (sketch DX1b) in the Guide's panel: the router's
+    /// name and source, the way through the pools and why the trail goes through, above the section on swaps.
+    /// </summary>
+    /// <param name="edgeKey">The line whose pill carries the mark.</param>
+    public void OpenSwapRouteWhy(string edgeKey)
+    {
+        if (Scene?.Edge(edgeKey) is not { SwapRoute: { } route } edge)
+        {
+            return;
+        }
+
+        var context = new GuideContext("Varför? · " + route.Venue.Name, route.Why(edge));
+        GuideWanted?.Invoke(
+            this, new GuideRequest(GuideTopic.Swaps, SwapRoute.GuideHeading, context, edgeKey) { IsChoice = true });
+    }
+
     /// <summary>Folds the open pill when its line is no longer in the graph.</summary>
     private void KeepOpenSwap()
     {
