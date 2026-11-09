@@ -104,7 +104,8 @@ public sealed class BackgroundTipTests : IDisposable
         _harness.Gate.State = gate;
         _harness.Bitcoin.TransactionStatus = status;
 
-        var waiting = await _harness.Service.CheckAsync(_harness.Case, Chain.Bitcoin, 900_004);
+        // No new block for the watch's own check, which would otherwise find the hit itself.
+        var waiting = await _harness.Service.CheckAsync(_harness.Case, Chain.Bitcoin, 900_000);
 
         Assert.Empty(waiting.Hits);
         Assert.Equal(WatchTipState.Pending, Assert.Single(_harness.Service.GetTips(_harness.Case)).State);

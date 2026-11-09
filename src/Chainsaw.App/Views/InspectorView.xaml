@@ -228,6 +228,17 @@
                             <TextBlock Text="Varför?" />
                         </StackPanel>
                     </Button>
+                    <!-- Som etikett … (sketch TJ1b): a likely service becomes a label in the form at the node. -->
+                    <Button Style="{StaticResource Button.PanelAction}" Margin="0,0,8,8"
+                            Visibility="{Binding HasServiceCheck, Converter={StaticResource Visible}}"
+                            AutomationProperties.Name="Som etikett" ToolTip="{Binding ServiceCheckTip}"
+                            Command="{Binding LabelServiceCommand}">
+                        <StackPanel Orientation="Horizontal">
+                            <controls:GridIcon Size="14" Data="{StaticResource Icon.Tag}" Margin="0,0,7,0"
+                                               Foreground="{StaticResource Brush.Kind.CashOut}" />
+                            <TextBlock Text="Som etikett …" />
+                        </StackPanel>
+                    </Button>
                     <!-- Historik while the facts show, Fakta while the history shows (sketch AN1b). -->
                     <Button Margin="0,0,8,8" AutomationProperties.Name="Historik" ToolTip="Det som hänt, i tidsordning"
                             Command="{Binding History.ShowHistoryCommand}">
@@ -291,6 +302,74 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
+
+                    <!--
+                      ===== Adressförgiftning (sketch DM1a): the look-alike against the genuine address character by
+                      character, what differs in red, and the genuine one as the default to copy =====
+                    -->
+                    <Border Margin="{StaticResource Inspector.Block}" Padding="14,12" CornerRadius="10" BorderThickness="1"
+                            Background="{StaticResource Brush.Surface}"
+                            DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                            Visibility="{Binding HasPoison, Converter={StaticResource Visible}}">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="BorderBrush" Value="{StaticResource Brush.BorderStrong}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsPoisonAsked}" Value="True">
+                                        <Setter Property="BorderBrush" Value="{StaticResource Brush.Kind.Risk}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal">
+                                <controls:GridIcon Size="14" Data="{StaticResource Icon.Poison}" Margin="0,0,8,0"
+                                                   Foreground="{StaticResource Brush.Kind.Risk}" VerticalAlignment="Center" />
+                                <TextBlock Text="Adressförgiftning" FontSize="13.5" FontWeight="SemiBold" />
+                            </StackPanel>
+                            <TextBlock FontSize="12" Margin="0,4,0,8" Foreground="{StaticResource Brush.TextMuted}"
+                                       Text="Samma början och slut, annat i mitten" />
+                            <ItemsControl ItemsSource="{Binding PoisonPairs}" Focusable="False">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type vm:CharPair}">
+                                        <StackPanel Width="8.5" Margin="0,0,0,6">
+                                            <TextBlock Text="{Binding Genuine}" FontFamily="{StaticResource Font.Mono}" FontSize="12"
+                                                       Foreground="{StaticResource Brush.TextMuted}" HorizontalAlignment="Center" />
+                                            <TextBlock x:Name="Suspect" Text="{Binding Suspect}" FontFamily="{StaticResource Font.Mono}"
+                                                       FontSize="12" HorizontalAlignment="Center"
+                                                       Foreground="{StaticResource Brush.TextMuted}" />
+                                        </StackPanel>
+                                        <DataTemplate.Triggers>
+                                            <DataTrigger Binding="{Binding Differs}" Value="True">
+                                                <Setter TargetName="Suspect" Property="Foreground" Value="{StaticResource Brush.Kind.Risk}" />
+                                                <Setter TargetName="Suspect" Property="FontWeight" Value="Bold" />
+                                            </DataTrigger>
+                                        </DataTemplate.Triggers>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <DockPanel Margin="0,6,0,0" LastChildFill="False">
+                                <Button DockPanel.Dock="Right" Style="{StaticResource Button.Primary}" Height="30" Padding="10,0"
+                                        FontSize="12.5" Command="{Binding CopyGenuineCommand}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{Binding PoisonCopyText}" />
+                                        <TextBlock Text="Enter" Margin="7,0,0,0" FontWeight="Normal" Opacity="0.6" />
+                                    </StackPanel>
+                                </Button>
+                                <Button DockPanel.Dock="Right" Style="{StaticResource Button.Secondary}" Height="30" Padding="10,0"
+                                        FontSize="12.5" Margin="0,0,8,0" Content="Kopiera ändå" Command="{Binding CopySuspectCommand}" />
+                            </DockPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- ===== Varför är de en plånbok? (sketch KV1a): the heuristics behind a cluster ===== -->
+                    <views:ClusterWhyView Margin="{StaticResource Inspector.Block}"
+                        DataContext="{Binding DataContext.ClusterWhy, RelativeSource={RelativeSource AncestorType=UserControl}}" />
 
                     <!-- ===== The balance per token (sketch TK1a): what is left, its worth, the issuer ===== -->
                     <StackPanel Margin="{StaticResource Inspector.Block}" Visibility="{Binding HasBalances, Converter={StaticResource Visible}}">
@@ -410,6 +489,9 @@
                       ===== The ids in full (sketch IN2b): in a dark box, in Cascadia Mono, each with copy, so that every
                       step can be checked against the chain with any tool (principle 1) =====
                     -->
+                    <!-- A look-alike's ids are not shown: the comparison above shows both addresses (DM1a). -->
+                    <Border Visibility="{Binding DataContext.ShowsIds, Converter={StaticResource Visible},
+                                                 RelativeSource={RelativeSource AncestorType=UserControl}}">
                     <Border Margin="{StaticResource Inspector.Ids}" Padding="12" CornerRadius="10" Background="{StaticResource Brush.Background}"
                             BorderBrush="{StaticResource Brush.Surface}" BorderThickness="1"
                             Visibility="{Binding HasIds, Converter={StaticResource Visible}}">
@@ -446,6 +528,7 @@
                             <TextBlock Text="{Binding MoreIds}" FontSize="12" Foreground="{StaticResource Brush.TextDim}"
                                        Visibility="{Binding HasMoreIds, Converter={StaticResource Visible}}" />
                         </StackPanel>
+                    </Border>
                     </Border>
                 </StackPanel>
             </StackPanel>

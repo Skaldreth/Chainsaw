@@ -4217,7 +4217,16 @@ rader).
   gjort cachade uppslag 100 gånger långsammare (rättad); Tidslinjen kopierade förbi urklippsskyddet (ny kod); bakgrundens
   starthöjd begränsas som den lästa höjden; exponeringen ordnar en kontos poster som spåret, så Graf och Exponering
   stämmer; det instabila högtestet berodde på testets trådar, inte produkten.
-- **Varv 7:** rättelserna från varv 6 och det sista instabila testet.
+- **Varv 7:** varv 6:s gräns för bakgrundens starthöjd tog ärendets gamla höjd, så att ett år gamla pengar kunde
+  bli träffar, eller tappade bakgrundens träff när ärendet inte sett kedjan. Nu väntar en sådan post i kön tills
+  ärendet läst så långt, och rundan tar in kön igen efter höjden. Det instabila BackgroundLink-testet berodde på
+  testets trådar.
+- **Varv 8**, bara bakgrundens höjder, i 19 fall: en förfalskad kontroll med en tid i framtiden fick ärendets egen
+  kontroll att aldrig köras (C). Rättelsen förenklar: bakgrunden flyttar aldrig hur långt ärendet läst eller när det
+  kontrollerades; ärendets kontroll läser från sin egen senaste läsning, och bakgrundens träffar bekräftas som tips.
+  En start golvas också när ärendet inte hade någon höjd då bevakningen gjordes, och väntar medan bevakningen är
+  pausad.
+- **Varv 9:** kontroll av varv 8 utan C eller I. Granskningen avslutades där.
 
 **Användarens beslut under granskningen:** txid:er får stå i bakgrundens plan; bakgrundens träffar kontrolleras mot
 kedjan innan de förseglas; internetkontrollen bara när Windows är vägen.
@@ -4332,6 +4341,65 @@ oberoende granskning.
   användaren litar på. *Ta bort fästet …* frågar först, som *Lita på det nya …*.
 
 **Återstår:** att prova på Windows (`docs/TESTER-INFOR-1.0.md`), särskilt en riktig proxy med Kerberos och NTLM.
+
+## Ytorna för omgång 4 (2026-11-08): KV1a, HB1a, BU1a, DM1a, HP1a och TJ1b
+
+Byggt efter skisserna som valdes 2026-11-08 (andra omgången), på backend från omgång 4.
+
+- **Clustering:** `PreviewWithdraw` räknar ut klustren före och efter ett tillbakadragande ur det som är sparat
+  (`ClusterChanges`), utan att spara något. Det en körning håller tillbaka sparas som arbetsläge i
+  `clustering_held_back` (ersätts av nästa körning som håller tillbaka något annat, inte förseglat eftersom det alltid
+  kan räknas ut igen), och `GetHeldBack` ger slutsatserna med vad som saknades och senaste beslutet.
+  `DecideHeldBack` förseglar *Låt stå* eller *Släpp slutsatsen* i den nya kedjan `clustering.held_back_decisions`
+  (schema version 5) med en rad i journalen; adresserna sparas med beslutet så att historiken kan visa det också
+  efter att slutsatsen släppts. En släppt tx:s slutsatser före beslutet räknas inte längre (som ett tillbakadragande
+  för en tx), och nästa körning sparar det den kommer fram till nu.
+- **KV1a:** `ClusterWhyViewModel` och `ClusterWhyView` i inspektören, `ChangeBarView` för staplarna, spöket under
+  noden och nedtoningen i `GraphCanvas.Rounds`. *Ta tillbaka* i Historik och *Ångra* på toasten.
+- **HB1a:** ringen och hovringen i `GraphCanvas.Rounds`, kortet i Historik (`HistoryUndo.DecideHeldBack`) med *Låt stå*
+  bredvid *Släpp slutsatsen*.
+- **BU1a:** `PairPath` (stegen, den svagaste länken och vad ett snitt bryter ut) och `InspectorFormsViewModel.Pair`.
+  Ett snitt sparas som uppbrytningen av det som lämnar (`InspectorForms.BreakOut`), så att samma regler gäller som
+  för att bryta ut adresser. Två noder valda med Ctrl+klick i grafen ger paret när U öppnas.
+- **DM1a och HP1a:** `ObfuscationMarks` läser `dust v1` och `pass-through v1` ur de sparade kontrollerna;
+  `GraphViewModel.Obfuscation` tonar ned, fäller ihop och frågar före kopiering. Bara visning, inget sparas.
+- **TJ1b:** `InspectorFormsViewModel.Check` öppnar etikettformuläret från kontrollen med källan som
+  `LabelSource.Behaviour` (`service-behaviour`, `v1`), förseglad av Attribution som andra etiketter.
+
+**Egna beslut och avsteg från skisserna:**
+- Enum-namnet `ConclusionChoice` (inte `HeldBackChoice`, som redan finns i appen för EX1).
+- KV1a: bekräftelsen fälls ut under raderna i inspektören, inte fast längst ner; raden längst ner säger när men inte
+  vem. Förhandsvisningen räknar på det som är sparat (TODO).
+- HB1a: hovringen säger vad slutsatsen byggde på, inte vad som ersatte den (väntar på *Ersatt av vilken tx*).
+- BU1a: Ctrl+klick sker i formulärets lista över adresser, eftersom klustret inte öppnas som kort i grafen här;
+  varningen nås genom två valda noder i grafen.
+- DM1a: jämförelsen står överst i inspektören (som skissen säger) och kopiering av den liknande lyser upp den, i
+  stället för en egen ruta vid noden; dammets linjer är oförändrade.
+- HP1a: utfällt står noderna på sina platser och *Fäll ihop* är en bricka ovanför raden.
+- TJ1b: *Som etikett …* står i inspektörens rad, eftersom `service-behaviour` är en kontroll som inte står i
+  KF2b-panelen (fråga i TODO); panelen tonas därför inte.
+- Testärendet fylls inte på än (TODO).
+
+**Tester:** Clustering 6 nya (förhandsvisningen, det som hålls tillbaka, *Låt stå*, *Släpp* och nästa körning),
+App 14 nya i `RoundFourSurfacesTests`. Ett befintligt test räknar en läsning till av klustret (Varför?).
+
+**Granskningens rättelser (4 I, 9 M):**
+- **BU1a:** ett snitt räknas som klustringen gör: uppbrytningen vägrar hela förslaget (alla adresser i det), så
+  klustret delas om tills inget mer faller bort, och allt som inte når adressen som stannar lämnar, i de plånböcker
+  det faller isär i (`PairPath.Cut`).
+- **TJ1b och etiketterna:** en etikett ur en analys av beteende sätts bara när användaren godkänner den, så den är
+  användarens egen (`LabelSources.IsUsersOwn`): den kan tas tillbaka i Historik och överallt i biblioteket och märkas
+  *Sprid inte*. Tre äldre tester som sa motsatsen är ändrade.
+- **DM1a:** inspektörens kopieringsknapp frågar också vid den liknande adressen, och dess id-ruta visas inte.
+- **KV1a:** bekräftelsen säger streckat att tx som den andra versionen aldrig analyserat syns efter nästa körning, och
+  toasten att fler kan följa. *Dra tillbaka* erbjuds när en annan version står kvar. *Ångra* på toasten säger till
+  när det redan var taget tillbaka.
+- **HB1a:** besluten kan tas tillbaka med *Ångra* (`ReopenHeldBack`, ett nytt förseglat beslut med `undoes`). Det som
+  saknades kontrolleras mot de förseglade slutsatsernas grund innan beslutet förseglas, så en ändrad arbetsrad kan
+  inte förseglas. En tx med bara fynd (till exempel CoinJoin) visas också, och ett släpp säger att fynden följer med.
+  Arbetsraden jämförs som mängd, så ordningen ensam skriver inget.
+- **ClusterChanges** räknar också länkar som börjar eller slutar slå ihop utan att förslaget ändras (efter en
+  uppbrytning). **HP1a** fäller bara bort noder vars alla linjer hör till raden.
 
 ## Grafens fart (2026-11-08)
 

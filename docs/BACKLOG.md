@@ -187,6 +187,11 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
   vem som spenderar en output jämförs inte med det förra.
 
 ## Klustring och heuristiker
+- **Efter omgranskningen av omgång 4:s ytor (2026-11-09, M):** BU1a förseglar en uppbrytning i användarens namn också
+  för en adress som bara föll med när hela förslaget vägrades (förklara det i journalen och *Varför?*, eller bryt bara
+  det valda); KV1a-rutan ska vara streckad (`ClusterWhyView.xaml:164` ritar hel linje); *Ångra* efter *Släpp
+  slutsatsen* återställer inte den gamla slutsatsen om en körning hunnit emellan — säg det eller vägra; HB1a:s
+  `HeldBackMatch.Touches` är O(N·E) per bild; vyn Etiketter kopierar `FullAddress` direkt också för en liknande adress.
 - **PayJoin v2 och en plånbok som byter adresstyp** (slutgranskningen 2026-11-08, M1): en Taproot-plånbok som spenderar
   ett gammalt P2WPKH-mynt och ett P2TR-mynt, betalar till P2WPKH och lägger växeln på P2TR har samma form som BIP78 och
   ger ett förslag i stället för en sammanslagning (sonden i granskningen). Sällsynt och bara falskt negativt; lägg
@@ -543,8 +548,9 @@ som filtrerade två gånger och villkoret för sidan. Kvar:
   i anropet till `IExitStore.Add`, som tar en (samma sak som *Klartext i minnet*). Kräver ett kontrakt med tecken.
 - **En öppen filväljare** ligger kvar ovanpå låsskärmen om Chainsaw låses medan den är öppen; den visar bara filer.
 - **Instabilt test:** `LinkCaseTests.After_the_unlock_the_picker_folds_out_with_the_link_at_the_top` faller ungefär
-  två gånger av fem i molnmiljön (sett 2026-11-09, efter LN1a). Grafen rör det inte; troligen en kapplöpning mellan
-  upplåsningen och ärendeväljarens lista.
+  två gånger av fem i molnmiljön (sett 2026-11-09, efter LN1a), och `Esc_throws_the_link_away` likaså: 5 av 20
+  körningar av klassen faller på huvudgrenen utan grafens ändringar. Felen är dubbla eller tomma rader i
+  `CasePickerViewModel` (`Chosen`), troligen en kapplöpning när ärendeväljarens lista fylls efter upplåsningen.
 
 ## Bevakning (etapp 26)
 - **Starten från en höjd i fas** (granskningen omgång 1, M5): starten är kedjans höjd från `GetTipHeightAsync`, som
@@ -689,4 +695,15 @@ Rapporterna per varv ligger inte i repot; det som står kvar är detta.
 - **Grafen:** "Uppbruten · N ut" räknar för lågt när en vald adress bara är länkad till en annan vald; animationer som
   redan rullar stoppas först vid nästa omritning när Windows animeringar stängs av; ett kort som hämtar ritar om hela
   grafen 60 gånger i sekunden.
+- **Bakgrundens höjder (varv 8 och 9):** när ärendet inte hade någon höjd då bevakningen gjordes golvas en
+  bakgrundsstart bara med tiden, så en förfalskad start kan ligga upp till ungefär dubbla tiden sedan bevakningen
+  gjordes under den verkliga höjden; en ovanligt snabb följd av Bitcoin-block, eller en klocka som gick fel när
+  bevakningen gjordes, kan i teorin lyfta golvet över en ärlig start; sätts alla bakgrundens poster för en bevakning
+  undan som oläsliga startar ärendets kontroll vid toppen; en förfalskad väntande post håller indikatorn för köade
+  träffar tänd tills bevakningen startas, återupptas eller tas bort; `MonitoringService.Start` läser inte om
+  starthöjden i sin skrivning; upptagna bevakningar når `MaximumPages` oftare (ärligt märkt som delvis); `LowestAt`
+  saknar ett eget test.
+- **Instabilt test i LN1a:** `LinkCaseTests.After_the_unlock_the_picker_folds_out_with_the_link_at_the_top` fallerar
+  ungefär en gång av fyra i hela sviten (också utan granskningens ändringar); troligen samma trådmönster som
+  `PileTests` och `BackgroundLinkTests` hade (rättat med `UiThread` i `Fakes.cs`).
 

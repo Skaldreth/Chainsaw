@@ -9,15 +9,37 @@ namespace Chainsaw.Modules.Chains;
 internal sealed class CaseHeights(BitcoinSourceOptions bitcoin) : ICaseHeights
 {
     /// <inheritdoc/>
-    public long? Known(ICaseReader reader, Chain chain, DateTimeOffset? by = null)
+    public long? Known(ICaseReader reader, Chain chain)
     {
         ArgumentNullException.ThrowIfNull(reader);
+        return StoreOf(chain)?.KnownHeight(reader);
+    }
+
+    /// <inheritdoc/>
+    public long? AtLeast(ICaseReader reader, Chain chain, DateTimeOffset at)
+    {
+        ArgumentNullException.ThrowIfNull(reader);
+        if (StoreOf(chain) is not { } store)
+        {
+            return null;
+        }
+
+        var known = store.KnownHeight(reader, null, at);
+        var later = store.LowestAt(reader, at);
+        return known is null || later is null ? known ?? later : Math.Max(known.Value, later.Value);
+    }
+
+    /// <summary>Gives the store of a chain's answers, on the network the sources are set to.</summary>
+    /// <param name="chain">The chain.</param>
+    /// <returns>The store, or <see langword="null"/> for a chain without one.</returns>
+    private RawResponseStore? StoreOf(Chain chain)
+    {
         var name = chain switch
         {
             Chain.Bitcoin => RawResponseStore.NameOf(bitcoin.Network),
             Chain.Ethereum => BlockscoutEthereumSource.ChainName,
             _ => null,
         };
-        return name is null ? null : new RawResponseStore(TimeZoneInfo.Utc, name).KnownHeight(reader, null, by);
+        return name is null ? null : new RawResponseStore(TimeZoneInfo.Utc, name);
     }
 }

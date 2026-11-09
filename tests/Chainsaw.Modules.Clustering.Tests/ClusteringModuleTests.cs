@@ -35,6 +35,7 @@ public sealed class ClusteringModuleTests
             [
                 "clustering.evidence", "clustering.splits", "clustering.split_undos", "clustering.merges",
                 "clustering.merge_undos", "clustering.withdrawals", "clustering.withdrawal_undos",
+                "clustering.held_back_decisions",
             ],
             schema.SealedChains.Select(chain => chain.Name));
     }
