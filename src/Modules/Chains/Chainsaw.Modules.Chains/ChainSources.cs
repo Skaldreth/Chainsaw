@@ -150,13 +150,28 @@ internal sealed class ChainSources : IChainSources
         var saved = _file.Load(_apis);
         foreach (var chain in Chains)
         {
+            var defaults = _apis.Values.Where(a => a.Info.Chain == chain).SelectMany(api => api.Defaults).ToList();
             var state = saved.TryGetValue(chain, out var found)
-                ? new ChainState(found.Mode, [.. found.Endpoints])
-                : new ChainState(SourceMode.Fastest, [.. _apis.Values.Where(a => a.Info.Chain == chain)
-                    .SelectMany(api => api.Defaults)]);
+                ? new ChainState(found.Mode, [.. found.Endpoints, .. defaults.Where(d => !OfferedTo(found, d))])
+                : new ChainState(SourceMode.Fastest, [.. defaults]);
+            state.Offered.UnionWith(defaults.Select(endpoint => endpoint.Id));
+            state.Offered.UnionWith(found?.Offered ?? []);
+
             _chains[chain] = state;
         }
     }
+
+    /// <summary>
+    /// Says whether a saved chain has been offered a built-in endpoint. A file from before the list was kept has been
+    /// offered every built-in endpoint but those that need a key, which came later and are off until a key is added,
+    /// so that only they come in and no endpoint the user removed comes back.
+    /// </summary>
+    /// <param name="saved">The saved chain.</param>
+    /// <param name="endpoint">The built-in endpoint.</param>
+    /// <returns><see langword="true"/> when it has.</returns>
+    private static bool OfferedTo(SavedChain saved, SourceEndpoint endpoint) =>
+        saved.Offered?.Contains(endpoint.Id)
+            ?? (endpoint.ApiKey is null || saved.Endpoints.Any(kept => kept.Id == endpoint.Id));
 
     /// <inheritdoc/>
     public event EventHandler<Chain>? Changed;
@@ -1428,7 +1443,13 @@ internal sealed class ChainSources : IChainSources
     {
         lock (_gate)
         {
-            return [.. _chains.Select(pair => new SavedChain(pair.Key, pair.Value.Mode, [.. pair.Value.Endpoints]))];
+            return
+            [
+                .. _chains.Select(pair => new SavedChain(pair.Key, pair.Value.Mode, [.. pair.Value.Endpoints])
+                {
+                    Offered = [.. pair.Value.Offered],
+                }),
+            ];
         }
     }
 
@@ -1453,6 +1474,12 @@ internal sealed class ChainSources : IChainSources
 
         /// <summary>Gets the endpoints in the user's order.</summary>
         public List<SourceEndpoint> Endpoints { get; } = endpoints;
+
+        /// <summary>
+        /// Gets the ids of the built-in endpoints the chain has been offered, so that one added in a later version
+        /// comes in once and one the user removed stays away.
+        /// </summary>
+        public HashSet<Guid> Offered { get; } = [];
 
         /// <summary>Gets the latest probe of each endpoint.</summary>
         public Dictionary<Guid, EndpointProbe> Probes { get; } = [];

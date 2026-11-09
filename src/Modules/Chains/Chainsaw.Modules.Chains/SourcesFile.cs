@@ -10,7 +10,15 @@ namespace Chainsaw.Modules.Chains;
 /// <param name="Chain">The chain.</param>
 /// <param name="Mode">Its mode.</param>
 /// <param name="Endpoints">Its endpoints.</param>
-internal sealed record SavedChain(Chain Chain, SourceMode Mode, IReadOnlyList<SourceEndpoint> Endpoints);
+internal sealed record SavedChain(Chain Chain, SourceMode Mode, IReadOnlyList<SourceEndpoint> Endpoints)
+{
+    /// <summary>
+    /// Gets the ids of the built-in endpoints the chain has been offered, kept or removed by the user since, so that a
+    /// built-in endpoint added in a later version comes in once and one the user removed does not come back;
+    /// <see langword="null"/> in a file from before the list was kept.
+    /// </summary>
+    public IReadOnlyCollection<Guid>? Offered { get; init; }
+}
 
 /// <summary>
 /// The chains' endpoints as <c>sources.json</c> in the program's data: nothing secret (a key is only named) and nothing
@@ -68,7 +76,7 @@ internal sealed class SourcesFile(string? directory)
                 .OfType<SourceEndpoint>()
                 .DistinctBy(endpoint => endpoint.Id)
                 .ToList();
-            result[chain.Chain] = new SavedChain(chain.Chain, mode, endpoints);
+            result[chain.Chain] = new SavedChain(chain.Chain, mode, endpoints) { Offered = chain.Offered };
         }
 
         return result;
@@ -118,15 +126,23 @@ internal sealed class SourcesFile(string? directory)
     /// <returns>The chain in the file.</returns>
     private static ChainDto ToDto(SavedChain chain) => new(chain.Chain, chain.Mode,
     [
-        .. chain.Endpoints.Select(endpoint => new EndpointDto(
+        .. chain.Endpoints.Select(ToDto),
+    ])
+    {
+        Offered = chain.Offered is null ? null : [.. chain.Offered],
+    };
+
+    /// <summary>Makes the file's form of an endpoint.</summary>
+    /// <param name="endpoint">The endpoint.</param>
+    /// <returns>The endpoint in the file.</returns>
+    private static EndpointDto ToDto(SourceEndpoint endpoint) => new(
             endpoint.Id, endpoint.Name, endpoint.Address.AbsoluteUri, endpoint.Api, endpoint.ApiKey,
             endpoint.Enabled, endpoint.Local,
             endpoint.Interval == DefaultPace(endpoint.Local) ? null : (int)endpoint.Interval.TotalMilliseconds)
         {
             Pin = endpoint.Pin,
             FormerPins = endpoint.FormerPins.Count == 0 ? null : endpoint.FormerPins,
-        }),
-    ]);
+        };
 
     /// <summary>
     /// Makes an endpoint of a saved one, or nothing when it cannot be used. An address on the computer or a private
@@ -197,7 +213,12 @@ internal sealed class SourcesFile(string? directory)
     /// <param name="Chain">The chain.</param>
     /// <param name="Mode">Its mode.</param>
     /// <param name="Endpoints">Its endpoints, in the user's order.</param>
-    private sealed record ChainDto(Chain Chain, SourceMode Mode, IReadOnlyList<EndpointDto?>? Endpoints);
+    private sealed record ChainDto(Chain Chain, SourceMode Mode, IReadOnlyList<EndpointDto?>? Endpoints)
+    {
+        /// <summary>Gets the built-in endpoints the chain has been offered, or none in a file from before.</summary>
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public IReadOnlyList<Guid>? Offered { get; init; }
+    }
 
     /// <summary>An endpoint in the file.</summary>
     /// <param name="Id">Its id.</param>

@@ -6299,3 +6299,7 @@ insättning i en borta tx i Begäran, Flöde).
   nycklarna i valvet samma sak innan endpointarna provas. Eget beslut: en sådan endpoint som stängs av för hand slås
   på igen vid nästa start; för att sluta använda tjänsten tar man bort nyckeln.
 
+- **Rättat 2026-11-09:** Etherscan kom aldrig med för den som redan hade sparat Ethereums källor, eftersom en sparad
+  kedja bara läste sin egen lista. `sources.json` minns nu vilka inbyggda endpoints varje kedja erbjudits
+  (`Offered`), så att en ny inbyggd endpoint kommer in en gång och en borttagen inte kommer tillbaka; en fil från
+  före listan får bara de inbyggda som behöver en nyckel.

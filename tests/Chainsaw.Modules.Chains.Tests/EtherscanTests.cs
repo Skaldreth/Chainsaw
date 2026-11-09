@@ -166,6 +166,28 @@ public sealed class EtherscanTests : IDisposable
         Assert.False(new EtherscanApi(new EthereumSourceOptions()).Answers(path));
 
     [Fact]
+    public async Task A_built_in_endpoint_added_later_comes_to_a_saved_chain_once()
+    {
+        // A file from before Etherscan was built in: Ethereum saved with Blockscout only.
+        var options = new EthereumSourceOptions();
+        var blockscout = new BlockscoutApi(options);
+        var before = Sources([blockscout]);
+        await before.SetModeAsync(Chain.Ethereum, SourceMode.Priority);
+
+        var after = Sources([blockscout, new EtherscanApi(options)]);
+        var etherscan = Etherscan(after);
+        Assert.Equal(SourceMode.Priority, after.Get(Chain.Ethereum).Mode);
+        await after.RemoveAsync(Chain.Ethereum, etherscan.Id);
+
+        var again = Sources([blockscout, new EtherscanApi(options)]);
+        Assert.DoesNotContain(again.Get(Chain.Ethereum).Endpoints, view => view.Endpoint.Id == etherscan.Id);
+    }
+
+    private ChainSources Sources(IReadOnlyList<ISourceApi> apis) => new(
+        apis, _http, _keys, new FakeVault(), _clock, new ChainSourcesOptions { Directory = _directory },
+        new FakeLocalHttp(_clock), _clock.Delay);
+
+    [Fact]
     public async Task A_saved_key_switches_on_the_endpoint_that_needs_it()
     {
         var sources = new ChainSources(
