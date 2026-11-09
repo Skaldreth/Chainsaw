@@ -1269,8 +1269,22 @@ public partial class MainWindow : Window
 
         if (e.Key is Key.Up or Key.Down)
         {
-            // The arrows go through the search's rows (sketch KR1a), and the graph follows.
-            _shell.Search.Move(e.Key == Key.Down ? 1 : -1);
+            // The arrows go through a command's suggestions, or else the search's rows (sketch KR1a), and the graph
+            // follows.
+            var step = e.Key == Key.Down ? 1 : -1;
+            if (!_shell.MoveSuggestion(step))
+            {
+                _shell.Search.Move(step);
+            }
+
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Key.Enter && _shell.TakeChosenOnEnter())
+        {
+            // The arrows chose a suggestion: Enter fills it in, and a second Enter runs it.
+            CommandBox.CaretIndex = CommandBox.Text.Length;
             e.Handled = true;
             return;
         }
@@ -1290,6 +1304,15 @@ public partial class MainWindow : Window
         _shell.Complete();
         CommandBox.CaretIndex = CommandBox.Text.Length;
         e.Handled = true;
+    }
+
+    /// <summary>Puts the keyboard back in the command bar after a suggestion is clicked, at the end of the text.</summary>
+    /// <param name="sender">The row.</param>
+    /// <param name="e">The click.</param>
+    private void OnSuggestionTaken(object sender, RoutedEventArgs e)
+    {
+        CommandBox.Focus();
+        CommandBox.CaretIndex = CommandBox.Text.Length;
     }
 
     /// <summary>

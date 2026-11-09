@@ -469,6 +469,50 @@
                                             </TextBlock.Style>
                                         </TextBlock>
                                     </Border>
+                                    <!--
+                                      The suggestions for a command as it is written (auto-suggest): the commands, then
+                                      their arguments, each with what it does. The arrows choose, Tab fills in.
+                                    -->
+                                    <ItemsControl ItemsSource="{Binding Suggestions}" Focusable="False" Margin="8,6,8,8"
+                                                  Visibility="{Binding HasSuggestions, Converter={StaticResource VisibleWhen}}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate DataType="{x:Type vm:CommandSuggestionRow}">
+                                                <Button Style="{StaticResource Button.SearchRow}"
+                                                        Command="{Binding DataContext.TakeSuggestionCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                        CommandParameter="{Binding}" Click="OnSuggestionTaken"
+                                                        AutomationProperties.Name="{Binding Suggestion.Completion}">
+                                                    <Border x:Name="Row" Height="40" CornerRadius="9" Background="Transparent" Padding="12,0">
+                                                        <DockPanel>
+                                                            <StackPanel x:Name="TabHint" DockPanel.Dock="Right" Orientation="Horizontal"
+                                                                        VerticalAlignment="Center" Margin="12,0,0,0" Visibility="Collapsed">
+                                                                <Border Height="18" CornerRadius="5" Padding="6,0" BorderThickness="1"
+                                                                        BorderBrush="{StaticResource Brush.BorderStrong}">
+                                                                    <TextBlock Text="Tab" FontSize="11" VerticalAlignment="Center"
+                                                                               Foreground="{StaticResource Brush.TextMuted}" />
+                                                                </Border>
+                                                            </StackPanel>
+                                                            <TextBlock DockPanel.Dock="Left" Text="{Binding Suggestion.Label}" FontSize="13.5"
+                                                                       VerticalAlignment="Center" Foreground="{StaticResource Brush.Text}" />
+                                                            <TextBlock Text="{Binding Suggestion.Detail}" FontSize="12.5" Margin="14,0,0,0"
+                                                                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                                                       Foreground="{StaticResource Brush.TextDim}"
+                                                                       ToolTip="{Binding Suggestion.Detail}"
+                                                                       Visibility="{Binding HasDetail, Converter={StaticResource VisibleWhen}}" />
+                                                        </DockPanel>
+                                                    </Border>
+                                                </Button>
+                                                <DataTemplate.Triggers>
+                                                    <Trigger SourceName="Row" Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="Row" Property="Background" Value="{StaticResource Brush.SurfaceHover}" />
+                                                    </Trigger>
+                                                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                        <Setter TargetName="Row" Property="Background" Value="{StaticResource Brush.SurfaceSelected}" />
+                                                        <Setter TargetName="TabHint" Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                </DataTemplate.Triggers>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
                                     <!-- The search (sketch KR1a): the best hit, the groups and the keys. -->
                                     <views:CommandSearchList x:Name="SearchList" />
                                 </StackPanel>

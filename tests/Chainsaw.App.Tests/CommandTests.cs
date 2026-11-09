@@ -309,3 +309,63 @@ public sealed class CommandTests
             throw new InvalidOperationException();
     }
 }
+
+/// <summary>The suggestions under the command bar as a command is written (auto-suggest).</summary>
+public sealed class CommandSuggestionTests
+{
+    /// <summary>A slash and the start of a name suggest the commands it can become, each with what it does.</summary>
+    [Fact]
+    public void The_start_of_a_name_suggests_the_commands_with_what_they_do()
+    {
+        var shell = new GateRig(VaultState.Unlocked).Shell;
+
+        shell.CommandText = "/";
+
+        Assert.True(shell.HasSuggestions);
+        Assert.True(shell.Suggestions.Count <= ShellViewModel.MostSuggestions);
+        Assert.True(shell.Suggestions[0].IsSelected);
+        Assert.All(shell.Suggestions, row => Assert.StartsWith("/", row.Suggestion.Completion, StringComparison.Ordinal));
+
+        shell.CommandText = "/he";
+        var help = Assert.Single(shell.Suggestions);
+        Assert.Equal("/help", help.Suggestion.Completion);
+        Assert.True(help.HasDetail);
+    }
+
+    /// <summary>The arrows choose, Tab takes the chosen row, and a name that is written whole suggests nothing.</summary>
+    [Fact]
+    public async Task The_arrows_choose_and_tab_and_enter_take_the_chosen_row()
+    {
+        var rig = new GateRig(VaultState.Unlocked);
+        rig.Cases.AddFile("2026-0100", 60);
+        rig.Cases.AddFile("2026-0117", 1);
+        await rig.Workflow.RefreshCasesAsync();
+        var shell = rig.Shell;
+
+        shell.CommandText = "/open ";
+        Assert.Equal(["2026-0117", "2026-0100"], shell.Suggestions.Select(row => row.Suggestion.Label));
+        Assert.True(shell.MoveSuggestion(1));
+        Assert.True(shell.Suggestions[1].IsSelected);
+        Assert.True(shell.TakeChosenOnEnter());
+        Assert.Equal("/open 2026-0100", shell.CommandText);
+        Assert.False(shell.HasSuggestions);
+
+        shell.CommandText = "/clo";
+        shell.Complete();
+        Assert.Equal("/close", shell.CommandText);
+        Assert.False(shell.HasSuggestions);
+    }
+
+    /// <summary>Text without a slash is the search's and gets no command suggestions; Enter runs it as before.</summary>
+    [Fact]
+    public void Text_without_a_slash_gets_no_command_suggestions()
+    {
+        var shell = new GateRig(VaultState.Unlocked).Shell;
+
+        shell.CommandText = "bc1q";
+
+        Assert.False(shell.HasSuggestions);
+        Assert.False(shell.MoveSuggestion(1));
+        Assert.False(shell.TakeChosenOnEnter());
+    }
+}
