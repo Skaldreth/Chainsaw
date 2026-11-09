@@ -13,6 +13,15 @@ public sealed class TestActors
     /// <summary>How many of the hub's coins it pays on, each to a counterparty of its own.</summary>
     public const int HubReceivers = 24;
 
+    /// <summary>How many deposits of Sydbörsen's customers are swept into its hot wallet.</summary>
+    public const int SouthDeposits = 10;
+
+    /// <summary>How many hops a CoinJoin output of the scammer's passes through.</summary>
+    public const int HopCount = 5;
+
+    /// <summary>How many parts the CoinJoin output is split into after the hops.</summary>
+    public const int PartCount = 6;
+
     /// <summary>Gets the exchange's hot wallet that paid the victim out.</summary>
     public TestAddress ExchangeHot { get; } = TestAddress.Wsh("nordborsen-hot");
 
@@ -70,8 +79,11 @@ public sealed class TestActors
     /// <summary>Gets the second mixer the less likely way out goes into: mixer after mixer.</summary>
     public TestAddress SecondMixer { get; } = TestAddress.Wsh("virveln");
 
-    /// <summary>Gets the exchange the mixer's way out goes on to, for the user to find.</summary>
-    public TestAddress SouthExchange { get; } = TestAddress.Wpkh("sydborsen-insattning");
+    /// <summary>
+    /// Gets the exchange the mixer's way out goes on to, for the user to find. Its seed was searched for together with
+    /// the poisoner's (<see cref="LookAlike"/>), so that the two look alike.
+    /// </summary>
+    public TestAddress SouthExchange { get; } = TestAddress.Wpkh("sydborsen-insattning-1849900");
 
     /// <summary>Gets the exchange's second deposit address, paid the same amount at the same time.</summary>
     public TestAddress SouthExchange2 { get; } = TestAddress.Wpkh("sydborsen-insattning-2");
@@ -146,5 +158,48 @@ public sealed class TestActors
 
     /// <summary>Gets the new victim whose payment the watch catches.</summary>
     public TestAddress NewVictim { get; } = TestAddress.Wpkh("nytt-offer");
+
+    /// <summary>Gets the duster, who sends tiny amounts to many addresses in the graph.</summary>
+    public TestAddress Duster { get; } = TestAddress.Wpkh("dammaren");
+
+    /// <summary>
+    /// Gets the poisoner's address that looks like Sydbörsen's deposit (<see cref="SouthExchange"/>) in its first and
+    /// last four characters: both seeds were searched for until their addresses looked alike.
+    /// </summary>
+    public TestAddress LookAlike { get; } = TestAddress.Wpkh("forgiftaren-754626");
+
+    /// <summary>Gets Sydbörsen's hot wallet, which its deposits are swept into; no label, so that it is to be found.</summary>
+    public TestAddress SouthHot { get; } = TestAddress.Wsh("sydborsen-het");
+
+    /// <summary>Gets Sydbörsen's customers, each paying a deposit address of its own.</summary>
+    public IReadOnlyList<TestAddress> SouthCustomers { get; } =
+        [.. Enumerable.Range(1, SouthDeposits).Select(index => TestAddress.Wpkh($"sydborsen-kund-{index}"))];
+
+    /// <summary>Gets Sydbörsen's deposit addresses for its customers.</summary>
+    public IReadOnlyList<TestAddress> SouthCustomerDeposits { get; } =
+        [.. Enumerable.Range(1, SouthDeposits).Select(index => TestAddress.Wpkh($"sydborsen-kundinsattning-{index}"))];
+
+    /// <summary>Gets the addresses a CoinJoin output of the scammer's passes through, one per hop.</summary>
+    public IReadOnlyList<TestAddress> Hops { get; } =
+        [.. Enumerable.Range(1, HopCount).Select(index => TestAddress.Wpkh($"hopp-{index}"))];
+
+    /// <summary>Gets the parts the CoinJoin output is split into after the hops.</summary>
+    public IReadOnlyList<TestAddress> Parts { get; } =
+        [.. Enumerable.Range(1, PartCount).Select(index => TestAddress.Wpkh($"del-{index}"))];
+
+    /// <summary>Gets the address a part passes through before the parts meet again.</summary>
+    public TestAddress PartHop { get; } = TestAddress.Wpkh("del-2-hopp");
+
+    /// <summary>Gets the address where some of the parts meet again.</summary>
+    public TestAddress Joined { get; } = TestAddress.Wpkh("delar-mots");
+
+    /// <summary>Gets the payee of the possible PayJoin: an old-style address, as its own coin and its new output.</summary>
+    public TestAddress PayJoinPayee { get; } = TestAddress.Pkh("payjoin-mottagare");
+
+    /// <summary>Gets the PayJoin payee's new address, paid the payment and its own coin back.</summary>
+    public TestAddress PayJoinReceived { get; } = TestAddress.Pkh("payjoin-mottagare-ny");
+
+    /// <summary>Gets the payer's change in the possible PayJoin.</summary>
+    public TestAddress PayJoinChange { get; } = TestAddress.Wpkh("payjoin-vaxel");
 }
 #endif

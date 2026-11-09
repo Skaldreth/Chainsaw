@@ -301,6 +301,23 @@
             </TextBlock.Style>
         </TextBlock>
 
+        <!--
+          While an approved wallet's take-back waits in the graph (sketch PL1b), the panel only says where it is answered.
+        -->
+        <Border DockPanel.Dock="Top" Margin="22,0,22,12" Padding="12,9" CornerRadius="9"
+                Background="{StaticResource Brush.SurfaceRaised}" BorderThickness="1" BorderBrush="{StaticResource Brush.Accent}"
+                Visibility="{Binding IsConfirmingInGraph, Converter={StaticResource Visible}}"
+                ToolTip="Klustret står öppet i grafen med sina adresser: Enter ångrar godkännandet, Esc låter det stå">
+            <DockPanel>
+                <controls:GridIcon DockPanel.Dock="Left" Size="14" Data="{StaticResource Icon.Undo}"
+                                   Foreground="{StaticResource Brush.Accent}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                <TextBlock DockPanel.Dock="Right" Text="Enter · Esc" FontSize="12" Foreground="{StaticResource Brush.TextDim}"
+                           VerticalAlignment="Center" />
+                <TextBlock Text="{x:Static vm:ChecksViewModel.ConfirmInGraphText}" FontSize="13" FontWeight="SemiBold"
+                           VerticalAlignment="Center" />
+            </DockPanel>
+        </Border>
+
         <Grid>
             <!-- ===== One suggestion at a time ===== -->
             <DockPanel Visibility="{Binding IsReview, Converter={StaticResource Visible}}">
@@ -341,6 +358,7 @@
                             </Button>
                             <Button Grid.Column="2" Style="{StaticResource Button.Primary}" Height="40" Padding="0" Margin="4,0,0,0"
                                     Focusable="False" ToolTip="Godkänn den valda · Enter" AutomationProperties.Name="Godkänn"
+                                    Visibility="{Binding Selected.CanApprove, Converter={StaticResource Visible}}"
                                     Command="{Binding ApproveCommand}">
                                 <StackPanel Orientation="Horizontal">
                                     <controls:GridIcon Size="14" Data="{StaticResource Icon.Check}" Foreground="{StaticResource Brush.OnAccent}"

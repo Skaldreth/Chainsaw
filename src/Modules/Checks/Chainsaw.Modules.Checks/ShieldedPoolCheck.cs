@@ -176,7 +176,7 @@ internal sealed class ShieldedPoolCheck : ICheckAnalysis
             "Troliga vägar ut ur den skyddade poolen",
             $"{amount} {coin} in i {deposit.Pool} · samma belopp minus avgift och tid",
             why,
-            [.. depositors, .. best.Select(item => item.Candidate!.Address).Distinct()],
+            [.. depositors, .. best.Select(item => item.Candidate!.Address).OfType<BitcoinAddress>().Distinct()],
             [],
             [
                 CheckBasis.Of(deposit.Transaction),

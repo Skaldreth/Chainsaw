@@ -359,7 +359,7 @@ public sealed class CheckServiceTests
     }
 
     [Fact]
-    public void The_module_registers_the_fourteen_analyses_in_order()
+    public void The_module_registers_the_sixteen_analyses_in_order()
     {
         using var harness = new Harness();
 
@@ -368,6 +368,8 @@ public sealed class CheckServiceTests
                 MixerOutputsCheck.Name, MixerPartsCheck.Name, MixerChainCheck.Name, CoinJoinCheck.Name,
                 PeelChainCheck.Name, WalletCheck.Name, CoinJoinMergeCheck.Name, ServiceBehaviourCheck.Name,
                 SplitMergeCheck.Name, PassThroughCheck.Name, DustCheck.Name, PayJoinCheck.Name, ActiveHoursCheck.Name,
+                PatternCheck.Name,
+                CrossChainCheck.Name,
                 ShieldedPoolCheck.Name,
             ],
             harness.Service.Analyses.Select(analysis => analysis.Name));

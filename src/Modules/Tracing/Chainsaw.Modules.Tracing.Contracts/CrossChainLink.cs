@@ -88,12 +88,21 @@ public sealed record CrossChainLink(
     /// </summary>
     public AccountSeed? FromTransfer { get; init; }
 
+    /// <summary>
+    /// Gets the approved suggestion the link comes from (<see cref="CrossChainOrigin"/>), or <see langword="null"/>
+    /// for a link the user made by hand.
+    /// </summary>
+    public CrossChainOrigin? Origin { get; init; }
+
     /// <summary>Gets the chain the money left.</summary>
     public Chain FromChain => FromTransfer?.Transaction.Chain ?? From!.Txid.Chain;
 
-    /// <summary>Writes where the money left: the coin, or the movement's kind and transaction.</summary>
+    /// <summary>
+    /// Writes where the money left: the coin, or the movement's chain, kind and transaction (Ethereum's and BSC's
+    /// hashes look alike, so the chain is named).
+    /// </summary>
     public string FromText => From?.ToString()
         ?? string.Create(System.Globalization.CultureInfo.InvariantCulture,
-            $"{FromTransfer!.Kind.ToString().ToLowerInvariant()}:{FromTransfer.Transaction.Value}"
-            + $"#{FromTransfer.Position}");
+            $"{FromTransfer!.Transaction.Chain} {FromTransfer.Kind.ToString().ToLowerInvariant()}:"
+            + $"{FromTransfer.Transaction.Value}#{FromTransfer.Position}");
 }

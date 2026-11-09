@@ -1,5 +1,7 @@
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Clustering.Contracts;
+using Chainsaw.Modules.Tracing.Contracts;
+using Chainsaw.SharedKernel;
 
 namespace Chainsaw.Modules.Checks.Contracts;
 
@@ -59,6 +61,31 @@ public sealed record CheckInput(
     /// example as a customer's deposit).
     /// </summary>
     public IReadOnlySet<BitcoinAddress> Protected { get; init; } = new HashSet<BitcoinAddress>();
+
+    /// <summary>
+    /// Gets the addresses on every chain that a payment to or from is never a continuation of another payment: those a
+    /// label says are a victim's. A start point is not among them (CLAUDE.md, <em>Startpunkten är neutral</em>).
+    /// </summary>
+    public IReadOnlySet<ChainAddress> ProtectedAccounts { get; init; } = new HashSet<ChainAddress>();
+
+    /// <summary>
+    /// Gets the addresses on every chain that a label (<em>Swap eller brygga</em>) or Chainsaw's list of known
+    /// contracts says are a bridge or a swap service, also those not in the graph; a judgement with its source.
+    /// </summary>
+    public IReadOnlySet<ChainAddress> BridgeAccounts { get; init; } = new HashSet<ChainAddress>();
+
+    /// <summary>
+    /// Gets the graph the input was built from, for an analysis that reads more than the Bitcoin transactions (the
+    /// cross-chain analysis reads every chain's payments and the links to other chains); <see langword="null"/> when
+    /// the input was built without one.
+    /// </summary>
+    public TraceGraph? Graph { get; init; }
+
+    /// <summary>
+    /// Gets what the cross-chain search read from the case of the other chains (<see cref="ICrossChainLookup"/>);
+    /// empty when nothing.
+    /// </summary>
+    public CrossChainArrivals CrossChain { get; init; } = CrossChainArrivals.Empty;
 
     /// <summary>Gives the owner of an address (<see cref="Owners"/>).</summary>
     /// <param name="address">The address.</param>

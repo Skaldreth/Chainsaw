@@ -870,6 +870,14 @@
                 </Border>
             </Grid>
 
+            <!--
+              Taking back an approved wallet (sketch PL1b): the cluster opened as a card with its addresses and a box under
+              it, beside the wallet's node, or under the graph's corner when it is not drawn.
+            -->
+            <views:WalletUndoConfirm x:Name="WalletUndoCard" DataContext="{Binding Checks}" Width="300"
+                                     HorizontalAlignment="Left" VerticalAlignment="Top" SizeChanged="OnOverNodeSized"
+                                     Visibility="{Binding IsConfirmingInGraph, Converter={StaticResource Visible}}" />
+
             <!-- The node's menu (right click, sketch BV2a): the forms, Bevaka …, Expandera and Kopiera adress. -->
             <Border x:Name="NodeMenu" HorizontalAlignment="Left" VerticalAlignment="Top" Width="220" Padding="5"
                     CornerRadius="10" BorderThickness="1" BorderBrush="{StaticResource Brush.BorderStrong}"

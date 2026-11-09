@@ -4,16 +4,21 @@ namespace Chainsaw.App.TestData;
 /// <summary>
 /// The test case's chain, told as the money moves: the victim's payment, the scammer's consolidation and change, a
 /// coinbase with OP_RETURN spent in a shared transaction, the distribution to a mixer, a CoinJoin, a peel chain through
-/// shops to an exchange, a hub with many transactions, services of every sort and a new victim in the newest block.
-/// Each transaction's label is how the steps name it.
+/// shops to an exchange, a hub with many transactions, services of every sort and a new victim in the newest block;
+/// and the obfuscation the checks recognise: dust, a look-alike address, many hops with a pause, a split whose parts
+/// meet, a possible PayJoin, an exchange's sweeps into its hot wallet, and a spend replaced by a higher fee. Each
+/// transaction's label is how the steps name it.
 /// </summary>
 public static class TestStoryChain
 {
     /// <summary>The height the story starts at (the victim's payment).</summary>
     public const long Start = 921_000;
 
-    /// <summary>The newest block, which has the new victim's payment that the watch catches.</summary>
-    public const long Tip = Start + 300;
+    /// <summary>
+    /// The newest block, which has the new victim's payment that the watch catches: five days after the start, so that
+    /// the money can lie still for days between two hops.
+    /// </summary>
+    public const long Tip = Start + 720;
 
     /// <summary>The lowest block: the coinbases that give everyone their first money come before the story.</summary>
     public const long First = Start - 200;
@@ -51,9 +56,44 @@ public static class TestStoryChain
     /// <summary>The new victim's payment in the newest block.</summary>
     public const string NewVictimPayment = "nytt-offer-betalar";
 
+    /// <summary>The duster's transaction: tiny amounts to many addresses in the graph.</summary>
+    public const string Dusting = "damm";
+
+    /// <summary>The poisoner's tiny payment to the mixer's way out, from an address like Sydbörsen's deposit.</summary>
+    public const string Poisoning = "forgiftning";
+
+    /// <summary>The split of the CoinJoin output into parts of about the same size, after the hops.</summary>
+    public const string Split = "uppdelning";
+
+    /// <summary>The transaction where some of the parts meet again.</summary>
+    public const string Join = "delarna-mots";
+
+    /// <summary>A possible PayJoin: a part pays someone who adds a coin of its own.</summary>
+    public const string PayJoin = "mojlig-payjoin";
+
+    /// <summary>
+    /// The scammer's spend of a CoinJoin output to the exchange without KYC with a low fee, seen in a block that fell
+    /// out of the chain and then replaced by <see cref="ReplacingSpend"/> (RBF): a transaction that is gone.
+    /// </summary>
+    public const string ReplacedSpend = "efter-whirlpool-forsta";
+
+    /// <summary>The spend that replaced <see cref="ReplacedSpend"/>, the same coin with a higher fee.</summary>
+    public const string ReplacingSpend = "efter-whirlpool";
+
     /// <summary>The peel chain's hops, each peeling a payment off and passing the rest on.</summary>
     public static readonly IReadOnlyList<string> PeelHops =
         [.. Enumerable.Range(1, 6).Select(index => $"skalning-hopp-{index}")];
+
+    /// <summary>The hops a CoinJoin output of the scammer's passes through, one in and one out each, with a pause.</summary>
+    public static readonly IReadOnlyList<string> PostMixHops =
+        [.. Enumerable.Range(1, TestActors.HopCount).Select(index => $"efter-mix-hopp-{index}")];
+
+    /// <summary>The customers' payments into Sydbörsen's deposits, swept into its hot wallet.</summary>
+    public static readonly IReadOnlyList<string> SouthPayments =
+        [.. Enumerable.Range(1, TestActors.SouthDeposits).Select(index => $"sydborsen-kund-betalar-{index}")];
+
+    /// <summary>The two sweeps of Sydbörsen's deposits into its hot wallet.</summary>
+    public static readonly IReadOnlyList<string> SouthSweeps = ["sydborsen-svep-1", "sydborsen-svep-2"];
 
     /// <summary>The first block's time.</summary>
     private static readonly DateTimeOffset FirstTime = new(2026, 10, 19, 12, 0, 0, TimeSpan.Zero);
@@ -72,6 +112,10 @@ public static class TestStoryChain
         CoinJoinRound(chain, funding, actors);
         PeelChain(chain, actors);
         HubAndServices(chain, funding, actors);
+        DustAndPoison(chain, funding, actors);
+        SouthExchangeSweeps(chain, funding, actors);
+        HopsAndParts(chain, funding, actors);
+        Replacement(chain, actors);
         chain.Seal(Tip);
         return chain;
     }
@@ -230,6 +274,114 @@ public static class TestStoryChain
             chain.Tx($"navet-ut-{index + 1}", Start + 170 + index).From($"navet-in-{index + 1}")
                 .Rest(actors.HubOut[index], 1_000).Done();
         }
+    }
+
+    /// <summary>
+    /// Dust and address poisoning (sketch DM1a): a duster sends 600 satoshi each to twelve addresses in the graph, and a
+    /// poisoner sends a tiny amount to the mixer's way out from an address that looks like the Sydbörsen deposit it
+    /// paid, in the hope that it copies the wrong one from its history next time.
+    /// </summary>
+    /// <param name="chain">The chain.</param>
+    /// <param name="funding">Gives fresh money.</param>
+    /// <param name="actors">The actors.</param>
+    private static void DustAndPoison(TestChain chain, Funding funding, TestActors actors)
+    {
+        var dust = funding.Give(actors.Duster, 100_000);
+        var draft = chain.Tx(Dusting, Start + 250).From(dust.Label);
+        TestAddress[] dusted =
+        [
+            .. actors.CoinJoinOut, actors.Gambling, actors.Merchant, actors.GiftCard, actors.Atm, actors.Card,
+            actors.MixerOut2, actors.Distributor,
+        ];
+        foreach (var address in dusted)
+        {
+            draft.Pay(address, 600);
+        }
+
+        draft.Rest(actors.Duster).Done();
+        var poison = funding.Give(actors.LookAlike, 5_000);
+        chain.Tx(Poisoning, Start + 158).From(poison.Label).Pay(actors.MixerOut1, 1_000)
+            .Rest(actors.LookAlike, 500).Done();
+    }
+
+    /// <summary>
+    /// Sydbörsen behaves as an exchange (sketch TJ1b): ten customers pay deposit addresses of their own over almost two
+    /// days, and the deposits, with the two the mixer's way out paid, are swept into one hot wallet twice. The hot
+    /// wallet has no label, so that the service is to be found from how it behaves.
+    /// </summary>
+    /// <param name="chain">The chain.</param>
+    /// <param name="funding">Gives fresh money.</param>
+    /// <param name="actors">The actors.</param>
+    private static void SouthExchangeSweeps(TestChain chain, Funding funding, TestActors actors)
+    {
+        for (var index = 0; index < SouthPayments.Count; index++)
+        {
+            var customer = actors.SouthCustomers[index];
+            var money = funding.Give(customer, 30_000_000);
+            chain.Tx(SouthPayments[index], Start + 130 + (29 * index)).From(money.Label)
+                .Pay(actors.SouthCustomerDeposits[index], 5_000_000 + (310_000 * index)).Rest(customer).Done();
+        }
+
+        var half = SouthPayments.Count / 2;
+        var first = chain.Tx(SouthSweeps[0], Start + 300).From("blandat-till-sydborsen", 0);
+        var second = chain.Tx(SouthSweeps[1], Start + 420).From("blandat-till-sydborsen", 1);
+        for (var index = 0; index < SouthPayments.Count; index++)
+        {
+            (index < half ? first : second).From(SouthPayments[index]);
+        }
+
+        first.Rest(actors.SouthHot).Done();
+        second.Rest(actors.SouthHot).Done();
+    }
+
+    /// <summary>
+    /// A CoinJoin output of the scammer's passes through five hops of one in and one out, lying still for more than
+    /// three days between the third and the fourth (sketch HP1a); then it is split into six parts of the same size,
+    /// some of which meet again, one after a hop of its own, and one pays someone who adds a coin of their own: a
+    /// possible PayJoin.
+    /// </summary>
+    /// <param name="chain">The chain.</param>
+    /// <param name="funding">Gives fresh money.</param>
+    /// <param name="actors">The actors.</param>
+    private static void HopsAndParts(TestChain chain, Funding funding, TestActors actors)
+    {
+        long[] heights = [Start + 110, Start + 120, Start + 130, Start + 580, Start + 590];
+        var (previous, index) = (CoinJoin, 1);
+        for (var hop = 0; hop < PostMixHops.Count; hop++)
+        {
+            chain.Tx(PostMixHops[hop], heights[hop]).From(previous, index).Rest(actors.Hops[hop]).Done();
+            (previous, index) = (PostMixHops[hop], 0);
+        }
+
+        // The CoinJoin's output less five fees, in six equal parts and a fee.
+        var split = chain.Tx(Split, Start + 600).From(previous, index);
+        foreach (var part in actors.Parts)
+        {
+            split.Pay(part, 164_000);
+        }
+
+        split.Done();
+        chain.Tx("del-2-hoppar", Start + 610).From(Split, 1).Rest(actors.PartHop).Done();
+        chain.Tx(Join, Start + 625).From(Split, 0).From("del-2-hoppar").From(Split, 3).Rest(actors.Joined).Done();
+
+        // The payee's own coin is of a type no other input has, and its output of that type is the larger: the strong
+        // signs of a PayJoin, so the clustering only proposes that the inputs are one wallet.
+        var payee = funding.Give(actors.PayJoinPayee, 20_000);
+        chain.Tx(PayJoin, Start + 635).From(Split, 2).From(payee.Label)
+            .Pay(actors.PayJoinReceived, 120_000).Rest(actors.PayJoinChange).Done();
+    }
+
+    /// <summary>
+    /// The scammer spends a CoinJoin output to the exchange without KYC with too low a fee, and replaces it with a
+    /// higher one (RBF) in the block before the newest. The first spend was seen in a block that fell out of the chain,
+    /// so that it is gone and replaced (sketch GR9a, <em>Ersatt av</em>).
+    /// </summary>
+    /// <param name="chain">The chain.</param>
+    /// <param name="actors">The actors.</param>
+    private static void Replacement(TestChain chain, TestActors actors)
+    {
+        chain.Tx(ReplacedSpend, Tip - 1).From(CoinJoin, 0).Rest(actors.NoKycExchange, 300).Replaced();
+        chain.Tx(ReplacingSpend, Tip - 1).From(CoinJoin, 0).Rest(actors.NoKycExchange, 3_000).Done();
     }
 
     /// <summary>Gives fresh money, each as a coinbase in a block of its own before the story.</summary>

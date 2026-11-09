@@ -26,6 +26,10 @@ internal sealed class SourceLookups
         "Källan känner inte till det som söktes, men ingen endpoint som visat att den svarar rätt sa det. "
         + "Uppslaget räknas som misslyckat tills en endpoint som provats svarar.";
 
+    /// <summary>What a lookup says when a response cannot be read or does not add up.</summary>
+    private const string FailedText =
+        "Källans svar gick inte att tolka eller gick inte ihop. Det är sparat i ärendet men används inte.";
+
     /// <summary>The HTTP status of a source that is asked too fast.</summary>
     private const int TooManyRequestsStatus = 429;
 
@@ -181,12 +185,16 @@ internal sealed class SourceLookups
     /// Hosts whose endpoints are passed over while another can be asked, as when what they said is to be confirmed
     /// elsewhere; when every endpoint is on them, they are asked all the same.
     /// </param>
+    /// <param name="ownNodeOnly">
+    /// Whether only the user's own nodes (endpoints marked local) may be asked, as when a block is to be confirmed by
+    /// the own node; nothing then goes through the exit.
+    /// </param>
     /// <returns>The answer.</returns>
     public async Task<BitcoinLookup<T>> FetchAsync<T>(
         ICase @case, LookupQuery<T> query, (T Value, StoredResponse Response)? stored,
         CancellationToken cancellationToken, bool inStep = false, bool preferInStep = false, Guid? except = null,
         ResponseOrigin? doubted = null,
-        IReadOnlySet<string>? preferNotHosts = null)
+        IReadOnlySet<string>? preferNotHosts = null, bool ownNodeOnly = false)
         where T : class
     {
         var fetchedBy = CurrentOperator(out var noOperator);
@@ -195,10 +203,10 @@ internal sealed class SourceLookups
             return Fallback(stored, LookupStatus.Failed, noOperator!);
         }
 
-        var plan = _sources.Plan(_chain, inStep || preferInStep);
+        var plan = Answering(_sources.Plan(_chain, inStep || preferInStep), query.Path, ownNodeOnly);
         if (preferInStep && !inStep && plan is { Off: false, Endpoints.Count: 0 })
         {
-            plan = _sources.Plan(_chain);
+            plan = Answering(_sources.Plan(_chain), query.Path, ownNodeOnly);
         }
 
         if (except is { } passedOver)
@@ -295,7 +303,7 @@ internal sealed class SourceLookups
                 continue;
             }
 
-            var (value, interpretProblem, outcome) = Interpret(query, response);
+            var (value, interpretProblem, outcome) = Interpret(query, response, planned.Api);
             var index = value is null ? null : query.Index(value);
             if (index?.Highest > ChainLimits.HighestPlausible(_store.ChainName, response.ReceivedAt))
             {
@@ -342,6 +350,12 @@ internal sealed class SourceLookups
                 // Asked too fast: it is waited for as long as it asks, and the others are asked meanwhile. It has not
                 // failed, so it comes back by itself when the wait is over.
                 _sources.AskedToWait(_chain, endpoint.Id, AsksToWait(response) ?? DefaultBusyWait);
+            }
+            else if (outcome == Outcome.CannotAnswer)
+            {
+                // It works, but cannot answer this kind of question (a node without the index): the others are asked,
+                // and it is not paused for the questions it can answer.
+                _sources.Answered(_chain, endpoint.Id);
             }
             else
             {
@@ -463,10 +477,49 @@ internal sealed class SourceLookups
         };
     }
 
+    /// <summary>
+    /// Keeps the endpoints of a plan that can answer a path: a sort that answers only some (the user's own Bitcoin
+    /// Core) is passed over for the others; and only the user's own nodes when asked for.
+    /// </summary>
+    /// <param name="plan">The plan.</param>
+    /// <param name="path">The lookup's path.</param>
+    /// <param name="ownNodeOnly">Whether only endpoints marked local are kept.</param>
+    /// <returns>The plan with the endpoints that may be asked.</returns>
+    private static SourcePlan Answering(SourcePlan plan, string path, bool ownNodeOnly) => plan with
+    {
+        Endpoints = [.. plan.Endpoints.Where(planned =>
+            planned.Api.Answers(path) && (!ownNodeOnly || planned.Endpoint.Local))],
+    };
+
+    /// <summary>
+    /// Gives a sealed body in the form the chains' parsers read: Bitcoin Core's JSON-RPC answer (<see
+    /// cref="BitcoinCoreApi"/>) as the plain text Esplora gives for the same question, and every other body as it is.
+    /// The raw body stays what is sealed and hashed (principle 1); this is the one place it is unwrapped, both for a
+    /// fresh response and for one read back from the case.
+    /// </summary>
+    /// <param name="source">The sort of API the body came from (<see cref="ResponseOrigin.Source"/>).</param>
+    /// <param name="body">The raw body.</param>
+    /// <param name="path">
+    /// The path of a fresh lookup, whose call's id a fresh JSON-RPC answer must give back; <see langword="null"/> for
+    /// an answer read back from the case, which was checked so when it was fetched.
+    /// </param>
+    /// <returns>The body to read.</returns>
+    /// <exception cref="FormatException">A JSON-RPC body is not an answer, or not the answer to the call.</exception>
+    public static byte[] Readable(string source, byte[] body, string? path = null)
+    {
+        if (source != BitcoinCoreApi.Code)
+        {
+            return body;
+        }
+
+        return path is null ? BitcoinCoreApi.Result(body, expectedId: null) : BitcoinCoreApi.ResultFor(path, body);
+    }
+
     /// <summary>Reads a fresh response, or says why it cannot be used.</summary>
     /// <typeparam name="T">What is looked up.</typeparam>
     /// <param name="query">The lookup.</param>
     /// <param name="response">The response.</param>
+    /// <param name="api">The sort of API that answered, which may read more from the response than its status.</param>
     /// <returns>
     /// The value, or <see langword="null"/> and the problem in Swedish, and what the source said when there is no
     /// value: that it does not know what was asked (HTTP 404, or a body that says so, <see
@@ -475,11 +528,17 @@ internal sealed class SourceLookups
     /// failed.
     /// </returns>
     private static (T? Value, string? Problem, Outcome Outcome) Interpret<T>(
-        LookupQuery<T> query, ExitResponse response)
+        LookupQuery<T> query, ExitResponse response, ISourceApi api)
         where T : class
     {
         const string NotFoundText = "Källan känner inte till det som söktes.";
         const string BusyText = "Källan bad Chainsaw vänta.";
+        if (api.Judge(response) is { } verdict)
+        {
+            return (null, verdict.Problem ?? (verdict.Outcome == Outcome.NotFound ? NotFoundText : FailedText),
+                verdict.Outcome);
+        }
+
         if (response.StatusCode == NotFoundStatus)
         {
             return (null, NotFoundText, Outcome.NotFound);
@@ -498,7 +557,8 @@ internal sealed class SourceLookups
 
         try
         {
-            return (query.Parse(response.Body.ToArray()), null, Outcome.Answered);
+            return (query.Parse(Readable(api.Info.Code, response.Body.ToArray(), query.Path)), null,
+                Outcome.Answered);
         }
         catch (SourceNotFoundException)
         {
@@ -512,9 +572,7 @@ internal sealed class SourceLookups
         {
             // Whatever the source sent, the response is sealed afterwards; a body that cannot be read is never
             // allowed to stop that (principle 1) or to escape as an exception (the chains' contracts).
-            return (null,
-                "Källans svar gick inte att tolka eller gick inte ihop. Det är sparat i ärendet men används inte.",
-                Outcome.Failed);
+            return (null, FailedText, Outcome.Failed);
         }
     }
 
@@ -632,7 +690,7 @@ internal sealed class SourceLookups
 
         try
         {
-            return parse(response.Body) is { } value ? (value, response) : null;
+            return parse(Readable(response.Origin.Source, response.Body)) is { } value ? (value, response) : null;
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -742,6 +800,12 @@ internal enum Outcome
 
     /// <summary>It asked Chainsaw to wait: it is asked too fast.</summary>
     Wait,
+
+    /// <summary>
+    /// It works, but cannot answer this kind of question as it is set up (Bitcoin Core without <c>txindex=1</c>): the
+    /// others are asked, and it is neither paused nor taken as saying that the chain does not have it.
+    /// </summary>
+    CannotAnswer,
 
     /// <summary>It failed, or its answer cannot be used.</summary>
     Failed,

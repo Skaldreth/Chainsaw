@@ -14,6 +14,13 @@ namespace Chainsaw.Modules.Tracing;
 /// </summary>
 internal sealed class TraceCalculator
 {
+    /// <summary>Writes how a link to another chain was made, for the end of the trail it gives.</summary>
+    /// <param name="link">The link.</param>
+    /// <returns><c> (för hand)</c>, or the approved suggestion's analysis.</returns>
+    private static string LinkedBy(CrossChainLink link) => link.Origin is { } origin
+        ? $" (godkänt förslag ur {origin.Analysis})"
+        : " (för hand)";
+
     /// <summary>The graph.</summary>
     private readonly TraceGraph _graph;
 
@@ -217,9 +224,9 @@ internal sealed class TraceCalculator
         var links = SpendRules.Continuations(_graph, coin);
         if (links.Count > 0)
         {
-            var targets = string.Join(", ", links.Select(link => link.To.ToString()));
+            var targets = string.Join(", ", links.Select(link => link.To + LinkedBy(link)));
             return Step.Ends(new Ending(
-                TrailEndReason.OtherChain, null, $"Fortsätter på annan kedja, knutet för hand till {targets}.", [])
+                TrailEndReason.OtherChain, null, $"Fortsätter på annan kedja, knutet till {targets}.", [])
             {
                 Continuations = links,
             });

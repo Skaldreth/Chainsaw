@@ -243,25 +243,87 @@ internal class EsploraBitcoinSource : IBitcoinSource
     }
 
     /// <summary>
-    /// Asks another endpoint in step with the chain for the block's hash at its height, so that a block is not one
-    /// source's alone: a header that meets only the network's easiest target says nothing about the chain.
+    /// Confirms the block a transaction is in: by the user's own node first, when one is on (it has checked every
+    /// block's work itself, so its word that this block is at the height in its chain makes the block more than one
+    /// source's); otherwise, or when the own node cannot answer, by another endpoint in step with the chain, so that a
+    /// block is not one source's alone: a header that meets only the network's easiest target says nothing about the
+    /// chain. An own node that has another block at the height is said, and the block then rests on one source. Only
+    /// Bitcoin Core gives <see cref="InBlockCheck.ConfirmedByOwnNode"/>; another local endpoint confirms by name, as
+    /// another endpoint does.
     /// </summary>
     /// <param name="case">The open case.</param>
     /// <param name="block">The block, checked against its header.</param>
-    /// <param name="answeredBy">The endpoint that gave the block, which is not asked.</param>
+    /// <param name="answeredBy">The endpoint that gave the block, which is not asked as another endpoint.</param>
     /// <param name="cancellationToken">Stops the lookup.</param>
     /// <returns>How far the block is checked, the responses, and what to say when it is not confirmed.</returns>
     private async Task<(InBlockCheck Level, IReadOnlyList<ResponseOrigin> Origins, string? Note)> ConfirmBlockAsync(
         ICase @case, BitcoinBlock block, Guid? answeredBy, CancellationToken cancellationToken)
     {
-        var height = block.Height.ToString(CultureInfo.InvariantCulture);
-        var query = new LookupQuery<string>(
+        var query = BlockAtHeightQuery(block.Height);
+        var own = HasOwnNode(query.Path)
+            ? await _lookups.FetchAsync(@case, query, null, cancellationToken, ownNodeOnly: true).ConfigureAwait(false)
+            : null;
+        var ownNode = own?.Origins.LastOrDefault();
+        if (own?.Value == block.Hash.Value && ownNode is not null)
+        {
+            // Only Bitcoin Core is a node that has checked every block itself; another local endpoint (an electrs) is
+            // said by name as a local endpoint, as confirmation by another endpoint.
+            return ownNode.Source == BitcoinCoreApi.Code
+                ? (InBlockCheck.ConfirmedByOwnNode, own.Origins,
+                    WithWork($"Blockets hash vid höjden bekräftades av den egna noden, {ownNode.Endpoint}."))
+                : (InBlockCheck.ConfirmedElsewhere, own.Origins,
+                    WithWork($"Blockets hash vid höjden bekräftades av en lokal endpoint, {ownNode.Endpoint}."));
+        }
+
+        if (own?.Value is not null)
+        {
+            return (InBlockCheck.SourceOnly, own.Origins, WithWork(
+                "Den egna noden har ett annat block på samma höjd, så blocket vilar bara på en källas svar."));
+        }
+
+        var elsewhere = await ConfirmElsewhereAsync(@case, block, answeredBy, query, cancellationToken)
+            .ConfigureAwait(false);
+        return own is null
+            ? elsewhere
+            : (elsewhere.Level, Merged(own.Origins, elsewhere.Origins),
+                $"Den egna noden kunde inte bekräfta blocket. {own.Problem} {elsewhere.Note}".Trim());
+    }
+
+    /// <summary>The lookup of the hash of the block at a height, asked to confirm a block.</summary>
+    /// <param name="height">The block's height.</param>
+    /// <returns>The query.</returns>
+    private static LookupQuery<string> BlockAtHeightQuery(long height)
+    {
+        var text = height.ToString(CultureInfo.InvariantCulture);
+        return new LookupQuery<string>(
             ResponseKinds.BlockAtHeight,
-            height,
-            $"block-height/{height}",
+            text,
+            $"block-height/{text}",
             body => EsploraParser.ParseTipHash(body).Value,
-            _ => new ResponseIndex([], block.Height),
+            _ => new ResponseIndex([], height),
             _ => null);
+    }
+
+    /// <summary>Gets whether one of the user's own nodes that can answer a path is on for the chain.</summary>
+    /// <param name="path">The lookup's path.</param>
+    /// <returns><see langword="true"/> when there is one.</returns>
+    private bool HasOwnNode(string path) =>
+        _sources.Plan(Network.ChainOf()).Endpoints.Any(planned => planned.Endpoint.Local && planned.Api.Answers(path));
+
+    /// <summary>
+    /// Asks another endpoint in step with the chain for the block's hash at its height, so that a block is not one
+    /// source's alone.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="block">The block, checked against its header.</param>
+    /// <param name="answeredBy">The endpoint that gave the block, which is not asked.</param>
+    /// <param name="query">The lookup of the hash at the block's height.</param>
+    /// <param name="cancellationToken">Stops the lookup.</param>
+    /// <returns>How far the block is checked, the responses, and what to say when it is not confirmed.</returns>
+    private async Task<(InBlockCheck Level, IReadOnlyList<ResponseOrigin> Origins, string? Note)> ConfirmElsewhereAsync(
+        ICase @case, BitcoinBlock block, Guid? answeredBy, LookupQuery<string> query,
+        CancellationToken cancellationToken)
+    {
         var other = await _lookups.FetchAsync(
                 @case, query, null, cancellationToken, inStep: true, except: answeredBy ?? Guid.Empty)
             .ConfigureAwait(false);

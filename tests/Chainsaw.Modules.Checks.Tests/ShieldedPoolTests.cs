@@ -73,9 +73,9 @@ public sealed class ShieldedPoolTests
 
         var read = FindingCodec.Decode(FindingCodec.Encode(finding));
 
-        Assert.Equal(Chain.Zcash, read.Candidates[0].Txid.Chain);
+        Assert.Equal(Chain.Zcash, read.Candidates[0].Txid!.Chain);
         Assert.Equal(exact.Txid, read.Candidates[0].Txid);
-        Assert.Equal(Chain.Zcash, read.Candidates[0].Address.Chain);
+        Assert.Equal(Chain.Zcash, read.Candidates[0].Address!.Chain);
         Assert.All(read.Basis, basis => Assert.Equal(Chain.Zcash, basis.Txid.Chain));
         Assert.Equal(FindingCodec.Encode(finding), FindingCodec.Encode(read));
     }
