@@ -689,6 +689,12 @@ public partial class MainWindow : Window
             _shell.Show(AppView.Graph);
             _graph.ChooseFound(key);
         }
+        else if (row.Entry.TrashPlace is { } place)
+        {
+            // Put back from the row (TODO, Lägg tillbaka direkt på raden I soptunnan): the graph shows it again.
+            _shell.Show(AppView.Graph);
+            _ = _graph.RestoreAsync(place.Throw, place.Key);
+        }
         else if (row.Entry.IsInTrash)
         {
             // What lies in the trash is not drawn; it is found there, where it can be put back (sketch SO1a).

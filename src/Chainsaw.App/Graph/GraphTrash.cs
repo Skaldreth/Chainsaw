@@ -21,6 +21,11 @@ public sealed record TrashStub(string NodeKey, bool IsOut)
     public const string WatchedLabel = "i soptunnan · bevakad";
 }
 
+/// <summary>Where a node lies in the trash: the throw and the member it is put back by.</summary>
+/// <param name="Throw">The throw's record in the sealed chain.</param>
+/// <param name="Key">The member's key in the throw.</param>
+public sealed record TrashPlace(long Throw, string Key);
+
 /// <summary>
 /// What the trash hides in the graph (sketch SO1a): every key its throws are found by. A node is hidden when its key
 /// lies in the trash, or every key it is known by does (<see cref="TrashMember.IsHidden"/>), so that a cluster that got
@@ -78,6 +83,29 @@ public sealed class TrashFilter
         return Hides(address.Chain == Chain.Bitcoin
             ? GraphPile.AddressKeyPrefix + address.Value
             : GraphPile.AccountKey(address));
+    }
+
+    /// <summary>
+    /// Finds where in the trash a hidden node lies: the newest throw with a member the node is known by, and that
+    /// member's key, so that it can be put back from elsewhere than the trash's view (TODO, <em>Lägg tillbaka direkt
+    /// på raden I soptunnan</em>).
+    /// </summary>
+    /// <param name="node">The node.</param>
+    /// <returns>The throw and the member, or <see langword="null"/> when no throw holds it.</returns>
+    public TrashPlace? PlaceOf(GraphNode node)
+    {
+        ArgumentNullException.ThrowIfNull(node);
+        var known = KeysOf(node).Append(node.Key).ToHashSet(StringComparer.Ordinal);
+        foreach (var thrown in Throws.OrderByDescending(each => each.Sequence))
+        {
+            if (thrown.Members.FirstOrDefault(member => member.FoundBy.Append(member.Key).Any(known.Contains)) is
+                { } found)
+            {
+                return new TrashPlace(thrown.Sequence, found.Key);
+            }
+        }
+
+        return null;
     }
 
     /// <summary>

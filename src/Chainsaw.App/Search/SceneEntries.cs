@@ -102,6 +102,7 @@ internal sealed class SceneEntries
                 continue;
             }
 
+            var place = _scene.Trash.PlaceOf(node);
             var labels = _scene.Snapshot.Labels.GetValueOrDefault(node.Key) ?? [];
             var look = VisualLanguage.Of(GraphScene.SortOf(node, labels));
             var owner = labels.FirstOrDefault(label => label.Name is not null)?.Name ?? look.Name;
@@ -110,12 +111,17 @@ internal sealed class SceneEntries
                 _entries.Add(Trashed(SearchKind.Cluster, owner, $"Kluster · {node.ClusterSize} adresser", look) with
                 {
                     Aliases = [.. node.Addresses.Select(address => address.Value)],
+                    TrashPlace = place,
                 });
             }
 
             foreach (var address in node.Addresses)
             {
-                _entries.Add(Trashed(SearchKind.Address, address.Value, owner, look) with { IsMono = true });
+                _entries.Add(Trashed(SearchKind.Address, address.Value, owner, look) with
+                {
+                    IsMono = true,
+                    TrashPlace = place,
+                });
             }
         }
     }
@@ -129,7 +135,7 @@ internal sealed class SceneEntries
     private static SearchEntry Trashed(SearchKind kind, string text, string what, SortLook look)
     {
         var sub = Join(what, InTrashText);
-        var lead = $"{what}. Ligger i soptunnan och visas inte i grafen; den kan läggas tillbaka därifrån.";
+        var lead = $"{what}. Ligger i soptunnan och visas inte i grafen; Enter lägger tillbaka den.";
         return new SearchEntry(kind, text, sub, string.Empty, lead, SearchLook.Of(look), null, null)
         {
             IsInTrash = true,
