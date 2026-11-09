@@ -313,15 +313,24 @@ internal static class GraphStateStore
     /// <param name="to">The other chain's transaction.</param>
     /// <param name="reason">Why.</param>
     /// <param name="journal">The journal entry that records it.</param>
+    /// <param name="origin">The approved suggestion it comes from, or <see langword="null"/> when made by hand.</param>
     /// <returns>The link.</returns>
     public static CrossChainLink SealLink(
-        ICaseTransaction transaction, Outpoint from, ChainTransactionRef to, string reason, JournalEntry journal)
+        ICaseTransaction transaction,
+        Outpoint from,
+        ChainTransactionRef to,
+        string reason,
+        JournalEntry journal,
+        CrossChainOrigin? origin = null)
     {
         var record = transaction.AppendSealed(
             TracingSchema.CrossChainChain,
             [LinkAction, null, from.Txid.Value, (long)from.Index, to.Chain.ToString(), to.Id, reason,
-                journal.Sequence, Text(journal.Utc)]);
-        return new CrossChainLink(record.Sequence, from, to, reason, journal.Sequence, journal.Utc);
+                journal.Sequence, Text(journal.Utc), origin?.ToString()]);
+        return new CrossChainLink(record.Sequence, from, to, reason, journal.Sequence, journal.Utc)
+        {
+            Origin = origin,
+        };
     }
 
     /// <summary>
@@ -334,17 +343,24 @@ internal static class GraphStateStore
     /// <param name="to">The other chain's transaction.</param>
     /// <param name="reason">Why.</param>
     /// <param name="journal">The journal entry that records it.</param>
+    /// <param name="origin">The approved suggestion it comes from, or <see langword="null"/> when made by hand.</param>
     /// <returns>The link.</returns>
     public static CrossChainLink SealLink(
-        ICaseTransaction transaction, AccountSeed from, ChainTransactionRef to, string reason, JournalEntry journal)
+        ICaseTransaction transaction,
+        AccountSeed from,
+        ChainTransactionRef to,
+        string reason,
+        JournalEntry journal,
+        CrossChainOrigin? origin = null)
     {
         var record = transaction.AppendSealed(
             TracingSchema.CrossChainChain,
             [LinkAction, null, MovementText(from), from.Position, to.Chain.ToString(), to.Id, reason,
-                journal.Sequence, Text(journal.Utc)]);
+                journal.Sequence, Text(journal.Utc), origin?.ToString()]);
         return new CrossChainLink(record.Sequence, null, to, reason, journal.Sequence, journal.Utc)
         {
             FromTransfer = from,
+            Origin = origin,
         };
     }
 
@@ -408,7 +424,8 @@ internal static class GraphStateStore
             [UnlinkAction, link.Sequence,
                 link.From is { } coin ? coin.Txid.Value : MovementText(link.FromTransfer!),
                 link.From is { } output ? output.Index : link.FromTransfer!.Position,
-                link.To.Chain.ToString(), link.To.Id, reason ?? string.Empty, journal.Sequence, Text(journal.Utc)]);
+                link.To.Chain.ToString(), link.To.Id, reason ?? string.Empty, journal.Sequence, Text(journal.Utc),
+                null]);
     }
 
     /// <summary>Reads the start points.</summary>
@@ -502,7 +519,7 @@ internal static class GraphStateStore
     {
         using var command = reader.CreateCommand("""
             SELECT sequence, action, link_sequence, from_txid, from_output, to_chain, to_id, reason, journal_sequence,
-                   recorded_utc
+                   recorded_utc, origin
             FROM tracing_cross_chain ORDER BY sequence
             """);
         using var rows = command.ExecuteReader();
@@ -528,6 +545,7 @@ internal static class GraphStateStore
                 Time(rows, 9))
             {
                 FromTransfer = movement,
+                Origin = CrossChainOrigin.Parse(rows.IsDBNull(10) ? null : rows.GetString(10)),
             });
         }
 

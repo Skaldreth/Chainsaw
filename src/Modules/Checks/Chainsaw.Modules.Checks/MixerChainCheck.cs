@@ -326,16 +326,16 @@ internal sealed class MixerChainCheck : ICheckAnalysis
             foreach (var (candidate, payout) in MixerOutputsCheck.Weigh(_input, deposit, _mixer))
             {
                 var mine = approved.Contains(candidate.Key);
-                if (!mine && (outputsDismissed || dismissed.Contains(candidate.Key)))
+                if ((!mine && (outputsDismissed || dismissed.Contains(candidate.Key)))
+                    || candidate is not { Address: { } address, Amount: { } paid })
                 {
                     continue;
                 }
 
                 seen.Add(candidate.Key);
-                var fee = new Satoshi(deposit.Output.Amount.Value - candidate.Amount.Value);
+                var fee = new Satoshi(deposit.Output.Amount.Value - paid.Value);
                 yield return new ChainLink(
-                    candidate.Key, candidate.Output, candidate.Address, candidate.Amount, fee, candidate.Score,
-                    mine, OutputWord, payout);
+                    candidate.Key, candidate.Output, address, paid, fee, candidate.Score, mine, OutputWord, payout);
             }
 
             var partsDismissed = MixerDeposits.DismissedWhole(_input, partsId, deposit);

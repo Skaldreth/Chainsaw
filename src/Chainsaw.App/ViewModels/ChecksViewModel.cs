@@ -195,6 +195,12 @@ public sealed partial class ChecksViewModel : ObservableObject
     /// <summary>Counts the runs, so that an answer to an older one is dropped.</summary>
     private int _version;
 
+    /// <summary>
+    /// Stops the run in progress when a newer graph comes, so that an older run does not go on asking the sources
+    /// (the cross-chain search) for a graph no longer shown.
+    /// </summary>
+    private CancellationTokenSource _running = new();
+
     /// <summary>The own area the form renames or removes.</summary>
     private OwnArea? _formArea;
 
@@ -873,6 +879,10 @@ public sealed partial class ChecksViewModel : ObservableObject
     public async Task FollowAsync(GraphScene? scene)
     {
         var version = ++_version;
+        _running.Cancel();
+        _running.Dispose();
+        _running = new CancellationTokenSource();
+        var stop = _running.Token;
         _scene = scene;
         if (scene is null || _session.Current is not { } openCase)
         {
@@ -886,7 +896,7 @@ public sealed partial class ChecksViewModel : ObservableObject
         try
         {
             var own = await _source.GetAreasAsync(openCase, CancellationToken.None);
-            var run = await _source.RunAsync(openCase, scene.Snapshot.Graph, CancellationToken.None);
+            var run = await _source.RunAsync(openCase, scene.Snapshot.Graph, stop);
             if (version != _version || _session.Current != openCase)
             {
                 return;
@@ -923,11 +933,12 @@ public sealed partial class ChecksViewModel : ObservableObject
 
     /// <summary>
     /// What the list says when the graph has Ethereum: the analyses are written for the UTXO model (CoinJoin, peel
-    /// chain, the mixer's candidates and the wallets from Clustering) and are not run on an account chain.
+    /// chain, the mixer's candidates and the wallets from Clustering) and are not run on an account chain; only the
+    /// continuation on another chain (<c>cross-chain</c>) weighs payments there.
     /// </summary>
     public const string AccountChainsText =
-        "Kontrollerna gäller UTXO-modellen (Bitcoin) och körs inte på Ethereum och TRON än; "
-        + "den delen är inte kontrollerad.";
+        "Kontrollerna gäller UTXO-modellen (Bitcoin) och körs inte på Ethereum och TRON än, utom fortsättningen på "
+        + "annan kedja; den delen är annars inte kontrollerad.";
 
     /// <summary>Says, after the status, that the checks did not run on the graph's Ethereum part.</summary>
     /// <param name="scene">The graph.</param>
@@ -977,6 +988,7 @@ public sealed partial class ChecksViewModel : ObservableObject
         "dust" => GuideTopic.Dust,
         "payjoin-hint" => GuideTopic.PayJoin,
         "active-hours" => GuideTopic.TimePattern,
+        CheckAnalysisNames.CrossChain => GuideTopic.CrossChain,
         _ => GuideTopic.Areas,
     };
 
@@ -1672,7 +1684,7 @@ public sealed partial class ChecksViewModel : ObservableObject
                 : new CheckRowViewModel(check, null, []);
             foreach (var row in shown.Candidates.Where(c => !c.IsDismissed))
             {
-                if (graph.NodeOf(row.Candidate.Address) is { } to && to.Key != from.Key)
+                if (row.Candidate.Address is { } address && graph.NodeOf(address) is { } to && to.Key != from.Key)
                 {
                     lines.Add(new CandidateLine(
                         from.Key, to.Key, row.Candidate.Score, row.ScoreText, row.IsApproved, row.Rank, row.IsChosen));

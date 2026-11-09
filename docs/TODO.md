@@ -191,8 +191,15 @@ byggt ur BACKLOG; det som skriver i ärendet granskas oberoende.
      *Väntar på källan* visar `T` för TRON; en egen ton och ett eget märke skissas om det behövs.
    - [skiss] **TRX:s avgift i inspektören:** TRON bränner TRX för energi och bandbredd (ofta noll med låst TRX);
      inspektören visar avgiften som på Ethereum, men skillnaden mellan energi och bandbredd syns inte.
-9. **Egen nod och eget index**, hitta fortsättningen på en annan kedja själv, och mönsterigenkänning som analys
-   (utan språkmodell, princip 5).
+9. **Egen nod och eget index** och mönsterigenkänning som analys (utan språkmodell, princip 5). Att hitta
+   fortsättningen på en annan kedja själv är byggt som `cross-chain v1` (2026-11-09, DEV-LOG); resterna i BACKLOG under
+   *Cross-chain, efter `cross-chain v1`*. Ytor som väntar:
+   - [skiss] **Fortsättningen på annan kedja i grafen:** en betalning in till en brygga ritar inte sitt förslags
+     kandidater på den andra kedjan (de finns bara i KF2b-panelen), och ett förslag vars betalning in är på Ethereum
+     eller TRON har inget område i grafen, eftersom områdena bara ritas kring Bitcoin-adresser. Hur kandidaterna på
+     den andra kedjan visas vid den lila noden (streckade linjer till noder som inte finns i grafen än) skissas först.
+   - [skiss] **Flödesbilden i KF2b för två tillgångar:** bilden visar banden och beloppen, men ingen avgift i procent
+     (värdet jämförs med kurserna, och skälet säger avgiften); en bild med båda tillgångarna och kronorna skissas.
 
 **Ur omgång 4, ytorna KV1a, HB1a, BU1a, DM1a, HP1a och TJ1b** (byggda 2026-11-08, rester):
 - **Testärendet** (`/testdata`): en slutsats som hålls tillbaka (HB1a) kräver en obekräftad tx som ersätts; testkedjan

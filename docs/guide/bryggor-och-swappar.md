@@ -34,8 +34,9 @@ försvåra en spårning byter därför gärna kedja, och ofta token, en eller fl
 
 ## I Chainsaw
 
-En känd brygga eller swap (en etikett) avslutar spåret med *Fortsätter på annan kedja*, i **lila**. När du har hittat
-fortsättningen knyter du den för hand med **K**, se [Fortsättningen på en annan kedja](annan-kedja.md). Länken är
+En känd brygga eller swap (en etikett) avslutar spåret med *Fortsätter på annan kedja*, i **lila**. Chainsaw föreslår
+själv troliga fortsättningar ur avsändarens memo, värde och tid (**cross-chain v1**), och du godkänner eller avfärdar dem;
+du kan också knyta fortsättningen för hand med **K**, se [Fortsättningen på en annan kedja](annan-kedja.md). Länken är
 streckad, eftersom den är din bedömning. Ett byte av token på samma kedja står som ett litet piller på linjen (₮ → Ξ),
 se [Spåret genom en swap](swappar.md).
 
@@ -49,14 +50,15 @@ Chainsaw har en egen lista över **kända kontrakt** på Ethereum, var och en me
   markering i hörnet, **Tidigare sanktionerad**: OFAC satte Tornado Cash på SDN-listan 2022-08-08 och tog bort den
   2025-03-21. Datumen och OFAC:s egna meddelanden står i *Varför?*. Det är ingen sanktion som gäller nu; en sanktion
   kommer bara ur listan du själv har läst in.
-- **Bryggor** till Arbitrum, OP Mainnet, Base och Polygon: får etiketten *Swap eller brygga*, och spåret tar slut i lila med
-  *Fortsätter på annan kedja*.
+- **Bryggor** till Arbitrum, OP Mainnet, Base och Polygon: får etiketten *Swap eller brygga*, och spåret tar slut i
+  lila med *Fortsätter på annan kedja*.
 - **DEX:ar och aggregatorer** (Uniswap, 1inch, 0x): får ingen etikett, eftersom ett byte där inte byter ägare. När en
   swap gick genom en av dem står namnet i *Varför?* för swappen.
 
 Etiketten är en bedömning med listan som källa, inte ett faktum, och kan tas tillbaka som andra etiketter. Listans
 namn och version står i etikettens ursprung, så att det går att se vilken lista den kom från.
 
-Att Chainsaw själv föreslår fortsättningen ur belopp och tid är **inte byggt än**. Vidare på Ethereum och TRON går det
-att spåra, när fortsättningen är knuten (se [TRON](tron.md)).
+Förslagen på fortsättningen ur memo, värde och tid står i [Fortsättningen på en annan kedja](annan-kedja.md). Bryggorna
+till Arbitrum, OP Mainnet, Base och Polygon leder till kedjor Chainsaw inte har än, så där kan Chainsaw inte föreslå
+något. Vidare på Ethereum och TRON går det att spåra, när fortsättningen är knuten (se [TRON](tron.md)).
 

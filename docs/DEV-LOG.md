@@ -5100,6 +5100,98 @@ offline), App 6 i `ChainStateTests` (rutans rad och fot, länken, en fråga per 
   resten vid nästa uppslag*.
 - **M-3:** det instabila App-testet gick inte att framkalla (App.Tests tre gånger i rad, alla gröna); lämnat.
 - **M-4:** raderna i `ersatt-tx.md` är brutna.
+
+## Fortsättningen på annan kedja själv: `cross-chain v1` (backloggens punkt 9, 2026-11-09)
+
+En analys i Checks som föreslår var pengar som nått en brygga eller swap fortsätter på en annan kedja, som kandidater
+i KF2b-panelen, och ett godkännande som knyter fortsättningen i samma transaktion som beslutet.
+
+- **Analysen `cross-chain v1`** (`CrossChainCheck`): för varje betalning in till en aktör där spåret slutar med
+  *Fortsätter på annan kedja* (etiketten *Swap eller brygga* eller en känd brygga) och som inte är knuten för hand väger
+  den betalningar på de andra kedjorna: grafens egna och de som sökningen läst in i ärendet. Värdet jämförs med
+  ärendets kurser vid de två blocktiderna (avgift −3 % till 20 %, full poäng 0,2–6 %), tiden inom 72 h (full inom 2 h,
+  10 min tidigare tillåts för klockorna) och adressen (samma 20 byte på Ethereum och TRON 0,9, utbetalning från en
+  brygga eller swap 0,8, annars 0,5). Poängen är värde 0,5, tid 0,25, adress 0,25, och kandidater under 0,45 tas bort.
+  Utan kurs, eller när värdet inte passar, blir betalningen ingen kandidat.
+- **Avsändarens memo först** (se granskningens I-4 nedan): ett `OP_RETURN`-memo i THORChains form (`SWAP`, `s` eller `=`, `KEDJA.TILLGÅNG`
+  eller `b`/`e`, mottagaren; `SwapMemo`) i betalningens Bitcoin-tx namnger mottagaren på den andra kedjan. En betalning
+  till den är kandidat också utan kurs, med 0,7 i grund plus värde och tid, och står alltid först.
+- **Sökningen** (`ICrossChainLookup`, `CrossChainLookup`): slår upp memots mottagare (bara adressen, första sidan; på
+  Ethereum och TRON transaktioner och tokens) genom källan och utgången, högst 8 mottagare, och värderar betalningarna
+  in och de på andra kedjor i fönstret med ärendets kurser (högst 200, de närmaste först; högst 24 kurser frågas av
+  källan). `CheckSource` kör den med `AsNeeded` före varje körning av kontrollerna; `CheckService.Run` läser den med
+  `CaseOnly`, så att körningen själv aldrig skickar något. Det som inte nåddes (utgången, kedjan av, ingen källa) står i
+  körningens problem och i förslagets *Varför?*.
+- **Kontrakten:** `ChainMovement` (en betalning på vilken kedja som helst, med block och hash), `CheckFinding.Departure`
+  och `CheckCandidate.Arrival`; `CheckCandidate.Address`, `Txid` och `Amount` är nu valfria (en kandidat på en annan
+  kedja har ingen Bitcoin-adress). Det som sparas skrivs som förut när de nya delarna saknas, så andra fynd får samma
+  fingeravtryck.
+- **Godkännandet** (`CheckService.FollowAcrossChains`): knyter betalningen in till kandidatens tx med
+  `ICrossChainLinks.Link` i samma transaktion som beslutet, med det frivilliga skälet och ursprunget
+  `CrossChainOrigin` (analysen med version och beslutets nummer), som förseglas i den nya kolumnen `origin` i
+  `tracing_cross_chain` och står i journalraden. Att ångra beslutet tar tillbaka länken i samma transaktion, och att ta
+  tillbaka länken i *Historik* ångrar beslutet (`ICheckService.TakeBackLink`, `GraphEditor.UnlinkAsync`), så att panelen
+  och grafen säger samma sak. En länk görs aldrig av sig själv.
+- **Tracing:** reglerna för en länk (annan kedja, en länk per mynt eller rörelse, skälets längd) ligger nu på ett ställe,
+  `CrossChainLinks`, som både länkarna för hand och de godkända använder.
+- **Panelen:** kandidatraden visar mottagaren och beloppet med sin tillgång, tiden efter betalningen in, brickorna för
+  analysen och *Varför?* i Guidens avsnitt *Fortsättningen på en annan kedja*. Ingen ny yta.
+- **Tester:** facit i `CrossChainTests` (rätt kandidat först, inget förslag när värdet inte passar, flera som passar,
+  samma kedja och utanför fönstret, memots mottagare först och utan kurs, samma nyckel Ethereum–TRON, knutet för hand,
+  godkänna och ångra, en vägrad länk sparar inget beslut, ta tillbaka från historiken, läst som förseglat, memon),
+  `CrossChainLookupTests` (bara mottagaren frågas och i rätt läge, offline sägs, bara ärendet) och `LinkOriginTests` i
+  Tracing. Den gyllene filen i Tracing har den nya kolumnen.
+
+**Egna beslut och avsteg:**
+- Analysens `Scope` är Bitcoins, eftersom kontrollerna bara kör analyser för Bitcoin; den väger ändå betalningar in på
+  alla kedjor grafen har.
+- Värdet jämförs bara med kurser; två tokens med samma symbol på olika kedjor (USDT) jämförs aldrig på symbolen.
+- Ett förslag vars betalning in är på Ethereum eller TRON har inget område och inga linjer i grafen (områdena ritas
+  kring Bitcoin-adresser); det står i panelen. Ytan skissas först (TODO, punkt 9).
+- Ett andra godkännande för samma betalning vägras av Tracing (en länk per betalning); BACKLOG.
+
+**Granskningens rättelser (0 C, 6 I, 10 M), efter sammanslagningen med Litecoin och BSC:**
+- **I-1:** sökningen läser också kontots interna transaktioner (`EthereumHistory.Internal`), där THORChains router
+  betalar ut ether (`transferOut`). Test med en utbetalning från routern.
+- **I-2:** varje mottagare läses först ur ärendet, och källan frågas bara när svaret saknas eller är äldre än en kvart
+  (`CrossChainLookup.MinimumInterval`, ur det förseglade svarets tid). En körning för en äldre graf avbryts när en ny
+  kommer (`ChecksViewModel`).
+- **I-3:** när en kandidat är godkänd erbjuds inte *Godkänn* för `cross-chain` (`SuggestionWords.OneApproval`,
+  `CheckRowViewModel.CanApprove`), bara *Avfärda resten*.
+- **I-4:** memot är **avsändarens instruktion** till tjänsten, inte tjänstens uppgift; *Varför?*, `SwapMemo` och
+  brickan *Avsändarens memo* säger det, och att utbetalningen bara syns på den andra kedjan och att THORChain kan betala
+  tillbaka.
+- **I-5:** memots mottagare kommer först bara när en brygga eller swap på den andra kedjan betalade den
+  (`Sign.NamedFromBridge`). Annars vägs den med värdet (adressen 0,85), och utan kurs står den kvar under 0,5 med
+  *beloppet är inte prövat*.
+- **I-6:** en betalning utan tecken i adressen (inget memo, ingen samma nyckel, ingen brygga) hålls under 0,6
+  (`PlainCeiling`). Betalningar som själva går in i en brygga, och till eller från en startpunkt eller ett offer
+  (`CheckInput.ProtectedAccounts`), vägs inte.
+- **M-1** bara frågor till källan räknas mot de åtta mottagarna, **M-2** *Varför?* säger att bara första sidan läses,
+  **M-3** ett memo som pekar på avsändarens egen kedja ger ingen mottagare, **M-4** memot är högst 250 byte och citeras
+  bara i början, **M-5** korta namn i båda skiftlägena (`b`, `e`, `l`, `s`) och *ett namn (THORName)*, **M-6** *Varför?*
+  nämner bara den här insättningens mottagare, **M-7** linjens *Varför?* nämner `cross-chain v1` och beslutet och inget
+  tomt skäl, och spårets slut säger *för hand* eller förslaget, **M-8** `TracingService.UnlinkCrossChain` vägrar en
+  länk från ett godkänt förslag (den tas tillbaka med godkännandet), **M-9** TESTER-INFOR säger att gamla testärenden
+  måste skapas på nytt, **M-10** bara betalningar som kan vägas värderas (fönstret kring en insättning med känt värde,
+  eller till memots mottagare).
+- **Litecoin och BSC:** memots `LTC.` och `BSC.` (och `l`, `s`) vägs, BSC och Litecoin slås upp med sina källor, och
+  Litecoins mynt är betalningar i LTC. En betalning *in* på Litecoin föreslås inte än (BACKLOG).
+
+**Andra granskningens rättelser (0 C, 2 I, 4 M):**
+- **I-A:** en Litecoin-mottagare läses med `BitcoinAddress.TryParse(chain, …)`, och ett fel hos en mottagare stoppar
+  bara den (`Unreachable` med ett skäl). Tester med en Litecoin-källa, ett fel och en saknad källa.
+- **I-B:** bara offrens adresser utesluts (`CheckInput.ProtectedAccounts`); en startpunkt vägs som andra och skälet
+  säger det (*Startpunkten är neutral*).
+- **M-a:** en brygga eller swap känns igen också ur etiketter och listan över kända kontrakt
+  (`CheckInput.BridgeAccounts`), inte bara ur grafens noder.
+- **M-b:** poängen är ordningen: memots mottagare som en brygga betalade får 0,8–1, alla andra högst 0,8.
+- **M-c:** *samma nyckel* gäller inte en adress som är ett känt kontrakt (listan, en brygga, eller en som betalat ut
+  ether inne i en tx); källorna ger ingen bytekod (BACKLOG).
+- **M-d:** journalen och `CrossChainLink.FromText` nämner kedjan för en rörelse (`Bsc token:0x…#3`).
+
+**Återstår:** BACKLOG, *Cross-chain, efter `cross-chain v1`*, och ytorna i TODO, punkt 9.
+
 ## Omgång 8b: Litecoin och BSC (backloggen, 2026-11-09)
 
 - **Byggt:**

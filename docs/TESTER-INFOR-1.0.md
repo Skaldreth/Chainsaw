@@ -1928,6 +1928,392 @@ Kräver samma sorts Ethereum-ärende som SW1a, med en swap genom en känd router
       personen står i vänstra hörnet, fyrkanten kvar i det högra, och rutan säger *Spåret slutar i swappen*.
 
 ### Ethereum: kända kontrakt, plats i blocket, egna ytor och start-tx (omgång 2)
+### Grafens rester mot 1.0 (breda noder, högen, bytt block och utgångsrutan, 2026-11-08)
+- [ ] Ge några aktörer långa namn (etikett *Misstänktes plånbok* och liknande) och välj *Sortera grafen*: kolumnen
+      med en bred nod flyttar nästa kolumn åt höger, så att beloppen fortfarande har luft mellan noderna och ingen nod
+      ligger över en annan.
+- [ ] Välj en bred nod och tryck N: den nya kommentaren står uppe till höger om nodens högra kant, inte över noden.
+- [ ] Klicka på en hög i grafen: ytan bakom trycks ut lite från högen (som i startvyn) medan ringarna går ut och
+      högen glider till mitten, och dras ihop igen när högen fälls ihop. Högen själv står still och skarp ovanpå.
+      Med animeringar avstängda är ytan utskjuten direkt.
+- [ ] En tx som källan inte längre känner (*Finns inte längre*, svårt att framkalla): linjen blir grå och streckad,
+      aktörerna som bara pengarna genom den når får streckad ram och tonas ner, och linjerna ut från dem streckas.
+      En aktör som också får pengar från en linje som står kvar ritas som vanligt.
+- [ ] En Ethereum-tx hämtad i ett grunt block (yngre än 64 block) som sedan omorganiserats: samma gula märke
+      *Bytte block* i beloppets hörn som på Bitcoin, också när den ligger kvar på samma höjd i ett annat block.
+      Ett ensamt *finns inte* från en endpoint som ligger efter ger inget märke.
+- [ ] Låt en VPN-tunnel falla (stäng av nätet en stund): utgångsrutan säger *Ansluter igen …* under mittringen och
+      *Nästa försök kl. 14:02:31* litet under, samma tid som titelradens tips; *Försöker nu* medan ett försök pågår.
+      Ringen och linjerna är fortfarande röda och streckade, eftersom inga uppslag går. Ansluten igen: utgångens namn.
+
+### Spåret vid en tx som inte finns och Ersatt av (GR9a, 2026-11-09)
+Svårt att framkalla på huvudnätet; lättast på testnät med en obekräftad tx som ersätts med RBF, eller ett ärende där
+källan svarat `404` två gånger efter att ha visat tx:en i ett block.
+- [ ] Spåra pengar in i en tx som källan inte längre känner: linjen in till den bär det spårade beloppet överstruket,
+      ingenting efter den får spårat belopp (linjerna efter är grå och streckade), och *Spårat* räknas inte genom den.
+      Inspektörens slut säger *Tx:en finns inte längre* med `gone-tx v1`, blocket ärendet såg den i och svarets nummer.
+- [ ] Öppna det röda märket: rutan har en tredje rad *Ersatt av 3f2a…9b1c* när en annan tx spenderar samma mynt, och
+      foten säger RBF eller dubbelspendering. Föll tx:en bort utan ersättare säger foten att pengarna ligger kvar och
+      raden saknas. Rutans *?* öppnar Guiden på *En tx som inte finns längre*.
+- [ ] Med utgången ansluten frågas det en gång per ärende och session vad som spenderar mynten (en fråga per tx
+      som mynten kom ur, förseglad som `bitcoin.replaced-outspends`, och `/verify` klarar sig); offline skickas inget,
+      rutan säger att det inte är hämtat ännu, länken *Följ ersättaren* syns inte, och frågan ställs när utgången är
+      ansluten igen.
+- [ ] Klicka *Följ ersättaren*: toasten *Spåret följer ersättaren* med *Ångra*, ersättaren kommer in i grafen och
+      spåret går vidare genom den med streckade accentlinjer; *Varför?* på beloppet säger att det är din bedömning.
+      Journalen har en rad om valet. *Ta tillbaka* i rutan, eller *Ångra*, gör att spåret slutar vid den borta tx:en
+      igen och ersättaren lämnar grafen.
+- [ ] Raden *Ersatt av …* visar ersättarens blockhöjd eller *obekräftad*; vid en dubbelspendering med flera
+      ersättare har var och en sin rad och sin länk.
+- [ ] Med två endpoints som båda svarat i ärendet och bara den ena som svarat `404`: spåret stannar med *Tx:en
+      kanske inte finns; uppgifterna går inte ihop* (inget slut), och frågan om mynten går till den andra värden. Svarar
+      den att mynten är spenderade eller fria slutar spåret. Med bara en endpoint säger rutan och *Varför?* att slutet
+      vilar på en enda källa, med värden.
+- [ ] Hovra en slutsats som hålls tillbaka (HB1a) som byggde på en ersatt tx: raden *Ersatt av …* står under
+      *Byggde på …*.
+- [ ] Exponering från en aktör vars pengar gick in i en borta tx: det räknas som *Spåret tar slut*, och efter *Följ
+      ersättaren* räknas vägen genom ersättaren.
+
+## Kontroller och förslag
+
+### Kontroller, förslag och områden (KF2b och KF1b)
+
+Gör ett ärende med en etikett *Mixer* på en adress som tar emot pengar, och expandera några aktörer efter den, så att
+mixerns kandidater, en CoinJoin eller en peel chain finns i grafen.
+
+**Ett förslag i taget (KF2b)**
+- I grafens hörn står *Förslag* med en accentbricka med antalet förslag som väntar (inte kandidater); brickan syns bara
+  när något väntar. Ctrl+J och knappen fäller ut panelen där inspektören står, minst 400 px bred, och fäller in den.
+- Översikten: *Gå igenom N att avgöra* i accent överst, sedan *ATT AVGÖRA* (streckade rundade rutor med ikonen) och
+  *GJORT AV SIG SJÄLVT* (hela rutor). När kontrollerna kördes står i tipset på *Förslag*.
+  Ett klick på en kontroll zoomar grafen till dess aktörer och avgör ingenting.
+- Enter (eller knappen) börjar gå igenom: huvudet visar *1 av N* med pilarna och en tunn förloppslist (grönt avgjort,
+  accent nu, svagt kvar). Förslaget visas stort: ikon i streckad ruta, titeln, raden under (aktören, *BTC in*, datum),
+  bilden av hur pengarna flyter (bandens bredd är poängen, den valda kandidaten i accent), brickorna *Belopp − avgift*,
+  *Tid*, *Adresstyp* med förklaring på hovring, tabellen (rang, adress, belopp, tid efter insättningen, poäng som stapel
+  och tal), *Varför?* och *Mixerutgångar · v1*.
+- Ett klick på en annan kandidat i tabellen väljer den: raden lyfts, bilden och knappen följer (*Godkänn 2*), och i
+  grafen fylls dess nummer på linjen i accent.
+- Beslutslisten står still längst ner: Avfärda X, Senare J, Godkänn N Enter, och *+ Skäl, frivilligt* som fäller ut ett
+  fält (Enter i fältet godkänner). Skälet står i journalen.
+- Godkänn: nästa förslag visas, förloppslisten blir grön för det avgjorda, och en toast nere till höger säger *Trolig
+  utgång godkänd* med adress och belopp och *Ångra · Ctrl+Z*. Kandidatens linje i grafen är fortfarande streckad, med
+  en grön bock i mitten (en bedömning, princip 2).
+- Ctrl+Z (eller *Ångra* i toasten) tar tillbaka beslutet: journalen får en ny rad *Beslut om förslag ångrat*, det gamla
+  står kvar, och förslaget visas igen. `/verify` är hel efteråt.
+- Ctrl+Z ångrar ett beslut bara medan panelen är öppen, och alltid med en toast *Beslutet ångrat*. Med panelen
+  stängd gör Ctrl+Z ingenting med förslagen. En gammal toasts *Ångra* efter ett nyare beslut om samma förslag, eller
+  efter att ett annat ärende öppnats (Ctrl+O), skriver ingenting.
+- Godkänn, och tryck Enter igen direkt medan grafen expanderar: samma förslag avgörs aldrig två gånger.
+- Panelens *in*-belopp är insättningens utgång, och avgiften står som *trolig avgift*.
+- Avfärda (X) avfärdar hela förslaget: dess område och linjer försvinner ur grafen.
+- Flera godkända: godkänn kandidat 1; förslaget står kvar med kandidat 2 vald (*Godkänn 2*) och knappen heter
+  *Avfärda resten*. Godkänn 2 också, eller tryck X: de som väntar avfärdas och kön går vidare. Båda godkända har en
+  grön bock på sin streckade linje.
+- Senare (J) lägger förslaget sist i kön och visar nästa; inget skrivs i ärendet eller journalen. K och pilen åt vänster
+  går tillbaka, pilen åt höger framåt.
+- *Gjort av sig självt · N* är en hopfälld rad ovanför beslutslisten; ett klick visar översikten.
+- När inget väntar: *Allt avgjort* med en ring i delar (gröna godkända, svaga avfärdade), raden *1 godkänd · 1 avfärdad
+  · inget nytt sedan 14:40*, och loggen *AVGJORT* (Godkänd i grönt, Avfärdad i grått, *Ångra* på hovring) och *GJORT
+  AV SIG SJÄLVT* (*Markerad*). *Ångra* i loggen öppnar förslaget igen.
+- Den visade förslagets aktörer syns tydligt och resten av grafen tonas ned, med bara dess område bakom; i översikten
+  och i *Allt avgjort* tonas inget ned.
+- Stäng och öppna ärendet: besluten står kvar; ett godkänt förslag kommer inte tillbaka i samma version.
+- Inspektören visar under *Här* vilka kontroller och förslag som gäller den valda aktören.
+
+**Delarna tillsammans och mixer efter mixer (2026-11-08)**
+- Ett ärende där mixern betalar ut en insättning i två till fyra delar (var och en minst en tiondel, tillsammans
+  insättningen minus några procent, inom en vecka): förslaget *Delarna tillsammans* med brickorna *Delarna
+  tillsammans*, *Tid*, *Spridda block*, *Adresstyp*, en kandidat per del (*Del 1 av 3 …* i *Varför?*) och *trolig
+  avgift* mot alla delar, med antalet delar. Avfärda en del: avgiften räknas om mot de andra.
+- En utgång ur mixern som skickas in i en mixer igen: kontrollen *Mixer efter mixer, N steg* under *Gjort av sig
+  självt*, rött mixerområde, och *Varför?* som räknar upp stegen med belopp, avgifter och om det är samma mixer igen
+  eller en annan. Den nya insättningen har ett eget förslag *Troliga utgångar ur mixern*.
+- Godkänn en annan kandidat i mixerns förslag som också går in i en mixer: kedjan följer den godkända och säger
+  *godkänd* i stället för *trolig*. `/verify` är hel efteråt.
+- *Varför?* på båda öppnar Guiden vid *Mixer efter mixer och delarna*.
+
+**Områdena (KF1b)**
+- Svaga ytor bakom aktörerna: rött för mixer och CoinJoin, sand för peel chain, grått för plånböcker, prickat för tid.
+  Ett förslag som väntar har streckad kant. Ingen aktör har två fyllningar; ett inre område syns bara som kant.
+- Brickan på kanten visar ikonen; namnet syns på brickan när den väljs. Ett klick på ett förslags bricka öppnar
+  panelen vid förslaget; en kontrolls bricka visar bara namnet.
+- Menyn bredvid *Förslag · N* (lagerikonen och antalet områden) visar sorterna med antal; en bock döljer och visar
+  sortens områden.
+- Linjerna från mixern till kandidaterna är streckade i accentfärgen med poängen på, svagare ju lägre poäng.
+- Grafen ska vara lika snabb med områdena på; panorera och zooma i en stor graf.
+
+**Egna ytor**
+- Ctrl+klicka två aktörer (accentram), tryck Z: formuläret visar *2 valda · Ny yta*. Skriv namn, välj sort och färg,
+  kryssa *Samma aktör?*, skriv en anteckning och tryck Enter. Ytan har hel kant och en liten person på brickan.
+- Z utan valda aktörer tar den valda aktören; utan någon säger formuläret hur man väljer.
+- Klicka på ytans bricka: namnet, pennan och korgen syns. Pennan byter namn, korgen tar bort ytan (med valfritt skäl).
+  Journalen har en rad för varje.
+- Esc stänger formuläret, sedan menyn, sedan panelen, sedan valet av aktörer.
+
+### Godkänna en plånbok (2026-11-08, KF2b)
+
+- Öppna ett ärende med en tx som kan vara en CoinJoin (två inputs, två lika stora utgångar). *Förslag · N* har ett
+  förslag *Samma plånbok troligt* utan kandidater, med brickorna *Samma ägare troligt* och *Din bedömning*.
+- Tryck Enter (*Godkänn*), gärna med ett skäl: toasten säger *Förslaget godkänt*, grafen läses om och adresserna står
+  som ett kluster. Inspektörens *Varför?* på klustret säger `user v1` och *Användaren godkände förslaget från …*, och
+  *Historik* har raden *Sammanslagen av användaren* (streckad) med vem och antal adresser. Journalen har två rader:
+  beslutet och sammanslagningen.
+- Ctrl+Z (eller *Ångra* i loggen): klustret delas igen, förslaget väntar igen, och historiken har *Ångrad:
+  sammanslagningen*.
+- Godkänn igen och ångra i stället från *Historik* (*Ångra* på raden, valfritt skäl): samma resultat, och förslaget
+  väntar igen i listan.
+- *Bryt upp* (U) klustret: adressen går ut, uppbrytningen står i historiken som *Uppbruten · 1 ut* (med *Egen*), och den
+  kan ångras så att klustret är helt igen.
+- Avfärda ett plånboksförslag (X): inget slås ihop och området försvinner.
+- Efter godkännandet heter raden *Godkänd plånbok* under *Avgjort*, och *Varför?* säger *Du godkände …*. Bryt upp
+  klustret: raden heter *Godkänd plånbok, uppbruten*.
+- Bryt ut en adress ur plånboken (U) och försök sedan godkänna ett förslag som för ihop dem igen: panelen säger att
+  uppbrytningen måste ångras först, och inget sparas.
+- Hämta en tx som för en ny adress till en godkänd plånbok: ett nytt förslag med bara den nya biten väntar.
+- *Ångra* på *Sammanslagen av användaren* i *Historik* visar *Slås ihop igen* innan något sparas.
+
+### Klustring, förvirring och kontroller (omgång 4, 2026-11-08)
+
+Testärendet visar inte alla nya kontroller än (TODO, avsnitt 4); prova dem i ett ärende med riktiga adresser där
+mönstret finns. Varje kontroll står under *GJORT AV SIG SJÄLVT* i *Förslag · N* med sitt område, och *Varför?* säger
+analysen med version och att det är en bedömning; *?* öppnar Guidens avsnitt.
+- **CoinJoin:** en Whirlpool-mix ur en av Ashigarus pooler (0,025 eller 0,25 BTC) och en Wasabi 2-runda heter
+  *CoinJoin, Whirlpool* och *CoinJoin, Wasabi 2*. En tx som spenderar två utgångar ur samma CoinJoin får ett rött
+  område med *Mixade mynt slås ihop* (*… med växeln* när växeln ur rundan är med).
+- **Växeln:** *Varför?* på en sammanslagen växel säger *av 6 tecken*; när ärendet känner till tx:erna som spenderar
+  utgångarna kan tecknet *spenderas senare av samma sorts plånbok* stå med.
+- **Peel chain:** ett hopp som fylls på med fler inputs följs, och *Varför?* säger hur många. Går den sista växeln
+  till en börs (etikett) heter kontrollen *Peel chain till börs*.
+- **Tjänst ur beteende:** ett svep av minst tre insättningsadresser till en hot wallet ger ett blått område *Trolig
+  tjänst, N insättningar*; en utbetalning till många ger *Trolig utbetalning i batch*.
+- **Uppdelning:** en tx som delar ett belopp i minst fem lika delar ger *Uppdelning i N delar*, och en senare tx som
+  samlar några av dem *Delarna samlas igen, k av N*.
+- **Många hopp:** minst tre hopp i rad som bara skickar vidare ger *Många hopp, N i rad* (*med fördröjning* när
+  pengarna låg still minst tre dygn).
+- **Damm och förgiftning:** damm till minst tio adresser ger *Damm till N adresser*; en liknande adress med ett litet
+  belopp ger *Trolig adressförgiftning* med båda adresserna i området.
+- **PayJoin:** en tx där mottagaren lagt till ett eget mynt av en egen adresstyp ger ett grått område *Möjlig
+  PayJoin*, och dess inputs står som förslag i klustret. En vanlig betalning med ett onödigt mynt heter bara *Onödig
+  input* och slås ihop som vanligt.
+- **Tidsmönster:** en ägare med minst tjugo tx som bara spenderar på dagtid ger *Aktiv kl. HH–HH UTC* med en trolig
+  tidszon i raden under; *Varför?* säger hur ofta slumpen ger lika lång tystnad.
+- **Tjänst ur beteende** kräver många kunder: minst två svep, tio insättningar från tio avsändare över minst ett dygn.
+  Ett ärende där bedragaren sveper några offers betalningar får ingen *Trolig tjänst*.
+- **Damm:** utgångar på 330 eller 546 satoshi heter *Damm eller inskriptioner*.
+- Ikonerna på brickorna: sammanslagna mixade mynt (Join, rött), uppdelning (Split, sand), många hopp (Layers, sand),
+  damm (mynt, sand); tjänst, plånbok och tid har sortens ikon.
+- **Snabbhet:** öppna ett stort ärende och se att *Förslag · N* inte blir märkbart långsammare än förut.
+
+### Ytorna för omgång 4 (KV1a, HB1a, BU1a, DM1a, HP1a och TJ1b, 2026-11-08)
+
+Testärendet visar dem inte än (TODO); prova i ett ärende där mönstren finns.
+- **KV1a:** välj ett kluster. Under *VARFÖR ÄR DE EN PLÅNBOK?* står en rad per heuristik med version, antal adresser
+  och tx. *⋯* på raden fäller ut *… i Guiden F1*, *Bryt upp … U* och, för en version över 1, *Dra tillbaka … …*.
+  Bekräftelsen fälls ut under raderna med en stapel per kluster (före → efter, gult streckat för det som lämnar,
+  grönt för det som kommer tillbaka); grafen tonar ned allt utom de kluster som ändras och ritar en streckad nod under
+  dem med den första adressen och *+N lämnar K1* eller *in i K5*. Esc stänger, Enter drar tillbaka. Efteråt står
+  versionen överstruken med *tillbakadragen*, den äldre med *räknas igen* i grönt, och en toast med *Ångra* tar
+  tillbaka det. I *Historik* står *Tillbakadragen · …* med *Ta tillbaka*.
+- **HB1a:** när en körning saknar en tx som en sparad slutsats bygger på får klustret en streckad gul ring med paus i
+  nedre högra hörnet (till vänster om timglaset om noden väntar). Hovring säger vad som hålls tillbaka och vad det
+  byggde på; ett klick väljer noden och öppnar *Historik*. Där står ett streckat kort *Hålls tillbaka · …*: ett klick
+  fäller ut skälet, *Låt stå* och *Släpp slutsatsen* (Enter). *Låt stå* tar bort ringen och kortet säger *Står kvar*;
+  *Släpp* gör adressen till en egen nod, och kortet står överstruket med *Slutsatsen släppt, också dess fynd* och
+  vem. *Ångra* på det senaste beslutet tar tillbaka det: en släppt slutsats räknas igen, en som fick stå väntar igen.
+- **BU1a:** *Bryt upp* (U) på ett kluster. Bocka en adress och Ctrl+klicka den som inte hör ihop med den: formuläret
+  ritar vägen som en kedja med heuristik, version och tx per länk, saxen på den svagaste (*svagast*), och under vad
+  som händer (*K1 behåller 4 · … blir en egen plånbok*). Ett klick på en annan länk flyttar saxen; *Alla adresser*
+  går tillbaka. Ctrl+klicka två noder i grafen och tryck U: ligger de i olika kluster står de två med en bruten röd
+  linje, varningen och bara *Stäng*.
+- **DM1a:** noder med damm och en trolig förgiftning är nedtonade; förgiftningen har en röd mask i nedre vänstra
+  hörnet i full styrka. Välj den: överst i inspektören står *Adressförgiftning* med de två adresserna tecken för
+  tecken, det som skiljer i rött. Ctrl+C (eller *Kopiera* i listen) kopierar ingenting utan lyser upp jämförelsen;
+  *Kopiera Börs B* (Enter) kopierar den riktiga, *Kopiera ändå* den liknande. Adresserna i full längd visas inte för
+  den liknande, och inspektörens kopieringsknappar frågar också först.
+- **HP1a:** en rad med många hopp ritas som en linje mellan första och sista hoppet med en streckad bricka *N hopp ·
+  tid* och en pärla per hopp efter tiden (långa uppehåll syns som långa mellanrum). Hovring listar hoppen med väntan
+  och block; ett klick fäller ut raden till noderna med *Fäll ihop · …* ovanför, ett klick till fäller ihop. Det
+  ändrar inte spårningen.
+- **TJ1b:** välj en hot wallet som `service-behaviour` hittat ett svep till: *Som etikett …* står bredvid *Varför?*.
+  Etikettformuläret vid noden har brickan *Bedömning · service-behaviour v1*, Börs vald och ingen *Källa*; noden byter
+  namn, färg och ikon, streckad, medan sort och namn väljs. *Sätt etikett* sparar en etikett med källan
+  `service-behaviour v1`, som i *Historik* kan tas tillbaka.
+
+### Fortsättningen på annan kedja (cross-chain v1, 2026-11-09)
+
+Kräver ett ärende där pengar på Bitcoin går in till en adress med etiketten *Swap eller brygga*, och grafen också har
+en utbetalning på Ethereum, TRON, BSC eller Litecoin strax efter, med kurserna i ärendet. **Gamla testärenden måste
+skapas på nytt:** länkarnas förseglade kolumner har fått `origin`, så ett ärende från före 2026-11-09 klarar inte
+*Verifiera*.
+- *Förslag · N* har ett förslag *Fortsättning på annan kedja* med lila område, brickorna *Avsändarens memo*,
+  *Värde − avgift*, *Tid* och *Samma nyckel*, och kandidaterna som rader: mottagaren förkortad, beloppet med sin
+  tillgång (till exempel USDT) och tiden efter. Raden under titeln säger beloppet in med sin tillgång.
+- En utbetalning vars värde är mycket större eller mindre än det som gick in blir ingen kandidat. Utan kurs i ärendet
+  blir det inget förslag (utom för en mottagare som memot namnger, se nästa punkt).
+- En Bitcoin-tx till en THORChain-adress med ett `OP_RETURN`-memo `=:ETH.ETH:0x…`: när kontrollerna körs med utgången
+  ansluten slås mottagaren upp på Ethereum (bara adressen, också ether som routern betalat ut inne i en tx). En
+  betalning dit från en adress med etiketten *Swap eller brygga* står först (*avsändaren angav mottagaren i memot …*);
+  från någon annan står den lägre, och utan kurs med *beloppet är inte prövat*. *Varför?* säger att memot är
+  avsändarens instruktion och att THORChain kan betala tillbaka.
+- Byt vy fram och tillbaka flera gånger: samma mottagare frågas inte igen inom en kvart (journalen och källornas
+  förseglade svar växer inte).
+- En betalning utan memo och utan samma nyckel eller brygga har högst 0,60 i poäng, och kandidaterna står i
+  poängens ordning.
+- En betalning till en startpunkt (till exempel startpunkten utredningen började i, om memot pekar dit) är en kandidat
+  och skälet säger *mottagaren är en startpunkt i ärendet*; en betalning till en adress med etiketten *Offer* är det
+  inte.
+- Ett `=:LTC.LTC:ltc1…`-memo: mottagaren slås upp på Litecoin, och kan den inte läsas står det för den mottagaren
+  medan de andra insättningarna vägs som vanligt.
+- Med utgången frånkopplad: panelen säger *Fortsättningen på Ethereum kunde inte slås upp: …*, och förslagen bygger på
+  det som redan finns i ärendet.
+- Godkänn en kandidat (Enter), gärna utan skäl: grafen får den lila streckade länken till tx:en på den andra kedjan,
+  journalen har beslutet och *Fortsätter på annan kedja: … (godkänt förslag, cross-chain v1)*.
+- Ångra beslutet (Ctrl+Z eller *Ångra* i loggen): länken försvinner och förslaget väntar igen. Godkänn igen och ta
+  tillbaka länken i nodens *Historik* i stället: samma resultat, beslutet är ångrat.
+- Knyt fortsättningen för hand (K) på en annan betalning in: den får inget förslag.
+- Godkänn en kandidat: knappen *Godkänn* försvinner och bara *Avfärda resten* finns kvar (en betalning fortsätter på
+  ett ställe i taget).
+- Linjens *Varför?* säger *ett godkänt förslag ur cross-chain v1 (beslut N)* och inget skäl när inget skrevs; spårets
+  slut säger *knutet till … (godkänt förslag ur cross-chain v1)* eller *(för hand)*.
+
+## Etiketter
+
+### Etiketterna (etapp 8, Attribution)
+
+- Importera OFAC:s riktiga SDN-lista (`sdn.xml`, sparad från OFAC:s webbplats): importen går på några sekunder,
+  antalet adresser per valuta stämmer ungefär med listan, och filen ligger orörd i
+  `%LOCALAPPDATA%\Chainsaw\Sanktionslistor` med sin SHA-256 i namnet. Jämför hashen med `Get-FileHash`.
+- En känd sanktionerad adress (ur listan) som expanderas i ett ärende märks *Sanktionerad*, och *varför?* visar listans
+  datum, hash, postens uid och program.
+- En egen etikett *Börs* på en adress gör att spåret slutar där med *Börs, uttag funnet*, och *varför?* säger att det är
+  en bedömning med vem, när och varför.
+- Två ärenden: en etikett i det första syns i det andra som *från ett annat ärende* när samma adress finns där, med
+  ärendenummer, anteckning, skäl och vem som satte den (*Allt följer med*). En etikett märkt *Sprid inte* och en
+  etikett på ett offer syns inte.
+- En kollegas ärendefil (öppnad med delningslösenordet) ger sina etiketter till biblioteket, och de syns sedan i egna
+  ärenden med samma adresser.
+- `%LOCALAPPDATA%\Chainsaw\Etiketter\bibliotek.bin` går inte att läsa i en texteditor (krypterad).
+- `/verify` är grönt efter etiketter, tillbakatagningar och etiketter från andra ärenden.
+
+### EU:s lista, Ransomwhere och sanktionskontrollen vid en expansion (omgång 5, 2026-11-08)
+
+- **EU:s lista:** hämta EU:s konsoliderade lista över finansiella sanktioner i XML från kommissionens FSF-portal
+  (*1.1 XML*, filen börjar med `<export … generationDate=…>`) och välj den med Nytt → *Importera sanktionslista …*.
+  Svaret säger *EU FSF publicerad <datum> är importerad* med antalet adresser (det kan vara 0: EU:s lista har ingen
+  egen sort för kryptoadresser, och Chainsaw känner bara igen en Bitcoin-adress med giltig kontrollsumma eller
+  `0x` och 40 hextecken i en identifiering eller en anmärkning). Filen ligger orörd som `eu-fsf-<sha256>.xml` i
+  `%LOCALAPPDATA%\Chainsaw\Sanktionslistor`, bredvid OFAC:s.
+- **Båda listorna gäller:** importera OFAC:s lista och EU:s lista; en adress som står på båda får två etiketter, en
+  per lista, och journalens rad nämner båda. En nyare OFAC-lista tar inte EU:s plats, eller tvärtom.
+- **Kontrollen vid en expansion:** importera en lista medan ett ärende är öppet och expandera (eller öppna grafen
+  igen): en adress på listan som kommer in får *Sanktionerad* direkt, på båda kedjorna, utan att ärendet skapas om.
+  Inget går ut på nätet för det.
+- **Ransomwhere (öppen källa):** hämta `ransomwhere.json` från Zenodo (post 13999026, CC BY 4.0) och välj den med
+  samma menyrad (filväljaren visar nu *.xml och *.json). Svaret säger *Ransomwhere med data till <datum> är
+  importerad: … adresser (CC BY 4.0, Jack Cable, Ransomwhere (ransomwhe.re)). En öppen källa, inte en
+  sanktionslista.* Filen ligger i `%LOCALAPPDATA%\Chainsaw\Öppna källor`. En adress ur filen som kommer in i grafen
+  får etiketten *Rapporterad* (*Ransomware: <familj>*), och *Varför?* säger källan, licensen, datumet, hashen och att
+  det är en bedömning.
+- **En trasig beskrivning:** ändra en `.json` bredvid en sanktionslista till skräp och starta om; listan står kvar i
+  listan (beskrivningen skrivs om ur själva listan) i stället för att försvinna. En lista som läggs i mappen utanför
+  Chainsaw märks utan omstart.
+- **Det EU:s lista säger:** *Varför?* på en träff från EU:s lista citerar ungefär 100 tecken runt adressen. En adress
+  vid ett ord för en annan kedja (BCH, Litecoin, BEP-20, TRON, Polygon) blir ingen träff utan räknas som överhoppad
+  i svaret efter importen.
+- **En ändrad lista:** ändra ett tecken i en sparad sanktionslista (`.xml`) eller i `ransomwhere-….data` och öppna
+  grafen: en gul toast säger en gång att listan har ändrats och inte används, och de andra listorna används som
+  vanligt.
+- **Vyn Etiketter:** vänsterkolumnen har raden *Öppna källor* med en jordglob; en *Rapporterad* etikett från
+  Ransomwhere står där, och ursprunget visar licensen (*CC BY 4.0, Jack Cable, Ransomwhere (ransomwhe.re)*). Samma
+  licens står i *Varför?* och i rapportens rad för etiketten.
+- `/verify` är grönt efter träffar på EU:s lista och i Ransomwhere.
+
+### Vyn Etiketter (ET1a)
+
+
+Grafen för Ethereum är inte byggd än; det som går att prova är källan, startpunkterna, Källor och Guiden.
+
+- Ctrl+, → *Källor*: chipset **Ethereum är inte längre tonat**. Det har *Blockscout* (`https://eth.blockscout.com/api/`)
+  i läget *Snabbast*. *Prova alla nu* frågar bara efter kedjans höjd (`?module=block&action=eth_block_number`) genom
+  utgången; raden visar höjd och millisekunder. TRON och Solana är fortfarande tonade.
+- *Lägg till endpoint …* för Ethereum: sorten *Blockscout*; *Prova* visar höjd och blockets hash (`v2/blocks/:höjd`).
+  En egen Blockscout på det lokala nätet går att lägga till på samma sätt (bara https).
+- Kommandoraden och Nytt ärende: en Ethereum-adress i blandade versaler med rätt kontrollsumma (EIP-55) känns igen som
+  Ethereum; ändra en bokstavs versal/gemen och den känns inte igen. Svaret säger ärligt att grafen för Ethereum inte är
+  byggd än. Samma för `chainsaw:ethereum/0x…`.
+- Guiden (F1): gruppen *Ethereum* med *Kontomodellen*, *ERC-20 och tokens*, *Interna tx* och *Kan frysas*.
+- Vid start provas nu också Ethereums endpoint (eth.blockscout.com) genom utgången, fast grafen för Ethereum inte är
+  byggd än (beslutet att prova vid start gäller alla kedjor). Sätt Ethereum på *Av* i Källor om det inte ska ske.
+
+## Endpointarna, andra delen (etapp 25)
+
+**Takt och väntan**
+- Expandera en adress med många tx i grafen: uppslagen går i takt (högst fyra i sekunden per endpoint, Chainsaws eget
+  förval) och fördelas mellan mempool.space och Blockstream (se i ärendets råsvar att båda förekommer). Grafen och
+  dialogerna ska kännas lika snabba som förut; inget fryser medan Chainsaw väntar.
+- Får en källa svara `429` (lättast med en egen proxy eller en egen Esplora bakom en hastighetsgräns): raden i *Källor*
+  får den gula markeringen *Väntar* med tiden på hovring, pricken blir inte röd, och de andra endpointarna används under
+  tiden. Statusraden säger *Väntar på källan · Bitcoin* bara medan ett uppslag faktiskt väntar (mer än en sekund), och
+  markeringen försvinner när tiden gått.
+- En källa som är död (fel adress eller avstängd server): den lämnas tyst (uppslagen lyckas genom de andra, inget fel i
+  grafen), får röd prick, och provas på sin plats igen efter en minut, sedan två, fyra … högst 30 minuter. Starta servern
+  igen och se att den kommer tillbaka och får grön prick.
+
+**Ett blocks marginal**
+- En egen Esplora som ligger exakt ett block efter (till exempel direkt efter ett nytt block): ingen gul markering, och
+  hovring på pricken säger *ett block efter räknas inte som efter*. Två block efter ger *2 block efter* som förut.
+
+**Egen nod på det lokala nätet**
+- *Lägg till endpoint …* med `https://192.168.x.x/…` (eller `https://esplora.lan/…`) utan *Lokal*: *En adress på datorn
+  eller ett privat nät kräver att den märks Lokal.* och *Lägg till* tonad. Slå på *Lokal*: felet försvinner.
+- *Lokal* på med en adress på internet som IP (till exempel `https://8.8.8.8/`): *En lokal endpoint ska ha en adress på
+  datorn eller ett privat nät.*
+- Med en egen Esplora på det lokala nätet (eget certifikat installerat bland Windows betrodda rötter): *Prova* svarar med
+  höjd och hash **också utan ansluten utgång**, raden får märket *Lokal*, och uppslag till den syns inte i utgångens
+  logg (kontrollera med Wireshark att de går direkt till noden och att inget annat går direkt ut på nätkortet med VPN
+  valt).
+- Ett namn märkt *Lokal* som pekar på internet (ändra `hosts` eller DNS): uppslaget vägras med *Adressen pekar inte på
+  datorn eller ett privat nät …* och inget skickas.
+- Efter en expansion genom den lokala noden: `/verify` grön, och råsvaren har `exit_route` = `local` och inget
+  `exit_id`.
+- `sources.json`: endpointen har `"Local": true` och `"IntervalMilliseconds": 0`. Ändra för hand en privat adress till
+  `"Local": false`: den endpointen används inte efter omstart.
+
+## Ethereum, andra delen: grafen och inspektören (etapp 23b, TK1a)
+
+Kräver en ansluten utgång (eller Windows som utgång) och Ethereum i läget *Snabbast* eller *Prioriterad* i Källor.
+
+**Startpunkter**
+- Skriv en Ethereum-adress (`0x…`, gärna med rätt EIP-55-versaler) i kommandoraden med ett öppet ärende: den läggs till
+  som startpunkt och syns som en rund nod med flaggan. Samma för en tx-hash (`0x` och 64 tecken), Nytt ärende och
+  `chainsaw:ethereum/0x…`. TRON säger fortfarande *inte byggt än*.
+
+**Expansion och linjerna**
+- Välj Ethereum-noden och tryck E: historiken hämtas i bakgrunden (tx, interna tx, tokens). Linjerna har märket först i
+  beloppet (**₮** USDT, **$** USDC, **Ξ** ether) och värdet i kronor litet under när kursen finns; en okänd token står
+  med sin symbol. Utan kurs står inget värde (inte noll). USDT och ether mellan samma två adresser är två linjer.
+- En adress med fler tx än gränsen: raden säger att resten hölls tillbaka, och noden står som delvis expanderad.
+- En adress som bytte token själv (till exempel USDT in till Uniswap och ether tillbaka i samma tx): ett litet lila
+  piller **₮ → Ξ** på linjen till poolen, också med *Inga belopp*. Ingen annan linje har pillret.
+- Spårningen: accenten följer pengarna som kom in till startadressen, per tillgång, genom de adresser som är
+  expanderade. Byt FIFO/haircut och se att de spårade beloppen ändras. Två startpunkter i varandras flöde ger den
+  ärliga raden om att spårningen inte kunde räknas.
+- Stäng av utgången och öppna ärendet igen: grafen, linjerna och värdena ritas ur ärendet utan uppslag.
+
+**Inspektören**
+- En Ethereum-nod säger *… · Ethereum* under rubriken, *Spårat in* per tillgång, och *Saldo per token* med utgivaren.
+  Har en expanderad adress USDT eller USDC kvar står snöflingan i nodens hörn, i tabellen och i en ruta som säger att
+  frysning begärs hos utgivaren. En adress som inte är expanderad säger *Inte expanderad: saldot är okänt* och får
+  ingen snöflinga.
+- En linje visar Belopp med märket, Värde (eller *Ingen kurs*), Tid, Tx, Swap när den finns, och varje tx med block och
+  blockhash (`0x…`). *Varför?* förklarar token, swap och kursen steg för steg.
+- Etikett (L) på en Ethereum-nod: sparas och syns i grafen och i Historik; ta tillbaka fungerar. Bryt upp (U) finns
+  inte (inga kluster på Ethereum). Annan kedja (K): välj en rörelse som kom in till adressen (till exempel en brygga),
+  välj TRON och klistra in en tx; en lila streckad linje går till den andra kedjans nod, och länken syns i Historik.
+- *Förslag · N* (Ctrl+J): statusraden säger att kontrollerna gäller UTXO och inte körs på Ethereum.
+
+## Ethereum klart, omgång 2 (kända kontrakt, plats i blocket, egna ytor, start-tx)
 
 Kräver en ansluten utgång och Ethereum i Källor, som ovan.
 

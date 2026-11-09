@@ -189,6 +189,33 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
   adressform (scripthash) bakom `IBitcoinSource`; Litecoin Core (samma RPC, registreras för Litecoin); den egna nodens
   eget Merkle-bevis (`gettxoutproof`, ett partiellt merkleträd) i stället för källans; Reth eller Erigon för Ethereum;
   java-tron för TRON.
+- **Cross-chain, efter `cross-chain v1`** (byggt 2026-11-09, DEV-LOG): förslagen väger det grafen har på andra kedjor
+  och mottagaren som ett memo i THORChains form namnger. Kvar:
+  - **Bryggornas händelser på Ethereum:** bara `Transfer`-händelser läses ur loggarna, så en bryggas eget mål-id eller
+    mottagare (till exempel THORChain-routerns memo i anropets data, eller en bryggas `Deposit`-händelse) syns inte.
+    Kräver att källan läser loggarna eller anropets data.
+  - **Tjänstens utbetalningsadresser på den andra kedjan:** en swap-tjänst med samma etikett på båda kedjorna kunde
+    slås upp i tidsfönstret (deras historik är lång och dyr att läsa); i dag vägs bara det grafen redan har.
+  - **Uppslag per tidsintervall:** ingen av källorna kan svara på *alla betalningar mellan två tider*; med egen nod och
+    eget index går det.
+  - **Bara mottagarens senaste sida** läses (Bitcoin 25 tx, Ethereum och TRON en sida per historik), så en gammal swap
+    till en livlig adress kan saknas.
+  - **Spåret slutar på en tx-etikett** (*Swap eller brygga* på en tx, inte en adress): sådana betalningar vägs inte än.
+  - **Bryggorna till L2-kedjorna** (Arbitrum, OP Mainnet, Base, Polygon) leder till kedjor Chainsaw inte har.
+  - **En betalning in på Litecoin** föreslås inte än: en länk från ett mynt är ett Bitcoin-myntes i Tracing
+    (`CrossChainLink.FromChain`), så Litecoin behöver en kedja på myntet först. Betalningar *ut* på Litecoin vägs.
+  - **En utbetalning i flera delar:** bara en kandidat kan godkännas (en betalning knyts till en tx åt gången), och
+    delar som tillsammans är värdet föreslås inte.
+  - **En THORName** i memot (ett namn i stället för en adress) slås inte upp; det sägs i *Varför?*.
+  - **THORChains router och valv** står inte på listan över kända kontrakt: de läggs till när adresserna har lästs ur
+    THORChains egen källa med datum (listan tar aldrig in en adress som inte är kontrollerad). Till dess räknas en
+    utbetalning som från en brygga bara genom en etikett *Swap eller brygga* eller grafens noder.
+  - **Kontrakt eller nyckel:** källorna ger ingen bytekod, så en adress räknas som ett kontrakt bara när listan,
+    en etikett eller en intern utbetalning säger det; ett kontrakt som inget av det känner kan ge *samma nyckel*.
+  - **Ett godkänt förslag vars betalning in sedan knyts om för hand** står kvar som godkänt i panelen tills nästa körning.
+- **Direkt mot kedjan:** egen nod och eget index (Bitcoin Core med `txindex`, Fulcrum eller electrs eller ett eget index;
+  Reth eller Erigon för Ethereum; java-tron för TRON). Kräver en server. Esplora går att köra själv, så Bitcoin blir bara en
+  annan adress i datalagret.
 - **Bevakning i realtid, resten** (nya block via mempool.space:s websocket är byggt, omgång 3): ZMQ från egen nod (en
   egen nod nås bara genom `ILocalHttp`, och dess websocket lyssnas inte på), Ethereum (Blockscout har websockets) och
   mempool.space:s `track-address` för obekräftade tx. Det sista skickar de bevakade adresserna tillsammans över en
@@ -296,8 +323,6 @@ tidsmönster (`active-hours`) och tjänster ur beteende (`service-behaviour`). K
   inte (förslag: känna igen en trolig mixer ur beteende); när flera delar går in i nästa mixer tillsammans följs bara
   en av dem, och stegets belopp är den delen; kedjan grenar sig inte när två utgångar går till olika mixers.
 - **Tornado Cash och andra zk-mixers:** under *Kedjor och data*.
-- **Byte av kedja och token** (bryggor, swap-tjänster utan konto, DEX): kända kontrakt och tjänster känns igen som
-  *Fortsätter på annan kedja*; förslag på fortsättningen ur belopp och tid (under Spårning).
 - **Nästlade tjänster** (en tjänst som har konto hos en börs): beteende som insättningar och uttag i mönster.
 - **Privacy coins och skyddade pooler** (Monero, Zcash, Litecoin MWEB): slut på spåret; förslag på uttag ur poolen ur
   belopp och tid.
@@ -363,8 +388,6 @@ tidsmönster (`active-hours`) och tjänster ur beteende (`service-behaviour`). K
 - **Grafens prestanda, efter omgång 7:** när en drag släpps räknas hela layouten om (cirka 100 ms i hoppkolumnerna
   och 20 ms på den fria ytan vid 3 000 aktörer, `GraphScaleTests`), på UI-tråden. Den kunde räknas utanför UI-tråden
   och bytas in när den är klar. Under draget står de belopp som inte tillhör de dragna linjerna kvar där de stod.
-- **Hitta fortsättningen på en annan kedja själv** (CLAUDE.md, *Cross-chain*): belopp och tid hos swap-tjänster,
-  bryggornas egna händelser. I v1 knyts den för hand.
 
 ### Ledtrådsnoden, valvyn och samlingsnoden (EX1, EX2, EX2b, omgjorda 2026-11-08)
 
