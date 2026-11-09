@@ -9,12 +9,16 @@ namespace Chainsaw.Modules.Chains.Contracts;
 /// A transaction's id in the account model, on Ethereum, BSC or TRON (the type keeps Ethereum's name, as
 /// <see cref="EthereumAddress"/> does). On Ethereum and BSC it is <c>0x</c> and 32 bytes in hex, kept in lower case,
 /// and the same form names a block's hash (<see cref="EthereumBlockReference.Hash"/>). On TRON it is the 32 bytes in
-/// hex without <c>0x</c>, in lower case, as TRON writes its transaction ids and block ids.
+/// hex without <c>0x</c>, in lower case, as TRON writes its transaction ids and block ids. On Solana a transaction is
+/// named by its first signature: 64 bytes in plain Base58 (up to 88 characters), case sensitive and kept as written.
 /// </summary>
 public sealed record EthereumTxHash
 {
     /// <summary>The number of hex digits (after <c>0x</c> on Ethereum).</summary>
     public const int Digits = 64;
+
+    /// <summary>The number of bytes in a Solana signature, which names its transaction.</summary>
+    public const int SolanaSignatureBytes = 64;
 
     /// <summary>The hex digits in both cases.</summary>
     private static readonly SearchValues<char> HexDigits = SearchValues.Create("0123456789abcdefABCDEF");
@@ -25,12 +29,15 @@ public sealed record EthereumTxHash
     private EthereumTxHash(Chain chain, string value) => (Chain, Value) = (chain, value);
 
     /// <summary>
-    /// Gets the chain the transaction is on: <see cref="Chain.Ethereum"/>, <see cref="Chain.Bsc"/> or
-    /// <see cref="Chain.Tron"/>.
+    /// Gets the chain the transaction is on: <see cref="Chain.Ethereum"/>, <see cref="Chain.Bsc"/>,
+    /// <see cref="Chain.Tron"/> or <see cref="Chain.Solana"/>.
     /// </summary>
     public Chain Chain { get; }
 
-    /// <summary>Gets the hash in lower case: with <c>0x</c> on Ethereum and BSC, without on TRON.</summary>
+    /// <summary>
+    /// Gets the hash in lower case: with <c>0x</c> on Ethereum and BSC, without on TRON; on Solana the signature in
+    /// Base58 as written.
+    /// </summary>
     public string Value { get; }
 
     /// <summary>Reads an Ethereum hash.</summary>
@@ -44,7 +51,10 @@ public sealed record EthereumTxHash
     }
 
     /// <summary>Reads a transaction's id on an account chain.</summary>
-    /// <param name="chain">The chain: Ethereum or BSC (<c>0x</c> and 64 hex digits) or TRON (64 hex digits).</param>
+    /// <param name="chain">
+    /// The chain: Ethereum or BSC (<c>0x</c> and 64 hex digits), TRON (64 hex digits) or Solana (a signature of 64
+    /// bytes in Base58).
+    /// </param>
     /// <param name="text">The text; white space around it is ignored.</param>
     /// <param name="hash">The hash, or <see langword="null"/>.</param>
     /// <returns><see langword="true"/> when the text is a transaction's id on the chain.</returns>
@@ -63,6 +73,10 @@ public sealed record EthereumTxHash
             case Chain.Tron when trimmed is { Length: Digits } && !trimmed.AsSpan().ContainsAnyExcept(HexDigits):
                 hash = new EthereumTxHash(Chain.Tron, trimmed.ToLowerInvariant());
                 return true;
+            case Chain.Solana when Base58.TryDecode(trimmed, SolanaSignatureBytes, out _):
+                hash = new EthereumTxHash(Chain.Solana, trimmed!);
+                return true;
+
             default:
                 return false;
         }

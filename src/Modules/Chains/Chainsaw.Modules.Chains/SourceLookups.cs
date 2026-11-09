@@ -257,7 +257,10 @@ internal sealed class SourceLookups
             var planned = turn.Endpoint;
             remaining.Remove(planned);
             var endpoint = planned.Endpoint;
-            var unkeyed = planned.Api.Request(endpoint.Address, query.Path);
+            var unkeyed = query.Body is { } body
+                ? planned.Api.Post(endpoint.Address, query.Path, body)
+                : planned.Api.Request(endpoint.Address, query.Path);
+
             if (_sources.WithKey(endpoint, planned.Api, unkeyed, out var keyProblem) is not { } request)
             {
                 _sources.Pacer.Release(turn);

@@ -7,9 +7,10 @@ namespace Chainsaw.Modules.Chains.Contracts;
 /// <summary>
 /// An address in the account model: 20 bytes, on Ethereum, on BSC (BNB Smart Chain, which runs Ethereum's virtual
 /// machine and writes its addresses as Ethereum does) or on TRON, whose virtual machine is Ethereum's and whose
-/// addresses are the same 20 bytes behind the version byte <c>0x41</c>. The type keeps Ethereum's name from when that
-/// was the only account chain (BACKLOG: renamed when no other stage touches Chains); <see cref="Chain"/> says which
-/// chain it is on, so that the same 20 bytes on two chains are never taken for one actor.
+/// addresses are the same 20 bytes behind the version byte <c>0x41</c>; or a public key of 32 bytes on Solana. The
+/// type keeps Ethereum's name from when that was the only account chain (BACKLOG: renamed when no other stage touches
+/// Chains); <see cref="Chain"/> says which chain it is on, so that the same bytes on two chains are never taken for one
+/// actor.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -22,6 +23,10 @@ namespace Chainsaw.Modules.Chains.Contracts;
 /// On TRON it is written in Base58Check (<c>T…</c>, 34 characters), whose last four bytes are a checksum (a double
 /// SHA-256), so that a wrong character is refused; or in hex as <c>41</c> and the 20 bytes, as TRON's own API writes it.
 /// <c>TryParseTron</c> reads both and keeps the Base58Check form, so that one address is never two.
+/// </para>
+/// <para>
+/// On Solana it is a public key of 32 bytes in plain Base58 (32 to 44 characters), read by <c>TryParseSolana</c>.
+/// It carries no checksum: a wrong character gives another valid address that belongs to nobody, and the user is told.
 /// </para>
 /// </remarks>
 public sealed record EthereumAddress
@@ -47,21 +52,25 @@ public sealed record EthereumAddress
         Checksummed = Checksum(lower);
     }
 
-    /// <summary>Creates a TRON address from its checked forms.</summary>
-    /// <param name="base58">The Base58Check form, <c>T…</c>.</param>
-    /// <param name="hex">The 20 bytes as <c>0x</c> and 40 hex digits in lower case.</param>
-    private EthereumAddress(string base58, string hex) =>
-        (Chain, Value, Checksummed, Hex) = (Chain.Tron, base58, base58, hex);
+    /// <summary>Creates a TRON or Solana address from its checked forms.</summary>
+    /// <param name="chain">The chain: TRON or Solana, which write their addresses in Base58.</param>
+    /// <param name="base58">The Base58 form: <c>T…</c> with its checksum on TRON, the 32 bytes on Solana.</param>
+    /// <param name="hex">The bytes as <c>0x</c> and hex digits in lower case: 20 on TRON, 32 on Solana.</param>
+    private EthereumAddress(Chain chain, string base58, string hex) =>
+        (Chain, Value, Checksummed, Hex) = (chain, base58, base58, hex);
+
+    /// <summary>The number of bytes in a Solana address (a public key).</summary>
+    public const int SolanaBytes = 32;
 
     /// <summary>
-    /// Gets the chain the address is on: <see cref="Chain.Ethereum"/>, <see cref="Chain.Bsc"/> or
-    /// <see cref="Chain.Tron"/>.
+    /// Gets the chain the address is on: <see cref="Chain.Ethereum"/>, <see cref="Chain.Bsc"/>,
+    /// <see cref="Chain.Tron"/> or <see cref="Chain.Solana"/>.
     /// </summary>
     public Chain Chain { get; }
 
     /// <summary>
     /// Gets the address as the chain compares it: on Ethereum and BSC in lower case (<c>0x5aae…</c>), on TRON in
-    /// Base58Check (<c>T…</c>).
+    /// Base58Check (<c>T…</c>), on Solana in Base58 as written (case matters).
     /// </summary>
     public string Value { get; }
 
@@ -73,7 +82,8 @@ public sealed record EthereumAddress
 
     /// <summary>
     /// Gets the 20 bytes as <c>0x</c> and 40 hex digits in lower case: Ethereum's address, and on TRON the address its
-    /// virtual machine and event logs use (without the version byte).
+    /// virtual machine and event logs use (without the version byte). On Solana the public key's 32 bytes as <c>0x</c>
+    /// and 64 hex digits.
     /// </summary>
     public string Hex { get; }
 
@@ -151,7 +161,7 @@ public sealed record EthereumAddress
         TryParse(text, out var address, out var problem) ? address : throw new FormatException(problem);
 
     /// <summary>Reads an address on an account chain.</summary>
-    /// <param name="chain">The chain: Ethereum, BSC or TRON.</param>
+    /// <param name="chain">The chain: Ethereum, BSC, TRON or Solana.</param>
     /// <param name="text">The text; white space around it is ignored.</param>
     /// <param name="address">The address, or <see langword="null"/>.</param>
     /// <returns><see langword="true"/> when the text is an address on the chain.</returns>
@@ -164,6 +174,7 @@ public sealed record EthereumAddress
             Chain.Ethereum => TryParse(text, out address),
             Chain.Bsc => TryParseOn(Chain.Bsc, text, out address),
             Chain.Tron => TryParseTron(text, out address, out _),
+            Chain.Solana => TryParseSolana(text, out address, out _),
             _ => false,
         };
     }
@@ -181,7 +192,7 @@ public sealed record EthereumAddress
     }
 
     /// <summary>Reads an address on an account chain that must be one, as the case or a source's answer gives it.</summary>
-    /// <param name="chain">The chain: Ethereum, BSC or TRON.</param>
+    /// <param name="chain">The chain: Ethereum, BSC, TRON or Solana.</param>
     /// <param name="text">The text.</param>
     /// <returns>The address.</returns>
     /// <exception cref="FormatException">The text is not an address on the chain.</exception>
@@ -230,6 +241,32 @@ public sealed record EthereumAddress
     }
 
     /// <summary>
+    /// Reads a Solana address: a public key of 32 bytes in plain Base58, in its canonical form. There is no checksum,
+    /// so a mistyped address of the right length is read as another address; the problem says so when the length or
+    /// a character is wrong.
+    /// </summary>
+    /// <param name="text">The text; white space around it is ignored.</param>
+    /// <param name="address">The address, or <see langword="null"/>.</param>
+    /// <param name="problem">Why it is not a Solana address, in Swedish, or <see langword="null"/>.</param>
+    /// <returns><see langword="true"/> when the text is a Solana address.</returns>
+    public static bool TryParseSolana(
+        [NotNullWhen(true)] string? text, [NotNullWhen(true)] out EthereumAddress? address, out string? problem)
+    {
+        address = null;
+        var trimmed = text?.Trim() ?? string.Empty;
+        if (!Base58.TryDecode(trimmed, SolanaBytes, out var key))
+        {
+            problem = "En Solana-adress är 32 byte i Base58 (32 till 44 tecken, utan 0, O, I och l). Den har ingen "
+                + "kontrollsumma, så ett fel tecken kan ge en annan giltig adress.";
+            return false;
+        }
+
+        problem = null;
+        address = new EthereumAddress(Chain.Solana, trimmed, "0x" + Convert.ToHexStringLower(key));
+        return true;
+    }
+
+    /// <summary>
     /// Reads the TRON address in 20 bytes as TRON's virtual machine and event logs write them: 40 hex digits with or
     /// without <c>0x</c>, or a 32-byte word (an event's topic) whose first 12 bytes are zero.
     /// </summary>
@@ -261,7 +298,9 @@ public sealed record EthereumAddress
         return true;
     }
 
-    /// <summary>Writes the address as it is shown: EIP-55 on Ethereum and BSC, Base58Check on TRON.</summary>
+    /// <summary>
+    /// Writes the address as it is shown: EIP-55 on Ethereum and BSC, Base58Check on TRON, Base58 on Solana.
+    /// </summary>
     /// <returns>The address.</returns>
     public override string ToString() => Checksummed;
 
@@ -269,7 +308,7 @@ public sealed record EthereumAddress
     /// <param name="data">The 21 bytes.</param>
     /// <returns>The address.</returns>
     private static EthereumAddress FromTronBytes(byte[] data) =>
-        new(Base58Check.Encode(data), "0x" + Convert.ToHexStringLower(data.AsSpan(1)));
+        new(Chain.Tron, Base58Check.Encode(data), "0x" + Convert.ToHexStringLower(data.AsSpan(1)));
 
     /// <summary>
     /// Gives the EIP-55 form: the Keccak-256 of the lower-case hex (without <c>0x</c>) decides each letter's case:

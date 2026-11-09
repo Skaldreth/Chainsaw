@@ -22,6 +22,10 @@ namespace Chainsaw.Modules.Chains;
 /// Finds the newest answer in the case and reads it, or gives <see langword="null"/>; when <see langword="null"/>,
 /// the newest response of the kind about the subject is read with <paramref name="Parse"/>.
 /// </param>
+/// <param name="Body">
+/// The body of a POST to the path (a JSON-RPC call, <see cref="ISourceApi.Post"/>), or <see langword="null"/> for a
+/// GET. It never names a case, only what is looked up.
+/// </param>
 internal sealed record LookupQuery<T>(
     string Kind,
     string Subject,
@@ -31,5 +35,7 @@ internal sealed record LookupQuery<T>(
     Func<T, long?> SettledAt,
     bool NeverChanges = false,
     Func<T, T, string?>? Changed = null,
-    Func<ICaseReader, (T Value, StoredResponse Response)?>? FindStored = null)
+    Func<ICaseReader, (T Value, StoredResponse Response)?>? FindStored = null,
+    string? Body = null)
+
     where T : class;
