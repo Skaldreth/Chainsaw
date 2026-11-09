@@ -207,11 +207,29 @@ public sealed partial class GraphCanvas : FrameworkElement
     protected override void OnRender(DrawingContext drawingContext)
     {
         ArgumentNullException.ThrowIfNull(drawingContext);
+        HudStart(FrameStage.Total);
+        try
+        {
+            RenderSurface(drawingContext);
+        }
+        finally
+        {
+            HudStop(FrameStage.Total);
+            HudAfterRender();
+        }
+    }
+
+    /// <summary>Draws the surface for <see cref="OnRender"/>.</summary>
+    /// <param name="drawingContext">Where to draw.</param>
+    private void RenderSurface(DrawingContext drawingContext)
+    {
         Drawn?.Invoke(this, EventArgs.Empty);
 
         // A transparent ground, so that the empty surface takes the pointer too.
         drawingContext.DrawRectangle(Brushes.Transparent, null, new Rect(RenderSize));
+        HudStart(FrameStage.Comments);
         PlaceComments();
+        HudStop(FrameStage.Comments);
         using var over = _overlayVisual.RenderOpen();
         if (_model?.Scene is not { } scene)
         {
@@ -231,7 +249,9 @@ public sealed partial class GraphCanvas : FrameworkElement
         }
 
         ShowScene(scene);
+        HudStart(FrameStage.Overlay);
         DrawOverScene(over);
+        HudStop(FrameStage.Overlay);
     }
 
     /// <summary>Presses on the surface: takes hold of a node, or of the surface to pan it.</summary>
@@ -396,6 +416,11 @@ public sealed partial class GraphCanvas : FrameworkElement
     {
         ArgumentNullException.ThrowIfNull(e);
         base.OnKeyDown(e);
+        if (HudKey(e))
+        {
+            return;
+        }
+
         if (e.Key == Key.Escape && CancelBox())
         {
             e.Handled = true;

@@ -1226,6 +1226,10 @@ noder).
   förut.
 - [ ] Tidsbandens namn, ikonlisten vid den valda noden och kommentarslapparna följer med i varje bildruta.
 - [ ] Ledtrådsnodens valvy och den utfällda högen fungerar som förut.
+- [ ] **Mät** (Debug-bygget): tryck **Ctrl+Shift+P** i grafen och gör stegen ovan med HUD:en uppe till vänster.
+  Skriv ner *bilder/s*, *längst* mellan bilderna och de delar som tar mest tid (*Linjer* och *Noder*), för en
+  panorering, en zoom, ett drag och en hovring i ett stort ärende. Siffrorna avgör om grafen behöver flera trådar
+  eller grafikkortet. Ctrl+Shift+P igen döljer HUD:en.
 
 ### Välja flera med en ruta (2026-11-08, efter användarens beskrivning)
 

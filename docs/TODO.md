@@ -21,7 +21,8 @@ Frågorna till kryptospåraren står i `docs/KRYPTOSPARAREN.md`.
 **Grafen på grafikkortet** (användarens önskemål 2026-11-08): WPF ritar redan genom DirectX, men varje ruta byggs
 på processorn. Efter optimeringen 2026-11-08 (scenen i ett eget lager som bara flyttas vid panorering och zoom)
 provas grafen först på Windows med ett stort ärende. Räcker det inte är nästa steg att rita grafytan med **SkiaSharp
-på grafikkortet** bakom samma `GraphCanvas`, så att inget annat ändras. *Väntar på:* provet på Windows.
+på grafikkortet** bakom samma `GraphCanvas`, så att inget annat ändras. Samma prov avgör om nodernas ritning ska
+göras på flera trådar. *Väntar på:* provet på Windows med prestanda-HUD:en (Ctrl+Shift+P, Debug).
 
 **Från bygget 2026-11-08**, så som det är byggt nu:
 1. **Kandidaternas linjer** i mixerns förslag ritas alltid. Förut ritades de bara när områdena var på. *Nu:* alltid.

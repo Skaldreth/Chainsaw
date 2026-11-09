@@ -4561,3 +4561,18 @@ när draget slutar. Den behölls, och renderingen från denna gren ligger ovanp�
 eventstyrda slingan och cacharna. Mitt eget rutnät och diffningen av platser (`GraphMoved.Between`,
 `KeepSameCurves`) togs bort; ett drag skickar `Moved` med de dragna noderna i stället för `Redraw`.
 
+
+### Prestanda-HUD för grafen (2026-11-09)
+
+Användaren valde att mäta före ett flertrådat bygge. **Ctrl+Shift+P** på grafen visar en HUD uppe till vänster,
+bara i Debug. Den visar bilder per sekund, tiden mellan bilderna (den längsta visar hack), tiden för varje del av en
+bild på UI-tråden (hovring, rörelser, linjer, noder, över noderna, ovanpå, lappar och totalt, i snitt och längst)
+samt hur mycket bilderna ritade: hela scenen, delvis, bara flyttad eller inget. Den visar också flest noder och
+linjer på en bild och hur stor scenen är. Allt gäller den senaste sekunden.
+- **Siffrorna** räknas i `FrameStats` (utan WPF, med tester). En paus på mer än en halv sekund börjar en ny serie, så
+  att vilan inte räknas som ett hack. En bild är allt från en skärmbild till nästa, eftersom WPF ritar ytan efter
+  slingan.
+- **HUD:en håller aldrig bildrutorna.** Den ritas efter de bilder ytan gör ändå, fyra gånger i sekunden, och en gång
+  till när slingan vilar. Den ligger i ett eget lager överst och tar inte pekaren.
+- **I Release** tas mätanropen bort av kompilatorn (`[Conditional("DEBUG")]`), och tangenten gör ingenting.
+- **Syns inte:** renderingstrådens egen tid (rastrering och GPU). Den mäts med PresentMon eller WPF Performance Suite.

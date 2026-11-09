@@ -43,13 +43,14 @@ public sealed partial class GraphCanvas
     private GraphPoint _threadEnd;
 
     /// <inheritdoc/>
-    protected override int VisualChildrenCount => SceneLayers + (_commentLayer is null ? 0 : 1);
+    protected override int VisualChildrenCount => SceneLayers + (_commentLayer is null ? 0 : 1) + 1;
 
     /// <inheritdoc/>
     protected override Visual GetVisualChild(int index) => index switch
     {
         >= 0 and < SceneLayers => SceneLayerAt(index),
         SceneLayers when _commentLayer is not null => _commentLayer,
+        _ when index == VisualChildrenCount - 1 => _hudVisual,
         _ => throw new ArgumentOutOfRangeException(nameof(index)),
     };
 

@@ -123,11 +123,19 @@ public sealed partial class GraphCanvas
     private void OnFrame(object? sender, EventArgs e)
     {
         // A minimised window draws nothing; the motions wait, and what is asked for is drawn when it comes back.
+        var time = ((RenderingEventArgs)e).RenderingTime;
+        HudFrameBegins(time);
+        HudStart(FrameStage.Total);
         if (!IsMinimised(this))
         {
             // The pointer first, so that what its hover changes is drawn in this same frame.
+            HudStart(FrameStage.Hover);
             TakeHover();
-            Apply(_frames.Tick(((RenderingEventArgs)e).RenderingTime));
+            HudStop(FrameStage.Hover);
+            HudStart(FrameStage.Motions);
+            var change = _frames.Tick(time);
+            HudStop(FrameStage.Motions);
+            Apply(change);
         }
 
         if (_frames.IsIdle)
@@ -135,6 +143,9 @@ public sealed partial class GraphCanvas
             _framesHooked = false;
             CompositionTarget.Rendering -= OnFrame;
         }
+
+        HudStop(FrameStage.Total);
+        HudFrameEnds(time);
     }
 
     /// <summary>Does the least work a frame's changes need.</summary>

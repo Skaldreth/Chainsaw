@@ -96,6 +96,7 @@ public sealed partial class GraphCanvas
         }
 
         AddVisualChild(_overlayVisual);
+        AddVisualChild(_hudVisual);
     }
 
     /// <summary>Gives a layer under the notes by its place in the order.</summary>
@@ -123,10 +124,18 @@ public sealed partial class GraphCanvas
         }
 
         Drawn?.Invoke(this, EventArgs.Empty);
+        HudStart(FrameStage.Comments);
         PlaceComments();
+        HudStop(FrameStage.Comments);
         ShowScene(scene);
-        using var over = _overlayVisual.RenderOpen();
-        DrawOverScene(over);
+        HudMark(FrameWork.View);
+        HudStart(FrameStage.Overlay);
+        using (var over = _overlayVisual.RenderOpen())
+        {
+            DrawOverScene(over);
+        }
+
+        HudStop(FrameStage.Overlay);
     }
 
     /// <summary>
@@ -177,9 +186,16 @@ public sealed partial class GraphCanvas
             _breathing.Clear();
             SettleTurns();
             var near = _model!.Near;
+            HudMark(FrameWork.Full);
+            HudStart(FrameStage.Lines);
             DrawLayer(_linesLayer, dc => DrawLines(dc, scene, region, near.Edges));
+            HudStop(FrameStage.Lines);
+            HudStart(FrameStage.Nodes);
             DrawNodes(scene, region, near.Nodes);
+            HudStop(FrameStage.Nodes);
+            HudStart(FrameStage.OverNodes);
             DrawLayer(_overNodesLayer, dc => DrawOverNodes(dc, region, near.Nodes));
+            HudStop(FrameStage.OverNodes);
             _sceneMade = true;
             KeepMarkCentres();
             KeepSceneMotions();
@@ -234,28 +250,38 @@ public sealed partial class GraphCanvas
 
         // What is near what is chosen is worked out once for the frame; a drag, a hover or a breath never changes it.
         var near = _model!.Near;
+        HudMark(FrameWork.Partial);
         if (layers.HasFlag(GraphChange.Lines))
         {
+            HudStart(FrameStage.Lines);
             DrawLayer(_linesLayer, dc => DrawLines(dc, scene, region, near.Edges));
             KeepMarkCentres();
+            HudStop(FrameStage.Lines);
         }
 
         if (layers.HasFlag(GraphChange.Nodes))
         {
+            HudStart(FrameStage.Nodes);
+            var drawn = 0;
             foreach (var key in _touchedNodes)
             {
                 if (_nodeVisuals.TryGetValue(key, out var visual) && scene.Node(key) is { } node)
                 {
                     DrawLayer(visual, dc => DrawOneNode(dc, node, near.Nodes));
+                    drawn++;
                 }
             }
 
             _touchedNodes.Clear();
+            HudDrew(drawn, 0);
+            HudStop(FrameStage.Nodes);
         }
 
         if (layers.HasFlag(GraphChange.OverNodes))
         {
+            HudStart(FrameStage.OverNodes);
             DrawLayer(_overNodesLayer, dc => DrawOverNodes(dc, region, near.Nodes));
+            HudStop(FrameStage.OverNodes);
         }
 
         KeepSceneMotions();
@@ -354,6 +380,7 @@ public sealed partial class GraphCanvas
         var edges = model.VisibleEdges(visible)
             .Where(edge => !model.IsFoldedAway(edge.Edge.From) && !model.IsFoldedAway(edge.Edge.To))
             .ToList();
+        HudDrew(0, edges.Count);
         DrawWatchGlows(dc, visible);
         DrawTrashStubs(dc, visible);
         foreach (var edge in edges)
@@ -415,6 +442,7 @@ public sealed partial class GraphCanvas
         }
 
         _nodeVisuals = kept;
+        HudDrew(order.Count, 0);
     }
 
     /// <summary>Draws a node, as the whole drawing places it, into the visual it was given.</summary>
