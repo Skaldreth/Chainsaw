@@ -52,7 +52,9 @@ public static class TestScenarios
             ChangedBlocks),
     ];
 
-    /// <summary>Gives the variant an argument picks: nothing or <c>0</c> for the whole story, <c>-N</c> or <c>N</c>.</summary>
+    /// <summary>
+    /// Gives the variant an argument picks: nothing or <c>0</c> for the whole story, <c>-N</c> or <c>N</c>.
+    /// </summary>
     /// <param name="argument">What was written after <c>/testdata</c>.</param>
     /// <returns>The variant, or <see langword="null"/> when there is none by that number.</returns>
     public static TestScenario? Find(string? argument)
@@ -153,7 +155,9 @@ public static class TestScenarios
         .. TestStory.OnOtherChains(),
     ];
 
-    /// <summary>The user's own work: labels, the label from another case, a split, an area, comments and the trash.</summary>
+    /// <summary>
+    /// The user's own work: labels, the label from another case, a split, an area, comments and the trash.
+    /// </summary>
     /// <param name="actors">The actors.</param>
     /// <returns>The steps.</returns>
     private static IReadOnlyList<ITestStep> OwnWork(TestActors actors) =>
