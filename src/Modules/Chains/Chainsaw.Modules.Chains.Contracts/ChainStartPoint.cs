@@ -230,9 +230,10 @@ public sealed record ChainStartPoint(Chain? Chain, StartPointKind Kind, string V
             : null;
 
     /// <summary>
-    /// Recognises an address in Litecoin's MWEB (<c>ltcmweb1…</c>, Bech32 with two 33-byte keys): its form only, by
-    /// the prefix, the Bech32 characters and the length, since nothing can be looked up there. It is a start point on
-    /// Litecoin where the trail ends.
+    /// Recognises an address in Litecoin's MWEB (<c>ltcmweb1…</c>, Bech32 with two 33-byte keys). Only its form is
+    /// checked (the prefix, the Bech32 characters, one letter case and the length), not its checksum or keys, since
+    /// nothing can be looked up there anyway; a text of that form with a wrong character is still taken as one. It is
+    /// a start point on Litecoin where the trail ends.
     /// </summary>
     /// <param name="text">The trimmed text.</param>
     /// <returns>The result, or <see langword="null"/>.</returns>

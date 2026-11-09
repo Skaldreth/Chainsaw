@@ -92,6 +92,7 @@ public sealed partial class StartPointRowViewModel : ObservableObject
     public string LineText => Preview.State switch
     {
         PreviewState.WaitingForExit => _waiting,
+        PreviewState.NotBuilt when StartPoint.IsShielded => CaseWorkflow.MwebText,
         PreviewState.NotBuilt => CaseTexts.ChainName(StartPoint.Chain!.Value) + " hämtas inte, inte byggt än",
         PreviewState.Failed => Preview.Problem,
         PreviewState.NotRecognised => NotRecognisedText,

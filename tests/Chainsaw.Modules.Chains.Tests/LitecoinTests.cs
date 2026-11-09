@@ -137,7 +137,7 @@ public sealed class LitecoinTests
 
         var problem = Assert.Throws<EsploraFormatException>(() => RawTransactionReader.Read(bytes));
 
-        Assert.Contains("MWEB", problem.Message, StringComparison.Ordinal);
+        Assert.Contains("0x08", problem.Message, StringComparison.Ordinal);
     }
 
     /// <summary>Answers a path under the fake Litecoin Esplora from a fixture in <c>Litecoin/</c>.</summary>

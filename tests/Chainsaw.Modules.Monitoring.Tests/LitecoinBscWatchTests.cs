@@ -95,6 +95,31 @@ public sealed class LitecoinBscWatchTests : IDisposable
         Assert.Equal(usdt, Assert.Single(run.Hits).Match.Amount);
     }
 
+    [Theory]
+    [InlineData(Chain.Ethereum)]
+    [InlineData(Chain.Bsc)]
+    public async Task A_watch_on_every_asset_counts_the_wrapped_coin(Chain chain)
+    {
+        var node = EthereumAddress.Parse(chain, "0x" + new string('a', 40));
+        var sender = EthereumAddress.Parse(chain, "0x" + new string('b', 40));
+        FakeEthereumSource source = chain == Chain.Bsc ? _harness.Bsc : _harness.Ethereum;
+        _harness.Service.Add(
+            _harness.Case,
+            new WatchSubject(WatchSubjectKind.Address, node.ToChainAddress(), "0x…node"),
+            new WatchFilter(chain, WatchDirection.In, [], [], null, null));
+        await _harness.Service.CheckAsync(_harness.Case, chain, 21_000_000);
+        var block = new EthereumBlockReference(
+            21_000_040, Synthetic.EthBlockHash(21_000_040), DateTimeOffset.UnixEpoch);
+        var wrapped = new AssetAmount(KnownTokens.WrappedNative(chain)!, BigInteger.Pow(10, 18));
+        source.Holds(node, EthereumHistory.Tokens, new EthereumTransfer(
+            EthereumTxHash.Parse(chain, "0x" + new string('f', 64)), EthereumTransferKind.Token, sender, node, wrapped,
+            0, block));
+
+        var run = await _harness.Service.CheckAsync(_harness.Case, chain, 21_000_050);
+
+        Assert.Equal(wrapped, Assert.Single(run.Hits).Match.Amount);
+    }
+
     [Fact]
     public void A_bitcoin_address_is_not_a_litecoin_node()
     {

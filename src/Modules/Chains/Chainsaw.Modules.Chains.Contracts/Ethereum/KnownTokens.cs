@@ -83,16 +83,39 @@ public static class KnownTokens
     public static Asset BscUsdc { get; } =
         Asset.Token(Chain.Bsc, "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d", "USDC", 18);
 
+    /// <summary>Where Ethereum's DAI and WBTC were read: the chain explorer Blockscout's token records.</summary>
+    public const string EthereumSource =
+        "https://eth.blockscout.com/api?module=token&action=getToken&contractaddress=… (läst 2026-11-09)";
+
     /// <summary>
-    /// Every token Chainsaw knows by its contract, with its mark and, when its issuer can freeze it, the issuer.
+    /// DAI on Ethereum, 18 decimals: Sky's (formerly MakerDAO's) dollar stablecoin, read from Blockscout
+    /// (<see cref="EthereumSource"/>: <em>Dai</em>, 18 decimals). Its contract has no blacklist, so it is not marked
+    /// <em>Kan frysas</em>.
     /// </summary>
-    private static readonly Dictionary<Asset, (string Glyph, TokenIssuer? Freezer)> Known = new()
+    public static Asset EthereumDai { get; } =
+        Asset.Token(Chain.Ethereum, "0x6b175474e89094c44da98b954eedeac495271d0f", "DAI", 18);
+
+    /// <summary>
+    /// Wrapped bitcoin (WBTC) on Ethereum, 8 decimals, read from Blockscout (<see cref="EthereumSource"/>:
+    /// <em>Wrapped Bitcoin</em>, 8 decimals). Chainsaw knows no way for its custodian to freeze it at an address, so it
+    /// is not marked <em>Kan frysas</em>.
+    /// </summary>
+    public static Asset EthereumWbtc { get; } =
+        Asset.Token(Chain.Ethereum, "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599", "WBTC", 8);
+
+    /// <summary>
+    /// Every token Chainsaw knows by its contract, with its mark (or none, when it is shown by its symbol) and, when
+    /// its issuer can freeze it, the issuer.
+    /// </summary>
+    private static readonly Dictionary<Asset, (string? Glyph, TokenIssuer? Freezer)> Known = new()
     {
         [EthereumUsdt] = ("₮", new TokenIssuer("Tether", "₮")),
         [EthereumUsdc] = ("$", new TokenIssuer("Circle", "$")),
         [TronUsdt] = ("₮", new TokenIssuer("Tether", "₮")),
         [BscUsdt] = ("₮", null),
         [BscUsdc] = ("$", null),
+        [EthereumDai] = (null, null),
+        [EthereumWbtc] = (null, null),
     };
 
     /// <summary>Gives the issuer that can freeze a token, when Chainsaw knows its contract.</summary>
@@ -108,8 +131,9 @@ public static class KnownTokens
     }
 
     /// <summary>
-    /// Says whether Chainsaw knows a token by its contract (USDT and USDC on Ethereum, TRON and BSC), whether or not
-    /// its issuer can freeze it: a known token's movements are read and watched, a stranger's are only shown.
+    /// Says whether Chainsaw knows a token by its contract (USDT and USDC on Ethereum, TRON and BSC, and DAI and WBTC on
+    /// Ethereum), whether or not its issuer can freeze it: a known token's movements are read and watched, a
+    /// stranger's are only shown.
     /// </summary>
     /// <param name="asset">The asset.</param>
     /// <returns><see langword="true"/> for a known token.</returns>

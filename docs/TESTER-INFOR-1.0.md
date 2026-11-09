@@ -3461,3 +3461,5 @@ Inga riktiga adresser står här; ta dem ur en beställning, litecoinspace.org e
 - [ ] Annan kedja (K): BSC och Litecoin går att välja; en länk från en BSC-linje läses tillbaka efter att ärendet
       öppnats igen.
 - [ ] Guiden: *Litecoin* och *BSC* under *Fler kedjor* stämmer med det som syns.
+- [ ] Bevaka en Ethereum-adress för *Alla*: ETH, WETH, USDT, USDC, DAI och WBTC ger träffar, en annan token gör det
+      inte (nytt sedan omgång 8b). På BSC ger BNB, WBNB, USDT och USDC träffar.

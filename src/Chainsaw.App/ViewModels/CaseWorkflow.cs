@@ -400,6 +400,12 @@ public sealed partial class CaseWorkflow
         _ => "Det känns inte igen som en adress eller en tx.",
     };
 
+    /// <summary>Says why a start point on a chain cannot be traced: not in the graph yet, or not built at all.</summary>
+    /// <param name="startPoint">The start point.</param>
+    /// <returns>The words after the chain's name.</returns>
+    private static string NotTracedWhy(ChainStartPoint startPoint) =>
+        startPoint.CanFetch ? "kan inte spåras i grafen än" : "är inte byggt än";
+
     /// <summary>What is said of an address in Litecoin's shielded part, MWEB.</summary>
     public const string MwebText =
         "Adressen ligger i Litecoins skyddade del (MWEB), där belopp och ägare inte syns: spåret tar slut här.";
@@ -478,10 +484,12 @@ public sealed partial class CaseWorkflow
         }
 
         var chain = CaseTexts.ChainName(startPoint.Chain!.Value);
-        var why = startPoint.CanFetch ? "kan inte spåras i grafen än" : "är inte byggt än";
+        var summary = startPoint.IsShielded
+            ? $"Startpunkt på {chain} noterad: {MwebText} {startPoint.Value}"
+            : $"Startpunkt på {chain} noterad, men {chain} {NotTracedWhy(startPoint)}: {startPoint.Value}";
         created.AppendJournal(new JournalDraft(
             AppJournalKinds.StartPointNoted,
-            $"Startpunkt på {chain} noterad, men {chain} {why}: {startPoint.Value}",
+            summary,
             JsonSerializer.Serialize(new Dictionary<string, string>
             {
                 ["chain"] = startPoint.Chain.Value.ToString(),

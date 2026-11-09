@@ -5089,3 +5089,11 @@ Byggt efter skissen DX1b (användarens val 2026-11-08). Bara visning i App; spå
     prövas; en tx med MWEB-data (flaggan 08, HogEx) sägs inte gå att kontrollera mot bytes i stället för att läsas
     fel; en MWEB-adress (`ltcmweb1…`) är en startpunkt på Litecoin där spåret tar slut; begäran och rapporten skriver
     kedjans namn (`Chain.DisplayName`: TRON, BSC); småsakerna rättade. Kända kontrakt på BSC står i BACKLOG.
+- **Omgranskningen (en ny I, tre M; alla rättade):**
+  - **I:** en bevakning på *Alla* räknar också det inslagna myntet (WETH, WBNB) igen. Kända tokens på Ethereum är nu
+    också DAI (18 decimaler) och WBTC (8), lästa ur kedjeutforskaren Blockscout 2026-11-09, utan *Kan frysas*. En
+    bevakning på *Alla* på Ethereum ger därmed ETH, WETH och de kända tokens (USDT, USDC, DAI, WBTC), inte längre
+    vilken token som helst. Test för WETH och WBNB.
+  - **M:** MWEB-raden i Nytt ärende och journalraden ger MWEB-skälet; `RecogniseMweb` säger att bara formen prövas;
+    flaggan 08 nämner inte Litecoin, eftersom samma läsare används för Bitcoin.
+

@@ -75,10 +75,9 @@ internal static class RawTransactionReader
         var hasWitness = reader.Remaining >= 2 && bytes[reader.Position] == 0 && bytes[reader.Position + 1] == 1;
         if (reader.Remaining >= 2 && bytes[reader.Position] == 0 && (bytes[reader.Position + 1] & MwebFlag) != 0)
         {
-            // Litecoin's extension block (MWEB) adds its own data after the witness, as in each block's HogEx.
+            // A flag beyond the witness's: on Litecoin the extension block's (MWEB) data, as in each block's HogEx.
             throw new EsploraFormatException(
-                "The transaction carries Litecoin's MWEB data (flag 0x08), which Chainsaw does not read; its bytes "
-                + "are not checked.");
+                "The transaction's flag (0x08) says it carries data Chainsaw does not read; its bytes are not checked.");
         }
 
         if (hasWitness)
