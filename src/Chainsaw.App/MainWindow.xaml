@@ -367,9 +367,60 @@
                                     BorderBrush="{StaticResource Brush.BorderStrong}" BorderThickness="1.5">
                                 <StackPanel>
                                     <DockPanel Height="56" Margin="18,0">
-                                        <controls:GridIcon DockPanel.Dock="Left" Size="20" Data="{StaticResource Icon.Search}"
-                                                           Foreground="{StaticResource Brush.TextMuted}" VerticalAlignment="Center"
-                                                           Margin="0,0,12,0" />
+                                        <!--
+                                          The search icon, or while a command works a spinner in its place (a quarter turning
+                                          on a faint ring, as in Nytt ärende), so that Enter is seen to have been taken.
+                                        -->
+                                        <Grid DockPanel.Dock="Left" Width="20" Height="20" VerticalAlignment="Center" Margin="0,0,12,0">
+                                            <controls:GridIcon Size="20" Data="{StaticResource Icon.Search}"
+                                                               Foreground="{StaticResource Brush.TextMuted}">
+                                                <controls:GridIcon.Style>
+                                                    <Style TargetType="controls:GridIcon">
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsRunning}" Value="True">
+                                                                <Setter Property="Visibility" Value="Hidden" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </controls:GridIcon.Style>
+                                            </controls:GridIcon>
+                                            <Grid Visibility="{Binding IsRunning, Converter={StaticResource VisibleWhen}}">
+                                                <Ellipse Width="15" Height="15" StrokeThickness="1.5"
+                                                         Stroke="{StaticResource Brush.SurfaceRaised}" />
+                                                <Path Width="20" Height="20" Stretch="None" StrokeThickness="1.5"
+                                                      Stroke="{StaticResource Brush.TextMuted}" StrokeStartLineCap="Round"
+                                                      StrokeEndLineCap="Round" Data="M10,2.5 A7.5,7.5 0 0 1 17.5,10"
+                                                      RenderTransformOrigin="0.5,0.5">
+                                                    <Path.RenderTransform>
+                                                        <RotateTransform Angle="0" />
+                                                    </Path.RenderTransform>
+                                                    <Path.Style>
+                                                        <Style TargetType="Path">
+                                                            <Style.Triggers>
+                                                                <!-- It turns only when Windows has animations on. -->
+                                                                <MultiDataTrigger>
+                                                                    <MultiDataTrigger.Conditions>
+                                                                        <Condition Binding="{Binding IsRunning}" Value="True" />
+                                                                        <Condition Binding="{Binding Source={x:Static SystemParameters.ClientAreaAnimation}}" Value="True" />
+                                                                    </MultiDataTrigger.Conditions>
+                                                                    <MultiDataTrigger.EnterActions>
+                                                                        <BeginStoryboard x:Name="CommandWorking">
+                                                                            <Storyboard>
+                                                                                <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)"
+                                                                                                 From="0" To="360" Duration="0:0:1" RepeatBehavior="Forever" />
+                                                                            </Storyboard>
+                                                                        </BeginStoryboard>
+                                                                    </MultiDataTrigger.EnterActions>
+                                                                    <MultiDataTrigger.ExitActions>
+                                                                        <StopStoryboard BeginStoryboardName="CommandWorking" />
+                                                                    </MultiDataTrigger.ExitActions>
+                                                                </MultiDataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Path.Style>
+                                                </Path>
+                                            </Grid>
+                                        </Grid>
                                         <TextBlock DockPanel.Dock="Right" Text="Esc" FontSize="12" Foreground="{StaticResource Brush.TextDim}"
                                                    VerticalAlignment="Center" Margin="12,0,0,0" />
                                         <!-- The chain what is written is recognised on (sketch KR1a), for example ₿ Bitcoin. -->
@@ -383,6 +434,7 @@
                                         <TextBox x:Name="CommandBox" Style="{StaticResource TextBox.Command}" FontSize="16"
                                                  Tag="Sök etikett, adress, tx, kluster eller begrepp, eller skriv /kommando"
                                                  Text="{Binding CommandText, UpdateSourceTrigger=PropertyChanged}"
+                                                 IsReadOnly="{Binding IsRunning}"
                                                  AutomationProperties.Name="Kommandorad" PreviewKeyDown="OnCommandKey">
                                             <TextBox.InputBindings>
                                                 <KeyBinding Key="Enter" Command="{Binding SubmitCommand}" />
