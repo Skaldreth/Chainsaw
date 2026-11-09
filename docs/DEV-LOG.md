@@ -5606,3 +5606,9 @@ i KF2b-panelen, och ett godkännande som knyter fortsättningen i samma transakt
   inputs och block som Blockbooks, sidorna slutar vid ett helt block utan att stanna, `shielded-pool` har en fast
   minsta avgiftsmarginal (0,001) och sänker poängen för jämna och upprepade belopp, Zcash får ingen påhittad
   blockvikt, kedjans bricka visas bara där den kan väljas, och *Varför?* och Guiden säger att poolen läggs sist i FIFO.
+- **Efter andra granskningen:** Blockbook ger `totalPages: -1` för en historik filtrerad på höjd när den inte räknat
+  resten; det läses nu som *fler kan följa* när sidan är full. Vem som spenderade en output läses i fönster av höjder
+  uppåt från tx:ens block (äldst först och stilla medan nya tx kommer), som vidgas efter ett fönster som lästes helt
+  och smalnar efter ett som fyllde sidan, upp till kedjans topp och högst åtta per adress. `shielded-pool` håller
+  gränsen 0,4 på matchningen av belopp och tid, så att jämna och upprepade belopp visas lägre i stället för att
+  försvinna. Guiden säger att bevakningen missar t→z under 0,01 ZEC.

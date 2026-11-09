@@ -51,6 +51,9 @@ i Bitcoin, så Chainsaw kontrollerar inte en Zcash-tx mot dess egna byte och mä
   föreslås, eftersom den kan vara en sammanslagning av främlingar.
 - I *Nytt ärende* hämtas saldo, antal tx, aktivitet och blockhöjd i förväg.
 - OFAC:s Zcash-adresser (*ZEC*) känns igen som sanktionerade.
-- En adress kan **bevakas**, och en träff räknas i ZEC.
+- En adress eller ett kluster kan **bevakas**, och en träff räknas i ZEC. Pengar som lämnar adressen in i en skyddad
+  pool (t→z) är en utgående träff. Adressens sida i källan säger inte poolernas belopp, så bevakningen räknar det
+  som går in men inte kommer ut genomskinligt; är det **under 0,01 ZEC** kan det inte skiljas från en avgift och
+  missas. Expandera adressen i grafen för att se poolens exakta belopp.
 - Kurserna kommer från Bitstamps marknad *ZEC/EUR*, som bara har historik från mars 2026 och handlas tunt; saknas en
   kurs sägs det.

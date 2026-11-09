@@ -98,8 +98,9 @@ public sealed class ZcashTests
     {
         using var harness = new SourceHarness();
         AnswerPayment(harness);
-        Answer(harness, History(Payee, 3_000_000), Page(Payee, 1, 1, ShieldingJson(), PaymentJson()));
-        Answer(harness, History(Payer, 3_000_000), Page(Payer, 1, 1, PaymentJson()));
+        AnswerTip(harness, 3_000_100);
+        Answer(harness, Window(Payee, 3_000_000, 1_152), Page(Payee, 1, -1, ShieldingJson(), PaymentJson()));
+        Answer(harness, Window(Payer, 3_000_000, 1_152), Page(Payer, 1, -1, PaymentJson()));
 
         var spends = await harness.Zcash.GetOutputSpendsAsync(harness.Case, Payment);
 
@@ -213,13 +214,14 @@ public sealed class ZcashTests
     }
 
     [Fact]
-    public async Task The_spender_is_found_on_the_oldest_page_of_a_busy_address()
+    public async Task A_window_that_fills_a_page_is_read_narrower_and_the_spender_found_there()
     {
         using var harness = new SourceHarness();
         AnswerPayment(harness);
-        Answer(harness, History(Payee, 3_000_000), Page(Payee, 1, 3, Unrelated("aa", Payee)));
-        Answer(harness, History(Payee, 3_000_000) + "&page=3", Page(Payee, 3, 3, ShieldingJson(), PaymentJson()));
-        Answer(harness, History(Payer, 3_000_000), Page(Payer, 1, 1, PaymentJson()));
+        AnswerTip(harness, 3_001_000);
+        Answer(harness, Window(Payee, 3_000_000, 1_152), Page(Payee, 1, -1, Busy()));
+        Answer(harness, Window(Payee, 3_000_000, 288), Page(Payee, 1, -1, ShieldingJson(), PaymentJson()));
+        Answer(harness, Window(Payer, 3_000_000, 1_152), Page(Payer, 1, -1, PaymentJson()));
 
         var spends = (await harness.Zcash.GetOutputSpendsAsync(harness.Case, Payment)).Value!;
 
@@ -229,19 +231,35 @@ public sealed class ZcashTests
     }
 
     [Fact]
-    public async Task An_output_whose_spender_lies_beyond_the_pages_read_is_unknown_and_the_others_are_kept()
+    public async Task An_unspent_output_is_read_window_by_window_up_to_the_tip()
     {
         using var harness = new SourceHarness();
         AnswerPayment(harness);
-        var pages = BlockbookZcashSource.MostSpendPages + 3;
-        Answer(harness, History(Payee, 3_000_000), Page(Payee, 1, pages, Unrelated("aa", Payee)));
-        for (var number = 2; number <= pages; number++)
+        AnswerTip(harness, 3_010_000);
+        Answer(harness, Window(Payee, 3_000_000, 1_152), Page(Payee, 1, -1, ShieldingJson(), PaymentJson()));
+        Answer(harness, Window(Payer, 3_000_000, 1_152), Page(Payer, 1, -1, PaymentJson()));
+        Answer(harness, Window(Payer, 3_001_152, 4_608), Page(Payer, 1, -1));
+        Answer(harness, Window(Payer, 3_005_760, 18_432), Page(Payer, 1, -1));
+
+        var lookup = await harness.Zcash.GetOutputSpendsAsync(harness.Case, Payment);
+
+        Assert.Null(lookup.Value![1].SpentBy);
+        Assert.False(lookup.Value[1].IsUnknown);
+        Assert.Null(lookup.Problem);
+    }
+
+    [Fact]
+    public async Task An_output_whose_spender_lies_beyond_the_windows_read_is_unknown_and_the_others_are_kept()
+    {
+        using var harness = new SourceHarness();
+        AnswerPayment(harness);
+        AnswerTip(harness, 3_001_000);
+        foreach (var span in new long[] { 1_152, 288, 72, 18, 4, 1 })
         {
-            Answer(harness, History(Payee, 3_000_000) + "&page=" + number, Page(
-                Payee, number, pages, Unrelated(number.ToString("x2", System.Globalization.CultureInfo.InvariantCulture), Payee)));
+            Answer(harness, Window(Payee, 3_000_000, span), Page(Payee, 1, -1, Busy()));
         }
 
-        Answer(harness, History(Payer, 3_000_000), Page(Payer, 1, 1, PaymentJson()));
+        Answer(harness, Window(Payer, 3_000_000, 1_152), Page(Payer, 1, -1, PaymentJson()));
 
         var lookup = await harness.Zcash.GetOutputSpendsAsync(harness.Case, Payment);
 
@@ -249,6 +267,20 @@ public sealed class ZcashTests
         Assert.Null(lookup.Value[0].SpentBy);
         Assert.False(lookup.Value[1].IsUnknown);
         Assert.Contains("kunde inte läsas", lookup.Problem, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void A_filtered_page_without_a_count_has_more_when_it_is_full()
+    {
+        var full = BlockbookParser.ParseAddressPage(Encoding.UTF8.GetBytes(Page(Payee, 1, -1, Busy())), Payee);
+        var part = BlockbookParser.ParseAddressPage(Encoding.UTF8.GetBytes(Page(Payee, 1, -1, PaymentJson())), Payee);
+        var counted = BlockbookParser.ParseAddressPage(Encoding.UTF8.GetBytes(Page(Payee, 1, 2, PaymentJson())), Payee);
+
+        Assert.True(full.More);
+        Assert.False(part.More);
+        Assert.True(counted.More);
+        Assert.Throws<EsploraFormatException>(() => BlockbookParser.ParseAddressPage(
+            Encoding.UTF8.GetBytes(Page(Payee, 1, -2, PaymentJson())), Payee));
     }
 
     [Fact]
@@ -272,12 +304,26 @@ public sealed class ZcashTests
     {
         using var harness = new SourceHarness();
         Answer(harness, $"api/v2/tx/{Payment.Value}", PaymentJson());
-        Answer(harness, $"api/v2/address/{Payee.Value}?details=txs&pageSize=5&to=2999999", Page(Payee, 1, 1));
+        Answer(harness, $"api/v2/address/{Payee.Value}?details=txs&pageSize=5&to=2999999", Page(Payee, 1, -1));
 
         var page = await harness.Zcash.GetAddressTransactionsAsync(harness.Case, Payee, Payment);
 
         Assert.NotNull(page.Value);
         Assert.Empty(page.Value.Transactions);
+        Assert.Null(page.Value.NextAfter);
+    }
+
+    [Fact]
+    public async Task A_full_page_below_a_block_without_a_count_has_a_next_page()
+    {
+        using var harness = new SourceHarness();
+        Answer(harness, $"api/v2/tx/{Payment.Value}", PaymentJson());
+        Answer(harness, $"api/v2/address/{Payee.Value}?details=txs&pageSize=5&to=2999999", Page(Payee, 1, -1, Busy()));
+
+        var page = await harness.Zcash.GetAddressTransactionsAsync(harness.Case, Payee, Payment);
+
+        Assert.Equal(5, page.Value!.Transactions.Count);
+        Assert.NotNull(page.Value.NextAfter);
     }
 
     /// <summary>Answers the shielding's two answers, with Sapling's value balance as given.</summary>
@@ -383,9 +429,16 @@ public sealed class ZcashTests
          "txs":{{transactions.Length}},"transactions":[{{string.Join(",", transactions)}}]}
         """;
 
-    /// <summary>The path of an address's history from a height.</summary>
-    private static string History(BitcoinAddress address, long height) =>
-        $"api/v2/address/{address.Value}?details=txs&pageSize=5&from={height}";
+    /// <summary>The path of an address's history in a window of heights.</summary>
+    private static string Window(BitcoinAddress address, long from, long span) =>
+        $"api/v2/address/{address.Value}?details=txs&pageSize=5&from={from}&to={from + span - 1}";
+
+    /// <summary>Answers the chain's height.</summary>
+    private static void AnswerTip(SourceHarness harness, long height) => Answer(
+        harness, "api/", $$"""{"blockbook":{"coin":"Zcash","bestHeight":{{height}}},"backend":{} }""");
+
+    /// <summary>A full page (five) of transactions that pay the payee and spend nothing of the payment's.</summary>
+    private static string[] Busy() => [.. new[] { "a1", "a2", "a3", "a4", "a5" }.Select(fill => Unrelated(fill, Payee))];
 
     /// <summary>Answers a path of the synthetic Blockbook with a body.</summary>
     private static void Answer(SourceHarness harness, string path, string body) =>

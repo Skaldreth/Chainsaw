@@ -187,9 +187,10 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
   - **Zcashs sidor av en adress** hämtas nedåt med `to=` under den sista tx:ens block, och en sida som har fler efter
     sig slutar vid ett helt block. Ett block med fler tx än en sida (1 000) för samma adress hoppas över till blocket
     under, och nästa sida efter en obekräftad tx börjar om från toppen; båda är sällsynta men inte ärliga än.
-  - **Vem som spenderade en output på Zcash** läses ur adressens historik: första sidan och sedan de äldsta sidorna,
-    högst fem. Hos en mycket upptagen adress kan spenderaren ligga mittemellan; outputen märks då *okänd* för sig, och
-    de andra outputarna läses ändå. Att söka med `from=`/`to=` runt tx:ens block vore nästa steg.
+  - **Vem som spenderade en output på Zcash** läses ur adressens historik i fönster av blockhöjder uppåt från tx:ens
+    block (`from=`/`to=`), högst åtta per adress. Ett fönster som fyller en sida läses om smalare, ner till ett block;
+    hos en adress med fler tx i ett block än en sida rymmer, eller där fönstren tar slut före toppen, märks outputen
+    *okänd* för sig. Ett större `pageSize` för de fönstren vore steget dit.
   - **Bevakningen av pengar in i en Zcash-pool** ser t→z på adressens sida som det inputs betalar utöver outputs när
     det är mer än 0,01 ZEC; en t→z under det räknas som avgift och syns inte som en träff.
   - **Zcash på en adress sida** (det som hölls tillbaka, EX1) har inte poolernas del: där är avgiften det

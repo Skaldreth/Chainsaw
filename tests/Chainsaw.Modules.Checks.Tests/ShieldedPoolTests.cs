@@ -106,7 +106,9 @@ public sealed class ShieldedPoolTests
         var finding = Assert.Single(_check.Run(Input(deposit, distinct, roundA, roundB)));
 
         Assert.Equal(distinct.Txid, finding.Candidates[0].Txid);
+        Assert.Equal(3, finding.Candidates.Count);
         Assert.True(finding.Candidates.Skip(1).All(candidate => candidate.Score < finding.Candidates[0].Score));
+        Assert.True(finding.Candidates.Skip(1).All(candidate => candidate.Score < ShieldedPoolCheck.LowestScore));
         Assert.Contains("jämnt belopp", finding.Why, StringComparison.Ordinal);
     }
 

@@ -180,12 +180,16 @@ internal static class BlockbookParser
         }
     }
 
-    /// <summary>Reads an address's page of transactions, as from <c>/api/v2/address/:address?details=txs</c>.</summary>
+    /// <summary>
+    /// Reads a page of an address's transactions, as from <c>/api/v2/address/:address?details=txs</c>, and whether
+    /// more follow. Blockbook gives <c>totalPages</c> as -1 when the history is filtered by height (<c>from</c>,
+    /// <c>to</c>) and it did not count the rest: then a full page means that more may follow.
+    /// </summary>
     /// <param name="body">The response's bytes.</param>
     /// <param name="address">The address asked for.</param>
-    /// <returns>The transactions, newest first, the page's number and how many pages there are.</returns>
-    /// <exception cref="EsploraFormatException">The response cannot be read or is another address's.</exception>
-    public static (List<BitcoinTransaction> Transactions, int Page, int Pages) ParseAddressPage(
+    /// <returns>The page's transactions, newest first, and whether more follow.</returns>
+    /// <exception cref="EsploraFormatException">The response cannot be read, does not add up or is another's.</exception>
+    public static (List<BitcoinTransaction> Transactions, bool More) ParseAddressPage(
         ReadOnlySpan<byte> body, BitcoinAddress address)
     {
         using var document = Open(body);
@@ -205,13 +209,19 @@ internal static class BlockbookParser
 
         var page = Integer(root, "page");
         var pages = Integer(root, "totalPages");
-        if (page < 1 || pages < 0 || page > Math.Max(pages, 1) || pages > int.MaxValue)
+        if (page < 1 || pages < UncountedPages || (pages != UncountedPages && page > Math.Max(pages, 1)))
         {
             throw new EsploraFormatException("The page's number is not within its pages.");
         }
 
-        return (transactions, (int)page, (int)pages);
+        var more = pages == UncountedPages
+            ? transactions.Count >= Positive(root, "itemsOnPage")
+            : page < pages;
+        return (transactions, more);
     }
+
+    /// <summary>What Blockbook gives as the number of pages when it did not count them (a history filtered by height).</summary>
+    public const long UncountedPages = -1;
 
     /// <summary>Reads an address's summary, as from <c>/api/v2/address/:address?details=basic</c>.</summary>
     /// <param name="body">The response's bytes.</param>

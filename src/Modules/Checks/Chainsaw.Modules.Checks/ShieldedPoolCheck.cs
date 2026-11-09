@@ -42,7 +42,10 @@ internal sealed class ShieldedPoolCheck : ICheckAnalysis
     /// </summary>
     public const double RoundFactor = 0.7;
 
-    /// <summary>The lowest score a candidate is kept at.</summary>
+    /// <summary>
+    /// The lowest match of amount and time a candidate is kept at; its score may be shown lower, for a round or
+    /// repeated amount (<see cref="Distinctness"/>).
+    /// </summary>
     public const double LowestScore = 0.4;
 
     /// <summary>The most candidates kept per deposit, the best first.</summary>
@@ -246,14 +249,15 @@ internal sealed class ShieldedPoolCheck : ICheckAnalysis
             return null;
         }
 
-        var score = Math.Round(
-            ((AmountWeight * amountScore) + (TimeWeight * timeScore)) * Distinctness(way.Amount.Value, same),
-            2,
-            MidpointRounding.AwayFromZero);
-        if (score < LowestScore)
+        // The threshold is the match's own (amount and time): a round or repeated amount ranks lower, but is never
+        // dropped for it, since the user should still see every way out that matches.
+        var match = (AmountWeight * amountScore) + (TimeWeight * timeScore);
+        if (match < LowestScore)
         {
             return null;
         }
+
+        var score = Math.Round(match * Distinctness(way.Amount.Value, same), 2, MidpointRounding.AwayFromZero);
 
         var coin = deposit.Transaction.Txid.Chain.NativeAsset().Symbol;
         var reason = string.Create(

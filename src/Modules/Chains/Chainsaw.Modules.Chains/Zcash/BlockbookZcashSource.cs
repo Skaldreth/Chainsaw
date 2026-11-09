@@ -108,8 +108,8 @@ internal sealed class BlockbookZcashSource : IZcashSource
             $"api/v2/address/{Uri.EscapeDataString(address.Value)}?details=txs&pageSize={_options.PageSize}{to}",
             body =>
             {
-                var (transactions, page, pages) = BlockbookParser.ParseAddressPage(body, address);
-                return EndAtWholeBlock(address, after, transactions, page < pages);
+                var (transactions, more) = BlockbookParser.ParseAddressPage(body, address);
+                return EndAtWholeBlock(address, after, transactions, more);
             },
             page => IndexOf(page.Transactions),
             _ => null);
@@ -223,11 +223,13 @@ internal sealed class BlockbookZcashSource : IZcashSource
 
     /// <inheritdoc/>
     /// <remarks>
-    /// Who spends an output is read from its address's history from the transaction's block, newest first: the first
-    /// page says how many there are, and the oldest pages, where a spend soon after lies, are read next, up to
-    /// <see cref="MostSpendPages"/> pages per address. An output whose spender is not found while pages are left is
-    /// said to be unknown (<see cref="BitcoinOutputSpend.IsUnknown"/>), never unspent, and the others keep their
-    /// answers.
+    /// Who spends an output is read from its address's history in windows of heights from the transaction's block
+    /// upwards (<c>from</c> and <c>to</c>), oldest first: a window in the past holds still while new transactions come,
+    /// unlike Blockbook's pages, which count from the newest. A window that fills a page is read again narrower, and a
+    /// window that was read whole is followed by a wider one, until every output is found, the chain's tip is passed
+    /// or <see cref="MostSpendWindows"/> windows are read per address. An output whose spender could lie beyond what
+    /// was read is said to be unknown (<see cref="BitcoinOutputSpend.IsUnknown"/>), never unspent, and the others keep
+    /// their answers.
     /// </remarks>
     public async Task<BitcoinLookup<IReadOnlyList<BitcoinOutputSpend>>> GetOutputSpendsAsync(
         ICase @case, Txid txid, LookupMode mode = LookupMode.AsNeeded, CancellationToken cancellationToken = default)
@@ -242,8 +244,21 @@ internal sealed class BlockbookZcashSource : IZcashSource
                 lookup.Status, null, lookup.Origins, lookup.Problem);
         }
 
-        var spends = transaction.Outputs.Select(output => new BitcoinOutputSpend(output.Index, null)).ToArray();
         var reading = new SpendReading();
+        if (transaction.Block is not null)
+        {
+            var tip = await GetTipHeightAsync(@case, asked, cancellationToken).ConfigureAwait(false);
+            reading.Origins.AddRange(tip.Origins);
+            if (tip.Value is not { } height)
+            {
+                return new BitcoinLookup<IReadOnlyList<BitcoinOutputSpend>>(
+                    tip.Status, null, SourceLookups.Ordered(reading.Origins), tip.Problem);
+            }
+
+            reading.Tip = height.Height;
+        }
+
+        var spends = transaction.Outputs.Select(output => new BitcoinOutputSpend(output.Index, null)).ToArray();
         foreach (var address in transaction.Outputs.Select(output => output.Address).OfType<BitcoinAddress>()
             .Distinct())
         {
@@ -257,21 +272,28 @@ internal sealed class BlockbookZcashSource : IZcashSource
 
         var unknown = spends.Count(spend => spend.IsUnknown);
         var problem = unknown == 0 ? reading.Problem : Join(reading.Problem, string.Format(
-            CultureInfo.InvariantCulture, UnknownSpendsFormat, unknown, MostSpendPages));
+            CultureInfo.InvariantCulture, UnknownSpendsFormat, unknown, MostSpendWindows));
         return new BitcoinLookup<IReadOnlyList<BitcoinOutputSpend>>(
             reading.Status, spends, SourceLookups.Ordered(reading.Origins), problem);
     }
 
-    /// <summary>How many pages of an address's history are read at most to find who spent its outputs.</summary>
-    public const int MostSpendPages = 5;
+    /// <summary>How many windows of an address's history are read at most to find who spent its outputs.</summary>
+    public const int MostSpendWindows = 8;
 
-    /// <summary>What is said of outputs whose spender could not be found in the pages read.</summary>
+    /// <summary>The first window's height span: about a day of Zcash's blocks (75 seconds apart).</summary>
+    public const long FirstSpendWindow = 1_152;
+
+    /// <summary>How much wider a window gets after one read whole, and narrower after one that filled a page.</summary>
+    public const long SpendWindowStep = 4;
+
+    /// <summary>What is said of outputs whose spender could not be found in the windows read.</summary>
     public const string UnknownSpendsFormat =
-        "Vem som spenderade {0} utgång(ar) kunde inte läsas: adressen har fler tx än de {1} sidor som lästes.";
+        "Vem som spenderade {0} utgång(ar) kunde inte läsas: "
+        + "adressen har för många tx för de {1} uppslag som görs per adress.";
 
     /// <summary>
-    /// Reads who spends a transaction's outputs to one address: the first page of its history from the block, then the
-    /// oldest pages until every output is found or <see cref="MostSpendPages"/> are read.
+    /// Reads who spends a transaction's outputs to one address, window by window of heights from the transaction's
+    /// block; an unconfirmed transaction's in the newest page of the address's history.
     /// </summary>
     /// <param name="case">The open case.</param>
     /// <param name="transaction">The transaction.</param>
@@ -280,18 +302,17 @@ internal sealed class BlockbookZcashSource : IZcashSource
     /// <param name="spends">The spends by output, filled in for the address's outputs.</param>
     /// <param name="reading">What the readings gave so far.</param>
     /// <param name="cancellationToken">Stops the lookups.</param>
-    /// <returns><see langword="false"/> when a page could not be read at all.</returns>
+    /// <returns><see langword="false"/> when a window could not be read at all.</returns>
     private async Task<bool> ReadSpendsAsync(
         ICase @case, BitcoinTransaction transaction, BitcoinAddress address, LookupMode mode,
         BitcoinOutputSpend[] spends, SpendReading reading, CancellationToken cancellationToken)
     {
         var outputs = transaction.Outputs.Where(output => output.Address == address).Select(o => o.Index).ToList();
-        var pages = 1;
-        var read = new List<int>();
-        for (var number = 1; ; number = NextPage(pages, read))
+        var window = transaction.Block is { } block ? new SpendWindow(block.Height, FirstSpendWindow) : null;
+        for (var read = 1; ; read++)
         {
             var history = await _lookups.LookupAsync(
-                    @case, SpendsQuery(transaction, address, outputs, number), mode, cancellationToken)
+                    @case, SpendsQuery(transaction, address, outputs, window), mode, cancellationToken)
                 .ConfigureAwait(false);
             reading.Origins.AddRange(history.Origins);
             if (history.Value is not { } page)
@@ -302,35 +323,59 @@ internal sealed class BlockbookZcashSource : IZcashSource
 
             reading.Status = Worse(reading.Status, history.Status);
             reading.Problem = Join(reading.Problem, history.Problem);
-            pages = page.Pages;
-            read.Add(number);
             foreach (var index in outputs.Where(index => spends[index].SpentBy is null))
             {
                 spends[index] = new BitcoinOutputSpend(index, SpenderOf(transaction.Txid, index, page.Transactions));
             }
 
             var missing = outputs.Where(index => spends[index].SpentBy is null).ToList();
-            var left = pages > read.Count;
-            if (missing.Count == 0 || !left || read.Count == MostSpendPages)
+            var next = window?.After(page.More);
+            var pastTip = next is not null && next.From > reading.Tip;
+            if (missing.Count == 0 || pastTip || (window is null && !page.More))
             {
-                foreach (var index in missing.Where(_ => left))
+                return true;
+            }
+
+            if (next is null || read == MostSpendWindows)
+            {
+                foreach (var index in missing)
                 {
                     spends[index] = spends[index] with { IsUnknown = true };
                 }
 
                 return true;
             }
+
+            window = next;
         }
     }
 
-    /// <summary>Gives the next page to read: the oldest not read yet, since a spend soon after lies there.</summary>
-    /// <param name="pages">How many pages there are.</param>
-    /// <param name="read">The pages read.</param>
-    /// <returns>The page's number.</returns>
-    private static int NextPage(int pages, List<int> read) =>
-        Enumerable.Range(1, pages).Reverse().First(number => !read.Contains(number));
+    /// <summary>A window of heights of an address's history, from a height and as many blocks up.</summary>
+    /// <param name="From">The lowest height.</param>
+    /// <param name="Span">How many blocks it spans, at least 1.</param>
+    internal sealed record SpendWindow(long From, long Span)
+    {
+        /// <summary>Gets the highest height.</summary>
+        public long To => From + Span - 1;
 
-    /// <summary>What the readings of an address's history gave, across the pages and addresses read.</summary>
+        /// <summary>
+        /// Gives the window to read next: after a window read whole, the wider one above it; after one that filled a
+        /// page, a narrower one from the same height; none when a window of one block fills a page.
+        /// </summary>
+        /// <param name="full">Whether the window filled a page.</param>
+        /// <returns>The next window, or <see langword="null"/>.</returns>
+        public SpendWindow? After(bool full)
+        {
+            if (!full)
+            {
+                return new SpendWindow(To + 1, Span * SpendWindowStep);
+            }
+
+            return Span == 1 ? null : this with { Span = Math.Max(1, Span / SpendWindowStep) };
+        }
+    }
+
+    /// <summary>What the readings of an address's history gave, across the windows and addresses read.</summary>
     private sealed class SpendReading
     {
         /// <summary>Gets the sealed responses read.</summary>
@@ -342,14 +387,17 @@ internal sealed class BlockbookZcashSource : IZcashSource
         /// <summary>Gets or sets what the readings said.</summary>
         public string? Problem { get; set; }
 
+        /// <summary>Gets or sets the chain's height, above which no window is read.</summary>
+        public long Tip { get; set; } = long.MaxValue;
+
         /// <summary>Gets or sets the reading that failed, or <see langword="null"/>.</summary>
         public BitcoinLookup<HistoryPage>? Failure { get; set; }
     }
 
-    /// <summary>One page of an address's history from a block.</summary>
+    /// <summary>One page of an address's history in a window of heights.</summary>
     /// <param name="Transactions">The page's transactions.</param>
-    /// <param name="Pages">How many pages there are.</param>
-    private sealed record HistoryPage(IReadOnlyList<BitcoinTransaction> Transactions, int Pages);
+    /// <param name="More">Whether the window holds more than the page.</param>
+    private sealed record HistoryPage(IReadOnlyList<BitcoinTransaction> Transactions, bool More);
 
     /// <inheritdoc/>
     public Task<BitcoinLookup<BitcoinBlock>> GetBlockAsync(
@@ -439,33 +487,35 @@ internal sealed class BlockbookZcashSource : IZcashSource
         transaction => transaction.Block?.Height);
 
     /// <summary>
-    /// The lookup of a page of an output's address's history from the transaction's block, which holds once every output
-    /// of the transaction to the address is spent deep in the chain on that page.
+    /// The lookup of the newest page of an output's address's history in a window of heights, which holds once the
+    /// window's top is deep in the chain; without a window (an unconfirmed transaction) the newest page of all, which
+    /// holds once every output to the address is spent deep in the chain on it.
     /// </summary>
     /// <param name="transaction">The transaction whose outputs are asked about.</param>
     /// <param name="address">The address.</param>
     /// <param name="outputs">The transaction's outputs to the address.</param>
-    /// <param name="number">The page's number, from 1.</param>
+    /// <param name="window">The window, or <see langword="null"/>.</param>
     /// <returns>The query.</returns>
     private LookupQuery<HistoryPage> SpendsQuery(
-        BitcoinTransaction transaction, BitcoinAddress address, IReadOnlyList<int> outputs, int number)
+        BitcoinTransaction transaction, BitcoinAddress address, IReadOnlyList<int> outputs, SpendWindow? window)
     {
-        var from = transaction.Block is { } block
-            ? "&from=" + block.Height.ToString(CultureInfo.InvariantCulture)
-            : string.Empty;
-        var page = number.ToString(CultureInfo.InvariantCulture);
+        var heights = window is null
+            ? string.Empty
+            : string.Create(CultureInfo.InvariantCulture, $"&from={window.From}&to={window.To}");
+        var subject = window is null
+            ? $"{address.Value}/{transaction.Txid.Value}"
+            : string.Create(CultureInfo.InvariantCulture, $"{address.Value}/{transaction.Txid.Value}/{window.From}-{window.To}");
         return new LookupQuery<HistoryPage>(
             AddressSpendsKind,
-            number == 1 ? $"{address.Value}/{transaction.Txid.Value}" : $"{address.Value}/{transaction.Txid.Value}/{page}",
-            $"api/v2/address/{Uri.EscapeDataString(address.Value)}?details=txs&pageSize={_options.PageSize}{from}"
-                + (number == 1 ? string.Empty : "&page=" + page),
+            subject,
+            $"api/v2/address/{Uri.EscapeDataString(address.Value)}?details=txs&pageSize={_options.PageSize}{heights}",
             body =>
             {
-                var (transactions, _, pages) = BlockbookParser.ParseAddressPage(body, address);
-                return new HistoryPage(transactions, pages);
+                var (transactions, more) = BlockbookParser.ParseAddressPage(body, address);
+                return new HistoryPage(transactions, more);
             },
             history => IndexOf(history.Transactions),
-            history => SettledAt(transaction.Txid, outputs, history.Transactions));
+            history => window?.To ?? SettledAt(transaction.Txid, outputs, history.Transactions));
     }
 
     /// <summary>Finds the transaction among some that spends an output.</summary>
