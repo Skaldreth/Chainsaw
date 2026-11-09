@@ -159,6 +159,40 @@ public sealed class TestDataPriceRouter(IPriceService real, Lazy<IPriceService> 
 }
 
 /// <summary>
+/// The made-up price service of the test cases, made the first time a test case asks, shared by the router of lookups
+/// (<see cref="TestDataPriceRouter"/>) and the router of stored rates (<see cref="TestDataCaseRatesRouter"/>), so
+/// that both read the same made-up sources.
+/// </summary>
+/// <param name="Service">The made-up service.</param>
+public sealed record TestDataRates(Lazy<IPriceService> Service);
+
+/// <summary>
+/// The reader of stored rates Chainsaw uses in a Debug build: the made-up rates a test case has sealed, under the
+/// made-up sources' names, for a test case, and the real ones for every other case, so that the checks of a test case
+/// read the rates its graph sealed. Neither sends anything.
+/// </summary>
+/// <param name="real">The real reader.</param>
+/// <param name="testData">
+/// The made-up service, which is Pricing's own and so also reads stored rates (<see cref="ICaseRates"/>).
+/// </param>
+public sealed class TestDataCaseRatesRouter(ICaseRates real, Lazy<IPriceService> testData) : ICaseRates
+{
+    /// <inheritdoc/>
+    public IReadOnlyList<PriceLookup<Price>> ReadStored(ICase @case, IReadOnlyList<PriceRequest> requests)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        if (!TestCases.IsTestCase(@case))
+        {
+            return real.ReadStored(@case, requests);
+        }
+
+        return testData.Value is ICaseRates madeUp
+            ? madeUp.ReadStored(@case, requests)
+            : throw new InvalidOperationException("The made-up price service does not read stored rates.");
+    }
+}
+
+/// <summary>
 /// Gives the sanction lists a made-up hit while <c>/testdata</c> builds the test case: the story's sanctioned actor is
 /// on a made-up list, under the list's own made-up name, so that the test case has a sanction hit (sketch ET1a) without
 /// a real list being imported or replaced, and the OTC desk is an uncertain entry on a made-up list in the EU's form, a

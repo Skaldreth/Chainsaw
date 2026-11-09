@@ -26,6 +26,10 @@ och frågan tas bort härifrån.
    - **Växeln** slås ihop automatiskt när minst tre tecken talar för den och inget emot, i en tx med två outputs.
    - **En peel chain** kräver tre kända hopp, och att det som går vidare är minst fyra gånger det som skalas av.
    - **Ett jämnt belopp** är en multipel av 0,001 BTC.
+   - **Ett jämnt belopp i fiat** (`round-fiat v1`, en kontroll som aldrig slår ihop) ligger högst en halv procent från
+     ett jämnt tal i SEK, EUR eller USD (en siffra gånger en tiopotens, eller 1,5 och 2,5) med Bitstamps kurs för
+     timmen vid blocket. Börsens kurs vid köpet kan skilja några procent, och ungefär var sjätte tx med två slumpade
+     belopp får fyndet ändå. Är en halv procent rätt, och vilka belopp brukar offren betala?
    - **En möjlig CoinJoin** (två lika stora outputs, eller lika jämna belopp utan känt mönster) gör allt i tx:en till
      förslag i stället för sammanslagningar.
 

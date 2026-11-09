@@ -42,8 +42,8 @@ public sealed class GuideLibrary
         ("Bevakning", ["bevakning"]),
         ("Förvirring",
             ["kontroller-och-forslag", "mixerns-kandidater", "mixer-efter-mixer", "omraden", "uppdelning",
-                "fordrojning-och-hopp", "damm-och-forgiftning", "tidsmonster", "monster", "bryggor-och-swappar",
-                "nastlade-tjanster", "privacy-coins", "skyddade-pooler", "usdt-pa-tron"]),
+                "fordrojning-och-hopp", "damm-och-forgiftning", "tidsmonster", "jamna-belopp", "monster",
+                "bryggor-och-swappar", "nastlade-tjanster", "privacy-coins", "skyddade-pooler", "usdt-pa-tron"]),
         ("Ordlista", ["ordlista"]),
     ];
 

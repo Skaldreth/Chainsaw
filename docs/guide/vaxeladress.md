@@ -38,5 +38,8 @@ Fingeravtrycket är ett **svagt** tecken: de flesta plånböcker har samma, och 
 Det räknas bara när ärendet känner till tx:erna som spenderar **alla** outputs, och det räknas **aldrig** för att slå
 ihop automatiskt: det kan bara avgöra när tecknen annars står lika, eller stärka ett förslag.
 
+Ett belopp som är **jämnt i kronor, euro eller dollar** vid tx:ens tid är ytterligare ett svagt tecken. Det vägs inte
+här utan i en egen kontroll, [Jämna belopp i fiat](jamna-belopp.md), som säger om den pekar ut samma växel.
+
 *Ny adress* betyder *inte sedd tidigare i ärendet*: Chainsaw vet bara om de tx som har hämtats, och slutsatsen säger i
 vilken tx den andra adressen sågs.

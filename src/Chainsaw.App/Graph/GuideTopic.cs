@@ -125,6 +125,12 @@ public enum GuideTopic
     /// <em>Nästlade tjänster</em>: a service with an account at a larger exchange, suggested by <c>nested-service v1</c>.
     /// </summary>
     NestedServices,
+
+    /// <summary>
+    /// <em>Jämna belopp i fiat</em>: an output that is a round amount in kronor, euro or dollars at the block's time,
+    /// as a sign of the payment and the change (<c>round-fiat v1</c>).
+    /// </summary>
+    RoundFiat,
 }
 
 /// <summary>Reads <see cref="GuideTopic"/>.</summary>
@@ -179,6 +185,7 @@ public static class GuideTopics
         GuideTopic.ShieldedPool => "skyddade-pooler",
         GuideTopic.CrossChain => "annan-kedja",
         GuideTopic.NestedServices => "nastlade-tjanster",
+        GuideTopic.RoundFiat => "jamna-belopp",
         _ => "utxo-modellen",
     };
 
@@ -222,6 +229,7 @@ public static class GuideTopics
         GuideTopic.ShieldedPool => "Ut ur en skyddad pool",
         GuideTopic.CrossChain => "Fortsättningen på en annan kedja",
         GuideTopic.NestedServices => "Nästlade tjänster",
+        GuideTopic.RoundFiat => "Jämna belopp i fiat",
         _ => "UTXO-modellen",
     };
 

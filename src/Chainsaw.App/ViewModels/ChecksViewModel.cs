@@ -990,6 +990,7 @@ public sealed partial class ChecksViewModel : ObservableObject
         "dust" => GuideTopic.Dust,
         "payjoin-hint" => GuideTopic.PayJoin,
         "active-hours" => GuideTopic.TimePattern,
+        "round-fiat" => GuideTopic.RoundFiat,
         "pattern" => GuideTopic.Patterns,
         CheckAnalysisNames.CrossChain => GuideTopic.CrossChain,
         _ => GuideTopic.Areas,

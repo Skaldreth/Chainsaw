@@ -376,10 +376,10 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
   ger ett förslag i stället för en sammanslagning (sonden i granskningen). Sällsynt och bara falskt negativt; lägg
   fallet som test och nämn det i `docs/guide/payjoin.md`. Ett eget test för ett ärende som vägts med v2 och sedan
   drar tillbaka v2 saknas också (M2).
-- **Fler tecken för växeln** (fingeravtrycket är byggt i `change-address v2`): jämna belopp i SEK eller USD vid tx:ens
-  tid (kräver kurser i klustringen, som i dag inte läser Pricing), ordningen på outputs som en del av fingeravtrycket,
-  och adressens hela historik från källan i stället för bara det ärendet känner till (*ny adress* är nu *inte sedd i
-  ärendet*).
+- **Fler tecken för växeln** (fingeravtrycket är byggt i `change-address v2`; jämna belopp i fiat är en egen kontroll,
+  `round-fiat v1`, som säger om den stöder växeln men aldrig slår ihop): ordningen på outputs som en del av
+  fingeravtrycket, och adressens hela historik från källan i stället för bara det ärendet känner till (*ny adress* är
+  nu *inte sedd i ärendet*).
 - **Fler mönster för CoinJoin** (Wasabi 2:s standardbelopp och Ashigarus pooler är byggda i `coinjoin v2`):
   JoinMarkets avgifter och fidelity bonds (tidslåsta P2WSH-utgångar), och Whirlpools tx0 (förberedelsen före en mix).
 - **Klustringens underlag ur ärendet** (granskningen etapp 6): `IClusteringService.Analyse` tar de tx som anroparen
@@ -418,7 +418,8 @@ tidsmönster (`active-hours`) och tjänster ur beteende (`service-behaviour`). B
 mixer ur beteende (`mixer-behaviour v1`), mixer efter mixer genom en trolig mixer, med delar tillsammans och grenar
 (`mixer-chain v2`), uppdelning över flera tx och möten efter många mellanled (`split-merge v2`), hopp med avgift till
 en tjänst (`pass-through v2`), tidsmönster i svensk tid för mottagare och avsändare med korrektion
-(`active-hours v2`) och nästlade tjänster (`nested-service v1`). Kvar av katalogen:
+(`active-hours v2`) och nästlade tjänster (`nested-service v1`). Byggt 2026-11-09: jämna belopp i fiat
+(`round-fiat v1`, med kurserna ur ärendet genom `ICaseRates`). Kvar av katalogen:
 - **Centrala mixers:** kända adresser och mönster per mixer, och kända avgifter per mixer så att troliga utgångar kan
   räknas ur belopp minus mixerns egen avgift. Kräver en källa för avgifterna (inga påhittade siffror); fråga 8 till
   kryptospåraren.
@@ -428,13 +429,6 @@ en tjänst (`pass-through v2`), tidsmönster i svensk tid för mottagare och avs
   byggda (omgång 8c, `shielded-pool v1`).
 - **Privacy coins och skyddade pooler** (Monero, Zcash, Litecoin MWEB): slut på spåret; förslag på uttag ur poolen ur
   belopp och tid.
-- **Jämna belopp i fiat:** ett belopp som är jämnt i SEK, EUR eller USD vid tx:ens tid som stöd för växeln och för vem
-  som står bakom. Inte byggt i omgång 5: kontrollerna körs synkront vid varje läsning av grafen, och kurserna ur
-  ärendet nås bara genom `IPriceService.GetPriceAsync`, en tidpunkt i taget. Att fråga per tx i varje körning (som
-  `cross-chain` gör för sina få betalningar, synkront över asynkront) är varken rent eller snabbt. Det rena sättet är
-  ett synkront kontrakt i `Pricing.Contracts` som läser de kurser ärendet redan har för många tidpunkter i en fråga,
-  och som `CheckService` lägger i `CheckInput`. Dessutom skiljer börsens kurs vid köpet sig från Bitstamps vid blocket
-  med upp till några procent, så toleransen gör ett "jämnt" belopp till ett svagt tecken; fråga kryptospåraren.
 - **Uppdelning, kvar:** *Följa summan* är en mening i *Varför?*, inget förslag med en knapp.
 - **Tjänst ur beteende, kvar** (granskningen omgång 4, M): en bedragare med tio eller fler offer som inte är märkta
   (varken startpunkt eller etikett) och betalningar över mer än ett dygn ser fortfarande ut som en tjänst. Fler

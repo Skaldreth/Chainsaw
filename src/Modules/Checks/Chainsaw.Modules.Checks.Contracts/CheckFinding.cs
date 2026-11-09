@@ -52,7 +52,24 @@ public sealed record CheckFinding(
     /// or a swap, on any chain, with its block; <see langword="null"/> otherwise.
     /// </summary>
     public ChainMovement? Departure { get; init; }
+
+    /// <summary>
+    /// Gets the rates the finding rests on (for example <c>round-fiat</c>), each with its source and the SHA-256 of the
+    /// sealed response it was read from, so that the valuation can be checked (principle 1); empty for a finding that
+    /// rests on no rate.
+    /// </summary>
+    public IReadOnlyList<CheckRate> Rates { get; init; } = [];
 }
+
+/// <summary>
+/// A rate a finding rests on: one sealed response of a rate source in the case (the module Pricing), and what was read
+/// from it, in Swedish.
+/// </summary>
+/// <param name="Source">The source's stable name, for example <c>bitstamp</c> or <c>riksbank</c>.</param>
+/// <param name="Sequence">The response's number in the case's sealed table of rate responses.</param>
+/// <param name="Sha256">The SHA-256 of the raw response, as lower-case hex.</param>
+/// <param name="Reading">What was read from it, for example the step <c>1 BTC = 61 234 EUR: Bitstamp, …</c>.</param>
+public sealed record CheckRate(string Source, long Sequence, string Sha256, string Reading);
 
 /// <summary>A transaction a finding rests on, with its block, so that it can be checked against the chain.</summary>
 /// <param name="Txid">The transaction.</param>

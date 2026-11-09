@@ -14,9 +14,11 @@ namespace Chainsaw.Modules.Pricing;
 /// The price of a chain's currency at a time: the crypto rate from an <see cref="ICryptoRateSource"/> and, when
 /// counting in kronor, the Riksbank's rate from an <see cref="IFiatRateSource"/>. Every request goes only through
 /// <see cref="IExitHttp"/>; every response is sealed in the case before it is used, and a rate for a period that has
-/// ended is never fetched again. Without an exit the case answers, or the answer says <i>Offline</i>.
+/// ended is never fetched again. Without an exit the case answers, or the answer says <i>Offline</i>. It also reads
+/// the prices the case already holds for many times at once, synchronously and without sending
+/// (<see cref="ICaseRates"/>).
 /// </summary>
-internal sealed class PriceService : IPriceService
+internal sealed class PriceService : IPriceService, ICaseRates
 {
     /// <summary>
     /// How many days before the day asked the fiat request starts, to find a rate over weekends and holidays.
@@ -189,6 +191,130 @@ internal sealed class PriceService : IPriceService
     {
         ArgumentNullException.ThrowIfNull(@case);
         return @case.Read(RateResponseStore.Summarize);
+    }
+
+    /// <inheritdoc/>
+    public IReadOnlyList<PriceLookup<Price>> ReadStored(ICase @case, IReadOnlyList<PriceRequest> requests)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(requests);
+        if (requests.Any(request => request is null))
+        {
+            throw new ArgumentNullException(nameof(requests), "A request is null.");
+        }
+
+        if (requests.Count == 0)
+        {
+            return [];
+        }
+
+        var chosen = _defaults.Both;
+        return @case.Read(reader =>
+        {
+            var memo = new StoredMemo(reader);
+            return requests.Select(request => StoredPrice(memo, request, chosen)).ToList();
+        });
+    }
+
+    /// <summary>
+    /// Gives the price the case holds for one request, without sending anything: the same rates
+    /// <see cref="GetPriceAsync"/> takes from the case.
+    /// </summary>
+    /// <param name="memo">The open read, with what it has read so far.</param>
+    /// <param name="request">The request.</param>
+    /// <param name="chosen">The currency and resolution chosen in the settings, for a request that names none.</param>
+    /// <returns>The price, or why the case has none.</returns>
+    private PriceLookup<Price> StoredPrice(
+        StoredMemo memo, PriceRequest request, (FiatCurrency Currency, PriceResolution Resolution) chosen)
+    {
+        var currency = request.Currency ?? chosen.Currency;
+        var resolution = request.Resolution ?? chosen.Resolution;
+        if (Refusal(request, currency, resolution, out var quote) is { } refusal)
+        {
+            return new PriceLookup<Price>(PriceLookupStatus.Unsupported, null, [], refusal);
+        }
+
+        var query = new CandleQuery(AssetOf(request), quote, resolution, resolution.PeriodStart(request.At));
+        if (memo.Crypto(query, StoredCryptoRate) is not { } kept)
+        {
+            return Missing<Price>(PriceLookupStatus.NotInCase, NotInCaseProblem);
+        }
+
+        if (kept.Rate is not { } cryptoRate)
+        {
+            return new PriceLookup<Price>(
+                PriceLookupStatus.NotAvailable, null, [kept.Origin], NoCryptoHistory(query));
+        }
+
+        if (currency == quote)
+        {
+            return new PriceLookup<Price>(
+                PriceLookupStatus.FromCase, new Price(request.At, currency, cryptoRate, null), [kept.Origin], null);
+        }
+
+        var day = DayOf(request.At);
+        var series = _fiat.Series(quote);
+        if (memo.Fiat(series, day, () => StoredFiatRate(memo.Reader, quote, series, day)) is not { } fiatRate)
+        {
+            return new PriceLookup<Price>(PriceLookupStatus.NotInCase, null, [kept.Origin], NotInCaseProblem);
+        }
+
+        return new PriceLookup<Price>(
+            PriceLookupStatus.FromCase,
+            new Price(request.At, currency, cryptoRate, fiatRate),
+            [kept.Origin, fiatRate.Origin],
+            null);
+    }
+
+    /// <summary>What a reading of the case only says about a rate the case does not have.</summary>
+    private const string NotInCaseProblem = "Kursen finns inte i ärendet. Läst bara ur ärendet; inget skickades.";
+
+    /// <summary>
+    /// One open read of the case for many requests, remembering each period and day it has read, so that many
+    /// transactions in the same hour read the case once.
+    /// </summary>
+    /// <param name="reader">The case's reader.</param>
+    private sealed class StoredMemo(ICaseReader reader)
+    {
+        /// <summary>The crypto answers read, by the period's subject.</summary>
+        private readonly Dictionary<string, Kept<CryptoRate>?> _crypto = new(StringComparer.Ordinal);
+
+        /// <summary>The fiat rates read, by series and day.</summary>
+        private readonly Dictionary<(string Series, DateOnly Day), FiatRate?> _fiat = [];
+
+        /// <summary>Gets the case's reader.</summary>
+        public ICaseReader Reader => reader;
+
+        /// <summary>Gives the case's answer for a period, reading it the first time.</summary>
+        /// <param name="query">The period.</param>
+        /// <param name="read">Reads the answer.</param>
+        /// <returns>The answer, or <see langword="null"/> when the case has none.</returns>
+        public Kept<CryptoRate>? Crypto(CandleQuery query, Func<ICaseReader, CandleQuery, Kept<CryptoRate>?> read)
+        {
+            if (!_crypto.TryGetValue(query.Subject, out var kept))
+            {
+                kept = read(reader, query);
+                _crypto[query.Subject] = kept;
+            }
+
+            return kept;
+        }
+
+        /// <summary>Gives the case's fiat rate for a series and day, reading it the first time.</summary>
+        /// <param name="series">The series.</param>
+        /// <param name="day">The day.</param>
+        /// <param name="read">Reads the rate.</param>
+        /// <returns>The rate, or <see langword="null"/> when the case has none.</returns>
+        public FiatRate? Fiat(string series, DateOnly day, Func<FiatRate?> read)
+        {
+            if (!_fiat.TryGetValue((series, day), out var rate))
+            {
+                rate = read();
+                _fiat[(series, day)] = rate;
+            }
+
+            return rate;
+        }
     }
 
     /// <summary>Says why a request cannot be answered by the sources, before anything is read or sent.</summary>
@@ -386,7 +512,17 @@ internal sealed class PriceService : IPriceService
     /// <param name="cancellationToken">Stops the lookup before it starts.</param>
     /// <returns>The answer, or <see langword="null"/> when the case has none.</returns>
     private Task<Kept<CryptoRate>?> StoredCryptoRateAsync(
-        ICase @case, CandleQuery query, CancellationToken cancellationToken)
+        ICase @case, CandleQuery query, CancellationToken cancellationToken) =>
+        Task.Run(() => @case.Read(reader => StoredCryptoRate(reader, query)), cancellationToken);
+
+    /// <summary>
+    /// Finds a final answer for a period in the case, in a read that is already open (see
+    /// <see cref="StoredCryptoRateAsync"/>).
+    /// </summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <param name="query">The period.</param>
+    /// <returns>The answer, or <see langword="null"/> when the case has none.</returns>
+    private Kept<CryptoRate>? StoredCryptoRate(ICaseReader reader, CandleQuery query)
     {
         // The index is not sealed: a stored answer counts only when its own sealed time shows it was final.
         Kept<CryptoRate>? Read(StoredRateResponse response)
@@ -408,12 +544,9 @@ internal sealed class PriceService : IPriceService
                 : null;
         }
 
-        return Task.Run(
-            () => @case.Read(reader =>
-                _store.Latest(reader, _crypto.Name, RateKinds.CryptoCandle, query.Subject) is { } stored
-                    ? Quietly(() => Read(stored))
-                    : null),
-            cancellationToken);
+        return _store.Latest(reader, _crypto.Name, RateKinds.CryptoCandle, query.Subject) is { } stored
+            ? Quietly(() => Read(stored))
+            : null;
     }
 
     /// <summary>Asks the crypto source for a period, seals the response and reads the candle.</summary>
@@ -621,26 +754,36 @@ internal sealed class PriceService : IPriceService
     /// <returns>The rate, or <see langword="null"/> when the case has none.</returns>
     private Task<FiatRate?> StoredFiatRateAsync(
         ICase @case, FiatCurrency currency, string series, DateOnly day, CancellationToken cancellationToken) =>
-        Task.Run(
-            () => @case.Read(reader => _store.FirstFiatRange(reader, _fiat.Name, series, day, range => Quietly(() =>
+        Task.Run(() => @case.Read(reader => StoredFiatRate(reader, currency, series, day)), cancellationToken);
+
+    /// <summary>
+    /// Finds a final fiat rate for a day in the case, in a read that is already open (see
+    /// <see cref="StoredFiatRateAsync"/>).
+    /// </summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <param name="currency">The foreign currency.</param>
+    /// <param name="series">The series.</param>
+    /// <param name="day">The day asked about.</param>
+    /// <returns>The rate, or <see langword="null"/> when the case has none.</returns>
+    private FiatRate? StoredFiatRate(ICaseReader reader, FiatCurrency currency, string series, DateOnly day) =>
+        _store.FirstFiatRange(reader, _fiat.Name, series, day, range => Quietly(() =>
+        {
+            var observations = _fiat.ReadObservations(range.Response.Body, currency, range.From, range.AskedTo);
+            if (!FinalFor(range.Response.Origin, range.From, range.AskedTo, observations, day))
             {
-                var observations = _fiat.ReadObservations(range.Response.Body, currency, range.From, range.AskedTo);
-                if (!FinalFor(range.Response.Origin, range.From, range.AskedTo, observations, day))
-                {
-                    return null;
-                }
+                return null;
+            }
 
-                var origin = range.Response.Origin;
-                if (!Succeeded(origin))
-                {
-                    return null;
-                }
+            var origin = range.Response.Origin;
+            if (!Succeeded(origin))
+            {
+                return null;
+            }
 
-                return Pick(observations, day) is { } found
-                    ? FiatRateOf(currency, series, day, found, origin)
-                    : null;
-            }))),
-            cancellationToken);
+            return Pick(observations, day) is { } found
+                ? FiatRateOf(currency, series, day, found, origin)
+                : null;
+        }));
 
     /// <summary>
     /// Gives the days to ask the fiat source for: <see cref="LookbackDays"/> before the day, and up to
