@@ -39,9 +39,10 @@ public sealed record ClusteringRun(
     public IReadOnlyList<Txid> LeftOut { get; init; } = [];
 
     /// <summary>
-    /// Gets the transactions whose new results would rest on a transaction the source no longer knows, so that none
-    /// of them was stored this run (sketch HB1a): what was stored before stands, and a run with the transaction back
-    /// concludes anew.
+    /// Gets the transactions with a new conclusion that would rest on a transaction the source no longer knows, and so
+    /// was not drawn this run (sketch HB1a): the others were weighed without it, or, when its analysis already had a
+    /// stored conclusion there, none was stored. What was stored before stands, and a run with the transaction back
+    /// concludes anew. The journal says it when the set changes, also in a run that stores nothing else.
     /// </summary>
     public IReadOnlyList<Txid> NotDrawn { get; init; } = [];
 }

@@ -310,25 +310,66 @@ public sealed class HeldBackAndPreviewTests : IDisposable
     }
 
     [Fact]
-    public void A_transaction_whose_new_results_would_rest_on_a_gone_one_stores_none_of_them_and_says_so()
+    public void A_two_input_payment_to_an_address_seen_in_a_gone_transaction_gets_its_common_inputs_but_no_change()
     {
         var (seen, payment) = Disagreement();
         var other = Patterns.PaymentWithChange();
 
         var run = _harness.Service.Analyse(_harness.Case, [seen, payment, other], [Txid("seen-earlier")]);
 
-        // Common inputs rest on nothing else, but the change does: they are weighed together, so neither is stored.
+        // Common inputs rest on nothing else and are sealed; the change rests on the gone transaction and is not, and
+        // the common inputs are weighed as if the change analysis had no opinion.
         var conclusions = _harness.Service.GetConclusions(_harness.Case, Txid("disagree"));
-        Assert.Empty(conclusions.Evidence);
-        Assert.Empty(conclusions.Findings);
+        Assert.Contains(
+            conclusions.Evidence, each => each.Heuristic.Name == HeuristicNames.CommonInputOwnership);
+        Assert.DoesNotContain(conclusions.Evidence, each => each.Heuristic.Name == HeuristicNames.ChangeAddress);
+        Assert.DoesNotContain(conclusions.Findings, found => found.Heuristic.Name == HeuristicNames.ChangeAddress);
+        Assert.All(conclusions.Evidence, each => Assert.DoesNotContain(
+            "växel", each.Adjustment ?? string.Empty, StringComparison.Ordinal));
         Assert.Equal([Txid("disagree")], run.NotDrawn);
-        Assert.NotEmpty(_harness.Service.GetConclusions(_harness.Case, other.Txid).Evidence);
         Assert.Contains(
             $"\"notDrawn\":[\"{Txid("disagree").Value}\"]", run.Journal!.Details!, StringComparison.Ordinal);
 
         _harness.Analyse(seen, payment);
 
-        Assert.NotEmpty(_harness.Service.GetConclusions(_harness.Case, Txid("disagree")).Evidence);
+        Assert.Contains(
+            _harness.Service.GetConclusions(_harness.Case, Txid("disagree")).Evidence,
+            each => each.Heuristic.Name == HeuristicNames.ChangeAddress);
+    }
+
+    [Fact]
+    public void A_result_that_concludes_nothing_but_cites_a_gone_transaction_holds_nothing_back()
+    {
+        using var harness = new CaseHarness(services =>
+            services.AddSingleton<IClusteringHeuristic, NoOpinionCiting>());
+        var basis = Tx("probe-basis", 800_000).In(Wpkh("elsewhere"), 1_000).Out(Wpkh("bulk"), 900).Build();
+        var consolidation = Patterns.Consolidation();
+
+        var run = harness.Service.Analyse(harness.Case, [basis, consolidation], [basis.Txid]);
+
+        Assert.Empty(run.NotDrawn);
+        Assert.NotEmpty(harness.Service.GetConclusions(harness.Case, consolidation.Txid).Evidence);
+    }
+
+    [Fact]
+    public void What_was_not_drawn_is_journalled_once_when_it_changes_also_when_nothing_else_is_stored()
+    {
+        var (seen, payment) = Disagreement();
+        _harness.Service.Analyse(_harness.Case, [seen, payment], [Txid("seen-earlier")]);
+        var journal = _harness.Case.ReadJournal().Count;
+
+        var again = _harness.Service.Analyse(_harness.Case, [seen, payment], [Txid("seen-earlier")]);
+
+        Assert.Null(again.Journal);
+        Assert.Equal([Txid("disagree")], again.NotDrawn);
+        Assert.Equal(journal, _harness.Case.ReadJournal().Count);
+
+        using var fresh = new CaseHarness();
+        fresh.Analyse(payment);
+        var onlyNotDrawn = fresh.Service.Analyse(fresh.Case, [seen, payment], [Txid("seen-earlier")]);
+
+        Assert.Equal(0, onlyNotDrawn.NewResults);
+        Assert.Contains("notDrawn", onlyNotDrawn.Journal!.Details!, StringComparison.Ordinal);
     }
 
     [Fact]

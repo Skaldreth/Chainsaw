@@ -45,6 +45,46 @@ internal static class HeldBackStore
         }
     }
 
+    /// <summary>
+    /// Replaces the transactions the latest run did not draw (sketch HB1a), when they differ from those kept, and says
+    /// whether they did, so that a run says it in the journal only when the set changes. Working state, not sealed.
+    /// </summary>
+    /// <param name="transaction">The case's write transaction.</param>
+    /// <param name="notDrawn">The transactions not drawn.</param>
+    /// <returns><see langword="true"/> when the set differs from the one kept.</returns>
+    public static bool ReplaceNotDrawn(ICaseTransaction transaction, IReadOnlyList<Txid> notDrawn)
+    {
+        var kept = new HashSet<string>(StringComparer.Ordinal);
+        using (var read = transaction.CreateCommand("SELECT txid FROM clustering_not_drawn"))
+        using (var row = read.ExecuteReader())
+        {
+            while (row.Read())
+            {
+                kept.Add(row.GetString(0));
+            }
+        }
+
+        var now = notDrawn.Select(txid => txid.Stored).ToHashSet(StringComparer.Ordinal);
+        if (kept.SetEquals(now))
+        {
+            return false;
+        }
+
+        using (var clear = transaction.CreateCommand("DELETE FROM clustering_not_drawn"))
+        {
+            clear.ExecuteNonQuery();
+        }
+
+        foreach (var txid in now)
+        {
+            using var insert = transaction.CreateCommand("INSERT INTO clustering_not_drawn (txid) VALUES ($txid)");
+            insert.AddParameter("$txid", txid);
+            insert.ExecuteNonQuery();
+        }
+
+        return true;
+    }
+
     /// <summary>Puts what is held back in one order: by transaction, each with its missing transactions sorted.</summary>
     /// <param name="heldBack">What is held back.</param>
     /// <returns>The same, in order.</returns>

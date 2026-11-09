@@ -62,6 +62,20 @@ public sealed class GraphEditorTests
         Assert.Equal(GraphEditor.NoLongerHeldText, outcome.Notice);
     }
 
+    /// <summary>A decision refused for any other reason, such as a second release, says it was already done.</summary>
+    [Fact]
+    public async Task ARefusedDecisionWithNothingHeldSaysItWasAlreadyDone()
+    {
+        _clustering.Refuses = true;
+
+        var outcome = await Editor.DecideHeldBackAsync(
+            _case, Txid.Parse(new string('c', 64)), Chainsaw.Modules.Clustering.Contracts.ConclusionChoice.Release,
+            null);
+
+        Assert.False(outcome.Done);
+        Assert.Null(outcome.Notice);
+    }
+
     /// <summary>A label taken back is taken in by the library at once, so that its copies are withdrawn.</summary>
     [Fact]
     public async Task TheLibraryFollowsALabelTakenBack()

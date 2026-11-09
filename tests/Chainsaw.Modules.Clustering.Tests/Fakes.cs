@@ -154,3 +154,14 @@ internal sealed class BasisProbe(int version) : IUtxoHeuristic
         };
     }
 }
+
+/// <summary>An analysis that concludes nothing but cites <see cref="BasisProbe.Basis"/>.</summary>
+internal sealed class NoOpinionCiting : IUtxoHeuristic
+{
+    public HeuristicId Id { get; } = new("no-opinion", 1);
+
+    public ChainScope Scope { get; } = ChainScope.Only(Chain.Bitcoin);
+
+    public HeuristicResult Analyse(BitcoinTransaction transaction, IHeuristicContext context) =>
+        HeuristicResult.Nothing(Id, transaction.Txid) with { Basis = [BasisProbe.Basis] };
+}

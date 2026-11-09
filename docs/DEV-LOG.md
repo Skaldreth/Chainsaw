@@ -5865,6 +5865,21 @@ varje senare körning, eftersom det som hålls tillbaka aldrig ersätts.
 - **Tester:** Clustering 3 (en tx med blandade resultat lagrar inget och säger det i journalen, gamla blandade
   resultat görs inte om till hälften, tillbakadragen → tillbaka → borta igen), App 1 (beskedet).
 
+**Andra omgranskningens rättelser (1 I, 2 M):**
+- **I:** en borta tx i grunden spärrade alla en tx:s resultat, också när resultatet som citerade den inte drog någon
+  slutsats (växeladressens *Nothing* bär alla iakttagelser som grund), så att en tx med två inputs aldrig fick sin
+  sammanslagning. Nu (`WithoutGone`): ett resultat utan förslag, fynd eller veto som citerar en borta tx räknas inte
+  alls; ett som drar en slutsats dras inte, och tx:ens andra resultat vägs utan det, som om den analysen inte hade
+  någon åsikt (så att ingen förseglad justering nämner den), utom när den analysen redan har en räknande slutsats om
+  tx:en: då väntar hela tx:en. Vägningen görs nu i skrivtransaktionen, där det sparade läses.
+- **M1:** vad som inte drogs sägs i journalen när mängden ändras, också i en körning som inte sparar något annat.
+  Mängden hålls som arbetsläge i den nya tabellen `clustering_not_drawn` (schema version 6, inte förseglad). Bitcoins
+  golden-fil ändras bara i schemaversionen och den tomma tabellen (hasharna är maskerade); ingen förseglad form ändras.
+- **M2:** beskedet *Slutsatsen väntar inte längre* ges bara när slutsatsen fortfarande hålls tillbaka på tx:en själv
+  och tx:en inte är borta; annars (till exempel ett andra släpp) *redan tillbakataget*.
+- **Tester:** Clustering 3 (sammanslagningen förseglas och växeln inte, journalen bara när mängden ändras, ett resultat
+  utan slutsats spärrar inget), App 1 (ett andra släpp).
+
 **Kvar:** provet på Windows (TESTER-INFOR, *HB1a av sig själv*).
 
 ## Förvirring, omgång 5: efter granskningen (2026-11-09)

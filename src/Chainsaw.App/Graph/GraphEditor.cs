@@ -593,7 +593,7 @@ public sealed class GraphEditor(
 
             // A transaction that came back in between holds nothing back any more; say so, not that it was done.
             var held = clustering.GetHeldBack(@case).FirstOrDefault(each => each.Txid == txid);
-            var cameBack = held is null || held.Missing.Any(missing => missing == txid && !gone.Contains(missing));
+            var cameBack = held is not null && held.Missing.Contains(txid) && !gone.Contains(txid);
             return new UndoOutcome(false) { Notice = cameBack ? NoLongerHeldText : null };
         }).ConfigureAwait(false);
     }
