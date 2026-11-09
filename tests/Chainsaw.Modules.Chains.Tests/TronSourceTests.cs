@@ -385,6 +385,20 @@ public sealed class TronSourceTests
         Assert.Equal(2, harness.Rows().Count(row => row.Kind == "tron.tx-info"));
     }
 
+    [Theory]
+    [InlineData(23, 50, 23, 55, "kl. 23:55")]
+    [InlineData(23, 50, 24, 5, "den 2026-11-10 kl. 00:05")]
+    [InlineData(23, 50, 23, 40, "vid nästa uppslag")]
+    public void WhenSomethingIsDoneNextIsSaidWithTheDateOnlyOnAnotherDay(
+        int nowHour, int nowMinute, int atHour, int atMinute, string expected)
+    {
+        var day = new DateTimeOffset(2026, 11, 9, 0, 0, 0, TimeSpan.Zero);
+        var now = day.AddHours(nowHour).AddMinutes(nowMinute);
+        var at = day.AddHours(atHour).AddMinutes(atMinute);
+
+        Assert.Equal(expected, SourceLookups.WhenText(at, now, TimeZoneInfo.Utc));
+    }
+
     [Fact]
     public async Task AnotherEndpointAtTheSameHostIsNotAnotherSource()
     {

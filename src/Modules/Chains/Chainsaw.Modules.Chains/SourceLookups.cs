@@ -637,6 +637,30 @@ internal sealed class SourceLookups
     public static long Confirmations(long height, long? knownHeight) =>
         Math.Max(knownHeight ?? height, height) - height + 1;
 
+    /// <summary>
+    /// Says when something is done next, as the user reads it: <c>kl. 14:05</c> on the same local day, <c>den
+    /// 2026-11-10 kl. 00:05</c> on another, and <c>vid nästa uppslag</c> when the time has already passed (nothing was
+    /// asked, for example when the case was only read).
+    /// </summary>
+    /// <param name="at">When.</param>
+    /// <param name="now">The time now.</param>
+    /// <param name="zone">The time zone the user reads times in.</param>
+    /// <returns>The text.</returns>
+    public static string WhenText(DateTimeOffset at, DateTimeOffset now, TimeZoneInfo zone)
+    {
+        ArgumentNullException.ThrowIfNull(zone);
+        if (at <= now)
+        {
+            return "vid nästa uppslag";
+        }
+
+        var local = TimeZoneInfo.ConvertTime(at, zone);
+        var clock = "kl. " + local.ToString("HH:mm", CultureInfo.InvariantCulture);
+        return local.Date == TimeZoneInfo.ConvertTime(now, zone).Date
+            ? clock
+            : $"den {local.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)} {clock}";
+    }
+
     /// <summary>Writes a local time for the user.</summary>
     /// <param name="time">The time.</param>
     /// <returns>For example <c>2026-11-07 02:02</c>.</returns>

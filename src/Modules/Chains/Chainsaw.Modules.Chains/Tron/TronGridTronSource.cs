@@ -502,11 +502,16 @@ internal sealed class TronGridTronSource : ITronSource
         var disputed = new EthereumDisputedAnswer(hash, doubted?.Endpoint ?? string.Empty)
         {
             AskedAgainAt = other ? null : due,
+            AskedAgainText = other ? string.Empty : SourceLookups.WhenText(due, _clock.UtcNow, _timeZone),
         };
+
         return (again, disputed);
     }
 
-    /// <summary>Counts a transaction's sealed infos and gives when the newest came.</summary>
+    /// <summary>
+    /// Counts a transaction's sealed infos that were final when they came (the doubted answers: one from a block still
+    /// shallow was asked again for that reason, not because it was doubted), and gives when the newest of all came.
+    /// </summary>
     /// <param name="case">The open case.</param>
     /// <param name="hash">The transaction.</param>
     /// <param name="cancellationToken">Stops the reading.</param>
@@ -517,9 +522,26 @@ internal sealed class TronGridTronSource : ITronSource
             () => @case.Read(reader =>
             {
                 var all = _lookups.Store.All(reader, TronResponseKinds.TransactionInfo, hash.Value);
-                return (all.Count, all.Count == 0 ? DateTimeOffset.MinValue : all[^1].Origin.ReceivedUtc);
+                var final = all.Count(response => WasFinal(reader, response, hash));
+                return (final, all.Count == 0 ? DateTimeOffset.MinValue : all[^1].Origin.ReceivedUtc);
             }),
             cancellationToken);
+
+    /// <summary>Says whether a sealed info's block was final when the info came.</summary>
+    /// <param name="reader">The case's reader.</param>
+    /// <param name="response">The sealed info.</param>
+    /// <param name="hash">The transaction.</param>
+    /// <returns><see langword="true"/> when it was.</returns>
+    private bool WasFinal(ICaseReader reader, StoredResponse response, EthereumTxHash hash)
+    {
+        if (SourceLookups.StoredAs(response, body => TronGridParser.ParseTransactionInfo(body, hash)) is not { } info)
+        {
+            return false;
+        }
+
+        var knownThen = _lookups.Store.KnownHeight(reader, response.Origin.Sequence);
+        return SourceLookups.Confirmations(info.Value.Height, knownThen) >= _options.SafeConfirmations;
+    }
 
     /// <summary>
     /// Gives when a doubted info is asked of the same endpoint again: after 1, 5 and 15 minutes and then every hour
@@ -550,9 +572,8 @@ internal sealed class TronGridTronSource : ITronSource
             return start + "tx:en frågas hos en annan källa och väntar tills överföringen kan placeras.";
         }
 
-        var local = TimeZoneInfo.ConvertTime(at, _timeZone).ToString("HH:mm", CultureInfo.InvariantCulture);
-        return start + $"ingen annan källa för TRON är påslagen; frågas igen hos {disputed.Endpoint} kl. {local}, "
-            + "och tx:en väntar tills överföringen kan placeras.";
+        return start + $"ingen annan källa för TRON är påslagen; frågas igen hos {disputed.Endpoint} "
+            + $"{disputed.AskedAgainText}, och tx:en väntar tills överföringen kan placeras.";
     }
 
     /// <summary>Says whether an entry's token is one Chainsaw knows by its contract (USDT and the others).</summary>

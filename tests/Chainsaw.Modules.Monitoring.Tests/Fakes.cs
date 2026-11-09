@@ -267,7 +267,10 @@ internal sealed class FakeTronSource : ITronSource
         {
             Waiting = Incomplete ? Waiting() : [],
             Disputed = Incomplete && DisputedBy is { } endpoint
-                ? [new EthereumDisputedAnswer(DisputedTransaction, endpoint) { AskedAgainAt = AskedAgainAt }]
+                ? [new EthereumDisputedAnswer(DisputedTransaction, endpoint) {
+                    AskedAgainAt = AskedAgainAt,
+                    AskedAgainText = AskedAgainAt is null ? string.Empty : "kl. 12:34",
+                }]
                 : [],
         };
 

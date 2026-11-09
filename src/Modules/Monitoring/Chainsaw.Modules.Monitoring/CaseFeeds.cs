@@ -37,7 +37,7 @@ internal static class FeedTexts
     /// </summary>
     public const string DisputedNoOther =
         "Källan {2} gav ingen Transfer-händelse för en känd token i tx {1} hos {0}; ingen annan källa för TRON är "
-        + "påslagen, så den frågas igen hos {2} kl. {4}, och kontrollen står kvar vid block {3} tills överföringen kan "
+        + "påslagen, så den frågas igen hos {2} {4}, och kontrollen står kvar vid block {3} tills överföringen kan "
         + "placeras.";
 
     /// <summary>When a check left out an unknown token's transfer whose final tx holds no readable event.</summary>
@@ -365,9 +365,9 @@ internal sealed class EthereumCaseFeed(IAccountSource source, ICase @case) : IWa
 
         foreach (var disputed in read.Disputed)
         {
-            yield return disputed.AskedAgainAt is { } at
+            yield return disputed.AskedAgainAt is not null
                 ? FeedTexts.Format(FeedTexts.DisputedNoOther, address.Value, disputed.Transaction.Brief(),
-                    disputed.Endpoint, downTo, at.ToLocalTime().ToString("HH:mm", CultureInfo.InvariantCulture))
+                    disputed.Endpoint, downTo, disputed.AskedAgainText)
                 : FeedTexts.Format(
                     FeedTexts.Disputed, address.Value, disputed.Transaction.Brief(), disputed.Endpoint, downTo);
         }

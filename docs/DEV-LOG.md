@@ -4250,3 +4250,8 @@ topp.
     frågas igen) i grafens problem.
   - **M18:** att räkna slutligt mot TRON:s fastställda block (`walletsolidity/getnowblock`) kräver en egen sorts
     uppslag och ett eget index; står i BACKLOG.
+- **Femte granskningen (4 M, alla rättade):** **M19:** väntan räknas bara på svar som var slutliga när de kom, inte
+  på de som hämtades om för att blocket var grunt. **M20–M22:** en regel för när något görs nästa gång
+  (`SourceLookups.WhenText`, i `EthereumDisputedAnswer.AskedAgainText`): *kl. HH:mm* samma dag, *den åååå-mm-dd kl.
+  HH:mm* en annan dag och *vid nästa uppslag* när tiden redan passerat (när ärendet bara lästes); bevakningen använder
+  samma text.
