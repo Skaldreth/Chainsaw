@@ -112,13 +112,13 @@ internal sealed class GraphBuilder
             FollowedReplacements = _data.State.Replacements,
         };
         var (piles, clues) = PileRules.Arrange(graph, _data.State);
-        return graph with { Piles = piles, HeldBack = clues };
+        return graph with { Piles = piles, HeldBack = clues, AccountClusters = _knowledge.AccountClusters };
     }
 
     /// <summary>
     /// Makes a node for every Ethereum address in the graph (the start addresses and those the movements touch) and
-    /// an edge per pair of accounts and asset for the movements. The account model's heuristics are not built yet, so
-    /// every address is its own actor.
+    /// an edge per pair of actors and asset for the movements. The accounts of a closed account cluster are one node,
+    /// the cluster's (sketch KE1); those of an open one, and every other address, are their own actors.
     /// </summary>
     private void AddAccounts()
     {
@@ -149,6 +149,17 @@ internal sealed class GraphBuilder
     private NodeDraft AccountNode(EthereumAddress address)
     {
         var chainAddress = address.ToChainAddress();
+        if (_knowledge.AccountClusters.FirstOrDefault(cluster => !cluster.IsOpen
+            && cluster.Members.Contains(chainAddress)) is { } closed)
+        {
+            return AddNode(new NodeDraft(closed.Key, GraphNodeKind.Cluster)
+            {
+                Chain = address.Chain,
+                Accounts = closed.Members,
+                ClusterSize = closed.Members.Count,
+            });
+        }
+
         return AddNode(new NodeDraft(NodeKeys.Account(chainAddress), GraphNodeKind.Address)
         {
             Chain = address.Chain,

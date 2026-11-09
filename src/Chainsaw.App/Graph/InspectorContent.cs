@@ -250,7 +250,24 @@ public sealed record InspectorContent(
             : TracedPerAsset(scene, node.TracedIns);
         var trace = traced == NoTraceText ? "Ingen spårning går genom den än." : $"Spårat in: {traced}.";
         sentences.Add(node.Node.IsStartPoint ? trace + " Den är ärendets startpunkt." : trace);
+        if (AccountClusterOf(scene, node.Node) is { } cluster)
+        {
+            sentences.Add(GraphAreas.AccountClusterLabel(cluster) + ". " + string.Join(" ", cluster.Reasons.Take(1)));
+        }
+
         return sentences;
+    }
+
+    /// <summary>Finds the account cluster (sketch KE1) a node is, or is one of the accounts of.</summary>
+    /// <param name="scene">The scene.</param>
+    /// <param name="node">The node.</param>
+    /// <returns>The cluster, or <see langword="null"/>.</returns>
+    public static GraphAccountCluster? AccountClusterOf(GraphScene scene, GraphNode node)
+    {
+        ArgumentNullException.ThrowIfNull(scene);
+        ArgumentNullException.ThrowIfNull(node);
+        return scene.Snapshot.Graph.AccountClusters.FirstOrDefault(cluster =>
+            cluster.Key == node.Key || node.Accounts.Any(account => cluster.Members.Contains(account)));
     }
 
     /// <summary>

@@ -177,6 +177,7 @@ public sealed partial class GraphViewModel : ObservableObject
         OnEmptyTextChanged(EmptyText);
         Checks = new ChecksViewModel(session, checks ?? NoCheckSource.Instance);
         Checks.Changed += (_, _) => Redraw?.Invoke(this, EventArgs.Empty);
+        Checks.AccountClusterFoldWanted += (_, key) => SetAccountClusterOpen(key, open: false);
         Checks.GuideWanted += (_, request) => GuideWanted?.Invoke(this, request);
         Checks.ShowWanted += (_, nodes) => ShowNodesWanted?.Invoke(this, nodes);
         Checks.ToastWanted += (_, toast) => ToastWanted?.Invoke(this, toast);

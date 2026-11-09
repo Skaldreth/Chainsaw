@@ -41,4 +41,7 @@ internal sealed record GraphKnowledge(
 {
     /// <summary>Gets why the trail ends at an address on an account chain; empty when it does not.</summary>
     public Func<ChainAddress, IReadOnlyList<TrailEndHint>> AccountEnds { get; init; } = _ => [];
+
+    /// <summary>Gets the account clusters among the graph's accounts, each open or closed (sketch KE1).</summary>
+    public IReadOnlyList<GraphAccountCluster> AccountClusters { get; init; } = [];
 }

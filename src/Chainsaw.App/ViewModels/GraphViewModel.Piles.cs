@@ -186,6 +186,23 @@ public sealed partial class GraphViewModel
         Redraw?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>
+    /// Unfolds an account cluster to its accounts over an area, or folds it back to the pile (sketch KE1), and reads
+    /// the graph again; nothing is written to the case.
+    /// </summary>
+    /// <param name="key">The cluster's key.</param>
+    /// <param name="open">Whether it is unfolded.</param>
+    public void SetAccountClusterOpen(string key, bool open)
+    {
+        if (_session.Current is not { } openCase)
+        {
+            return;
+        }
+
+        _source.SetAccountClusterOpen(openCase, key, open);
+        _ = ReloadAsync(fit: false);
+    }
+
     /// <summary>Folds the fan; the tiles lie in the pile again. The selection view closes too.</summary>
     public void CloseFan()
     {
@@ -431,6 +448,12 @@ public sealed partial class GraphViewModel
         if (scene.Pile(nodeKey) is { } pile)
         {
             OpenFan(pile.Key);
+            return true;
+        }
+
+        if (nodeKey is not null && nodeKey.StartsWith(GraphAccountCluster.KeyPrefix, StringComparison.Ordinal))
+        {
+            SetAccountClusterOpen(nodeKey, open: true);
             return true;
         }
 

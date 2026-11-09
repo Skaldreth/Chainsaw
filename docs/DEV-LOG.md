@@ -6197,3 +6197,17 @@ insättning i en borta tx i Begäran, Flöde).
   omvänd ordning och ett öppnat ärende. **Kvar till E2c:** att bryta upp ett kontokluster och besluten om förslagen;
   att dra tillbaka en version (KV1a) för konton står i BACKLOG. Anroparen lämnar ut borta tx (GR9a).
 
+## E2b (2026-11-09): kontoklustren i grafen (KE1, en blandning av KE1a och KE1b)
+
+- **Spårningen** kör `IAccountClustering` när grafen läses, per kedja på Ethereums maskin, med det grafen läst utom borta
+  tx, de helt lästa kontona, kontona med en börsetikett som tjänster och de kända kontrakten, mixerna och bryggorna som
+  kontrakt. Klustren följer med grafen (`TraceGraph.AccountClusters`).
+- **Hopfällt** är ett kluster en nod av sorten Kluster (fyrkantig, med antalet), *Trolig tjänst* när samlaren saknar
+  etikett, och linjerna till dess konton möts i den. **Ett klick** fäller ut det (`SetAccountClusterOpen`): kontona blir
+  egna noder med ett blått område bakom, som alltid ritas oavsett menyn *Områden*, och ett klick på områdets bricka
+  fäller ihop det. Utfällt eller inte hålls i minnet medan Chainsaw är igång och skrivs aldrig i ärendet.
+- Inspektören för ett konto i ett kluster säger *Trolig tjänst · N adresser* och den första slutsatsens skäl med
+  heuristik och version. Guiden har avsnittet *Kluster på Ethereum* (`kontokluster.md`).
+- **Avsteg från skissen:** högen ritas som en vanlig klusternod, inte som en kortlek; utfällningen sker utan rörelse.
+- Guldfacit i Tracing har fått den nya tabellen och schemasteget (inget annat ändrades).
+

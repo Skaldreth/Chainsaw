@@ -109,6 +109,7 @@ public static class GraphAreas
         var areas = new List<AreaView>();
         areas.AddRange(own.Select(area => OfOwn(scene, area)).OfType<AreaView>());
         areas.AddRange(checks.Select(check => OfCheck(scene, check)).OfType<AreaView>());
+        areas.AddRange(AccountClusters(scene));
         areas.AddRange(Services(scene));
         areas.AddRange(OtherChains(scene));
         areas.AddRange(Times(scene, zone));
@@ -307,6 +308,45 @@ public static class GraphAreas
                 $"{group.First().Label!.Name} · {group.Count().ToString(CultureInfo.InvariantCulture)} aktörer",
                 null,
                 null));
+
+    /// <summary>
+    /// Gives an area behind the accounts of each unfolded account cluster (sketch KE1), in the service's tone with a
+    /// whole edge; its key is the cluster's, so that a click on its chip folds it back to the pile.
+    /// </summary>
+    /// <param name="scene">The graph.</param>
+    /// <returns>The areas.</returns>
+    private static IEnumerable<AreaView> AccountClusters(GraphScene scene) =>
+        scene.Snapshot.Graph.AccountClusters
+            .Where(cluster => cluster.IsOpen)
+            .Select(cluster => new AreaView(
+                cluster.Key,
+                AreaSort.Service,
+                AreaLooks.Of(AreaSort.Service),
+                NodesOf(scene, cluster.Members, []),
+                AreaLine.Solid,
+                false,
+                AccountClusterLabel(cluster),
+                null,
+                null))
+            .Where(area => area.Nodes.Count > 0);
+
+    /// <summary>Names an account cluster's area: a likely service and how many accounts, as in sketch KE1.</summary>
+    /// <param name="cluster">The cluster.</param>
+    /// <returns>For example <c>Trolig tjänst · 4 adresser</c>.</returns>
+    public static string AccountClusterLabel(GraphAccountCluster cluster)
+    {
+        ArgumentNullException.ThrowIfNull(cluster);
+        return "Trolig tjänst · " + cluster.Members.Count.ToString(CultureInfo.InvariantCulture) + " adresser";
+    }
+
+    /// <summary>Tells whether an area is an unfolded account cluster's, which is always drawn.</summary>
+    /// <param name="area">The area.</param>
+    /// <returns><see langword="true"/> when it is.</returns>
+    public static bool IsAccountCluster(AreaView area)
+    {
+        ArgumentNullException.ThrowIfNull(area);
+        return area.Key.StartsWith(GraphAccountCluster.KeyPrefix, StringComparison.Ordinal);
+    }
 
     /// <summary>Gives an area for each place where the money continues on another chain, by the user's link.</summary>
     /// <param name="scene">The graph.</param>

@@ -41,7 +41,9 @@ internal sealed class AccountClusteringService : IAccountClustering
             .. DepositSweepHeuristic.Analyse(onChain),
             .. GasFundingHeuristic.Analyse(onChain),
         ];
-        if (found.Count == 0)
+        // The graph is read often; a write is made only when there is something new to seal.
+        var known = @case.Read(reader => Fingerprints(reader, chain));
+        if (found.All(finding => known.Contains(finding.Fingerprint)))
         {
             return @case.Read(reader => Read(reader, chain));
         }

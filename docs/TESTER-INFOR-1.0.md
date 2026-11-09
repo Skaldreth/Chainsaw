@@ -2391,6 +2391,13 @@ Grafen för Ethereum är inte byggd än; det som går att prova är källan, sta
 - `sources.json`: endpointen har `"Local": true` och `"IntervalMilliseconds": 0`. Ändra för hand en privat adress till
   `"Local": false`: den endpointen används inte efter omstart.
 
+## Kluster på Ethereum (E2, KE1)
+
+- Expandera adresser på Ethereum där två eller fler insättningsadresser töms till en adress med börsetikett: de blir
+  en fyrkantig nod *Trolig tjänst · N*. Ett klick fäller ut adresserna med ett blått område; ett klick på områdets
+  bricka fäller ihop det igen. Inspektören för ett konto säger varför.
+- Samma mönster till en adress utan etikett ger inget kluster (bara ett förslag, när E2c är byggd).
+
 ## Ethereum med Etherscan (E1, 2026-11-09)
 
 - Inställningar › Källor › *Nycklar* (NY1a): *Lägg till nyckel …* med tjänsten *Etherscan* och nyckeln; raden visar

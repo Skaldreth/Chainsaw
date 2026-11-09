@@ -759,10 +759,20 @@ public sealed partial class ChecksViewModel : ObservableObject
         RaiseChanged();
     }
 
+    /// <summary>Raised when an unfolded account cluster's chip is clicked, with its key, to fold it back.</summary>
+    public event EventHandler<string>? AccountClusterFoldWanted;
+
     /// <summary>Chooses an area by its chip: a check's area chooses its row, an own area shows its tools.</summary>
     /// <param name="area">The area's key, or <see langword="null"/> to choose none.</param>
     public void ChooseArea(string? area)
     {
+        if (AllAreas.FirstOrDefault(a => a.Key == area) is { } cluster && GraphAreas.IsAccountCluster(cluster))
+        {
+            // An unfolded account cluster's chip folds it back to the pile (sketch KE1).
+            AccountClusterFoldWanted?.Invoke(this, cluster.Key);
+            return;
+        }
+
         ChosenArea = area;
         if (AllAreas.FirstOrDefault(a => a.Key == area) is { CheckKey: { } check }
             && ToDecide.FirstOrDefault(row => row.Key == check) is { } row)
@@ -1683,7 +1693,8 @@ public sealed partial class ChecksViewModel : ObservableObject
             ];
         }
 
-        return GraphAreas.Fill(AllAreas.Where(area => _shown.Contains(area.Sort)));
+        return GraphAreas.Fill(
+            AllAreas.Where(area => _shown.Contains(area.Sort) || GraphAreas.IsAccountCluster(area)));
     }
 
     /// <summary>Works out the dashed lines to the candidates: every suggestion's, or the shown one's alone.</summary>

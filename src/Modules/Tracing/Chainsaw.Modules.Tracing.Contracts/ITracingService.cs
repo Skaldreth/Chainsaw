@@ -34,6 +34,17 @@ public interface ITracingService
     Task<TraceGraph> LoadAsync(ICase @case, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Opens or closes an account cluster in the graph (sketch KE1): a click on the pile unfolds it to its accounts over
+    /// an area, and folding it shows the pile again. Only the view changes; nothing is written to the case.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="key">The cluster's key (<see cref="GraphAccountCluster.Key"/>).</param>
+    /// <param name="open">Whether it is unfolded.</param>
+    void SetAccountClusterOpen(ICase @case, string key, bool open)
+    {
+    }
+
+    /// <summary>
     /// Adds a start point, with a line in the journal. The graph shows it at once; what goes on from it appears when
     /// it is expanded. Adding one that is already there does nothing.
     /// </summary>

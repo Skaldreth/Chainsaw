@@ -33,6 +33,13 @@ internal sealed class TracingService : ITracingService
     /// <summary>The clusters and the analyses.</summary>
     private readonly IClusteringService _clustering;
 
+    /// <summary>The clustering of accounts, or <see langword="null"/> where it is not registered.</summary>
+    private readonly IAccountClustering? _accountClustering;
+
+    /// <summary>The account clusters the user unfolded, per case file, while Chainsaw runs (sketch KE1).</summary>
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, HashSet<string>> _openClusters =
+        new(StringComparer.Ordinal);
+
     /// <summary>What recognises the ends of the trail, in registration order.</summary>
     private readonly IReadOnlyList<ITrailEndClassifier> _classifiers;
 
@@ -87,6 +94,10 @@ internal sealed class TracingService : ITracingService
     /// Solana's facts, or <see langword="null"/> where Solana is not registered (an expansion on Solana is then
     /// refused).
     /// </param>
+    /// <param name="accountClustering">
+    /// The clustering of accounts (sketch KE1), or <see langword="null"/> where it is not registered (every account
+    /// is then its own actor).
+    /// </param>
     /// <exception cref="ArgumentException">
     /// The methods are not registered properly (see <see cref="TracingMethods"/>).
     /// </exception>
@@ -101,8 +112,10 @@ internal sealed class TracingService : ITracingService
         IBscSource? bsc = null,
         ILitecoinSource? litecoin = null,
         IZcashSource? zcash = null,
-        ISolanaSource? solana = null)
+        ISolanaSource? solana = null,
+        IAccountClustering? accountClustering = null)
     {
+        _accountClustering = accountClustering;
         var sources = new Dictionary<Chain, IBitcoinSource> { [Chain.Bitcoin] = source };
         if (litecoin is not null)
         {
@@ -134,6 +147,25 @@ internal sealed class TracingService : ITracingService
     /// <inheritdoc/>
     public IReadOnlyList<TracingMethodId> AccountMethods =>
         [.. _accountMethods.Values.Select(method => method.Id).OrderBy(id => id.Kind)];
+
+    /// <inheritdoc/>
+    public void SetAccountClusterOpen(ICase @case, string key, bool open)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        var opened = _openClusters.GetOrAdd(@case.Path, _ => []);
+        lock (opened)
+        {
+            if (open)
+            {
+                opened.Add(key);
+            }
+            else
+            {
+                opened.Remove(key);
+            }
+        }
+    }
 
     /// <inheritdoc/>
     public Task<TraceGraph> LoadAsync(ICase @case, CancellationToken cancellationToken = default)
@@ -1333,7 +1365,73 @@ internal sealed class TracingService : ITracingService
                 classifier => classifier.ClassifyTransaction(@case, transaction)))])
         {
             AccountEnds = account => accountEnds.GetValueOrDefault(account) ?? [],
+            AccountClusters = AccountClusters(@case, data.Account, accountEnds),
         });
+    }
+
+    /// <summary>
+    /// Runs the clustering of accounts over each chain on Ethereum's machine that the graph has read (sketch KE1),
+    /// leaving out the transactions that are gone or may be (GR9a), and gives the clusters among the graph's accounts,
+    /// each open or closed as the user left it.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="account">What the graph read on the account chains.</param>
+    /// <param name="ends">Why the trail ends at each account, for the services and the contracts.</param>
+    /// <returns>The clusters.</returns>
+    private List<GraphAccountCluster> AccountClusters(
+        ICase @case, AccountData account, Dictionary<ChainAddress, IReadOnlyList<TrailEndHint>> ends)
+    {
+        if (_accountClustering is null || account.Transfers.Count == 0)
+        {
+            return [];
+        }
+
+        var opened = _openClusters.GetValueOrDefault(@case.Path) ?? [];
+        var activity = AccountActivityOf(account, ends);
+        var clusters = new List<GraphAccountCluster>();
+        foreach (var chain in account.Transfers.Select(transfer => transfer.From.Chain).Distinct()
+            .Where(chain => chain.IsEvm()).Order())
+        {
+            var run = _accountClustering.Analyse(@case, chain, activity);
+            foreach (var cluster in run.Clusters)
+            {
+                var key = GraphAccountCluster.KeyOf(cluster.Members[0]);
+                bool isOpen;
+                lock (opened)
+                {
+                    isOpen = opened.Contains(key);
+                }
+
+                clusters.Add(new GraphAccountCluster(
+                    key, chain, cluster.Members, cluster.Collector, isOpen,
+                    [.. cluster.Evidence.Select(evidence => evidence.Heuristic + ": " + evidence.Reason)]));
+            }
+        }
+
+        return clusters;
+    }
+
+    /// <summary>
+    /// Gives what the account heuristics read: the transfers and fees of transactions that are not gone, the accounts
+    /// read in full, the accounts with an exchange's label as services, and the known contracts, mixers and bridges.
+    /// </summary>
+    /// <param name="account">What the graph read on the account chains.</param>
+    /// <param name="ends">Why the trail ends at each account.</param>
+    /// <returns>The activity.</returns>
+    private static AccountActivity AccountActivityOf(
+        AccountData account, Dictionary<ChainAddress, IReadOnlyList<TrailEndHint>> ends)
+    {
+        bool Stays(EthereumTxHash hash) => !account.Gone.ContainsKey(hash);
+        HashSet<ChainAddress> Ending(params TrailEndReason[] reasons) =>
+            [.. ends.Where(entry => entry.Value.Any(hint => reasons.Contains(hint.Reason))).Select(entry => entry.Key)];
+        var contracts = Ending(TrailEndReason.Mixer, TrailEndReason.OtherChain);
+        contracts.UnionWith(KnownContracts.All.Select(contract => contract.Address.ToChainAddress()));
+        return new AccountActivity(
+            [.. account.Transfers.Where(transfer => Stays(transfer.Transaction))],
+            [.. account.Fees.Where(fee => Stays(fee.Transaction))],
+            account.ReadAccounts.Except(account.PartlyRead).ToHashSet(),
+            Ending(TrailEndReason.Exchange),
+            contracts);
     }
 
     /// <summary>

@@ -808,7 +808,9 @@ public sealed record GraphScene(
         return new NodeView(
             node,
             VisualLanguage.Of(sort),
-            name ?? NameOf(node),
+            name ?? (node.Key.StartsWith(GraphAccountCluster.KeyPrefix, StringComparison.Ordinal)
+                ? AccountClusterName
+                : NameOf(node)),
             node.ClusterSize > 1 ? node.ClusterSize.ToString(System.Globalization.CultureInfo.InvariantCulture) : "",
             badges,
             expandable && node.Expansion != NodeExpansion.Expanded,
@@ -824,6 +826,9 @@ public sealed record GraphScene(
             TracedIns = tracedIns,
         };
     }
+
+    /// <summary>The name of a folded account cluster without a label (sketch KE1).</summary>
+    public const string AccountClusterName = "Trolig tjänst";
 
     /// <summary>What a balance row says when the account's history is not read, so nothing is known to be left.</summary>
     public const string NotReadNote = "Inte expanderad: saldot är okänt";

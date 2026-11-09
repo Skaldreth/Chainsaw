@@ -33,6 +33,17 @@ public interface IGraphSource
     Task<GraphScene> LoadAsync(ICase @case, GraphReading reading, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Unfolds or folds an account cluster (sketch KE1) for the next reading; only the view changes. By default
+    /// nothing changes.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="key">The cluster's key.</param>
+    /// <param name="open">Whether it is unfolded.</param>
+    void SetAccountClusterOpen(ICase @case, string key, bool open)
+    {
+    }
+
+    /// <summary>
     /// Values the scene's lines again, asking the source through the exit for at most
     /// <see cref="GraphSource.MostRateLookups"/> rates the case lacks (sketch KU1a), off the UI thread, so that the
     /// graph is shown at once with the case's rates and the rest come after. By default nothing is asked.
@@ -247,6 +258,10 @@ public sealed class GraphSource(
 
     /// <summary>Gets the code of the currency the lines are valued in, for example <c>SEK</c>.</summary>
     private string Currency => (priceDefaults?.Currency ?? FiatCurrency.Sek).Code();
+
+    /// <inheritdoc/>
+    public void SetAccountClusterOpen(ICase @case, string key, bool open) =>
+        tracing.SetAccountClusterOpen(@case, key, open);
 
     /// <inheritdoc/>
     public Task<GraphScene> LoadAsync(ICase @case, GraphReading reading, CancellationToken cancellationToken)

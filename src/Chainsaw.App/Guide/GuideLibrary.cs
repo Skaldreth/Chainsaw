@@ -31,7 +31,10 @@ public sealed class GuideLibrary
         ("TRON", ["tron"]),
         ("Fler kedjor", ["litecoin", "zcash", "bsc", "solana"]),
         ("Klustring",
-            ["common-input-ownership", "vaxeladress", "peel-chain", "coinjoin", "payjoin", "bryta-upp-kluster"]),
+            [
+                "common-input-ownership", "vaxeladress", "peel-chain", "coinjoin", "payjoin", "kontokluster",
+                "bryta-upp-kluster",
+            ]),
         ("Spårning",
             ["grafen", "sparningsmetoder", "sparet-tar-slut", "exponering", "vyn-tidslinje", "flodet", "kurser"]),
         ("Arbeta i grafen",

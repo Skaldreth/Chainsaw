@@ -117,6 +117,12 @@ public sealed record TraceGraph(
     /// <summary>Gets what the expansions held back, one clue per actor (sketch EX1).</summary>
     public IReadOnlyList<HeldBackClue> HeldBack { get; init; } = [];
 
+    /// <summary>
+    /// Gets the account clusters among the graph's accounts (sketch KE1): a closed one is one node, an open one is its
+    /// accounts as their own nodes with an area behind them.
+    /// </summary>
+    public IReadOnlyList<GraphAccountCluster> AccountClusters { get; init; } = [];
+
     /// <summary>Gives a node by its key.</summary>
     /// <param name="key">The key.</param>
     /// <returns>The node, or <see langword="null"/>.</returns>
@@ -501,4 +507,35 @@ public sealed record Expansion(
     /// <summary>Gets what was expanded, as the case stores it: the address or the transaction.</summary>
     public string Subject =>
         Address?.Value ?? Txid?.Value ?? EthereumAddress?.Value ?? EthereumTransaction!.Value;
+}
+
+/// <summary>
+/// An account cluster in the graph (sketch KE1): accounts the account heuristics merged, drawn as one square node like
+/// a pile while closed and as their own nodes over an area while open. An assessment, never a fact (principle 2).
+/// </summary>
+/// <param name="Key">The cluster's node key while closed: <see cref="KeyPrefix"/> and its first account.</param>
+/// <param name="Chain">The chain.</param>
+/// <param name="Members">The accounts in the graph, ordered by their text.</param>
+/// <param name="Collector">The account the others empty into, or <see langword="null"/>.</param>
+/// <param name="IsOpen">Whether it is unfolded to its accounts.</param>
+/// <param name="Reasons">Why, one sentence per conclusion, with its heuristic and version first.</param>
+public sealed record GraphAccountCluster(
+    string Key,
+    Chain Chain,
+    IReadOnlyList<ChainAddress> Members,
+    ChainAddress? Collector,
+    bool IsOpen,
+    IReadOnlyList<string> Reasons)
+{
+    /// <summary>The prefix of a closed account cluster's node key.</summary>
+    public const string KeyPrefix = "account-cluster:";
+
+    /// <summary>Gives the key of the cluster whose first account is given.</summary>
+    /// <param name="first">The cluster's first account.</param>
+    /// <returns>The key.</returns>
+    public static string KeyOf(ChainAddress first)
+    {
+        ArgumentNullException.ThrowIfNull(first);
+        return KeyPrefix + first.Chain.ToString().ToLowerInvariant() + ":" + first.Value;
+    }
 }
