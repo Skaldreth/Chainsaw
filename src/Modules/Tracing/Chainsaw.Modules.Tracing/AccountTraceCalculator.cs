@@ -136,10 +136,19 @@ internal static class AccountTraceCalculator
     private static bool FeedSwap(AssetTracer sold, AssetTracer bought, SwapStep step)
     {
         var traced = sold.TracedOf(step.SoldTransfers);
-        return step.BoughtTransfers.Aggregate(false, (any, transfer) => bought.SwapIn(
-            transfer,
-            SwapPriceCheck.ShareOf(
-                SwapValue.Follow(traced, step.Swap.Sold, transfer.Amount.Units), step.FollowShare)) | any);
+        return step.BoughtTransfers.Aggregate(
+            false, (any, transfer) => bought.SwapIn(transfer, Following(step, traced, transfer)) | any);
+    }
+
+    /// <summary>Gives the traced units of one movement that came out of a followed swap.</summary>
+    /// <param name="step">The swap.</param>
+    /// <param name="traced">The traced units that went in.</param>
+    /// <param name="transfer">The movement that came out.</param>
+    /// <returns>The units that follow.</returns>
+    private static BigInteger Following(SwapStep step, BigInteger traced, EthereumTransfer transfer)
+    {
+        var follows = SwapValue.Follow(traced, step.Swap.Sold, transfer.Amount.Units);
+        return step.Price?.FollowingOf(follows) ?? follows;
     }
 
     /// <summary>Gives what the rule did at each swap the traced money reached.</summary>
@@ -175,22 +184,12 @@ internal static class AccountTraceCalculator
                 step.Stop)
             {
                 Price = price,
-                KeptByPool = new AssetAmount(step.Swap.Sold.Asset, KeptOf(traced, price?.KeptShare)),
+                KeptByPool = new AssetAmount(step.Swap.Sold.Asset, price?.KeptOf(traced) ?? BigInteger.Zero),
             };
         }
 
         return conversions;
     }
-
-    /// <summary>
-    /// Gives how much of the traced units that went into a swap stays in the pool: the share that what came out was
-    /// not worth, rounded so that what follows is never more than what went in.
-    /// </summary>
-    /// <param name="traced">The traced units that went in.</param>
-    /// <param name="keptShare">What came out was worth as a share of what went in, or <see langword="null"/>.</param>
-    /// <returns>The units that stay in the pool.</returns>
-    private static BigInteger KeptOf(BigInteger traced, decimal? keptShare) =>
-        keptShare is null ? BigInteger.Zero : traced - SwapPriceCheck.ShareOf(traced, keptShare);
 
     /// <summary>
     /// Finds which swaps each movement's traced money may rest on: what came out of a followed swap rests on it and on
@@ -289,7 +288,7 @@ internal static class AccountTraceCalculator
                     ],
                     [.. graph.Account.Transfers.Where(pair.Swap.IsBought)],
                     SwapValue.StopOf(pair.Swap, graph.SwapStops),
-                    pair.Check?.FollowShare)),
+                    pair.Check)),
         ]);
 
         /// <summary>
@@ -332,16 +331,16 @@ internal static class AccountTraceCalculator
     /// <param name="SoldTransfers">The movements the account sent into it.</param>
     /// <param name="BoughtTransfers">The movements that came out of it to the account.</param>
     /// <param name="Stop">The user's choice that the value does not follow, or <see langword="null"/>.</param>
-    /// <param name="FollowShare">
-    /// The share of what came out that follows when it was worth more than what went in
-    /// (<see cref="SwapPriceCheck.FollowShare"/>), or <see langword="null"/> for the whole traced share.
+    /// <param name="Price">
+    /// The swap's price check, which lets only the share that went in follow when what came out was worth more
+    /// (<see cref="SwapPriceCheck.FollowingOf"/>), or <see langword="null"/>.
     /// </param>
     private sealed record SwapStep(
         TokenSwap Swap,
         IReadOnlyList<EthereumTransfer> SoldTransfers,
         IReadOnlyList<EthereumTransfer> BoughtTransfers,
         SwapStop? Stop,
-        decimal? FollowShare)
+        SwapPriceCheck? Price)
     {
         /// <summary>Gets whether the traced value follows through the swap.</summary>
         public bool Follows => Stop is null;

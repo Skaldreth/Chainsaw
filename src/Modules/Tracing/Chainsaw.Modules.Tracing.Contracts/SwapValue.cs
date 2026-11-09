@@ -301,19 +301,48 @@ public sealed record SwapPriceCheck(
     /// <summary>Gets whether the tested price changes the traced amounts: an absurd price, or values that differ.</summary>
     public bool ChangesAmounts => IsUnreasonable || KeptShare is not null || FollowShare is not null;
 
-    /// <summary>Takes a share of an amount in whole units, rounded down, so that the share never creates value.</summary>
-    /// <param name="units">The units.</param>
-    /// <param name="share">The share, from 0 to 1, or <see langword="null"/> for all of it.</param>
-    /// <returns>The share of the units.</returns>
-    public static BigInteger ShareOf(BigInteger units, decimal? share)
-    {
-        if (share is not { } part || part >= 1)
-        {
-            return units;
-        }
+    /// <summary>
+    /// Gives how many of the traced units that came out of the swap follow: all of them, or, when what came out was
+    /// worth more (<see cref="FollowShare"/>), the share value in / value out, exactly and rounded down, so that the
+    /// traced value never grows.
+    /// </summary>
+    /// <param name="units">The traced units that came out.</param>
+    /// <returns>The units that follow.</returns>
+    public BigInteger FollowingOf(BigInteger units) =>
+        FollowShare is null ? units : Fraction(units, SoldValue!.Value, BoughtValue!.Value);
 
-        const long Scale = 1_000_000_000_000;
-        return units * new BigInteger(Math.Floor(Math.Max(part, 0) * Scale)) / Scale;
+    /// <summary>
+    /// Gives how many of the traced units that went into the swap stay in the pool: none, or, when what came out was
+    /// worth less (<see cref="KeptShare"/>), the share it was not worth, so that what follows is exactly value out /
+    /// value in of what went in, rounded down.
+    /// </summary>
+    /// <param name="units">The traced units that went in.</param>
+    /// <returns>The units that stay in the pool.</returns>
+    public BigInteger KeptOf(BigInteger units) =>
+        KeptShare is null ? BigInteger.Zero : units - Fraction(units, BoughtValue!.Value, SoldValue!.Value);
+
+    /// <summary>Takes units × part / whole exactly, rounded down; the decimals are read as exact fractions.</summary>
+    /// <param name="units">The units.</param>
+    /// <param name="part">The part, at most the whole.</param>
+    /// <param name="whole">The whole, above zero.</param>
+    /// <returns>The share of the units.</returns>
+    private static BigInteger Fraction(BigInteger units, decimal part, decimal whole)
+    {
+        var (partUnits, partScale) = Exact(part);
+        var (wholeUnits, wholeScale) = Exact(whole);
+        return BigInteger.Divide(units * partUnits * wholeScale, wholeUnits * partScale);
+    }
+
+    /// <summary>Reads a decimal as an exact fraction: its digits over a power of ten.</summary>
+    /// <param name="value">The value, not negative.</param>
+    /// <returns>The digits and the power of ten.</returns>
+    private static (BigInteger Units, BigInteger Scale) Exact(decimal value)
+    {
+        var bits = decimal.GetBits(value);
+        var digits = new BigInteger((uint)bits[0]) | (new BigInteger((uint)bits[1]) << 32)
+            | (new BigInteger((uint)bits[2]) << 64);
+        var scale = (bits[3] >> 16) & 0xFF;
+        return (digits, BigInteger.Pow(10, scale));
     }
 
     /// <summary>

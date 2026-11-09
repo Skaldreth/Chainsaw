@@ -344,7 +344,8 @@ public sealed class SwapRecognitionTests : IDisposable
         var conversion = Assert.Single(result.Swaps);
         Assert.Equal(Usdt(0), conversion.KeptByPool);
         var traced = conversion.TracedBought;
-        Assert.Equal(SwapPriceCheck.ShareOf(Ether(0.4m).Units, check.FollowShare), traced.Units);
+        Assert.Equal(check.FollowingOf(Ether(0.4m).Units), traced.Units);
+        Assert.Equal(Ether(0.4m).Units * 10_000 / 12_000, traced.Units);
         Assert.True(Rates.ValueAt(traced, DateTimeOffset.UnixEpoch) <= 10_000m);
         Assert.True(Rates.ValueAt(traced, DateTimeOffset.UnixEpoch) > 9_999.99m);
         var exchange = Assert.Single(result.Ends, end => end.NodeKey == Key(graph, Exchange));

@@ -4048,3 +4048,11 @@ Inga C; två I med samma rot i hur en swap känns igen, och fyra M.
 - **M-1:** *Varför?* i Exponering säger att poolens del inte dras av där (BACKLOG).
 - **M-2:** grafen läses om för swapparnas kurser högst en gång per läsning.
 - **M-3:** `HasUntestedSwapPrices` gäller bara swappar som spårade pengar går genom.
+
+## Åttonde granskningen av SW1a: de tre M rättade (2026-11-09)
+
+- **M-a:** andelen genom en swap räknas exakt med heltal (värdena läses som exakta bråk), avrundat nedåt
+  (`SwapPriceCheck.FollowingOf` och `KeptOf`), i stället för med tolv decimaler.
+- **M-b:** grafen läses om för swapparnas kurser så länge den förra omläsningen prövade fler priser, och swapparna på
+  spåret får sina kurser först.
+- **M-c:** jämförelsen inför toasten glöms när omläsningen ersattes eller väntar på en expansion.

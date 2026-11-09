@@ -218,7 +218,9 @@ public sealed class GraphSource(
                 // The swaps' rates come first, so that a price that decides where traced money goes is tested before
                 // a line's value is filled in.
                 var graph = scene.Snapshot.Graph;
-                var (swapRates, asked) = await FetchSwapRatesAsync(@case, graph, throttled, cancellationToken)
+                var traced = scene.Snapshot.AccountTrace?.Swaps.Select(conversion => conversion.Swap).ToHashSet()
+                    ?? [];
+                var (swapRates, asked) = await FetchSwapRatesAsync(@case, graph, traced, throttled, cancellationToken)
                     .ConfigureAwait(false);
                 var (values, gaps) = await ValuesAsync(
                     @case, graph, PriceLookupMode.AsNeeded, latest, cancellationToken, throttled, asked)
@@ -864,11 +866,16 @@ public sealed class GraphSource(
     /// </summary>
     /// <param name="case">The open case.</param>
     /// <param name="graph">The graph.</param>
+    /// <param name="traced">The swaps traced money goes through, whose rates are asked for first.</param>
     /// <param name="throttled">Set when the source asked Chainsaw to wait.</param>
     /// <param name="cancellationToken">Stops the work.</param>
     /// <returns>Whether a rate the case lacked arrived, and how many rates were asked of the source.</returns>
     private async Task<(bool Fetched, int Asked)> FetchSwapRatesAsync(
-        ICase @case, TraceGraph graph, StrongBox<bool> throttled, CancellationToken cancellationToken)
+        ICase @case,
+        TraceGraph graph,
+        IReadOnlySet<TokenSwap> traced,
+        StrongBox<bool> throttled,
+        CancellationToken cancellationToken)
     {
         var fetched = false;
         var asked = 0;
@@ -878,7 +885,8 @@ public sealed class GraphSource(
         }
 
         var seen = new HashSet<(Asset, DateTimeOffset)>();
-        foreach (var swap in graph.Account.Swaps.Where(swap => swap.Time is not null))
+        var swaps = graph.Account.Swaps.Where(swap => swap.Time is not null).OrderBy(swap => !traced.Contains(swap));
+        foreach (var swap in swaps)
         {
             foreach (var asset in new[] { PricedAs(swap.Sold.Asset), PricedAs(swap.Bought.Asset) })
             {
