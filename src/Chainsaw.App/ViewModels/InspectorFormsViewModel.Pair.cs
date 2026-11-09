@@ -66,7 +66,7 @@ public sealed partial class InspectorFormsViewModel
 
     /// <summary>Gets whether the form shows a pair's way in place of the cluster's addresses.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanSubmit), nameof(SubmitText))]
+    [NotifyPropertyChangedFor(nameof(CanSubmit), nameof(SubmitText), nameof(ShowsMembers))]
     public partial bool IsPairMode { get; private set; }
 
     /// <summary>Gets whether the pair is in two clusters: the warning with only <em>Stäng</em>.</summary>

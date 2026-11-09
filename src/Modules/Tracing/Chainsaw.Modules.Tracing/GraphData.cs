@@ -44,4 +44,7 @@ internal sealed record GraphKnowledge(
 
     /// <summary>Gets the account clusters among the graph's accounts, each open or closed (sketch KE1).</summary>
     public IReadOnlyList<GraphAccountCluster> AccountClusters { get; init; } = [];
+
+    /// <summary>Gets the account heuristics' proposals among the graph's accounts.</summary>
+    public IReadOnlyList<GraphAccountProposal> AccountProposals { get; init; } = [];
 }

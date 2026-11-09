@@ -133,7 +133,7 @@ byggt ur BACKLOG; det som skriver i ärendet granskas oberoende.
    i ordning: E1 Etherscan och nycklarna i valvet (NY1a), byggda 2026-11-09, E2
    kontoheuristikerna (ett kluster på Ethereum är en hög som fälls ut till ett område, KE1a och KE1b tillsammans), E3 kontrollerna och Tornado Cash, E4 resterna efter etapp 23 och 23b. Kvar: kontoheuristikerna, kontrollerna och plånböckerna på Ethereum, egna ytor, Etherscan med nyckel
    (fråga 20) och fynden från etapp 23 och 23b (BACKLOG).
-   **E2 i delar:** E2a klustringen för konton i Clustering (`IAccountClustering`, heuristikerna `deposit-sweep v1`
+   **E2 byggd 2026-11-09** (E2a, E2b och E2c, se DEV-LOG; resterna i BACKLOG under Ethereum). **Planen var:** E2a klustringen för konton i Clustering (`IAccountClustering`, heuristikerna `deposit-sweep v1`
    och `gas-funding v1` på `EthereumTransfer` och `EthereumFee`, förseglade i en egen kedja `clustering.account_evidence`,
    klustren byggda ur dem); E2b grafen enligt KE1 (högen som fälls ut till ett område, *Varför?* och Historik); E2c
    gasförslaget i KF2b och att bryta upp ett kluster på ett konto (BU1a). Varje del granskas en gång.

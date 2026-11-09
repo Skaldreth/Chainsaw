@@ -6217,3 +6217,18 @@ insättning i en borta tx i Begäran, Flöde).
   inspektören säger alla skäl; M9 en svepning inne i en hopfälld hög ritas inte som en linje till sig själv. **Inte
   ändrat:** I6 `AccountData.Gone` håller både säkert och kanske borta tx, så båda lämnas redan ute.
 
+## E2c (2026-11-09): kontoförslagen i KF2b och uppbrytning av kontokluster
+
+- **Besluten om kontokluster** förseglas i Clustering (`clustering.account_decisions`, schemasteg 8): en sammanslagning
+  som användarens bedömning (`user v1`) med sitt ursprung, en uppbrytning av två konton och ångrandet av båda; en
+  uppbrytning gör att ingen slutsats som slår ihop de två räknas, och en sammanslagning över en uppbrytning vägras.
+- **Förslagen** (`gas-funding v1`, och `deposit-sweep v1` till en mottagare utan tjänsteetikett) följer med grafen
+  (`TraceGraph.AccountProposals`) och blir kontrollen `account-wallets v1` i KF2b, ett förslag per förslag med kontona i
+  `CheckFinding.Accounts` (förseglade med fyndet). Ett godkännande slår ihop kontona i samma transaktion som beslutet, och
+  att ta tillbaka godkännandet ångrar sammanslagningen. Kontrollen läser grafen som `cross-chain` gör, och körs därför
+  med kontrollerna för UTXO-kedjorna.
+- **Bryt upp** (BU1a): ett konto i ett utfällt kontokluster bryts ut med formuläret vid noden; formuläret säger vad som
+  händer i stället för att lista adresser, och skälet är frivilligt.
+- **Kvar:** att ångra en uppbrytning eller en sammanslagning av konton i Historik (AN1b) finns bara i Clustering, inte i
+  inspektören; uppbrytningen av ett konto görs mot varje annat konto, i var sin transaktion.
+

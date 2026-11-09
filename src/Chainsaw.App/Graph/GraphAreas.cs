@@ -223,7 +223,8 @@ public static class GraphAreas
             return null;
         }
 
-        var nodes = NodesOf(scene, finding.Addresses.Where(a => !dismissed.Contains(a)), finding.Transactions);
+        var nodes = NodesOf(scene, finding.Addresses.Where(a => !dismissed.Contains(a)).Select(a => a.ToChainAddress())
+            .Concat(finding.Accounts), finding.Transactions);
         var fewest = finding.Area == AreaSort.Wallet ? 2 : 1;
         if (nodes.Count < fewest)
         {

@@ -112,7 +112,13 @@ internal sealed class GraphBuilder
             FollowedReplacements = _data.State.Replacements,
         };
         var (piles, clues) = PileRules.Arrange(graph, _data.State);
-        return graph with { Piles = piles, HeldBack = clues, AccountClusters = _knowledge.AccountClusters };
+        return graph with
+        {
+            Piles = piles,
+            HeldBack = clues,
+            AccountClusters = _knowledge.AccountClusters,
+            AccountProposals = _knowledge.AccountProposals,
+        };
     }
 
     /// <summary>

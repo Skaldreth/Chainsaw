@@ -31,6 +31,7 @@ public static class ChecksModule
         services.AddSingleton<ICheckAnalysis, CoinJoinCheck>();
         services.AddSingleton<ICheckAnalysis, PeelChainCheck>();
         services.AddSingleton<ICheckAnalysis, WalletCheck>();
+        services.AddSingleton<ICheckAnalysis, AccountWalletCheck>();
         services.AddSingleton<ICheckAnalysis, CoinJoinMergeCheck>();
         services.AddSingleton<ICheckAnalysis, ServiceBehaviourCheck>();
         services.AddSingleton<ICheckAnalysis, NestedServiceCheck>();

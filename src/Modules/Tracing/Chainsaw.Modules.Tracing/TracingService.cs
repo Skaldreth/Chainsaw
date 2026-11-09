@@ -1354,6 +1354,7 @@ internal sealed class TracingService : ITracingService
         var clusters = _clustering.GetClusters(@case, addresses);
         var ends = AddressEnds(@case, addresses);
         var accountEnds = AccountEnds(@case, data);
+        var accountClusters = AccountClusters(@case, data.Account, accountEnds);
         return GraphBuilder.Build(data, new GraphKnowledge(
             address => clusters.TryGetValue(address, out var cluster)
                 ? [.. cluster.Addresses]
@@ -1365,7 +1366,8 @@ internal sealed class TracingService : ITracingService
                 classifier => classifier.ClassifyTransaction(@case, transaction)))])
         {
             AccountEnds = account => accountEnds.GetValueOrDefault(account) ?? [],
-            AccountClusters = AccountClusters(@case, data.Account, accountEnds),
+            AccountClusters = accountClusters.Clusters,
+            AccountProposals = accountClusters.Proposals,
         });
     }
 
@@ -1377,18 +1379,19 @@ internal sealed class TracingService : ITracingService
     /// <param name="case">The open case.</param>
     /// <param name="account">What the graph read on the account chains.</param>
     /// <param name="ends">Why the trail ends at each account, for the services and the contracts.</param>
-    /// <returns>The clusters.</returns>
-    private List<GraphAccountCluster> AccountClusters(
+    /// <returns>The clusters, and the proposals among the graph's accounts.</returns>
+    private (List<GraphAccountCluster> Clusters, List<GraphAccountProposal> Proposals) AccountClusters(
         ICase @case, AccountData account, Dictionary<ChainAddress, IReadOnlyList<TrailEndHint>> ends)
     {
         if (_accountClustering is null || account.Transfers.Count == 0)
         {
-            return [];
+            return ([], []);
         }
 
         var opened = _openClusters.GetValueOrDefault(@case.Path) ?? [];
         var activity = AccountActivityOf(account, ends);
         var clusters = new List<GraphAccountCluster>();
+        var proposals = new List<GraphAccountProposal>();
         foreach (var chain in account.Transfers.Select(transfer => transfer.From.Chain).Distinct()
             .Where(chain => chain.IsEvm()).Order())
         {
@@ -1407,9 +1410,17 @@ internal sealed class TracingService : ITracingService
                     key, chain, cluster.Members, cluster.Collector, isOpen,
                     [.. cluster.Evidence.Select(evidence => evidence.Heuristic + ": " + evidence.Reason)]));
             }
+
+            proposals.AddRange(run.Proposals.Select(proposal => new GraphAccountProposal(
+                proposal.Heuristic.Name + ":" + string.Join(",", proposal.Accounts.Select(account => account.Value)),
+                chain,
+                proposal.Heuristic.ToString(),
+                proposal.Accounts,
+                [.. proposal.Transactions.Select(hash => hash.Value)],
+                proposal.Reason)));
         }
 
-        return clusters;
+        return (clusters, proposals);
     }
 
     /// <summary>

@@ -55,7 +55,8 @@ internal static class FindingCodec
                 [
                     .. finding.Rates.Select(rate =>
                         new StoredRate(rate.Source, rate.Sequence, rate.Sha256, rate.Reading)),
-                ]);
+                ],
+            finding.Accounts.Count == 0 ? null : [.. finding.Accounts.Select(account => account.ToString())]);
         return JsonSerializer.Serialize(stored);
     }
 
@@ -101,6 +102,7 @@ internal static class FindingCodec
             Rates = stored.Rates is { } rates
                 ? [.. rates.Select(rate => new CheckRate(rate.Source, rate.Sequence, rate.Sha256, rate.Reading))]
                 : [],
+            Accounts = stored.Accounts is { } accounts ? [.. accounts.Select(AccountOf)] : [],
         };
     }
 
@@ -155,6 +157,7 @@ internal static class FindingCodec
     /// <param name="Candidates">The candidates.</param>
     /// <param name="Departure">The payment a cross-chain suggestion starts from; left out when none.</param>
     /// <param name="Rates">The rates the finding rests on; left out when none.</param>
+    /// <param name="Accounts">The accounts it is about, as <c>Chain:value</c>; left out when none.</param>
     private sealed record StoredFinding(
         string Key,
         string Kind,
@@ -167,7 +170,20 @@ internal static class FindingCodec
         IReadOnlyList<StoredBasis> Basis,
         IReadOnlyList<StoredCandidate> Candidates,
         [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] StoredMovement? Departure = null,
-        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<StoredRate>? Rates = null);
+        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<StoredRate>? Rates = null,
+        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<string>? Accounts = null);
+
+    /// <summary>Reads a stored account, written as <c>Chain:value</c>.</summary>
+    /// <param name="text">The stored account.</param>
+    /// <returns>The account.</returns>
+    /// <exception cref="InvalidDataException">It is not one.</exception>
+    private static ChainAddress AccountOf(string text)
+    {
+        var colon = text.IndexOf(':', StringComparison.Ordinal);
+        return colon > 0 && Enum.TryParse<Chain>(text[..colon], out var chain) && Enum.IsDefined(chain)
+            ? new ChainAddress(chain, text[(colon + 1)..])
+            : throw new InvalidDataException("A sealed finding's account is not one.");
+    }
 
     /// <summary>A rate a finding rests on, as sealed.</summary>
     /// <param name="Source">The source's stable name.</param>

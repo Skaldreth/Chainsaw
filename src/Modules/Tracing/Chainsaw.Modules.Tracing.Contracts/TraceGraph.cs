@@ -123,6 +123,11 @@ public sealed record TraceGraph(
     /// </summary>
     public IReadOnlyList<GraphAccountCluster> AccountClusters { get; init; } = [];
 
+    /// <summary>
+    /// Gets what the account heuristics propose but leave to the user (KF2b): accounts that may have the same owner.
+    /// </summary>
+    public IReadOnlyList<GraphAccountProposal> AccountProposals { get; init; } = [];
+
     /// <summary>Gives a node by its key.</summary>
     /// <param name="key">The key.</param>
     /// <returns>The node, or <see langword="null"/>.</returns>
@@ -508,6 +513,21 @@ public sealed record Expansion(
     public string Subject =>
         Address?.Value ?? Txid?.Value ?? EthereumAddress?.Value ?? EthereumTransaction!.Value;
 }
+
+/// <summary>A proposal of the account heuristics that the user approves or dismisses in the panel (KF2b).</summary>
+/// <param name="Key">The proposal's stable key: the heuristic and its accounts.</param>
+/// <param name="Chain">The chain.</param>
+/// <param name="Heuristic">The heuristic and its version, such as <c>gas-funding v1</c>.</param>
+/// <param name="Accounts">The accounts it says may have the same owner.</param>
+/// <param name="Transactions">The transactions it rests on, by hash.</param>
+/// <param name="Reason">Why, in plain Swedish.</param>
+public sealed record GraphAccountProposal(
+    string Key,
+    Chain Chain,
+    string Heuristic,
+    IReadOnlyList<ChainAddress> Accounts,
+    IReadOnlyList<string> Transactions,
+    string Reason);
 
 /// <summary>
 /// An account cluster in the graph (sketch KE1): accounts the account heuristics merged, drawn as one square node like

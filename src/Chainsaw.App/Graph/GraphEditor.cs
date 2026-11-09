@@ -4,6 +4,7 @@ using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Checks.Contracts;
 using Chainsaw.Modules.Clustering.Contracts;
 using Chainsaw.Modules.Tracing.Contracts;
+using Chainsaw.SharedKernel;
 
 namespace Chainsaw.App.Graph;
 
@@ -36,6 +37,22 @@ public interface IGraphEditor
     /// <param name="splits">The splits.</param>
     /// <returns>How many were stored, and the failure that stopped the rest, if any.</returns>
     Task<SplitOutcome> SplitAsync(ICase @case, IReadOnlyList<SplitRequest> splits);
+
+    /// <summary>
+    /// Breaks an account out of an account cluster (sketch KE1, BU1a): a sealed split from each other account, so that
+    /// no conclusion joins them while the splits stand. By default nothing can be split.
+    /// </summary>
+    /// <param name="case">The open case.</param>
+    /// <param name="account">The account to break out.</param>
+    /// <param name="others">The cluster's other accounts.</param>
+    /// <param name="reason">Why, or <see langword="null"/>.</param>
+    /// <returns>What went wrong, or <see langword="null"/> when it was stored.</returns>
+    Task<string?> SplitAccountAsync(
+        ICase @case, ChainAddress account, IReadOnlyList<ChainAddress> others, string? reason) =>
+        Task.FromResult<string?>(AccountSplitUnavailableText);
+
+    /// <summary>What is said when accounts cannot be split here.</summary>
+    const string AccountSplitUnavailableText = "Kontokluster kan inte brytas upp här.";
 
     /// <summary>Links a coin to the transaction where the money continues on another chain, sealed.</summary>
     /// <param name="case">The open case.</param>
@@ -248,13 +265,45 @@ public sealed record SplitOutcome(int Stored, Exception? Failure);
 /// <param name="clustering">The clusters and the splits.</param>
 /// <param name="library">The label library, which follows a label taken back.</param>
 /// <param name="checks">The checks, whose approvals made the user's merges.</param>
+/// <param name="accounts">The clustering of accounts, whose clusters can be broken up; none where not registered.</param>
 public sealed class GraphEditor(
     ITracingService tracing,
     IAttributionService attribution,
     IClusteringService clustering,
     ILabelLibrary library,
-    ICheckService checks) : IGraphEditor
+    ICheckService checks,
+    IAccountClustering? accounts = null) : IGraphEditor
 {
+    /// <inheritdoc/>
+    public Task<string?> SplitAccountAsync(
+        ICase @case, ChainAddress account, IReadOnlyList<ChainAddress> others, string? reason)
+    {
+        ArgumentNullException.ThrowIfNull(@case);
+        ArgumentNullException.ThrowIfNull(account);
+        ArgumentNullException.ThrowIfNull(others);
+        if (accounts is null)
+        {
+            return Task.FromResult<string?>(IGraphEditor.AccountSplitUnavailableText);
+        }
+
+        return Task.Run<string?>(() =>
+        {
+            try
+            {
+                foreach (var other in others.Where(other => other != account))
+                {
+                    accounts.Split(@case, account, other, reason);
+                }
+
+                return null;
+            }
+            catch (Exception exception) when (exception is ArgumentException or CaseException)
+            {
+                return exception.Message;
+            }
+        });
+    }
+
     /// <summary>
     /// What the inspector says when a held back conclusion no longer waits, since what it was built on came back
     /// (sketch HB1a); the history is read again, and the next expansion redoes the conclusion.

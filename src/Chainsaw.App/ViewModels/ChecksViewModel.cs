@@ -1624,7 +1624,10 @@ public sealed partial class ChecksViewModel : ObservableObject
         }
 
         return _scene is { } scene
-            ? GraphAreas.NodesOf(scene, check.Finding.Addresses, check.Finding.Transactions)
+            ? GraphAreas.NodesOf(
+                scene,
+                check.Finding.Addresses.Select(address => address.ToChainAddress()).Concat(check.Finding.Accounts),
+                check.Finding.Transactions)
             : [];
     }
 

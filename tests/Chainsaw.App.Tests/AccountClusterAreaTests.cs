@@ -46,6 +46,21 @@ public sealed class AccountClusterAreaTests
         Assert.NotNull(InspectorContent.AccountClusterOf(scene, node.Node));
     }
 
+    [Fact]
+    public void An_account_of_an_open_cluster_can_be_broken_out_and_one_of_a_closed_cannot()
+    {
+        var open = Scene(isOpen: true);
+        var node = open.Nodes.First(view => view.Node.Accounts.Contains(EthSamples.S.ToChainAddress()));
+
+        var cluster = InspectorForms.AccountClusterToSplit(open, node);
+
+        Assert.NotNull(cluster);
+        Assert.StartsWith("Bryter ut ", InspectorForms.AccountSplitNotice(cluster, node), StringComparison.Ordinal);
+        var closed = Scene(isOpen: false);
+        Assert.Null(InspectorForms.AccountClusterToSplit(closed, closed.Nodes.First(view => view.Node.Accounts.Count == 1
+            && view.Node.Accounts[0] == EthSamples.V.ToChainAddress())));
+    }
+
     private static GraphScene Scene(bool isOpen)
     {
         var members = new[] { EthSamples.M.ToChainAddress(), EthSamples.S.ToChainAddress() }

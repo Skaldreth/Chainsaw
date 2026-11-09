@@ -23,6 +23,9 @@ internal sealed class CheckService : ICheckService
     /// <summary>The clustering, whose conclusions the analyses read.</summary>
     private readonly IClusteringService _clustering;
 
+    /// <summary>The clustering of accounts, which an approved account proposal merges in; none where not registered.</summary>
+    private readonly IAccountClustering? _accounts;
+
     /// <summary>The clock, for when a run was made.</summary>
     private readonly IClock _clock;
 
@@ -61,6 +64,9 @@ internal sealed class CheckService : ICheckService
     /// <param name="rates">
     /// The prices the case already holds (read only, sending nothing), or <see langword="null"/>.
     /// </param>
+    /// <param name="accounts">
+    /// The clustering of accounts, which an approved account proposal merges in, or <see langword="null"/>.
+    /// </param>
     /// <exception cref="InvalidOperationException">Two analyses have the same name.</exception>
     public CheckService(
         IEnumerable<ICheckAnalysis> analyses,
@@ -69,9 +75,11 @@ internal sealed class CheckService : ICheckService
         IAttributionService? attribution = null,
         ICrossChainLookup? crossChain = null,
         ICrossChainLinks? links = null,
-        ICaseRates? rates = null)
+        ICaseRates? rates = null,
+        IAccountClustering? accounts = null)
     {
         ArgumentNullException.ThrowIfNull(analyses);
+        _accounts = accounts;
         var all = analyses.ToList();
         if (all.FirstOrDefault(analysis => analysis.Scope is null) is { } unscoped)
         {
@@ -366,6 +374,12 @@ internal sealed class CheckService : ICheckService
         CheckDecision decision,
         Dictionary<ResultKey, SealedResult> results)
     {
+        if (request.Analysis.Name == AccountWalletCheck.Name)
+        {
+            FollowAccountWallet(transaction, request, decision, results);
+            return;
+        }
+
         if (request.Analysis.Name != WalletCheck.Name)
         {
             return;
@@ -397,6 +411,56 @@ internal sealed class CheckService : ICheckService
             }
         }
     }
+
+    /// <summary>
+    /// Follows a decision about an account proposal in the same transaction (sketch KE1): approving it merges the
+    /// accounts as the user's judgement, with the decision as its origin; taking the approval back undoes the merge.
+    /// </summary>
+    /// <param name="transaction">The case's transaction.</param>
+    /// <param name="request">The decision as asked for.</param>
+    /// <param name="decision">The decision as sealed.</param>
+    /// <param name="results">The sealed findings.</param>
+    /// <exception cref="InvalidOperationException">The clustering of accounts is not registered.</exception>
+    /// <exception cref="ArgumentException">The clustering refuses the merge (the user split two of them).</exception>
+    private void FollowAccountWallet(
+        ICaseTransaction transaction,
+        DecisionRequest request,
+        CheckDecision decision,
+        Dictionary<ResultKey, SealedResult> results)
+    {
+        var accounts = _accounts
+            ?? throw new InvalidOperationException("No accounts can be merged here (the clustering is not registered).");
+        if (request.Verdict == CheckVerdict.Approved)
+        {
+            var finding = FindingCodec.Decode(results[KeyOf(request)].Content);
+            if (finding.Accounts.Count < 2)
+            {
+                throw new SuggestionChangedException("The proposal has no accounts to merge; run the checks again.");
+            }
+
+            accounts.Merge(
+                transaction, finding.Accounts[0].Chain, finding.Accounts, OriginOf(decision.Sequence),
+                decision.Reason);
+        }
+        else if (request.Verdict == CheckVerdict.Withdrawn && request.Undoes is { } undone)
+        {
+            var origin = OriginOf(undone);
+            foreach (var chain in Enum.GetValues<Chain>().Where(chain => chain.IsEvm()))
+            {
+                foreach (var made in accounts.Decisions(transaction, chain)
+                    .Where(entry => !entry.IsUndone && entry.Origin == origin))
+                {
+                    accounts.Undo(transaction, made.Sequence, decision.Reason);
+                }
+            }
+        }
+    }
+
+    /// <summary>Gives the origin a merge made by a decision in the panel is sealed with.</summary>
+    /// <param name="decision">The decision's sequence.</param>
+    /// <returns>For example <c>checks.decisions:12</c>.</returns>
+    private static string OriginOf(long decision) =>
+        CheckSchema.DecisionsChain + ":" + decision.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
     /// <summary>
     /// Follows a decision about a continuation on another chain in the same transaction, so that the two are sealed

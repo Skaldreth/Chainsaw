@@ -59,6 +59,12 @@ public sealed record CheckFinding(
     /// rests on no rate.
     /// </summary>
     public IReadOnlyList<CheckRate> Rates { get; init; } = [];
+
+    /// <summary>
+    /// Gets the accounts on an account chain the finding is about (<c>account-wallets</c>), each with its chain;
+    /// empty for a finding about addresses on a UTXO chain.
+    /// </summary>
+    public IReadOnlyList<ChainAddress> Accounts { get; init; } = [];
 }
 
 /// <summary>

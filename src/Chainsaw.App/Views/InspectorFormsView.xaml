@@ -207,7 +207,8 @@
                     <DockPanel>
                         <TextBlock Text="{Binding PickedText}" DockPanel.Dock="Right" FontSize="12.5" Margin="0,12,0,5"
                                    Foreground="{StaticResource Brush.TextMuted}" />
-                        <TextBlock Text="Adresser i klustret" Style="{StaticResource Text.FormLabel}" />
+                        <TextBlock Text="Adresser i klustret" Style="{StaticResource Text.FormLabel}"
+                                   Visibility="{Binding ShowsMembers, Converter={StaticResource Visible}}" />
                     </DockPanel>
                     <TextBlock Text="{Binding MembersNotice}" FontSize="13" Foreground="{StaticResource Brush.TextDim}"
                                TextWrapping="Wrap">
@@ -225,10 +226,10 @@
                          costs only the rows on screen (principle 6). -->
                     <TextBlock Text="Ctrl + klick på adressen som inte hör ihop med den" Style="{StaticResource Text.FormNote}"
                                Margin="0,0,0,6"
-                               Visibility="{Binding IsPairMode, Converter={x:Static controls:InvertVisibility.Instance}}" />
+                               Visibility="{Binding ShowsMembers, Converter={StaticResource Visible}}" />
                     <ItemsControl x:Name="MemberList" ItemsSource="{Binding Members}" Focusable="False" MaxHeight="280"
                                   VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.ScrollUnit="Pixel"
-                                  Visibility="{Binding IsPairMode, Converter={x:Static controls:InvertVisibility.Instance}}">
+                                  Visibility="{Binding ShowsMembers, Converter={StaticResource Visible}}">
                         <ItemsControl.Template>
                             <ControlTemplate TargetType="ItemsControl">
                                 <ScrollViewer CanContentScroll="True" VerticalScrollBarVisibility="Auto" Focusable="False">

@@ -2417,7 +2417,10 @@ Grafen för Ethereum är inte byggd än; det som går att prova är källan, sta
 - Expandera adresser på Ethereum där två eller fler insättningsadresser töms till en adress med börsetikett: de blir
   en fyrkantig nod *Trolig tjänst · N*. Ett klick fäller ut adresserna med ett blått område; ett klick på områdets
   bricka fäller ihop det igen. Inspektören för ett konto säger varför.
-- Samma mönster till en adress utan etikett ger inget kluster (bara ett förslag, när E2c är byggd).
+- Samma mönster till en adress utan etikett ger inget kluster, bara ett förslag *Samma ägare troligt* i KF2b; Godkänn slår
+  ihop adresserna, och att ta tillbaka godkännandet delar dem igen.
+- Välj ett konto i ett utfällt kluster och *Bryt upp* (U): formuläret säger att kontot bryts ut, och efter *Bryt ut*
+  står det utanför klustret.
 
 ## Ethereum med Etherscan (E1, 2026-11-09)
 

@@ -39,6 +39,12 @@ public static class CheckAnalysisNames
     public const string Wallets = "wallet-proposals";
 
     /// <summary>
+    /// The account heuristics' proposals on Ethereum's machine (sketch KE1): accounts that may have the same owner,
+    /// approved as the user's merge.
+    /// </summary>
+    public const string AccountWallets = "account-wallets";
+
+    /// <summary>
     /// The likely continuations on another chain (<c>cross-chain</c>): approving a candidate links the money into the
     /// bridge or swap to the candidate's transaction (<see cref="ICrossChainLinks"/>), and taking the approval back
     /// takes that link back.

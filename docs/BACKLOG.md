@@ -61,6 +61,9 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
     och varifrån. Utfällt eller inte hålls per filens sökväg och töms aldrig. Klustringen körs på hela historiken vid
     varje läsning av grafen. En hopfälld hög kan inte väljas eller expanderas, bara fällas ut; *Varför?* och Historik
     för klustret som i Bitcoin saknas (inspektören säger skälen).
+  - **Efter E2c:** Historik (AN1b) för kontokluster: att se och ångra en uppbrytning eller en sammanslagning av konton
+    i inspektören; i dag finns `IAccountClustering.Undo` men ingen knapp. Att bryta ut ett konto görs i en transaktion
+    per annat konto, inte allt eller inget.
   - **Granskningen av E1 (M):** Etherscan ger `traceId` i stället för `index` för interna överföringar (och kanske ingen
     `logIndex` i `tokentx`), så samma överföring kan få en annan position än hos Blockscout när källorna blandas; nyckeln
     i adressen kan synas i en företagsproxys URL-loggar med Windows som utgång (säg det i PX1a-texten); takten gäller

@@ -96,6 +96,9 @@ internal sealed class Harness : IDisposable
 
     public CaseVerification Verify() => _provider.GetRequiredService<ICaseVerifier>().Verify(Case);
 
+    /// <summary>Gets the services, for a module the harness does not name.</summary>
+    public IServiceProvider Provider => _provider;
+
     public void Reopen()
     {
         Case.Close();

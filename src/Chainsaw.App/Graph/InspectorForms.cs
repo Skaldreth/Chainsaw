@@ -171,6 +171,35 @@ public static class InspectorForms
     }
 
     /// <summary>
+    /// Gives the unfolded account cluster an account node can be broken out of (sketch KE1), or
+    /// <see langword="null"/>: the node is one account, and an open account cluster holds it.
+    /// </summary>
+    /// <param name="scene">The scene.</param>
+    /// <param name="node">The node.</param>
+    /// <returns>The cluster, or <see langword="null"/>.</returns>
+    public static GraphAccountCluster? AccountClusterToSplit(GraphScene scene, NodeView node)
+    {
+        ArgumentNullException.ThrowIfNull(scene);
+        ArgumentNullException.ThrowIfNull(node);
+        return node.Node is { Kind: GraphNodeKind.Address, Accounts: [var account] }
+            ? scene.Snapshot.Graph.AccountClusters.FirstOrDefault(
+                cluster => cluster.IsOpen && cluster.Members.Contains(account))
+            : null;
+    }
+
+    /// <summary>Says what breaking an account out of its cluster does, in the form's notice.</summary>
+    /// <param name="cluster">The cluster.</param>
+    /// <param name="node">The account's node.</param>
+    /// <returns>The sentence.</returns>
+    public static string AccountSplitNotice(GraphAccountCluster cluster, NodeView node)
+    {
+        ArgumentNullException.ThrowIfNull(cluster);
+        ArgumentNullException.ThrowIfNull(node);
+        return $"Bryter ut {node.Name} ur {GraphAreas.AccountClusterLabel(cluster)}. Ingen slutsats som slår ihop dem "
+            + "räknas längre, tills uppbrytningen ångras.";
+    }
+
+    /// <summary>
     /// Gives the coins that came into an actor along the graph's lines and have no link to another chain in force,
     /// the largest first: what can have gone into a bridge or a swap there.
     /// </summary>

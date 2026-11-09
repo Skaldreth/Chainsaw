@@ -377,6 +377,7 @@ public sealed partial class InspectorFormsViewModel : ObservableObject
     public string SubmitText => Form switch
     {
         InspectorForm.Label => "Sätt etikett",
+        InspectorForm.Split when AccountCluster is not null => "Bryt ut",
         InspectorForm.Split when IsPairMode => "Bryt upp",
         InspectorForm.Split => "Bryt ut " + Picked().Count.ToString(CultureInfo.InvariantCulture),
         InspectorForm.CrossChain => "Knyt",
@@ -387,6 +388,7 @@ public sealed partial class InspectorFormsViewModel : ObservableObject
     public bool CanSubmit => !IsSaving && _session.Current is not null && Form switch
     {
         InspectorForm.Label => LabelDraft() is not null,
+        InspectorForm.Split when AccountCluster is not null => true,
         InspectorForm.Split when IsPairMode => !IsApart && PairRequests().Count > 0,
         InspectorForm.Split => SplitRequests().Count > 0,
         InspectorForm.CrossChain => ChosenCoin() is { } coin && RecognisedTx is { } target
@@ -406,7 +408,8 @@ public sealed partial class InspectorFormsViewModel : ObservableObject
         (_scene, _node) = (scene, node);
         HasNode = node is not null;
         CanLabel = node is not null && InspectorForms.LabelSubjectOf(node) is not null;
-        CanSplit = node is not null && InspectorForms.CanSplit(node);
+        AccountCluster = scene is not null && node is not null ? InspectorForms.AccountClusterToSplit(scene, node) : null;
+        CanSplit = node is not null && (InspectorForms.CanSplit(node) || AccountCluster is not null);
         CanCrossChain = scene is not null && node is not null && InspectorForms.IncomingCoins(scene, node).Count > 0;
         OnPropertyChanged(nameof(LabelToolTip));
         OnPropertyChanged(nameof(SplitToolTip));
@@ -425,7 +428,7 @@ public sealed partial class InspectorFormsViewModel : ObservableObject
         {
             FillCoins();
         }
-        else if (Form == InspectorForm.Split && !IsSaving)
+        else if (Form == InspectorForm.Split && !IsSaving && AccountCluster is null)
         {
             _ = ReadMembersAsync(_opened);
         }
@@ -452,6 +455,9 @@ public sealed partial class InspectorFormsViewModel : ObservableObject
         Form = form;
         switch (form)
         {
+            case InspectorForm.Split when AccountCluster is { } cluster:
+                MembersNotice = InspectorForms.AccountSplitNotice(cluster, _node!);
+                break;
             case InspectorForm.Split:
                 _ = ReadMembersAsync(_opened);
                 break;
@@ -568,6 +574,7 @@ public sealed partial class InspectorFormsViewModel : ObservableObject
             var problem = form switch
             {
                 InspectorForm.Label => await StoreLabelAsync(openCase),
+                InspectorForm.Split when AccountCluster is not null => await StoreAccountSplitAsync(openCase),
                 InspectorForm.Split => await StoreSplitsAsync(openCase),
                 _ => await StoreLinkAsync(openCase),
             };
@@ -643,6 +650,37 @@ public sealed partial class InspectorFormsViewModel : ObservableObject
         await _editor.AddLabelAsync(openCase, draft);
         Saved?.Invoke(this, EventArgs.Empty);
         return null;
+    }
+
+    /// <summary>
+    /// Gets the unfolded account cluster the chosen account can be broken out of (sketch KE1), or <see langword="null"/>
+    /// when the chosen node is not such an account; the form then breaks it out instead of listing addresses.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowsMembers))]
+    public partial GraphAccountCluster? AccountCluster { get; private set; }
+
+    /// <summary>Gets whether the form lists a Bitcoin cluster's addresses to pick from.</summary>
+    public bool ShowsMembers => AccountCluster is null && !IsPairMode;
+
+    /// <summary>Breaks the chosen account out of its account cluster, sealed (BU1a for accounts).</summary>
+    /// <param name="openCase">The open case.</param>
+    /// <returns>What to say, or <see langword="null"/> when it was stored.</returns>
+    private async Task<string?> StoreAccountSplitAsync(ICase openCase)
+    {
+        if (AccountCluster is not { } cluster || _node?.Node.Accounts is not [var account])
+        {
+            return string.Empty;
+        }
+
+        var reason = string.IsNullOrWhiteSpace(Reason) ? null : Reason.Trim();
+        var problem = await _editor.SplitAccountAsync(openCase, account, cluster.Members, reason);
+        if (problem is null)
+        {
+            Saved?.Invoke(this, EventArgs.Empty);
+        }
+
+        return problem;
     }
 
     /// <summary>Stores the splits that break the picked addresses out, as one breaking out, all or none.</summary>
