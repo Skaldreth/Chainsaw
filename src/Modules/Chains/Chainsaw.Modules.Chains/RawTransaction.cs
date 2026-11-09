@@ -53,7 +53,7 @@ internal static class RawTransactionReader
     public static RawTransaction ParseHex(ReadOnlySpan<byte> body, Txid expected)
     {
         var raw = Read(HexBytes(body));
-        return raw.Txid == expected
+        return raw.Txid.Value == expected.Value
             ? raw
             : throw new EsploraFormatException("The bytes are another transaction than the one asked for.");
     }
@@ -126,7 +126,7 @@ internal static class RawTransactionReader
     {
         ArgumentNullException.ThrowIfNull(transaction);
         ArgumentNullException.ThrowIfNull(raw);
-        if (transaction.Txid != raw.Txid)
+        if (transaction.Txid.Value != raw.Txid.Value)
         {
             return "txid";
         }

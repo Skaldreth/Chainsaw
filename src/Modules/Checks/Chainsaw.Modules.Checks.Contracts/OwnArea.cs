@@ -115,8 +115,8 @@ public static class CheckRules
     /// <summary>
     /// Reads the address an address member stands for: a Bitcoin address, an Ethereum address (<c>0x</c> and 40 hex
     /// digits), a BSC address (<see cref="BscMember"/> and the same), a TRON address in its <c>T…</c> form (Base58Check
-    /// with TRON's version byte, which no Bitcoin address has), or a Litecoin address (<c>L…</c>, <c>M…</c>,
-    /// <c>ltc1…</c>, which no Bitcoin address is).
+    /// with TRON's version byte, which no Bitcoin address has), a Litecoin address (<c>L…</c>, <c>M…</c>,
+    /// <c>ltc1…</c>) or a transparent Zcash address (<c>t1…</c>, <c>t3…</c>), which no Bitcoin address is.
     /// </summary>
     /// <param name="member">The member.</param>
     /// <returns>The address with its chain, or <see langword="null"/> when the member is not an address.</returns>
@@ -145,15 +145,9 @@ public static class CheckRules
             return tron.ToChainAddress();
         }
 
-        if (Chains.Contracts.BitcoinAddress.TryParse(text, out var address))
-        {
-            return address.ToChainAddress();
-        }
-
-        return Chains.Contracts.BitcoinAddress.TryParse(SharedKernel.Chain.Litecoin, text, out var litecoin)
-            && litecoin.Value == text
-                ? litecoin.ToChainAddress()
-                : null;
+        return Chains.Contracts.BitcoinAddress.TryParseOnAnyChain(text, out var address) && address.Value == text
+            ? address.ToChainAddress()
+            : null;
     }
 
     /// <summary>Gives the member that stands for a transaction that is an actor of its own.</summary>

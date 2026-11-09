@@ -25,7 +25,7 @@ internal static class MergeStore
         object?[] values =
         [
             JsonSerializer.Serialize(request.Addresses.Select(address => address.Value)),
-            request.Txid.Value,
+            request.Txid.Stored,
             request.Proposal.Name,
             (long)request.Proposal.Version,
             request.Grounds,

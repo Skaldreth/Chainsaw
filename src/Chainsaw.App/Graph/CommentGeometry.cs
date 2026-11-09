@@ -92,7 +92,8 @@ public static class CommentGeometry
     }
 
     /// <summary>
-    /// Reads the address a stored key names, on any chain: <c>address:</c> and a Bitcoin address, or <c>account:</c>,
+    /// Reads the address a stored key names, on any chain: <c>address:</c> and an address on a UTXO chain (Bitcoin,
+    /// Litecoin, Zcash), or <c>account:</c>,
     /// the chain and an address on an account chain.
     /// </summary>
     /// <param name="anchor">The stored key.</param>
@@ -102,8 +103,8 @@ public static class CommentGeometry
         ArgumentNullException.ThrowIfNull(anchor);
         if (anchor.StartsWith(GraphPile.AddressKeyPrefix, StringComparison.Ordinal))
         {
-            return BitcoinAddress.TryParse(anchor[GraphPile.AddressKeyPrefix.Length..], out var bitcoin)
-                ? bitcoin.ToChainAddress()
+            return BitcoinAddress.TryParseOnAnyChain(anchor[GraphPile.AddressKeyPrefix.Length..], out var utxo)
+                ? utxo.ToChainAddress()
                 : null;
         }
 

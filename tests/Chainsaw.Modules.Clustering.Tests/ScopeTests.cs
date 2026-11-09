@@ -12,14 +12,19 @@ namespace Chainsaw.Modules.Clustering.Tests;
 public sealed class ScopeTests
 {
     [Fact]
-    public void Bitcoins_heuristics_are_registered_for_bitcoin_alone()
+    public void Common_input_and_change_run_on_every_utxo_chain_and_the_patterns_on_bitcoin_alone()
     {
         using var harness = new CaseHarness();
 
         Assert.Equal(5, harness.Service.Heuristics.Count);
         var heuristics = new ServiceCollection().AddClusteringModule().BuildServiceProvider()
             .GetServices<IClusteringHeuristic>().ToList();
-        Assert.All(heuristics, heuristic => Assert.Equal(ChainScope.Only(Chain.Bitcoin), heuristic.Scope));
+        var everyUtxoChain = ChainScope.Only(Chain.Bitcoin, Chain.Litecoin, Chain.Zcash);
+        Assert.All(heuristics, heuristic => Assert.Equal(
+            heuristic.Id.Name is HeuristicNames.CommonInputOwnership or HeuristicNames.ChangeAddress
+                ? everyUtxoChain
+                : ChainScope.Only(Chain.Bitcoin),
+            heuristic.Scope));
         Assert.All(heuristics, heuristic => Assert.IsAssignableFrom<IUtxoHeuristic>(heuristic));
     }
 

@@ -26,4 +26,10 @@ public enum Chain
     /// BNB Smart Chain (BSC): accounts on Ethereum's virtual machine, amounts in wei of BNB, tokens such as BEP-20.
     /// </summary>
     Bsc,
+
+    /// <summary>
+    /// Zcash: its transparent part keeps unspent outputs (UTXO) as Bitcoin, amounts in zatoshi; its shielded pools
+    /// (Sprout, Sapling, Orchard) are where the trail ends.
+    /// </summary>
+    Zcash,
 }

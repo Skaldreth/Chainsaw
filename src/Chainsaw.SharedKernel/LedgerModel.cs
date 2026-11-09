@@ -29,14 +29,14 @@ public static class ChainModels
     /// <exception cref="ArgumentOutOfRangeException">The chain is not one Chainsaw knows.</exception>
     public static LedgerModel Model(this Chain chain) => chain switch
     {
-        Chain.Bitcoin or Chain.Litecoin => LedgerModel.Utxo,
+        Chain.Bitcoin or Chain.Litecoin or Chain.Zcash => LedgerModel.Utxo,
         Chain.Ethereum or Chain.Tron or Chain.Bsc => LedgerModel.Account,
         _ => throw new ArgumentOutOfRangeException(nameof(chain), chain, "Unknown chain."),
     };
 
     /// <summary>Gives a chain's native coin: the one its fees are paid in.</summary>
     /// <param name="chain">The chain.</param>
-    /// <returns>The coin: BTC with 8 decimals, ETH with 18, TRX with 6, LTC with 8 or BNB with 18.</returns>
+    /// <returns>The coin: BTC with 8 decimals, ETH with 18, TRX with 6, LTC with 8, BNB with 18 or ZEC with 8.</returns>
     /// <exception cref="ArgumentOutOfRangeException">The chain is not one Chainsaw knows.</exception>
     public static Asset NativeAsset(this Chain chain) => chain switch
     {
@@ -45,6 +45,7 @@ public static class ChainModels
         Chain.Tron => Asset.Tronix,
         Chain.Litecoin => Asset.Litecoin,
         Chain.Bsc => Asset.Bnb,
+        Chain.Zcash => Asset.Zcash,
         _ => throw new ArgumentOutOfRangeException(nameof(chain), chain, "Unknown chain."),
     };
 
@@ -59,7 +60,7 @@ public static class ChainModels
 
     /// <summary>
     /// Gives a chain's name as people write it, for text the user and a receiver read (a request, a report):
-    /// <c>Bitcoin</c>, <c>Ethereum</c>, <c>TRON</c>, <c>Litecoin</c> or <c>BSC</c>.
+    /// <c>Bitcoin</c>, <c>Ethereum</c>, <c>TRON</c>, <c>Litecoin</c>, <c>BSC</c> or <c>Zcash</c>.
     /// </summary>
     /// <param name="chain">The chain.</param>
     /// <returns>The name.</returns>

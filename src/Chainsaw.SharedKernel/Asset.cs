@@ -69,6 +69,9 @@ public sealed record Asset
     /// <summary>Gets BNB, BSC's own coin, counted in wei (18 decimals).</summary>
     public static Asset Bnb { get; } = new(Chain.Bsc, AssetKind.Native, "BNB", 18, null);
 
+    /// <summary>Gets zcash, counted in zatoshi (8 decimals).</summary>
+    public static Asset Zcash { get; } = new(Chain.Zcash, AssetKind.Native, "ZEC", 8, null);
+
     /// <summary>Gets the chain it lives on.</summary>
     public Chain Chain { get; }
 

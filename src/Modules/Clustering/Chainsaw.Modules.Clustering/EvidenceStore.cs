@@ -147,9 +147,9 @@ internal static class EvidenceStore
         ICaseTransaction transaction, WeighedResult result, string fingerprint, JournalEntry journal)
     {
         var heuristic = result.Result.Heuristic;
-        var txid = result.Result.Txid.Value;
+        var txid = result.Result.Txid.Stored;
         var recorded = journal.Utc.ToString("O", CultureInfo.InvariantCulture);
-        var basis = JsonSerializer.Serialize(result.Result.Basis.Select(txid => txid.Value), Json);
+        var basis = JsonSerializer.Serialize(result.Result.Basis.Select(txid => txid.Stored), Json);
         object?[] Row(string kind, string? addresses, string? strength, int? change, string? reason,
             string? adjustment, string? finding) =>
         [
@@ -236,7 +236,7 @@ internal static class EvidenceStore
     {
         using var command = reader.CreateCommand(
             EvidenceSelect + " WHERE $txid IS NULL OR txid = $txid ORDER BY sequence");
-        command.AddParameter("$txid", txid?.Value);
+        command.AddParameter("$txid", txid?.Stored);
         var rows = new List<EvidenceRow>();
         using (var row = command.ExecuteReader())
         {
@@ -485,19 +485,24 @@ internal static class EvidenceStore
         }
     }
 
-    /// <summary>Reads a txid back.</summary>
+    /// <summary>Reads a txid back, on its chain (<see cref="Txid.Stored"/>: bare on Bitcoin).</summary>
     /// <param name="text">The text.</param>
     /// <returns>The txid.</returns>
     /// <exception cref="CaseException"><see cref="CaseError.Corrupt"/> when it is not one.</exception>
     internal static Txid ParseTxid(string text) =>
-        Txid.TryParse(text, out var txid) ? txid : throw new CaseException(CaseError.Corrupt);
+        Txid.TryParseStored(text, out var txid) ? txid : throw new CaseException(CaseError.Corrupt);
 
-    /// <summary>Reads an address back.</summary>
+    /// <summary>
+    /// Reads an address back, on whichever UTXO chain writes it so (Bitcoin, Litecoin, Zcash), since no two write an
+    /// address alike.
+    /// </summary>
     /// <param name="text">The text.</param>
     /// <returns>The address.</returns>
     /// <exception cref="CaseException"><see cref="CaseError.Corrupt"/> when it is not one.</exception>
     internal static BitcoinAddress ParseAddress(string text) =>
-        BitcoinAddress.TryParse(text, out var address) ? address : throw new CaseException(CaseError.Corrupt);
+        BitcoinAddress.TryParseOnAnyChain(text, out var address)
+            ? address
+            : throw new CaseException(CaseError.Corrupt);
 
     /// <summary>Seals that a version of an analysis is drawn back, under its journal entry.</summary>
     /// <param name="transaction">The case's write transaction.</param>

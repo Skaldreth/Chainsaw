@@ -234,7 +234,10 @@ public sealed record GraphNode(
     IReadOnlyList<TrailEndHint> Ends,
     IReadOnlyDictionary<GraphLayout, NodePosition> Positions)
 {
-    /// <summary>Gets the chain the actor is on; Bitcoin unless it is an account on another chain.</summary>
+    /// <summary>
+    /// Gets the chain the actor is on: Bitcoin, unless it is on another UTXO chain (Litecoin, Zcash) or an account
+    /// on an account chain.
+    /// </summary>
     public Chain Chain { get; init; } = Chain.Bitcoin;
 
     /// <summary>
@@ -378,14 +381,14 @@ public sealed record AssetTransfer(
         };
     }
 
-    /// <summary>Gives the transfer of a Bitcoin coin.</summary>
+    /// <summary>Gives the transfer of a coin on a UTXO chain, counted in the chain's coin (BTC, LTC, ZEC).</summary>
     /// <param name="txid">The transaction the coin moved in.</param>
     /// <param name="coin">The coin.</param>
     /// <param name="amount">The coin's amount.</param>
     /// <param name="block">The transaction's block, or <see langword="null"/>.</param>
     /// <returns>The transfer.</returns>
     public static AssetTransfer OfCoin(Txid txid, Outpoint coin, Satoshi amount, BlockReference? block) =>
-        new(ChainTransactionRef.Of(txid), amount.ToAmount(), block, coin);
+        new(ChainTransactionRef.Of(txid), new AssetAmount(txid.Chain.NativeAsset(), amount.Value), block, coin);
 }
 
 /// <summary>

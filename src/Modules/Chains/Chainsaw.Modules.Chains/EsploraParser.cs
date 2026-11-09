@@ -21,6 +21,9 @@ internal sealed class EsploraParser(BitcoinNetwork network)
     private readonly long _maximumUnits =
         (network == BitcoinNetwork.Litecoin ? 84_000_000 : 21_000_000) * Satoshi.PerBitcoin;
 
+    /// <summary>The chain the network is on, which the transaction ids read are stamped with.</summary>
+    private readonly Chain _chain = network.ChainOf();
+
     /// <summary>The weight units per byte outside the witness.</summary>
     private const int WitnessScaleFactor = 4;
 
@@ -101,7 +104,7 @@ internal sealed class EsploraParser(BitcoinNetwork network)
     /// <param name="body">The response's bytes.</param>
     /// <returns>One entry per output, in order.</returns>
     /// <exception cref="EsploraFormatException">The response cannot be read or does not add up.</exception>
-    public static IReadOnlyList<BitcoinOutputSpend> ParseOutputSpends(ReadOnlySpan<byte> body)
+    public IReadOnlyList<BitcoinOutputSpend> ParseOutputSpends(ReadOnlySpan<byte> body)
     {
         using var document = Open(body);
         return
@@ -426,7 +429,7 @@ internal sealed class EsploraParser(BitcoinNetwork network)
     /// <summary>Reads one entry of <c>/outspends</c>.</summary>
     /// <param name="element">The entry.</param>
     /// <returns>The spending input, or <see langword="null"/> when the output is unspent.</returns>
-    private static BitcoinSpend? ReadSpend(JsonElement element)
+    private BitcoinSpend? ReadSpend(JsonElement element)
     {
         var spend = Object(element);
         if (!Boolean(spend, "spent"))
@@ -597,12 +600,12 @@ internal sealed class EsploraParser(BitcoinNetwork network)
         }
     }
 
-    /// <summary>Reads a txid property.</summary>
+    /// <summary>Reads a txid property, on the parser's chain.</summary>
     /// <param name="holder">The object.</param>
     /// <param name="name">The property.</param>
     /// <returns>The txid.</returns>
-    private static Txid Txid(JsonElement holder, string name) =>
-        Contracts.Txid.TryParse(String(holder, name), out var txid)
+    private Txid Txid(JsonElement holder, string name) =>
+        Contracts.Txid.TryParse(_chain, String(holder, name), out var txid)
             ? txid
             : throw new EsploraFormatException($"The property {name} is not a txid.");
 

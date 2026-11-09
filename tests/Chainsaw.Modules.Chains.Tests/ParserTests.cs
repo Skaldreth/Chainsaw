@@ -213,14 +213,14 @@ public sealed class ParserTests
     [Fact]
     public void Output_spends_are_read()
     {
-        var spends = EsploraParser.ParseOutputSpends(Fixtures.Bytes("outspends-open.json"));
+        var spends = new EsploraParser(BitcoinNetwork.Mainnet).ParseOutputSpends(Fixtures.Bytes("outspends-open.json"));
 
         Assert.Equal(3, spends.Count);
         Assert.Null(spends[0].SpentBy);
         Assert.Equal(Fixtures.Unconfirmed, spends[1].SpentBy!.Txid);
         Assert.Equal(0, spends[1].SpentBy!.InputIndex);
         Assert.Null(spends[1].SpentBy!.Block);
-        var settled = EsploraParser.ParseOutputSpends(Fixtures.Bytes("outspends-settled.json"));
+        var settled = new EsploraParser(BitcoinNetwork.Mainnet).ParseOutputSpends(Fixtures.Bytes("outspends-settled.json"));
         Assert.Equal(800_003, settled[1].SpentBy!.Block!.Height);
     }
 

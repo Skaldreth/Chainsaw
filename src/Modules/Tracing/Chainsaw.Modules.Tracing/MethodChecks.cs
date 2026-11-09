@@ -28,9 +28,13 @@ internal static class MethodChecks
         }
     }
 
-    /// <summary>Gives a Bitcoin transaction's amounts, which the UTXO methods work on.</summary>
+    /// <summary>
+    /// Gives a UTXO transaction's amounts, which the UTXO methods work on. A Zcash transaction that touches a shielded
+    /// pool gets the pool as one more input (what comes out of it) and one more output (what goes into it), after the
+    /// transparent ones, so that the amounts add up as on the chain; the pool is never a coin in the graph.
+    /// </summary>
     /// <param name="transaction">The transaction.</param>
-    /// <returns>Each input's and output's amount in satoshi.</returns>
+    /// <returns>Each input's and output's amount in the chain's smallest unit, the pool's last.</returns>
     /// <exception cref="ArgumentException">It is a coinbase, or an input has no amount.</exception>
     public static UtxoFlow Flow(BitcoinTransaction transaction)
     {
@@ -44,6 +48,27 @@ internal static class MethodChecks
             .Select(input => input.Amount?.Value
                 ?? throw new ArgumentException("Every input needs its amount.", nameof(transaction)))
             .ToList();
-        return new UtxoFlow(inputs, [.. transaction.Outputs.Select(output => output.Amount.Value)]);
+        var outputs = transaction.Outputs.Select(output => output.Amount.Value).ToList();
+        if (HasPoolInput(transaction))
+        {
+            inputs.Add(transaction.Shielded!.OutOfPool.Value);
+        }
+
+        if (HasPoolOutput(transaction))
+        {
+            outputs.Add(transaction.Shielded!.IntoPool.Value);
+        }
+
+        return new UtxoFlow(inputs, outputs);
     }
+
+    /// <summary>Says whether money comes out of a shielded pool in the transaction (the flow's last input).</summary>
+    /// <param name="transaction">The transaction.</param>
+    /// <returns><see langword="true"/> when it does.</returns>
+    public static bool HasPoolInput(BitcoinTransaction transaction) => transaction.Shielded?.OutOfPool.Value > 0;
+
+    /// <summary>Says whether money goes into a shielded pool in the transaction (the flow's last output).</summary>
+    /// <param name="transaction">The transaction.</param>
+    /// <returns><see langword="true"/> when it does.</returns>
+    public static bool HasPoolOutput(BitcoinTransaction transaction) => transaction.Shielded?.IntoPool.Value > 0;
 }

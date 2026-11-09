@@ -41,6 +41,14 @@ public sealed record BitcoinTransaction(
     /// </summary>
     public InBlockCheck InBlock { get; init; }
 
+    /// <summary>
+    /// Gets what the transaction moves into or out of Zcash's shielded pools, as the chain states it; <see
+    /// langword="null"/> on Bitcoin and Litecoin, and on a Zcash transaction that touches no pool. With a flow, the
+    /// transparent inputs and outputs do not add up by themselves: the inputs and what comes out of the pools pay the
+    /// outputs, what goes into the pools and the fee.
+    /// </summary>
+    public ShieldedFlow? Shielded { get; init; }
+
     /// <summary>Gets whether the transaction is in a block.</summary>
     public bool IsConfirmed => Block is not null;
 

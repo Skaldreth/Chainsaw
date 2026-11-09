@@ -20,9 +20,8 @@ public sealed partial record ChainTransactionRef
         var normalised = id.Trim().ToLowerInvariant();
         var valid = chain switch
         {
-            Chain.Bitcoin or Chain.Tron or Chain.Litecoin => PlainHash().IsMatch(normalised),
+            Chain.Bitcoin or Chain.Tron or Chain.Litecoin or Chain.Zcash => PlainHash().IsMatch(normalised),
             Chain.Ethereum or Chain.Bsc => PrefixedHash().IsMatch(normalised),
-
             _ => false,
         };
         if (!valid)
@@ -33,13 +32,13 @@ public sealed partial record ChainTransactionRef
         (Chain, Id) = (chain, normalised);
     }
 
-    /// <summary>Gives the reference of a Bitcoin transaction.</summary>
+    /// <summary>Gives the reference of a transaction on a UTXO chain, on the chain its id carries.</summary>
     /// <param name="txid">The transaction's id.</param>
     /// <returns>The reference.</returns>
     public static ChainTransactionRef Of(Txid txid)
     {
         ArgumentNullException.ThrowIfNull(txid);
-        return new ChainTransactionRef(Chain.Bitcoin, txid.Value);
+        return new ChainTransactionRef(txid.Chain, txid.Value);
     }
 
     /// <summary>Gets the chain.</summary>
@@ -52,7 +51,7 @@ public sealed partial record ChainTransactionRef
     /// <returns>The chain, a colon and the id.</returns>
     public override string ToString() => Chain + ":" + Id;
 
-    /// <summary>A hash in 64 hex digits, as Bitcoin and TRON write transaction ids.</summary>
+    /// <summary>A hash in 64 hex digits, as Bitcoin, Litecoin, Zcash and TRON write transaction ids.</summary>
     /// <returns>The pattern.</returns>
     [GeneratedRegex("^[0-9a-f]{64}$", RegexOptions.CultureInvariant)]
     private static partial Regex PlainHash();
@@ -64,12 +63,14 @@ public sealed partial record ChainTransactionRef
 }
 
 /// <summary>
-/// The user's link from a Bitcoin coin or an Ethereum movement (the payment into a bridge or a swap) to the
+/// The user's link from a coin on a UTXO chain or a movement on an account chain (the payment into a bridge or a swap) to the
 /// transaction where the money continues on another chain. It is the user's judgement, sealed in the case with who
 /// made it and why. Exactly one of <see cref="From"/> and <see cref="FromTransfer"/> is set.
 /// </summary>
 /// <param name="Sequence">The record's number in the sealed chain <c>tracing.cross_chain</c>.</param>
-/// <param name="From">The Bitcoin coin that went into the bridge or swap, or <see langword="null"/> on Ethereum.</param>
+/// <param name="From">
+/// The coin that went into the bridge or swap, on its UTXO chain, or <see langword="null"/> on an account chain.
+/// </param>
 /// <param name="To">The transaction on the other chain.</param>
 /// <param name="Reason">Why the user links them, in their words.</param>
 /// <param name="JournalSequence">The journal entry that records who linked them and when.</param>
@@ -88,7 +89,7 @@ public sealed record CrossChainLink(
     public AccountSeed? FromTransfer { get; init; }
 
     /// <summary>Gets the chain the money left.</summary>
-    public Chain FromChain => FromTransfer?.Transaction.Chain ?? Chain.Bitcoin;
+    public Chain FromChain => FromTransfer?.Transaction.Chain ?? From!.Txid.Chain;
 
     /// <summary>Writes where the money left: the coin, or the movement's kind and transaction.</summary>
     public string FromText => From?.ToString()

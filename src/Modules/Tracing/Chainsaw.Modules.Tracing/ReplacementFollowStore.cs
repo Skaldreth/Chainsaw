@@ -30,7 +30,7 @@ internal static class ReplacementFollowStore
     {
         var record = transaction.AppendSealed(
             TracingSchema.ReplacementFollowsChain,
-            [FollowAction, null, gone.Value, replacer.Value, reason ?? string.Empty, journal.Sequence,
+            [FollowAction, null, GraphStateStore.CoinText(gone), GraphStateStore.CoinText(replacer), reason ?? string.Empty, journal.Sequence,
                 Text(journal.Utc)]);
         return new ReplacementFollow(record.Sequence, gone, replacer, reason, journal.Sequence, journal.Utc);
     }
@@ -44,7 +44,8 @@ internal static class ReplacementFollowStore
         ICaseTransaction transaction, ReplacementFollow follow, string? reason, JournalEntry journal) =>
         transaction.AppendSealed(
             TracingSchema.ReplacementFollowsChain,
-            [TakeBackAction, follow.Sequence, follow.Gone.Value, follow.Replacer.Value, reason ?? string.Empty,
+            [TakeBackAction, follow.Sequence, GraphStateStore.CoinText(follow.Gone),
+                GraphStateStore.CoinText(follow.Replacer), reason ?? string.Empty,
                 journal.Sequence, Text(journal.Utc)]);
 
     /// <summary>Reads the choices in force: those not taken back, oldest first.</summary>
@@ -70,8 +71,8 @@ internal static class ReplacementFollowStore
             var reason = rows.GetString(5);
             follows.Add(new ReplacementFollow(
                 rows.GetInt64(0),
-                Txid.Parse(rows.GetString(3)),
-                Txid.Parse(rows.GetString(4)),
+                CoinOf(rows.GetString(3)),
+                CoinOf(rows.GetString(4)),
                 reason.Length == 0 ? null : reason,
                 rows.GetInt64(6),
                 DateTimeOffset.Parse(rows.GetString(7), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind)));
@@ -84,4 +85,11 @@ internal static class ReplacementFollowStore
     /// <param name="utc">The time.</param>
     /// <returns>The text.</returns>
     private static string Text(DateTimeOffset utc) => utc.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture);
+
+    /// <summary>Reads a stored transaction, written by <see cref="GraphStateStore.CoinText"/>.</summary>
+    /// <param name="text">The stored text.</param>
+    /// <returns>The transaction on its chain.</returns>
+    /// <exception cref="CaseException">The text is not a transaction.</exception>
+    private static Txid CoinOf(string text) =>
+        GraphStateStore.TryReadCoinText(text, out var txid) ? txid : throw new CaseException(CaseError.Corrupt);
 }

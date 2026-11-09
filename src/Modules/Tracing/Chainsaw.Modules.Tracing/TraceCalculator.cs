@@ -20,8 +20,8 @@ internal sealed class TraceCalculator
     /// <summary>The method.</summary>
     private readonly IUtxoTracingMethod _method;
 
-    /// <summary>The asset the coins are counted in: the graph's chain's coin.</summary>
-    private readonly Asset _asset = Chain.Bitcoin.NativeAsset();
+    /// <summary>The asset the coins are counted in: the seeds' chain's coin (BTC, LTC or ZEC).</summary>
+    private readonly Asset _asset;
 
     /// <summary>What happens to each coin that has been looked at, by coin.</summary>
     private readonly Dictionary<Outpoint, Step> _steps = [];
@@ -36,8 +36,10 @@ internal sealed class TraceCalculator
     /// <param name="graph">The graph.</param>
     /// <param name="method">The method.</param>
     /// <param name="cancellationToken">Stops the trace between steps.</param>
-    private TraceCalculator(TraceGraph graph, IUtxoTracingMethod method, CancellationToken cancellationToken) =>
-        (_graph, _method, _cancellationToken) = (graph, method, cancellationToken);
+    /// <param name="chain">The chain the seeds are on, whose coin the trace counts in.</param>
+    private TraceCalculator(
+        TraceGraph graph, IUtxoTracingMethod method, CancellationToken cancellationToken, Chain chain) =>
+        (_graph, _method, _cancellationToken, _asset) = (graph, method, cancellationToken, chain.NativeAsset());
 
     /// <summary>Traces money through a graph.</summary>
     /// <param name="graph">The graph.</param>
@@ -51,7 +53,16 @@ internal sealed class TraceCalculator
     public static TraceResult Trace(
         TraceGraph graph, IUtxoTracingMethod method, IReadOnlyList<TraceSeed> seeds,
         CancellationToken cancellationToken = default) =>
-        new TraceCalculator(graph, method, cancellationToken).Run(seeds);
+        new TraceCalculator(graph, method, cancellationToken, ChainOf(seeds)).Run(seeds);
+
+    /// <summary>
+    /// Gives the chain a trace's seeds are on: the first seed's. A trace follows coins on one chain; a seed on another
+    /// is refused when the seeds are checked.
+    /// </summary>
+    /// <param name="seeds">The seeds.</param>
+    /// <returns>The chain; Bitcoin when there is no seed to say (the check then refuses the trace).</returns>
+    private static Chain ChainOf(IReadOnlyList<TraceSeed>? seeds) =>
+        seeds is { Count: > 0 } && seeds[0]?.Coin is { } first ? first.Txid.Chain : Chain.Bitcoin;
 
     /// <summary>Runs the trace.</summary>
     /// <param name="seeds">The seeds.</param>
@@ -123,6 +134,11 @@ internal sealed class TraceCalculator
             throw new ArgumentException("A coin is given as a seed twice.", nameof(seeds));
         }
 
+        if (seeds.Any(seed => seed.Coin.Txid.Chain != _asset.Chain))
+        {
+            throw new ArgumentException("A trace follows coins on one chain; trace each chain apart.", nameof(seeds));
+        }
+
         var sum = AssetAmount.Zero(_asset);
         foreach (var seed in seeds)
         {
@@ -137,7 +153,7 @@ internal sealed class TraceCalculator
                 throw new ArgumentException($"The seed {seed.Coin} has an amount without an asset.", nameof(seeds));
             }
 
-            var whole = entry.Transaction.Outputs[seed.Coin.Index].Amount.ToAmount();
+            var whole = Units(entry.Transaction.Outputs[seed.Coin.Index].Amount.Value);
             var amount = seed.Amount ?? whole;
             if (amount.Asset != _asset || amount.Units.Sign <= 0 || amount > whole)
             {
@@ -393,8 +409,21 @@ internal sealed class TraceCalculator
             return null;
         }
 
-        var taint = _method.Propagate(MethodChecks.Flow(transaction), inputs);
-        CheckConservation(transaction, traced, taint);
+        if (MethodChecks.HasPoolInput(transaction))
+        {
+            // What comes out of a shielded pool is never traced money: the pool is the flow's last input.
+            inputs.Add(TaintSet.None);
+        }
+
+        var flow = MethodChecks.Flow(transaction);
+        var taint = _method.Propagate(flow, inputs);
+        CheckConservation(transaction, flow, traced, taint);
+        if (MethodChecks.HasPoolOutput(transaction) && !taint.Outputs[^1].IsEmpty)
+        {
+            ends.Add(ShieldedPoolEnds.TraceEnd(
+                transaction, Amount(taint.Outputs[^1].Units, through, replaced), mayChange));
+        }
+
         if (taint.Fee != 0)
         {
             ends.Add(new TraceEnd(
@@ -409,7 +438,7 @@ internal sealed class TraceCalculator
                 mayChange));
         }
 
-        for (var i = 0; i < taint.Outputs.Count; i++)
+        for (var i = 0; i < transaction.Outputs.Count; i++)
         {
             if (!taint.Outputs[i].IsEmpty)
             {
@@ -420,20 +449,21 @@ internal sealed class TraceCalculator
         return new TracedTransaction(
             txid,
             Units(traced),
-            [.. taint.Outputs.Select(set => Units(set.Units))],
+            [.. taint.Outputs.Take(transaction.Outputs.Count).Select(set => Units(set.Units))],
             Units(taint.Fee),
             mayChange || MayChange(txid));
     }
 
     /// <summary>Checks that a method neither created nor lost money in a transaction.</summary>
     /// <param name="transaction">The transaction.</param>
+    /// <param name="flow">The amounts the method worked on, a shielded pool's last.</param>
     /// <param name="traced">How much traced money went in.</param>
     /// <param name="taint">What the method gave.</param>
     /// <exception cref="InvalidOperationException">It did.</exception>
-    private void CheckConservation(BitcoinTransaction transaction, long traced, TransactionTaint taint)
+    private void CheckConservation(BitcoinTransaction transaction, UtxoFlow flow, long traced, TransactionTaint taint)
     {
-        var fits = taint.Outputs.Count == transaction.Outputs.Count
-            && taint.Outputs.Select((set, i) => set is not null && set.End <= transaction.Outputs[i].Amount.Value)
+        var fits = taint.Outputs.Count == flow.Outputs.Count
+            && taint.Outputs.Select((set, i) => set is not null && set.End <= flow.Outputs[i])
                 .All(fits => fits)
             && taint.Fee >= 0
             && taint.Fee <= transaction.Fee.Value;
@@ -595,10 +625,15 @@ internal sealed class TraceCalculator
     /// </param>
     /// <returns>The traced amount.</returns>
     private TracedAmount Amount(long units, IEnumerable<string> through, IEnumerable<string> replaced) =>
-        new(Units(units), _method.Id, [.. through.Order(StringComparer.Ordinal).Select(Txid.Parse)])
+        new(Units(units), _method.Id, [.. through.Order(StringComparer.Ordinal).Select(OnChain)])
         {
-            Replaced = [.. replaced.Order(StringComparer.Ordinal).Select(Txid.Parse)],
+            Replaced = [.. replaced.Order(StringComparer.Ordinal).Select(OnChain)],
         };
+
+    /// <summary>Reads a transaction the trace went through back on the trace's chain.</summary>
+    /// <param name="txid">The txid as the trace keeps it.</param>
+    /// <returns>The transaction on the chain.</returns>
+    private Txid OnChain(string txid) => Txid.Parse(_asset.Chain, txid);
 
     /// <summary>Gives an amount in the chain's smallest unit as an amount of its coin.</summary>
     /// <param name="units">The amount.</param>

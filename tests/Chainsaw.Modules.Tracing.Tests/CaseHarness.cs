@@ -34,6 +34,8 @@ internal sealed class CaseHarness : IDisposable
         services.AddSingleton<IEthereumSource>(Ethereum);
         services.AddSingleton<ITronSource>(Tron);
         services.AddSingleton<IBscSource>(Bsc);
+        services.AddSingleton<ILitecoinSource>(Litecoin);
+        services.AddSingleton<IZcashSource>(Zcash);
         services.AddCasesModule(options =>
         {
             options.Directory = _directory;
@@ -66,6 +68,12 @@ internal sealed class CaseHarness : IDisposable
     public FakeClock Clock { get; } = new();
 
     public FakeSource Source { get; } = new();
+
+    /// <summary>Gets Litecoin's fake source.</summary>
+    public FakeSource Litecoin { get; } = new(BitcoinNetwork.Litecoin);
+
+    /// <summary>Gets Zcash's fake source.</summary>
+    public FakeSource Zcash { get; } = new(BitcoinNetwork.Zcash);
 
     public FakeEthereumSource Ethereum { get; } = new();
 

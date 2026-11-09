@@ -4,8 +4,8 @@ using Chainsaw.Modules.Chains.Contracts;
 namespace Chainsaw.Modules.Tracing.Contracts;
 
 /// <summary>
-/// One output of a Bitcoin transaction, named by the transaction and the output's index (its <c>vout</c>): a coin
-/// that can be spent once. Tracing follows coins, because an input always spends a whole earlier output.
+/// One output of a transaction on a UTXO chain (Bitcoin, Litecoin, Zcash's transparent part), named by the transaction
+/// (which carries its chain) and the output's index (its <c>vout</c>): a coin that can be spent once. Tracing follows coins, because an input always spends a whole earlier output.
 /// </summary>
 /// <param name="Txid">The transaction that created the output.</param>
 /// <param name="Index">The output's index, from 0.</param>

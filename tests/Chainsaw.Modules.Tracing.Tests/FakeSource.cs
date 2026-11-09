@@ -9,7 +9,9 @@ namespace Chainsaw.Modules.Tracing.Tests;
 /// A Bitcoin source without a network: a synthetic chain in memory. Online it answers from the chain and remembers
 /// what it gave, as the case would; offline it answers only what it gave before, the way Chains does without an exit.
 /// </summary>
-internal sealed class FakeSource : IBitcoinSource
+/// <param name="network">The network it answers for: Bitcoin's, Litecoin's or Zcash's.</param>
+internal sealed class FakeSource(BitcoinNetwork network = BitcoinNetwork.Mainnet)
+    : IBitcoinSource, ILitecoinSource, IZcashSource
 {
     /// <summary>The page size, small so that paging is tested.</summary>
     public const int PageSize = 3;
@@ -20,7 +22,7 @@ internal sealed class FakeSource : IBitcoinSource
     private readonly Dictionary<Txid, IReadOnlyList<BitcoinOutputSpend>> _givenSpends = [];
     private readonly Dictionary<(BitcoinAddress, Txid?), BitcoinAddressPage> _givenPages = [];
 
-    public BitcoinNetwork Network => BitcoinNetwork.Mainnet;
+    public BitcoinNetwork Network => network;
 
     public bool Online { get; set; } = true;
 

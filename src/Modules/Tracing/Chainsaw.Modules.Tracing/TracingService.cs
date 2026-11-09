@@ -10,8 +10,10 @@ using static Chainsaw.Modules.Tracing.Lookups;
 namespace Chainsaw.Modules.Tracing;
 
 /// <summary>
-/// The trace as a model: keeps the graph's state in the case, expands it through <see cref="IBitcoinSource"/>, builds
-/// it with the clusters and the ends of the trail, and traces money through it by a registered method.
+/// The trace as a model: keeps the graph's state in the case, expands it through the UTXO chains' sources
+/// (<see cref="IBitcoinSource"/> for Bitcoin, Litecoin and Zcash's transparent part, each asked for its own chain's
+/// addresses and transactions) and the account chains' readers, builds it with the clusters and the ends of the trail,
+/// and traces money through it by a registered method.
 /// </summary>
 internal sealed class TracingService : ITracingService
 {
@@ -25,8 +27,11 @@ internal sealed class TracingService : ITracingService
     /// </summary>
     internal const int SpendLookupsAtOnce = 4;
 
-    /// <summary>Bitcoin's facts.</summary>
-    private readonly IBitcoinSource _source;
+    /// <summary>
+    /// The UTXO chains' facts by chain: Bitcoin's always, Litecoin's and Zcash's where they are registered. A
+    /// transaction or an address is asked of its own chain's source, never another's.
+    /// </summary>
+    private readonly IReadOnlyDictionary<Chain, IBitcoinSource> _sources;
 
     /// <summary>The clusters and the analyses.</summary>
     private readonly IClusteringService _clustering;
@@ -70,6 +75,12 @@ internal sealed class TracingService : ITracingService
     /// <param name="bsc">
     /// BSC's facts, or <see langword="null"/> where BSC is not registered (an expansion on BSC is then refused).
     /// </param>
+    /// <param name="litecoin">
+    /// Litecoin's facts, or <see langword="null"/> where Litecoin is not registered (an expansion there is refused).
+    /// </param>
+    /// <param name="zcash">
+    /// Zcash's facts, or <see langword="null"/> where Zcash is not registered (an expansion there is refused).
+    /// </param>
     /// <exception cref="ArgumentException">
     /// The methods are not registered properly (see <see cref="TracingMethods"/>).
     /// </exception>
@@ -81,9 +92,22 @@ internal sealed class TracingService : ITracingService
         IEnumerable<ITracingMethod> methods,
         IClock clock,
         ITronSource? tron = null,
-        IBscSource? bsc = null)
+        IBscSource? bsc = null,
+        ILitecoinSource? litecoin = null,
+        IZcashSource? zcash = null)
     {
-        _source = source;
+        var sources = new Dictionary<Chain, IBitcoinSource> { [Chain.Bitcoin] = source };
+        if (litecoin is not null)
+        {
+            sources[Chain.Litecoin] = litecoin;
+        }
+
+        if (zcash is not null)
+        {
+            sources[Chain.Zcash] = zcash;
+        }
+
+        _sources = sources;
         _clustering = clustering;
         _classifiers = [.. classifiers];
         var all = methods.ToList();
@@ -170,6 +194,12 @@ internal sealed class TracingService : ITracingService
         }
 
         ArgumentOutOfRangeException.ThrowIfLessThan(request.MaximumTransactions, 1, nameof(request));
+        if ((request.Address?.Chain ?? request.Txid?.Chain) is { } utxo)
+        {
+            // Refused at once, so that a chain without a source is never asked of another chain's.
+            _ = SourceFor(utxo);
+        }
+
         return request.EthereumAddress is null && request.EthereumTransaction is null
             ? Task.Run(() => ExpandCoreAsync(@case, request, cancellationToken), cancellationToken)
             : Task.Run(() => ExpandEthereumAsync(@case, request, cancellationToken), cancellationToken);
@@ -185,7 +215,7 @@ internal sealed class TracingService : ITracingService
         ArgumentNullException.ThrowIfNull(@case);
         ArgumentNullException.ThrowIfNull(address);
         return Task.Run(
-            () => new HeldBackHistory(_source).ReadAsync(@case, address, around, cancellationToken),
+            () => new HeldBackHistory(SourceFor(address.Chain)).ReadAsync(@case, address, around, cancellationToken),
             cancellationToken);
     }
 
@@ -215,9 +245,9 @@ internal sealed class TracingService : ITracingService
         ArgumentNullException.ThrowIfNull(from);
         ArgumentNullException.ThrowIfNull(to);
         CheckReason(reason);
-        if (to.Chain == Chain.Bitcoin)
+        if (to.Chain == from.Txid.Chain)
         {
-            throw new ArgumentException("A link to another chain leads off Bitcoin.", nameof(to));
+            throw new ArgumentException("A link to another chain leads off the coin's chain.", nameof(to));
         }
 
         return @case.Write(transaction =>
@@ -413,18 +443,23 @@ internal sealed class TracingService : ITracingService
         ArgumentNullException.ThrowIfNull(gone);
         ArgumentNullException.ThrowIfNull(replacer);
         reason = OptionalReason(reason);
+        if (replacer.Chain != gone.Chain)
+        {
+            throw new ArgumentException("The replacer is on another chain than the gone transaction.", nameof(replacer));
+        }
 
         // Only a transaction the case's sealed answers show gone, and a replacer they show spending its coins, is
         // chosen for, so that no choice is sealed about something the case does not hold.
-        var changes = await _source.GetBlockChangesAsync(@case, cancellationToken).ConfigureAwait(false);
-        if (!changes.Any(change => change is { Chain: Chain.Bitcoin, Kind: BlockChangeKind.Gone }
-            && Txid.TryParse(change.TransactionId, out var txid) && txid == gone))
+        var source = SourceFor(gone.Chain);
+        var changes = await source.GetBlockChangesAsync(@case, cancellationToken).ConfigureAwait(false);
+        if (!changes.Any(change => change.Chain == gone.Chain && change.Kind == BlockChangeKind.Gone
+            && Txid.TryParse(gone.Chain, change.TransactionId, out var txid) && txid == gone))
         {
             throw new ArgumentException(
                 "The source still knows the transaction, as far as the case says.", nameof(gone));
         }
 
-        var replacement = await _source.GetReplacementAsync(@case, gone, LookupMode.CaseOnly, cancellationToken)
+        var replacement = await source.GetReplacementAsync(@case, gone, LookupMode.CaseOnly, cancellationToken)
             .ConfigureAwait(false);
         if (replacement.Value is not { Kind: not ReplacementKind.Conflicting } known
             || !known.Replacers.Contains(replacer))
@@ -436,7 +471,7 @@ internal sealed class TracingService : ITracingService
 
         // The replacer comes into the graph like an expanded transaction: fetched through the exit and sealed, with
         // where its outputs went, so that the trace can go on through it.
-        var fetched = await _source.GetTransactionAsync(@case, replacer, LookupMode.AsNeeded, cancellationToken)
+        var fetched = await source.GetTransactionAsync(@case, replacer, LookupMode.AsNeeded, cancellationToken)
             .ConfigureAwait(false);
         if (fetched.Value is null)
         {
@@ -445,7 +480,7 @@ internal sealed class TracingService : ITracingService
                 : new ReplacementUnavailableException();
         }
 
-        var goneTransaction = await _source.GetTransactionAsync(@case, gone, LookupMode.CaseOnly, cancellationToken)
+        var goneTransaction = await source.GetTransactionAsync(@case, gone, LookupMode.CaseOnly, cancellationToken)
             .ConfigureAwait(false);
         if (goneTransaction.Value is not { } read || !Agrees(read, known, fetched.Value))
         {
@@ -849,6 +884,20 @@ internal sealed class TracingService : ITracingService
         };
     }
 
+    /// <summary>Gives the source of a UTXO chain.</summary>
+    /// <param name="chain">The chain: Bitcoin, Litecoin or Zcash.</param>
+    /// <returns>Its source.</returns>
+    /// <exception cref="ArgumentException">No source for the chain is registered.</exception>
+    private IBitcoinSource SourceFor(Chain chain) => _sources.TryGetValue(chain, out var source)
+        ? source
+        : throw new ArgumentException($"No source for {chain} is registered.", nameof(chain));
+
+    /// <summary>Says that a chain's transactions cannot be read here, since no source for it is registered.</summary>
+    /// <param name="chain">The chain.</param>
+    /// <returns>The text for the user.</returns>
+    private static string NoSource(Chain chain) =>
+        $"Chainsaw har ingen källa för {chain.DisplayName()} här, så tx:en kan inte läsas.";
+
     /// <summary>Gives the reader of an account chain.</summary>
     /// <param name="chain">The chain.</param>
     /// <returns>The reader.</returns>
@@ -907,7 +956,8 @@ internal sealed class TracingService : ITracingService
         Txid? after = null;
         while (true)
         {
-            var page = await _source.GetAddressTransactionsAsync(@case, address, after, cancellationToken)
+            var page = await SourceFor(address.Chain)
+                .GetAddressTransactionsAsync(@case, address, after, cancellationToken)
                 .ConfigureAwait(false);
             if (page.Value is null)
             {
@@ -970,7 +1020,8 @@ internal sealed class TracingService : ITracingService
         string? problem = null;
         foreach (var txid in transactions.Distinct())
         {
-            var lookup = await _source.GetTransactionAsync(@case, txid, LookupMode.AsNeeded, cancellationToken)
+            var lookup = await SourceFor(address.Chain)
+                .GetTransactionAsync(@case, txid.On(address.Chain), LookupMode.AsNeeded, cancellationToken)
                 .ConfigureAwait(false);
             if (lookup.Value is null)
             {
@@ -980,7 +1031,7 @@ internal sealed class TracingService : ITracingService
 
             if (HeldBackReader.Read(lookup.Value, address) is not null)
             {
-                taken.Add(txid);
+                taken.Add(lookup.Value.Txid);
             }
         }
 
@@ -1019,7 +1070,8 @@ internal sealed class TracingService : ITracingService
     private async Task<StepResult> HeldBackAtAddressAsync(
         ICase @case, BitcoinAddress address, List<Txid> found, string? outdated, CancellationToken cancellationToken)
     {
-        var summary = await _source.GetAddressSummaryAsync(@case, address, cancellationToken).ConfigureAwait(false);
+        var summary = await SourceFor(address.Chain).GetAddressSummaryAsync(@case, address, cancellationToken)
+            .ConfigureAwait(false);
         var fresh = summary is { Status: LookupStatus.Fetched, Value: { } value } ? value : null;
         long? total = fresh?.TransactionCount > found.Count ? fresh.TransactionCount : null;
         var text = total is { } all
@@ -1048,7 +1100,8 @@ internal sealed class TracingService : ITracingService
     private async Task<StepResult> ExpandTransactionAsync(
         ICase @case, Txid txid, int maximum, CancellationToken cancellationToken)
     {
-        var lookup = await _source.VerifyTransactionAsync(@case, txid, cancellationToken).ConfigureAwait(false);
+        var source = SourceFor(txid.Chain);
+        var lookup = await source.VerifyTransactionAsync(@case, txid, cancellationToken).ConfigureAwait(false);
         if (lookup.Value is null)
         {
             return new StepResult([], Problem(lookup.Status, lookup.Problem), false);
@@ -1057,7 +1110,7 @@ internal sealed class TracingService : ITracingService
         var found = new List<Txid> { txid };
         var problem = Outdated(lookup);
         var notes = WithNotes(null, lookup);
-        var spends = await _source.GetOutputSpendsAsync(@case, txid, LookupMode.AsNeeded, cancellationToken)
+        var spends = await source.GetOutputSpendsAsync(@case, txid, LookupMode.AsNeeded, cancellationToken)
             .ConfigureAwait(false);
         if (spends.Value is null)
         {
@@ -1082,7 +1135,7 @@ internal sealed class TracingService : ITracingService
 
         foreach (var spender in spenders.Take(maximum))
         {
-            var next = await _source.VerifyTransactionAsync(@case, spender, cancellationToken).ConfigureAwait(false);
+            var next = await source.VerifyTransactionAsync(@case, spender, cancellationToken).ConfigureAwait(false);
             if (next.Value is null)
             {
                 problem = Join(problem, Problem(next.Status, next.Problem));
@@ -1133,8 +1186,13 @@ internal sealed class TracingService : ITracingService
         Parallel.ForEachAsync(
             transactions,
             new ParallelOptions { MaxDegreeOfParallelism = SpendLookupsAtOnce, CancellationToken = cancellationToken },
-            async (txid, token) => await _source.GetOutputSpendsAsync(@case, txid, LookupMode.AsNeeded, token)
-                .ConfigureAwait(false));
+            async (txid, token) =>
+            {
+                if (_sources.TryGetValue(txid.Chain, out var source))
+                {
+                    await source.GetOutputSpendsAsync(@case, txid, LookupMode.AsNeeded, token).ConfigureAwait(false);
+                }
+            });
 
     /// <summary>
     /// Reads the state and every transaction in it and where its outputs went, from the case only: showing the graph
@@ -1151,7 +1209,13 @@ internal sealed class TracingService : ITracingService
         var problems = new List<string>();
         foreach (var txid in state.Transactions)
         {
-            var lookup = await _source.GetTransactionAsync(@case, txid, LookupMode.CaseOnly, cancellationToken)
+            if (!_sources.TryGetValue(txid.Chain, out var source))
+            {
+                problems.Add($"Tx {txid}: {NoSource(txid.Chain)}");
+                continue;
+            }
+
+            var lookup = await source.GetTransactionAsync(@case, txid, LookupMode.CaseOnly, cancellationToken)
                 .ConfigureAwait(false);
             if (lookup.Value is null)
             {
@@ -1160,7 +1224,7 @@ internal sealed class TracingService : ITracingService
             }
 
             transactions.Add(txid, new GraphTransaction(lookup.Value, lookup.Status, lookup.Problem));
-            var answer = await _source.GetOutputSpendsAsync(@case, txid, LookupMode.CaseOnly, cancellationToken)
+            var answer = await source.GetOutputSpendsAsync(@case, txid, LookupMode.CaseOnly, cancellationToken)
                 .ConfigureAwait(false);
             if (answer.Value is null)
             {
@@ -1191,17 +1255,23 @@ internal sealed class TracingService : ITracingService
         ICase @case, IReadOnlyDictionary<Txid, GraphTransaction> transactions, CancellationToken cancellationToken)
     {
         var gone = new Dictionary<Txid, GoneTransaction>();
-        var changes = await _source.GetBlockChangesAsync(@case, cancellationToken).ConfigureAwait(false);
-        foreach (var change in changes.Where(change => change is { Chain: Chain.Bitcoin, Kind: BlockChangeKind.Gone }))
+        var chains = transactions.Keys.Select(txid => txid.Chain).ToHashSet();
+        foreach (var (chain, source) in _sources.Where(pair => chains.Contains(pair.Key)))
         {
-            if (!Txid.TryParse(change.TransactionId, out var txid) || !transactions.ContainsKey(txid))
+            var changes = await source.GetBlockChangesAsync(@case, cancellationToken).ConfigureAwait(false);
+            foreach (var change in changes.Where(change => change.Chain == chain
+                && change.Kind == BlockChangeKind.Gone))
             {
-                continue;
-            }
+                if (!Txid.TryParse(chain, change.TransactionId, out var txid) || !transactions.ContainsKey(txid))
+                {
+                    continue;
+                }
 
-            var replacement = await _source.GetReplacementAsync(@case, txid, LookupMode.CaseOnly, cancellationToken)
-                .ConfigureAwait(false);
-            gone[txid] = new GoneTransaction(txid, change, replacement.Value);
+                var replacement = await source.GetReplacementAsync(
+                        @case, txid, LookupMode.CaseOnly, cancellationToken)
+                    .ConfigureAwait(false);
+                gone[txid] = new GoneTransaction(txid, change, replacement.Value);
+            }
         }
 
         return gone;

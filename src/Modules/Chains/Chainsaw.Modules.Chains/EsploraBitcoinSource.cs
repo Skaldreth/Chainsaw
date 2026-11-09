@@ -140,6 +140,7 @@ internal class EsploraBitcoinSource : IBitcoinSource
     {
         ArgumentNullException.ThrowIfNull(@case);
         ArgumentNullException.ThrowIfNull(txid);
+        txid = txid.On(Network.ChainOf());
         var query = new LookupQuery<BitcoinTransaction>(
             ResponseKinds.Transaction,
             txid.Value,
@@ -165,6 +166,8 @@ internal class EsploraBitcoinSource : IBitcoinSource
     public async Task<BitcoinLookup<BitcoinTransaction>> VerifyTransactionAsync(
         ICase @case, Txid txid, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(txid);
+        txid = txid.On(Network.ChainOf());
         var lookup = await GetTransactionAsync(@case, txid, LookupMode.AsNeeded, cancellationToken)
             .ConfigureAwait(false);
         if (lookup.Value is not { BytesVerified: false })
@@ -193,6 +196,7 @@ internal class EsploraBitcoinSource : IBitcoinSource
     {
         ArgumentNullException.ThrowIfNull(@case);
         ArgumentNullException.ThrowIfNull(txid);
+        txid = txid.On(Network.ChainOf());
 
         // The bytes first: the txid must be the transaction's own, and a 64-byte transaction could pass for an inner
         // node of the tree, so it is never checked this way.
@@ -339,6 +343,7 @@ internal class EsploraBitcoinSource : IBitcoinSource
     {
         ArgumentNullException.ThrowIfNull(@case);
         ArgumentNullException.ThrowIfNull(txid);
+        txid = txid.On(Network.ChainOf());
         // The transaction's own outputs say which can never be spent (OP_RETURN), which never wait for a spend.
         var transaction = await Task.Run(
             () => @case.Read(reader => StoredTransaction(reader, txid)?.Value), cancellationToken)
@@ -347,7 +352,7 @@ internal class EsploraBitcoinSource : IBitcoinSource
         // One entry per output: a list of another length is not this transaction's, and is never taken as settled.
         IReadOnlyList<BitcoinOutputSpend> Parse(byte[] body)
         {
-            var spends = EsploraParser.ParseOutputSpends(body);
+            var spends = _parser.ParseOutputSpends(body);
             return transaction is null || spends.Count == transaction.Outputs.Count
                 ? spends
                 : throw new EsploraFormatException("The spends are not one per output of the transaction.");
@@ -370,6 +375,7 @@ internal class EsploraBitcoinSource : IBitcoinSource
     {
         ArgumentNullException.ThrowIfNull(@case);
         ArgumentNullException.ThrowIfNull(txid);
+        txid = txid.On(Network.ChainOf());
 
         // Everything the case holds is read at once: the transaction and the newest answer about each transaction
         // whose coins it spent.
@@ -468,7 +474,7 @@ internal class EsploraBitcoinSource : IBitcoinSource
             .Distinct()
             .Select(each => (each, SourceLookups.StoredAs(
                 _store.Latest(reader, ResponseKinds.ReplacedSpends, each.Value),
-                body => EsploraParser.ParseOutputSpends(body))))
+                body => _parser.ParseOutputSpends(body))))
             .OrderBy(each => each.Item2 is null ? 0 : 1)
             .ToList();
         var goneHosts = _store.NotFoundHosts(reader, txid, 0).ToHashSet(StringComparer.Ordinal);
@@ -481,11 +487,11 @@ internal class EsploraBitcoinSource : IBitcoinSource
     /// </summary>
     /// <param name="txid">The transaction whose outputs the gone one spent.</param>
     /// <returns>The query.</returns>
-    private static LookupQuery<IReadOnlyList<BitcoinOutputSpend>> ReplacedSpendsQuery(Txid txid) => new(
+    private LookupQuery<IReadOnlyList<BitcoinOutputSpend>> ReplacedSpendsQuery(Txid txid) => new(
         ResponseKinds.ReplacedSpends,
         txid.Value,
         $"tx/{txid.Value}/outspends",
-        body => EsploraParser.ParseOutputSpends(body),
+        body => _parser.ParseOutputSpends(body),
         _ => ResponseIndex.None,
         _ => null);
 
@@ -955,7 +961,7 @@ internal class EsploraBitcoinSource : IBitcoinSource
             {
                 var found = SourceLookups.StoredAs(
                     _store.Latest(reader, ResponseKinds.OutputSpends, transaction.Txid.Value),
-                    body => EsploraParser.ParseOutputSpends(body));
+                    body => _parser.ParseOutputSpends(body));
                 var height = found is { } spends ? _store.KnownHeight(reader, spends.Response.Origin.Sequence) : null;
                 return (found, height);
             }),

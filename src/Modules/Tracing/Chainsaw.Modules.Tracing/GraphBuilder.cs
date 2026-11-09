@@ -208,7 +208,8 @@ internal sealed class GraphBuilder
         }
 
         var senders = transaction.Inputs.Select(Sender).Distinct(StringComparer.Ordinal).ToList();
-        if (senders.Count == 1)
+        // A transaction that touches a shielded pool keeps its own node, where the pool's end stands.
+        if (senders.Count == 1 && transaction.Shielded is null)
         {
             foreach (var output in transaction.Outputs)
             {
@@ -564,7 +565,8 @@ internal sealed class GraphBuilder
                 [.. draft.Accounts.SelectMany(_knowledge.AccountEnds).Distinct()],
             GraphNodeKind.Address or GraphNodeKind.Cluster =>
                 [.. draft.Addresses.SelectMany(_knowledge.AddressEnds).Distinct()],
-            GraphNodeKind.Transaction => transactionEnds.GetValueOrDefault(draft.Transaction!) ?? [],
+            GraphNodeKind.Transaction => [.. (transactionEnds.GetValueOrDefault(draft.Transaction!) ?? [])
+                .Concat(PoolEnds(draft.Transaction!))],
             _ => [],
         };
         var node = new GraphNode(
@@ -581,8 +583,30 @@ internal sealed class GraphBuilder
             Expansion(draft),
             ends,
             Positions(draft));
-        return draft.Accounts.Count == 0 ? node : node with { Chain = draft.Chain, Accounts = draft.Accounts };
+        return draft.Accounts.Count == 0
+            ? node with { Chain = UtxoChainOf(draft) }
+            : node with { Chain = draft.Chain, Accounts = draft.Accounts };
     }
+
+    /// <summary>
+    /// Gives the ends of a transaction's node where it touches a shielded pool; they mark the node only and never stop
+    /// the trace through its transparent outputs, which the trace ends by the pool's own amount.
+    /// </summary>
+    /// <param name="txid">The transaction.</param>
+    /// <returns>The hints; empty when it touches no pool or is not in the graph.</returns>
+    private IReadOnlyList<TrailEndHint> PoolEnds(Txid txid) => _data.Transactions.TryGetValue(txid, out var entry)
+        ? ShieldedPoolEnds.Hints(entry.Transaction)
+        : [];
+
+    /// <summary>
+    /// Gives the UTXO chain a node of coins is on, from what it holds: its addresses, its transaction or its coin,
+    /// which all carry their chain. A node to another chain keeps Bitcoin, as it always had; its own chain is in
+    /// <see cref="GraphNode.OtherChain"/>.
+    /// </summary>
+    /// <param name="draft">The node.</param>
+    /// <returns>The chain.</returns>
+    private static Chain UtxoChainOf(NodeDraft draft) =>
+        draft.Addresses.FirstOrDefault()?.Chain ?? draft.Transaction?.Chain ?? draft.Coin?.Txid.Chain ?? Chain.Bitcoin;
 
     /// <summary>
     /// Gives the key an expansion is found by: its subject, with the chain before it on an account chain, since the

@@ -13,7 +13,9 @@ namespace Chainsaw.Modules.Chains.Contracts;
 /// <remarks>
 /// SegWit addresses are kept in lower case, the form the chain's tools show; Base58 addresses are case-sensitive and
 /// kept as written. Litecoin's older P2SH form (<c>3…</c>, Bitcoin's version byte) names the same script as its
-/// <c>M…</c> form; read as a Litecoin address it is kept as <c>M…</c>, so that one address is never two.
+/// <c>M…</c> form; read as a Litecoin address it is kept as <c>M…</c>, so that one address is never two. Zcash's
+/// transparent addresses (<c>t1…</c>, <c>t3…</c>) are Bitcoin's P2PKH and P2SH with two version bytes; Zcash has
+/// no SegWit, and its shielded addresses are not addresses in this model.
 /// </remarks>
 public sealed record BitcoinAddress
 {
@@ -34,6 +36,15 @@ public sealed record BitcoinAddress
 
     /// <summary>The version byte of a P2SH address on Litecoin (<c>M…</c>).</summary>
     private const byte LitecoinScriptHash = 0x32;
+
+    /// <summary>The two version bytes of a transparent P2PKH address on Zcash (<c>t1…</c>).</summary>
+    private static readonly byte[] ZcashKeyHash = [0x1c, 0xb8];
+
+    /// <summary>The two version bytes of a transparent P2SH address on Zcash (<c>t3…</c>).</summary>
+    private static readonly byte[] ZcashScriptHash = [0x1c, 0xbd];
+
+    /// <summary>The length of a hash in a Zcash transparent address: two version bytes and 20 bytes.</summary>
+    private const int ZcashPayloadLength = 22;
 
     /// <summary>The SegWit prefix on Litecoin.</summary>
     private const string LitecoinPrefix = "ltc";
@@ -64,7 +75,7 @@ public sealed record BitcoinAddress
         Network = network;
     }
 
-    /// <summary>Gets the chain: Bitcoin, or Litecoin for an address on Litecoin's network.</summary>
+    /// <summary>Gets the chain: Bitcoin, or Litecoin or Zcash for an address on their networks.</summary>
     public Chain Chain => Network.ChainOf();
 
     /// <summary>Gets the address in its canonical form.</summary>
@@ -94,7 +105,22 @@ public sealed record BitcoinAddress
         return address is not null;
     }
 
-    /// <summary>Reads an address on any UTXO network Chainsaw knows, Bitcoin's or Litecoin's.</summary>
+    /// <summary>
+    /// Checks a text as an address on whichever UTXO chain writes it so: Bitcoin's (main and test networks),
+    /// Litecoin's own forms (<c>L…</c>, <c>M…</c>, <c>ltc1…</c>; the older <c>3…</c> is read as Bitcoin's) or Zcash's
+    /// transparent ones (<c>t1…</c>, <c>t3…</c>). No two chains write an address alike, so a stored address that
+    /// names no chain is read on its own; the address carries the chain.
+    /// </summary>
+    /// <param name="text">The text; surrounding white space is not allowed.</param>
+    /// <param name="address">The address, when the text is one.</param>
+    /// <returns><see langword="true"/> when the text is an address on a UTXO chain Chainsaw knows.</returns>
+    public static bool TryParseOnAnyChain(string? text, [NotNullWhen(true)] out BitcoinAddress? address)
+    {
+        address = TryParseAny(text);
+        return address is not null;
+    }
+
+    /// <summary>Reads an address on any UTXO network Chainsaw knows, Bitcoin's, Litecoin's or Zcash's.</summary>
     /// <param name="text">The text; surrounding white space is not allowed.</param>
     /// <returns>The address, or <see langword="null"/>.</returns>
     private static BitcoinAddress? TryParseAny(string? text) =>
@@ -102,7 +128,8 @@ public sealed record BitcoinAddress
 
     /// <summary>
     /// Checks a text as an address on one UTXO chain: on Litecoin, Litecoin's addresses and the older <c>3…</c> P2SH
-    /// form (kept as its <c>M…</c> form); on Bitcoin, Bitcoin's (main and test networks).
+    /// form (kept as its <c>M…</c> form); on Zcash, its transparent addresses; on Bitcoin, Bitcoin's (main and test
+    /// networks).
     /// </summary>
     /// <param name="chain">The chain.</param>
     /// <param name="text">The text; surrounding white space is not allowed.</param>
@@ -135,7 +162,7 @@ public sealed record BitcoinAddress
         TryParse(text, out var address) ? address : throw new FormatException("Not a valid Bitcoin address.");
 
     /// <summary>Makes an address on a UTXO chain of a text that must be one.</summary>
-    /// <param name="chain">The chain: Bitcoin or Litecoin.</param>
+    /// <param name="chain">The chain: Bitcoin, Litecoin or Zcash.</param>
     /// <param name="text">The text.</param>
     /// <returns>The address.</returns>
     /// <exception cref="FormatException">The text is not a valid address on the chain.</exception>
@@ -156,6 +183,17 @@ public sealed record BitcoinAddress
         if (hash.Length != Base58PayloadLength - 1)
         {
             throw new ArgumentException("The hash must be 20 bytes.", nameof(hash));
+        }
+
+        if (network == BitcoinNetwork.Zcash)
+        {
+            var versions = type switch
+            {
+                BitcoinScriptType.PayToPublicKeyHash => ZcashKeyHash,
+                BitcoinScriptType.PayToScriptHash => ZcashScriptHash,
+                _ => throw new ArgumentException("Only P2PKH and P2SH are written in Base58.", nameof(type)),
+            };
+            return new BitcoinAddress(Base58Check.Encode([.. versions, .. hash]), type, network);
         }
 
         var version = (type, network) switch
@@ -179,6 +217,11 @@ public sealed record BitcoinAddress
     /// <exception cref="ArgumentException">The version and program do not make a valid SegWit address.</exception>
     public static BitcoinAddress FromWitness(int witnessVersion, ReadOnlySpan<byte> program, BitcoinNetwork network)
     {
+        if (network == BitcoinNetwork.Zcash)
+        {
+            throw new ArgumentException("Zcash has no witness programs.", nameof(network));
+        }
+
         var text = Bech32.EncodeSegwit(PrefixOf(network), witnessVersion, program);
         return new BitcoinAddress(text, WitnessType(witnessVersion, program.Length, network), network);
     }
@@ -214,7 +257,17 @@ public sealed record BitcoinAddress
     /// <returns>The address, or <see langword="null"/> when the text is not a valid Base58 address.</returns>
     private static BitcoinAddress? TryParseBase58(string text)
     {
-        if (!Base58Check.TryDecode(text, out var data) || data.Length != Base58PayloadLength)
+        if (!Base58Check.TryDecode(text, out var data))
+        {
+            return null;
+        }
+
+        if (data.Length == ZcashPayloadLength)
+        {
+            return ZcashType(data) is { } zcash ? new BitcoinAddress(text, zcash, BitcoinNetwork.Zcash) : null;
+        }
+
+        if (data.Length != Base58PayloadLength)
         {
             return null;
         }
@@ -231,6 +284,19 @@ public sealed record BitcoinAddress
                 text, BitcoinScriptType.PayToScriptHash, BitcoinNetwork.Litecoin),
             _ => null,
         };
+    }
+
+    /// <summary>Gives the script type a Zcash transparent address's two version bytes name.</summary>
+    /// <param name="data">The decoded address: two version bytes and the hash.</param>
+    /// <returns>P2PKH or P2SH, or <see langword="null"/> for other version bytes.</returns>
+    private static BitcoinScriptType? ZcashType(ReadOnlySpan<byte> data)
+    {
+        if (data[..2].SequenceEqual(ZcashKeyHash))
+        {
+            return BitcoinScriptType.PayToPublicKeyHash;
+        }
+
+        return data[..2].SequenceEqual(ZcashScriptHash) ? BitcoinScriptType.PayToScriptHash : null;
     }
 
     /// <summary>

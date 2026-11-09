@@ -6,6 +6,7 @@ using Chainsaw.Modules.Cases.Contracts;
 using Chainsaw.Modules.Chains.Contracts;
 using Chainsaw.Modules.Network.Contracts;
 using Chainsaw.Modules.Security.Contracts;
+using Chainsaw.SharedKernel;
 
 namespace Chainsaw.Modules.Chains;
 
@@ -30,18 +31,35 @@ internal sealed class RawResponseStore(TimeZoneInfo timeZone, string chainName)
     {
     }
 
-    /// <summary>Gives a UTXO network's name in the tables: Bitcoin's networks, or Litecoin's.</summary>
+    /// <summary>Gives a UTXO network's name in the tables: Bitcoin's networks, Litecoin's or Zcash's.</summary>
     /// <param name="network">The network.</param>
     /// <returns>For example <c>bitcoin-mainnet</c>.</returns>
-    public static string NameOf(BitcoinNetwork network) => network == BitcoinNetwork.Litecoin
-        ? LitecoinChainName
-        : "bitcoin-" + network.ToString().ToLowerInvariant();
+    public static string NameOf(BitcoinNetwork network) => network switch
+    {
+        BitcoinNetwork.Litecoin => LitecoinChainName,
+        BitcoinNetwork.Zcash => ZcashChainName,
+        _ => "bitcoin-" + network.ToString().ToLowerInvariant(),
+    };
 
     /// <summary>Litecoin's main network in the tables.</summary>
     public const string LitecoinChainName = "litecoin-mainnet";
 
+    /// <summary>Zcash's main network in the tables.</summary>
+    public const string ZcashChainName = "zcash-mainnet";
+
     /// <summary>Gets the chain's name in the tables, for example <c>bitcoin-mainnet</c>.</summary>
     public string ChainName { get; } = chainName;
+
+    /// <summary>
+    /// Gets the chain of unspent outputs whose transaction ids the indexes hold, so that an id read back carries it:
+    /// Litecoin or Zcash by their names, otherwise Bitcoin (whose indexes are the only others with txids).
+    /// </summary>
+    private Chain UtxoChain { get; } = chainName switch
+    {
+        LitecoinChainName => Chain.Litecoin,
+        ZcashChainName => Chain.Zcash,
+        _ => Chain.Bitcoin,
+    };
 
     /// <summary>The columns read back, in order.</summary>
     private const string SelectColumns =
@@ -173,7 +191,7 @@ internal sealed class RawResponseStore(TimeZoneInfo timeZone, string chainName)
         using var rows = command.ExecuteReader();
         while (rows.Read())
         {
-            if (Txid.TryParse(rows.GetString(0), out var txid))
+            if (Txid.TryParse(UtxoChain, rows.GetString(0), out var txid))
             {
                 txids.Add(txid);
             }
@@ -682,7 +700,7 @@ internal sealed class RawResponseStore(TimeZoneInfo timeZone, string chainName)
             while (rows.Read())
             {
                 transactions.Add((
-                    Txid.Parse(rows.GetString(0)), rows.IsDBNull(1) ? null : rows.GetInt64(1),
+                    Txid.Parse(UtxoChain, rows.GetString(0)), rows.IsDBNull(1) ? null : rows.GetInt64(1),
                     rows.IsDBNull(2) ? null : rows.GetString(2)));
             }
         }

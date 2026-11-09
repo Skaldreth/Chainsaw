@@ -80,6 +80,15 @@ internal sealed class UtxoExposureRun
     /// <summary>The fee each transaction read took of the money.</summary>
     private readonly Dictionary<Txid, long> _fees = [];
 
+    /// <summary>Paid out: the money that went into a shielded pool (Zcash) by transaction, where the trail ends.</summary>
+    private readonly Dictionary<Txid, BigInteger> _pooledOut = [];
+
+    /// <summary>
+    /// Got: the money in a transaction's outputs that came out of a shielded pool, by transaction, where the trail
+    /// ends going back.
+    /// </summary>
+    private readonly Dictionary<Txid, BigInteger> _pooledIn = [];
+
     /// <summary>The transactions waiting to be read, in block order (or backwards).</summary>
     private readonly PriorityQueue<Txid, (long Height, string Id)> _queue = new();
 
@@ -441,9 +450,16 @@ internal sealed class UtxoExposureRun
             }
         }
 
+        if (MethodChecks.HasPoolInput(transaction))
+        {
+            // What comes out of a shielded pool is never the subject's money: the pool is the flow's last input.
+            inputs.Add(TaintSet.None);
+        }
+
         var taint = _method.Propagate(MethodChecks.Flow(transaction), inputs);
         _fees[txid] = taint.Fee;
-        for (var index = 0; index < taint.Outputs.Count; index++)
+        _pooledOut[txid] = MethodChecks.HasPoolOutput(transaction) ? taint.Outputs[^1].Units : BigInteger.Zero;
+        for (var index = 0; index < transaction.Outputs.Count; index++)
         {
             var coin = new Outpoint(txid, transaction.Outputs[index].Index);
             if (taint.Outputs[index].IsEmpty || taint.Outputs[index].Equals(_taint.GetValueOrDefault(coin)))
@@ -479,9 +495,11 @@ internal sealed class UtxoExposureRun
         }
 
         var flow = MethodChecks.Flow(transaction);
-        var shares = transaction.Inputs.Select((_, index) => _method.Propagate(flow, [
+        // One share per input of the flow: a shielded pool's is its last, and its part is where the trail ends.
+        var shares = flow.Inputs.Select((_, index) => _method.Propagate(flow, [
             .. flow.Inputs.Select((amount, other) => other == index ? TaintSet.FirstPart(amount) : TaintSet.None),
         ]).Outputs.Select(set => set.Units).ToList()).ToList();
+        var fromPool = BigInteger.Zero;
         var linked = transaction.Inputs.Select(IsLinkedInput).ToList();
         var onOtherChain = BigInteger.Zero;
         var parts = new BigInteger[transaction.Inputs.Count];
@@ -496,7 +514,12 @@ internal sealed class UtxoExposureRun
             }
 
             var split = Split(_units[coin], [.. shares.Select(share => share[output])]);
-            for (var input = 0; input < split.Length; input++)
+            if (split.Length > transaction.Inputs.Count)
+            {
+                fromPool += split[^1];
+            }
+
+            for (var input = 0; input < transaction.Inputs.Count; input++)
             {
                 if (linked[input])
                 {
@@ -514,6 +537,7 @@ internal sealed class UtxoExposureRun
         }
 
         _onOtherChain[txid] = onOtherChain;
+        _pooledIn[txid] = fromPool;
         for (var index = 0; index < transaction.Inputs.Count; index++)
         {
             var input = transaction.Inputs[index];
@@ -731,6 +755,18 @@ internal sealed class UtxoExposureRun
         {
             _tally.Rest(ExposureRest.Fees, fee);
         }
+
+        TallyPooled(_pooledOut);
+    }
+
+    /// <summary>Counts the money that went into or came out of a shielded pool as where the trail ends.</summary>
+    /// <param name="pooled">The money by transaction.</param>
+    private void TallyPooled(Dictionary<Txid, BigInteger> pooled)
+    {
+        foreach (var units in pooled.Values.Where(units => !units.IsZero))
+        {
+            _tally.Rest(ExposureRest.TrailEnds, units);
+        }
     }
 
     /// <summary>
@@ -743,6 +779,8 @@ internal sealed class UtxoExposureRun
         {
             _tally.Rest(ExposureRest.OtherChain, units);
         }
+
+        TallyPooled(_pooledIn);
 
         foreach (var (coin, units) in _units)
         {

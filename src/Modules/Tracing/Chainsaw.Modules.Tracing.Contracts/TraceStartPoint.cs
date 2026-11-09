@@ -5,25 +5,25 @@ namespace Chainsaw.Modules.Tracing.Contracts;
 
 /// <summary>
 /// Where the trace starts: an address (for example the one the victim paid to) or a transaction (for example the
-/// victim's payment), on Bitcoin or on an account chain (Ethereum or TRON, whose addresses and transactions carry their
-/// chain). Exactly one of <see cref="Address"/>, <see cref="Txid"/>,
+/// victim's payment), on a UTXO chain (Bitcoin, Litecoin or Zcash's transparent part) or on an account chain
+/// (Ethereum, TRON or BSC); addresses and transactions carry their chain. Exactly one of <see cref="Address"/>, <see cref="Txid"/>,
 /// <see cref="EthereumAddress"/> and <see cref="EthereumTransaction"/> is set.
 /// </summary>
 public sealed record TraceStartPoint
 {
     /// <summary>Creates a start point; use one of the factories.</summary>
-    /// <param name="address">The Bitcoin address, or <see langword="null"/>.</param>
-    /// <param name="txid">The Bitcoin transaction, or <see langword="null"/>.</param>
+    /// <param name="address">The address on a UTXO chain, or <see langword="null"/>.</param>
+    /// <param name="txid">The transaction on a UTXO chain, or <see langword="null"/>.</param>
     /// <param name="ethereumAddress">The Ethereum address, or <see langword="null"/>.</param>
     /// <param name="ethereumTransaction">The Ethereum transaction, or <see langword="null"/>.</param>
     private TraceStartPoint(
         BitcoinAddress? address, Txid? txid, EthereumAddress? ethereumAddress, EthereumTxHash? ethereumTransaction) =>
         (Address, Txid, EthereumAddress, EthereumTransaction) = (address, txid, ethereumAddress, ethereumTransaction);
 
-    /// <summary>Gets the Bitcoin address, when the start point is one.</summary>
+    /// <summary>Gets the address on a UTXO chain (Bitcoin, Litecoin, Zcash), when the start point is one.</summary>
     public BitcoinAddress? Address { get; }
 
-    /// <summary>Gets the Bitcoin transaction, when the start point is one.</summary>
+    /// <summary>Gets the transaction on a UTXO chain, when the start point is one.</summary>
     public Txid? Txid { get; }
 
     /// <summary>Gets the Ethereum address, when the start point is one.</summary>
@@ -33,7 +33,7 @@ public sealed record TraceStartPoint
     public EthereumTxHash? EthereumTransaction { get; }
 
     /// <summary>Gets the chain the start point is on.</summary>
-    public Chain Chain => EthereumAddress?.Chain ?? EthereumTransaction?.Chain ?? Chain.Bitcoin;
+    public Chain Chain => Address?.Chain ?? Txid?.Chain ?? EthereumAddress?.Chain ?? EthereumTransaction!.Chain;
 
     /// <summary>Gets the address with its chain, when the start point is an address on any chain.</summary>
     public ChainAddress? Account => Address?.ToChainAddress() ?? EthereumAddress?.ToChainAddress();
