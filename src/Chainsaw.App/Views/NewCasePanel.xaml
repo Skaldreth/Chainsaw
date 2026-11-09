@@ -485,18 +485,13 @@
     </UserControl.Resources>
 
     <!--
-      Nytt ärende (sketch NC2a): the rest of the window darkens, and the panel comes in from the right, 520 px wide.
-      A click on the dark part closes the panel, as Avbryt and Esc do.
+      Nytt ärende (sketch NC2a): the rest of the window darkens, and the panel comes in from the right. Like every panel
+      at the right edge it lies under the work (sketch IN5a): the underlay, the work's shadow over its left edge, and 12
+      px more room on the left than the content's 28. A click on the dark part closes the panel, as Avbryt and Esc do.
     -->
-    <!-- Clipped, so that the panel's shadow falls on the darkened work only and never over the title bar. -->
     <Grid ClipToBounds="True">
         <Rectangle Fill="#8C000000" MouseLeftButtonDown="OnDimClicked" />
-        <Border HorizontalAlignment="Right" Width="520" Background="{StaticResource Brush.Surface}"
-                BorderBrush="{StaticResource Brush.BorderStrong}" BorderThickness="1,0,0,0">
-            <Border.Effect>
-                <!-- The shadow falls 24 px to the left, over the darkened work, as in the sketch. -->
-                <DropShadowEffect BlurRadius="48" ShadowDepth="24" Direction="180" Opacity="0.35" Color="Black" />
-            </Border.Effect>
+        <controls:UnderPanel HorizontalAlignment="Right" Width="532" Padding="12,0,0,0">
             <DockPanel>
                 <!-- The head: the name, its shortcut and × -->
                 <Border DockPanel.Dock="Top" Height="60" Padding="28,0,14,0">
@@ -807,6 +802,6 @@
                     </StackPanel>
                 </ScrollViewer>
             </DockPanel>
-        </Border>
+        </controls:UnderPanel>
     </Grid>
 </UserControl>
