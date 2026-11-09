@@ -374,7 +374,10 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   nod lämnar den alltid genom porten på **höger** sida, och en tx som kommer in når den alltid genom porten på
   **vänster** sida, hur noderna än står. Pengar som vänder bakåt, eller går mellan två noder i samma kolumn, går ut åt
   höger, över noderna och in från vänster. Det gäller också bevakningens strålar och soptunnans stumpar.
-  **En liten pil på linjen** som visar åt vilket håll pengarna flödar är önskad (2026-11-09) och skissas först.
+  **En liten pil på linjen** visar åt vilket håll pengarna flödar (användarens beslut 2026-11-09, byggd utan skiss
+  eftersom den är grundläggande): en öppen vinkel i linjens färg, alltid hel, mitt på linjen eller där den inte
+  krockar med beloppet eller swap-pillret, med vingar som når utanför linjen så att den syns också på en tjock linje.
+  En kort linje (under 80 enheter) har ingen pil.
 - **Bildspråket** (skiss GR3a, användarens beslut 2026-11-07: godkänt): formen säger vad det är (rund = aktör vi inte vet något om, fyrkantig = tjänst eller
   kluster), färgen vad det betyder (accent = offrens pengar, blått = börs, rött = spåret tar slut eller risk, lila = annan
   kedja), en ikon per sort (spelsajt och casino är **två spelkort** som hålls i

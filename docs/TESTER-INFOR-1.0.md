@@ -1124,6 +1124,9 @@ ansluten utgång.
 - [ ] Två noder i samma hoppkolumn: linjen går ut till höger från den ena, över toppen och in från vänster i den andra,
       aldrig genom en nod.
 - [ ] Pengar fram och tillbaka mellan två noder: de två linjerna ligger isär och båda beloppen går att läsa.
+- [ ] Varje linje har en liten pil som pekar mot mottagaren, också på bågarna som vänder; den ligger inte på beloppet
+      eller swap-pillret, syns på en tjock linje och är hel på en streckad linje.
+- [ ] En kort linje mellan två noder som står nära varandra har ingen pil.
 
 ### Grafen (etapp 12, GR4, GR3a och GR3c)
 
