@@ -60,6 +60,7 @@ public static class TestDataServices
                 provider.GetRequiredService<TestEthereumHttp>(),
                 provider.GetRequiredService<IOperatorProfileStore>(),
                 provider.GetRequiredService<IClock>()))));
+        AddOtherChains(services);
         services.AddSingleton(provider => new TestRatesHttp(provider.GetRequiredService<IClock>()));
         TryDecorate<IPriceService>(services, (provider, real) => new TestDataPriceRouter(
             real,
@@ -94,6 +95,46 @@ public static class TestDataServices
         services.AddSingleton<IShellCommand, TestDataCommand>();
         return services;
     }
+
+    /// <summary>
+    /// Wraps the Litecoin, Zcash, BSC and Solana sources, when they are registered, so that a test case asks their
+    /// made-up parts (<see cref="TestLitecoinChain"/>, <see cref="TestZcashChain"/>, <see cref="TestBscChain"/>,
+    /// <see cref="TestSolanaChain"/>) on this computer and every other case the real ones.
+    /// </summary>
+    /// <param name="services">The container.</param>
+    private static void AddOtherChains(IServiceCollection services)
+    {
+        TryDecorate<ILitecoinSource>(services, (provider, real) => new TestDataLitecoinRouter(
+            real,
+            new Lazy<ILitecoinSource>(() => TestDataChains.CreateLitecoin(
+                new TestChainHttp(
+                    TestLitecoinChain.Chain, Clock(provider), TestDataChains.LitecoinAddress, Chain.Litecoin),
+                Profiles(provider),
+                Clock(provider)))));
+        TryDecorate<IZcashSource>(services, (provider, real) => new TestDataZcashRouter(
+            real,
+            new Lazy<IZcashSource>(() => TestDataChains.CreateZcash(
+                new TestZcashHttp(Clock(provider)), Profiles(provider), Clock(provider)))));
+        TryDecorate<IBscSource>(services, (provider, real) => new TestDataBscRouter(
+            real,
+            new Lazy<IBscSource>(() => TestDataChains.CreateBsc(
+                new TestEthereumHttp(new TestBscChain(), Clock(provider)), Profiles(provider), Clock(provider)))));
+        TryDecorate<ISolanaSource>(services, (provider, real) => new TestDataSolanaRouter(
+            real,
+            new Lazy<ISolanaSource>(() => TestDataChains.CreateSolana(
+                new TestSolanaHttp(Clock(provider)), Profiles(provider), Clock(provider)))));
+    }
+
+    /// <summary>Gives the clock.</summary>
+    /// <param name="provider">The container.</param>
+    /// <returns>The clock.</returns>
+    private static IClock Clock(IServiceProvider provider) => provider.GetRequiredService<IClock>();
+
+    /// <summary>Gives the operator profile, for who fetched.</summary>
+    /// <param name="provider">The container.</param>
+    /// <returns>The operator profile.</returns>
+    private static IOperatorProfileStore Profiles(IServiceProvider provider) =>
+        provider.GetRequiredService<IOperatorProfileStore>();
 
     /// <summary>
     /// Replaces the last registration of a service with one that wraps it, when the service is registered; a part of

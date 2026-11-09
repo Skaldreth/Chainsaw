@@ -15,8 +15,17 @@ namespace Chainsaw.App.TestData;
 /// </summary>
 /// <param name="chain">The made-up chain.</param>
 /// <param name="clock">The clock, for the response's times.</param>
-public sealed class TestChainHttp(TestChain chain, IClock clock) : IExitHttp
+/// <param name="root">
+/// The made-up source's address: Bitcoin's (<see cref="TestDataBitcoin.Address"/>) by default, or Litecoin's, which
+/// speaks the same Esplora API.
+/// </param>
+/// <param name="on">The chain whose addresses the source answers: Bitcoin by default, or Litecoin.</param>
+public sealed class TestChainHttp(TestChain chain, IClock clock, Uri? root = null, Chain on = Chain.Bitcoin)
+    : IExitHttp
 {
+    /// <summary>The made-up source's address, which every request must be under.</summary>
+    private readonly string _root = (root ?? TestDataBitcoin.Address).AbsoluteUri;
+
     /// <summary>Esplora's page size for an address's confirmed transactions.</summary>
     public const int PageSize = 25;
 
@@ -49,15 +58,14 @@ public sealed class TestChainHttp(TestChain chain, IClock clock) : IExitHttp
     {
         ArgumentNullException.ThrowIfNull(request);
         cancellationToken.ThrowIfCancellationRequested();
-        var root = TestDataBitcoin.Address.AbsoluteUri;
-        if (!request.Uri.AbsoluteUri.StartsWith(root, StringComparison.Ordinal))
+        if (!request.Uri.AbsoluteUri.StartsWith(_root, StringComparison.Ordinal))
         {
             throw new ExitException(ExitError.RequestFailed);
         }
 
         Interlocked.Increment(ref _requests);
         var now = clock.UtcNow;
-        var (status, type, body) = Answer(request.Uri.AbsoluteUri[root.Length..]);
+        var (status, type, body) = Answer(request.Uri.AbsoluteUri[_root.Length..]);
         return Task.FromResult(new ExitResponse(
             request.Uri, Guid.Empty, status, type, body, now, now, ExitRoute.Windows) { IsLocal = true });
     }
@@ -138,7 +146,7 @@ public sealed class TestChainHttp(TestChain chain, IClock clock) : IExitHttp
     private (int, string, byte[])? AddressAnswer(string rest)
     {
         var parts = rest.Split('/');
-        if (!Modules.Chains.Contracts.BitcoinAddress.TryParse(parts[0], out var address))
+        if (!Modules.Chains.Contracts.BitcoinAddress.TryParse(on, parts[0], out var address))
         {
             return null;
         }

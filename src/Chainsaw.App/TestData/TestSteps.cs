@@ -129,6 +129,66 @@ public sealed record ExpandStep(string Transaction) : ITestStep
     }
 }
 
+/// <summary>Makes a transaction on another UTXO chain (Litecoin, Zcash) a start point, as pasting its txid does.</summary>
+/// <param name="Txid">The transaction, with its chain.</param>
+public sealed record TransactionStartPointStep(Txid Txid) : ITestStep
+{
+    /// <inheritdoc/>
+    public Task RunAsync(TestRun run, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(run);
+        run.Services.Tracing.AddStartPoint(run.Case, TraceStartPoint.ForTransaction(Txid));
+        return Task.CompletedTask;
+    }
+}
+
+/// <summary>
+/// Expands a transaction on another UTXO chain (Litecoin, Zcash): brings it in with the transactions that spend it,
+/// through that chain's made-up source.
+/// </summary>
+/// <param name="Txid">The transaction, with its chain.</param>
+public sealed record TransactionExpandStep(Txid Txid) : ITestStep
+{
+    /// <inheritdoc/>
+    public async Task RunAsync(TestRun run, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(run);
+        var result = await run.Services.Tracing.ExpandAsync(
+            run.Case, ExpansionRequest.ForTransaction(Txid), cancellationToken).ConfigureAwait(false);
+        if (result.Outcome != ExpansionOutcome.Expanded)
+        {
+            run.Note($"Expansionen av {Txid.Chain}-tx:en {Txid.Value} blev inte hel: {result.Problem}");
+        }
+    }
+}
+
+/// <summary>
+/// Expands a Bitcoin address: brings in its history, newest first, up to the expansion's limit, as the user does on an
+/// address's node. The fifth round's patterns need an owner's whole business in the graph (a central mixer's deposits
+/// and payouts, a nested service's customers and trips), which following transactions forward does not bring.
+/// </summary>
+/// <param name="Address">The address.</param>
+public sealed record AddressExpandStep(TestAddress Address) : ITestStep
+{
+    /// <inheritdoc/>
+    public async Task RunAsync(TestRun run, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(run);
+        if (Address.Address is not { } address)
+        {
+            run.Note($"{Address.Label} har ingen adress att expandera.");
+            return;
+        }
+
+        var result = await run.Services.Tracing.ExpandAsync(
+            run.Case, ExpansionRequest.ForAddress(address), cancellationToken).ConfigureAwait(false);
+        if (result.Outcome != ExpansionOutcome.Expanded)
+        {
+            run.Note($"Expansionen av adressen {Address.Label} blev inte hel: {result.Problem}");
+        }
+    }
+}
+
 /// <summary>
 /// Sets a label on an address or on its cluster. The test case's labels are marked as made up (the open source
 /// <see cref="TestStory.LabelSource"/>) and are kept out of the label library, so that they never spread to a real case;

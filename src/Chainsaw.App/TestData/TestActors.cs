@@ -5,7 +5,7 @@ namespace Chainsaw.App.TestData;
 /// Everyone in the test case's story, as made-up addresses. The labels are the addresses' seeds, so they never change
 /// between runs; a new part of the story adds its actors here.
 /// </summary>
-public sealed class TestActors
+public sealed partial class TestActors
 {
     /// <summary>How many senders pay the hub, so that it has more than the expansion's limit of transactions.</summary>
     public const int HubSenders = 40;

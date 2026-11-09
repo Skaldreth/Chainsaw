@@ -2119,7 +2119,7 @@ analysen med version och att det är en bedömning; *?* öppnar Guidens avsnitt.
 
 ### Förvirring, omgång 5 (2026-11-09)
 
-Testärendet visar inte de här kontrollerna än (TODO); prova dem i ett ärende där mönstret finns. Varje rad står i
+Testärendet visar alla fem (se *Testärendet*, version 7); prova dem också i ett ärende där mönstret finns. Varje rad står i
 *Förslag · N* med sitt område, och *Varför?* säger analysen med version och att det är en bedömning.
 - [ ] **Trolig mixer utan etikett:** en central mixer utan etikett, där många insättningar kommer ut igen minus några
       procent, ger ett rött område *Trolig mixer utan etikett* under *GJORT AV SIG SJÄLVT*, med mixerns ikon på
@@ -3174,6 +3174,35 @@ källan besvaras på datorn, och inget går ut på nätet. Gör om testärendet 
 - [ ] Swappen från navet fortsätter på TRON (Bytaren (TRON) betalar USDT till bedragaren), bedragaren och mulan är
       expanderade, Sydbörsen (TRON) tar emot, och mulan har snöflingan. Inget skickas ut (raderna i ärendet säger
       *testdata*).
+
+**Förvirring, omgång 5 (testärendet version 7)**
+- [ ] *Trolig mixer utan etikett* under *Gjort av sig självt*: en adress utan etikett (`malstrommen`, en stor nod med
+      nio kunder och nio mottagare runt sig) med *10 av 10 insättningar ut igen minus 2,3 % i median, från 10
+      avsändare*. *Varför?* säger att avgiften och fördröjningen varierar och föreslår etiketten Mixer med L.
+- [ ] *Mixer efter mixer, 4 steg, 2 grenar*: en betalare sätter in 0,30 BTC i Blandaren, som betalar ut den i två
+      delar; den ena går in i Virveln, den andra in i den troliga mixern utan etikett, vars utgång går in i Virveln.
+      *Varför?* säger *kedjan delar sig i 2 vägar* och *en trolig mixer utan etikett*. *Delarna tillsammans* har de två
+      delarna (0,1790 och 0,1150 BTC) för insättningen.
+- [ ] *Uppdelning i 8 delar över 4 tx*: *spridaren* betalar åtta mottagare omkring 0,02 BTC var, två per tx, under
+      tre timmar. *Delarna samlas igen, 2 av 8* för tx:en där den första och den fjärde delen (efter ett eget hopp) möts.
+- [ ] *Många hopp, 5 i rad*: `skiktning-0` skickar 0,40 BTC genom fem hopp; varannan betalar 1 % till samma
+      avgiftsadress, och *Varför?* säger *3 av hoppen betalar också en liten avgift* och att avgiften inte är en del av
+      vägen. Avgiftsadressen är inte med i området.
+- [ ] *Trolig nästlad tjänst hos …* att avgöra: *vaxelkiosken* tar emot från nio kunder under två dygn, sätter in två
+      gånger på sitt konto hos Nordbörsen (som sveps till Nordbörsens heta plånbok), tar två uttag tillbaka och betalar
+      nio mottagare. Summeringen säger *9 avsändare, 9 mottagare · 2 insättningar, 2 uttag*.
+
+**Litecoin, Zcash, BSC och Solana (testärendet version 7)**
+- [ ] Litecoin: offrets betalning (`ltc1…`) är en startpunkt; bedragaren betalar mulan med växel till
+      en adress av den gamla typen, och mulan betalar *Sydbörsen (Litecoin)*. Inget skickas ut (*testdata* i ärendet).
+- [ ] Zcash: offrets betalning (`t1…`) är en startpunkt; bedragaren sätter in allt i den skyddade poolen (t→z), och
+      den tx:en slutar spåret i rött. En annan nod tar ut nästan samma belopp ur poolen ett halvt dygn senare (z→t) och
+      betalar *Sydbörsen (Zcash)*. *Förslag · N* har *Troliga vägar ut ur den skyddade poolen* för 14,9999 ZEC med
+      uttaget som troligaste kandidat (`shielded-pool v1`); godkänn den och se att linjen blir streckad.
+- [ ] BSC: bedragarens BSC-adress är en startpunkt och expanderad: offret betalar 3 BNB och 4 000 USDT
+      (BSC-USD, utan snöflinga), och bedragaren betalar 2,9 BNB till *Sydbörsen (BSC)*.
+- [ ] Solana: bedragarens Solana-adress är en startpunkt; offret betalar 40 SOL, bedragaren 30 SOL till
+      mulan och mulan 29,5 SOL till *Sydbörsen (Solana)*. Alt + klick på mulan visar SOL på baksidan.
 
 **Förslag, etiketter och soptunnan**
 - [ ] *Förslag · N*: *Troliga utgångar ur mixern* med den troligaste godkänd (grön bock på den streckade linjen) och

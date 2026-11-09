@@ -316,6 +316,61 @@ public sealed class TestCaseStoryTests : IDisposable
         Assert.Equal(0, _harness.Outside.Attempts);
     }
 
+    [Fact]
+    public async Task The_fifth_rounds_patterns_are_found_in_the_test_case()
+    {
+        using var @case = await OpenAsync();
+        var actors = _harness.Get<TestActors>();
+        var chain = _harness.Get<TestChain>();
+        var graph = await _harness.Get<ITracingService>().LoadAsync(@case);
+
+        var checks = _harness.Get<ICheckService>().Run(@case, graph).Checks;
+
+        var mixer = Assert.Single(checks, check => check.Analysis.Name == "mixer-behaviour");
+        Assert.Equal("Trolig mixer utan etikett", mixer.Finding.Title);
+        Assert.Contains(actors.Pool.Address!, mixer.Finding.Addresses);
+        var mixers = Assert.Single(checks, check => check.Analysis.Name == "mixer-chain"
+            && check.Finding.Key == chain[TestStoryChain.ChainDeposit].Txid + ":0");
+        Assert.Equal("Mixer efter mixer, 4 steg, 2 grenar", mixers.Finding.Title);
+        Assert.Contains("trolig mixer utan etikett", mixers.Finding.Why, StringComparison.Ordinal);
+        var spread = Assert.Single(checks, check => check.Analysis.Name == "split-merge"
+            && check.Finding.Key == "spread:" + chain[TestStoryChain.SpreadPayments[0]].Txid);
+        Assert.Equal("Uppdelning i 8 delar över 4 tx", spread.Finding.Title);
+        Assert.Contains(checks, check => check.Analysis.Name == "split-merge"
+            && check.Finding.Key == "join:" + chain[TestStoryChain.SpreadJoin].Txid);
+        var hops = Assert.Single(checks, check => check.Analysis.Name == "pass-through"
+            && check.Finding.Key == chain[TestStoryChain.FeeHops[0]].Txid);
+        Assert.Equal("Många hopp, 5 i rad", hops.Finding.Title);
+        Assert.Contains("3 av hoppen betalar också en liten avgift", hops.Finding.Why, StringComparison.Ordinal);
+        var nested = Assert.Single(checks, check => check.Analysis.Name == "nested-service");
+        Assert.Contains(actors.NestedKiosk.Address!, nested.Finding.Addresses);
+        Assert.Contains(actors.NestedAccount.Address!, nested.Finding.Addresses);
+        Assert.Equal(0, _harness.Outside.Attempts);
+    }
+
+    [Fact]
+    public async Task Litecoin_zcash_bsc_and_solana_reach_sydborsen_and_the_shielded_pool_has_its_way_out()
+    {
+        using var @case = await OpenAsync();
+        var graph = await _harness.Get<ITracingService>().LoadAsync(@case);
+
+        var checks = _harness.Get<ICheckService>().Run(@case, graph).Checks;
+
+        Assert.NotNull(graph.NodeOf(TestLitecoinChain.Exchange.Address!));
+        Assert.NotNull(graph.NodeOf(TestZcashChain.Exchange.Address!));
+        Assert.NotNull(graph.NodeOf(TestBscChain.Exchange.ToChainAddress()));
+        Assert.NotNull(graph.NodeOf(TestSolanaChain.Exchange.ToChainAddress()));
+        Assert.All(
+            (Chain[])[Chain.Litecoin, Chain.Zcash, Chain.Bsc, Chain.Solana],
+            each => Assert.Contains(graph.Nodes, node => node.Chain == each && node.IsStartPoint));
+        var pool = Assert.Single(checks, check => check.Analysis.Name == "shielded-pool");
+        Assert.Equal(CheckKind.Suggestion, pool.Finding.Kind);
+        var wayOut = pool.Finding.Candidates.MaxBy(candidate => candidate.Score)!;
+        Assert.Equal(TestZcashChain.WayOut.Address, wayOut.Address);
+        Assert.Equal(TestZcashChain.TxidOf(TestZcashChain.OutOfPool), wayOut.Txid);
+        Assert.Equal(0, _harness.Outside.Attempts);
+    }
+
     private async Task<ICase> OpenAsync()
     {
         var builder = _harness.Get<TestCaseBuilder>();

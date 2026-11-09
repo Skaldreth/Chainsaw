@@ -10,7 +10,7 @@ namespace Chainsaw.App.TestData;
 /// money going the same way, a run of alike amounts and a payment to a swap service. Each transaction's label is how
 /// the steps name it.
 /// </summary>
-public static class TestStoryChain
+public static partial class TestStoryChain
 {
     /// <summary>The height the story starts at (the victim's payment).</summary>
     public const long Start = 921_000;
@@ -162,6 +162,7 @@ public static class TestStoryChain
         HopsAndParts(chain, funding, actors);
         Replacement(chain, actors);
         AlikeWays(chain, funding, actors);
+        Obfuscation(chain, funding, actors);
         chain.Seal(Tip);
         return chain;
     }
