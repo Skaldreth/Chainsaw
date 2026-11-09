@@ -133,6 +133,13 @@ public sealed class ChainFigure : FrameworkElement
         Record();
     }
 
+    /// <summary>
+    /// Moves the node the band is on its way to, when the shell has laid it out anew; the way goes on from where it is.
+    /// </summary>
+    /// <param name="node">Where the node stands now, in this figure's own coordinates.</param>
+    public void MoveNode(Rect node) =>
+        _motion.MoveNode(new NodeTarget(node.X, node.Y, node.Width, node.Height, 10));
+
     /// <summary>Shows the frame's drawing, once; each frame is recorded into it.</summary>
     /// <param name="drawingContext">The drawing context.</param>
     protected override void OnRender(DrawingContext drawingContext) => drawingContext.DrawDrawing(_frame);

@@ -305,6 +305,25 @@ public sealed class BandMotionTests
         Assert.Equal(1, motion.PageGone(), 6);
     }
 
+    /// <summary>
+    /// The node moves while the band is on its way (the latest cases came in and the node moved into their ring): the
+    /// band lands on the node where it stands now, and the way goes on rather than starting again.
+    /// </summary>
+    [Fact]
+    public void A_node_that_moves_on_the_way_is_where_the_band_lands()
+    {
+        var motion = Settled();
+        motion.Right(new NodeTarget(610, 200, 220, 54, 10));
+        Run(motion, 0.5);
+        var formGone = motion.FormGone();
+
+        motion.MoveNode(new NodeTarget(610, 405, 220, 54, 10));
+        Run(motion, BandMotion.Morph.To);
+
+        Assert.Equal(new NodeTarget(610, 405, 220, 54, 10), motion.Frame(1440, 864).Node?.Target);
+        Assert.True(motion.FormGone() >= formGone);
+    }
+
     [Fact]
     public void Standing_still_the_right_key_goes_straight_on()
     {

@@ -52,6 +52,9 @@ Jämför med skisserna ID8f, LS1b och FS1a på canvasen, gärna i 1440 × 900 oc
       *Nytt ärende* exakt där den står i grafens startsida. Sedan tonar sidan bort och skalet syns, med den riktiga
       noden precis under den ritade (inget hopp). Står skalet på en annan vy, eller med ett ärende öppet, krymper
       rektangeln mot mitten och sidan tonar bort.
+- [ ] Samma sak **med ärenden** (ringen med de senaste ärendena runt *Nytt ärende*): rektangeln landar på noden i
+      ringens mitt, inte ovanför den (2026-11-09: listan med ärenden kommer in efter upplåsningen, och animeringen
+      följer nu noden dit). Prova också **utan ärenden**, där den ska landa som förut.
 - [ ] *?* nere till vänster, på hovring eller med Tab: en ruta med vad huvudnyckeln är, utgången (*Utgången ansluts
       efter upplåsning …*), *Låses automatiskt efter 15 minuter utan aktivitet.*, och när en bevakning har slagit till
       också *En bevakning har slagit till. Den visas efter upplåsning.* Ingen prick någonstans.
