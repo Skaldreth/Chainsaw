@@ -227,6 +227,82 @@ public sealed class SourcesKl2bTests
         }
     }
 
+    [Fact]
+    public async Task The_keys_page_lists_each_key_with_who_uses_it_and_only_its_last_characters()
+    {
+        _keys.Saved.Add(new ApiKey("bc", string.Empty, "blockchair-secret-1234"));
+        _keys.Saved.Add(new ApiKey("Chainabuse", string.Empty, "abusekey-9k2D"));
+        _keys.Saved.Add(new ApiKey("TronGrid", string.Empty, "short"));
+        var page = Create();
+
+        await page.ShowKeysAsync();
+
+        Assert.True(page.IsKeysShown);
+        Assert.False(page.IsChainShown);
+        Assert.True(page.Keys.IsSelected);
+        Assert.Equal(["bc", "Chainabuse", "TronGrid"], page.Keys.Rows.Select(row => row.Service));
+        Assert.Equal(("Bitcoin · 1 endpoint", "I ett huvud", "••••1234"),
+            (page.Keys.Rows[0].UsedBy, page.Keys.Rows[0].Way, page.Keys.Rows[0].Tail));
+        Assert.Equal("Etiketter · Chainabuse", page.Keys.Rows[1].UsedBy);
+        Assert.Equal((VaultKeysViewModel.UnusedText, false, "••••"),
+            (page.Keys.Rows[2].UsedBy, page.Keys.Rows[2].IsUsed, page.Keys.Rows[2].Tail));
+        Assert.Equal("3 i valvet", page.Keys.Sub);
+
+        page.ShowChip(page.Chips[0]);
+
+        Assert.False(page.IsKeysShown);
+        Assert.True(page.IsChainShown);
+    }
+
+    [Fact]
+    public async Task A_key_added_on_the_keys_page_is_saved_in_the_vault_and_the_field_is_cleared()
+    {
+        var page = Create();
+        await page.ShowKeysAsync();
+        page.Keys.OpenForm();
+        var entry = new TestEntry("  S3cretKey  ");
+
+        await page.Keys.SaveAsync(entry);
+
+        Assert.Equal("Etherscan", Assert.Single(_keys.Saved).Service);
+        Assert.Equal("S3cretKey", _keys.Saved[0].Secret);
+        Assert.False(page.Keys.IsFormOpen);
+        Assert.Single(page.Keys.Rows);
+    }
+
+    [Fact]
+    public async Task A_key_without_a_service_or_in_a_locked_vault_is_not_saved_and_says_why()
+    {
+        var page = Create();
+        await page.ShowKeysAsync();
+        page.Keys.OpenForm();
+        page.Keys.NewService = " ";
+
+        await page.Keys.SaveAsync(new TestEntry("abc"));
+
+        Assert.Equal(VaultKeysViewModel.MissingText, page.Keys.Error);
+        page.Keys.NewService = "Etherscan";
+        _keys.Locked = true;
+
+        await page.Keys.SaveAsync(new TestEntry("abc"));
+
+        Assert.Equal(VaultKeysViewModel.FailedText, page.Keys.Error);
+        Assert.Empty(_keys.Saved);
+    }
+
+    [Fact]
+    public async Task A_key_removed_on_the_keys_page_leaves_the_vault()
+    {
+        _keys.Saved.Add(new ApiKey("Etherscan", string.Empty, "S3cretKey"));
+        var page = Create();
+        await page.ShowKeysAsync();
+
+        await page.Keys.RemoveAsync(page.Keys.Rows[0]);
+
+        Assert.Empty(_keys.Saved);
+        Assert.Empty(page.Keys.Rows);
+    }
+
     private SourcesViewModel Create() =>
         new(_sources, new ExitWay(new TestExitRoute(), new TestExitConnection(), new InlineUi()), _vault, _keys,
             new InlineUi(), TimeZoneInfo.Utc, new Suppliers(), _switches);

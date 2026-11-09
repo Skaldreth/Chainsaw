@@ -14,4 +14,10 @@ public sealed record SourceApiInfo(string Code, string Name, Chain Chain)
     /// local cannot be added or tried, and is dropped when the settings are read.
     /// </summary>
     public bool LocalOnly { get; init; }
+
+    /// <summary>
+    /// Gets whether the sort takes its key in the address (Etherscan's <c>apikey</c>) rather than in a header. The key
+    /// is still never sealed in a case; the settings say it, since it shows in a company proxy's log of addresses.
+    /// </summary>
+    public bool KeyInAddress { get; init; }
 }

@@ -182,6 +182,7 @@ public sealed partial class SourcesViewModel : ObservableObject
         Suppliers = providers is null || switches is null
             ? []
             : [.. providers.Providers.Select(info => new AttributionSupplierViewModel(info, switches, keys))];
+        Keys = new VaultKeysViewModel(keys, sources, providers?.Providers);
         vault.StateChanged += (_, _) => ui.Post(ShowSupplierStates);
         sources.Changed += (_, chain) => ui.Post(() => ShowChain(chain));
         sources.CertificateRefused += (_, endpoint) => ui.Post(() => SayRefused(endpoint));
@@ -233,11 +234,19 @@ public sealed partial class SourcesViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(IsSupplierShown), nameof(IsChainShown))]
     public partial AttributionSupplierViewModel? Supplier { get; private set; }
 
+    /// <summary>Gets the page of the vault's API keys, under the chains (sketch NY1a).</summary>
+    public VaultKeysViewModel Keys { get; }
+
+    /// <summary>Gets whether the keys are shown to the right, instead of a chain or a supplier.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsChainShown))]
+    public partial bool IsKeysShown { get; private set; }
+
     /// <summary>Gets whether a supplier of attribution is shown to the right.</summary>
     public bool IsSupplierShown => Supplier is not null;
 
     /// <summary>Gets whether a chain is shown to the right.</summary>
-    public bool IsChainShown => Supplier is null;
+    public bool IsChainShown => Supplier is null && !IsKeysShown;
 
     /// <summary>Gets the endpoint in use, shown as the raised card, or <see langword="null"/>.</summary>
     [ObservableProperty]
@@ -422,6 +431,7 @@ public sealed partial class SourcesViewModel : ObservableObject
         }
 
         Supplier = null;
+        HideKeys();
         Chip = chip;
         Rows.Clear();
         IsDisabledOpen = false;
@@ -602,7 +612,38 @@ public sealed partial class SourcesViewModel : ObservableObject
         }
 
         supplier.ShowState();
+        HideKeys();
         Supplier = supplier;
+    }
+
+    /// <summary>Shows the vault's API keys to the right (sketch NY1a), read again from the vault.</summary>
+    /// <returns>A task that completes when the keys are shown.</returns>
+    [RelayCommand]
+    public async Task ShowKeysAsync()
+    {
+        CancelAdd();
+        foreach (var chip in Chips)
+        {
+            chip.IsSelected = false;
+        }
+
+        foreach (var each in Suppliers)
+        {
+            each.IsSelected = false;
+        }
+
+        Supplier = null;
+        Keys.IsSelected = true;
+        IsKeysShown = true;
+        await Keys.ShowAsync().ConfigureAwait(true);
+    }
+
+    /// <summary>Leaves the keys, folding their form in.</summary>
+    private void HideKeys()
+    {
+        Keys.IsSelected = false;
+        Keys.CloseForm();
+        IsKeysShown = false;
     }
 
     /// <summary>Moves an endpoint past its neighbour among those switched on, which the user sees in order.</summary>

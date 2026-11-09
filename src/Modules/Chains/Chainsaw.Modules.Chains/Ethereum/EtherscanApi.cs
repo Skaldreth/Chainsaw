@@ -45,7 +45,7 @@ internal sealed class EtherscanApi : ISourceApi
     public EtherscanApi(EthereumSourceOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
-        Info = new SourceApiInfo(Code, "Etherscan", Chain.Ethereum);
+        Info = new SourceApiInfo(Code, "Etherscan", Chain.Ethereum) { KeyInAddress = true };
         if (!SourceAddress.TryRead(options.Etherscan.OriginalString, out var address, out _))
         {
             throw new ArgumentException(

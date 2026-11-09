@@ -30,6 +30,9 @@ public partial class SettingsDialog : UserControl
     /// <summary>The field with a supplier's API key, read as characters.</summary>
     private readonly PasswordEntry _supplierKey;
 
+    /// <summary>The masked field of a new key on the page Nycklar (NY1a).</summary>
+    private readonly PasswordEntry _vaultKey;
+
     /// <summary>The settings, once attached.</summary>
     private SettingsViewModel? _settings;
 
@@ -47,6 +50,7 @@ public partial class SettingsDialog : UserControl
         _next = new PasswordEntry(NewKeyBox);
         _repeat = new PasswordEntry(RepeatKeyBox);
         _supplierKey = new PasswordEntry(SupplierKeyBox);
+        _vaultKey = new PasswordEntry(VaultKeyBox);
     }
 
     /// <summary>Shows the settings and follows when they open and close.</summary>
@@ -261,6 +265,33 @@ public partial class SettingsDialog : UserControl
     /// <param name="sender">The button.</param>
     /// <param name="e">The click.</param>
     private async void OnSaveSupplierKey(object sender, RoutedEventArgs e) => await SaveSupplierKeyAsync();
+
+    /// <summary>Lägg i valvet on the page Nycklar saves the written key.</summary>
+    /// <param name="sender">The button.</param>
+    /// <param name="e">The click.</param>
+    private async void OnSaveVaultKey(object sender, RoutedEventArgs e) => await SaveVaultKeyAsync();
+
+    /// <summary>Enter in the key field on the page Nycklar saves it; Esc folds the form in.</summary>
+    /// <param name="sender">The field.</param>
+    /// <param name="e">The key.</param>
+    private async void OnVaultKeyKey(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+        {
+            e.Handled = true;
+            await SaveVaultKeyAsync();
+        }
+    }
+
+    /// <summary>Gives the masked field to the page Nycklar, which takes and clears what is written.</summary>
+    /// <returns>A task that completes when the vault has answered.</returns>
+    private async Task SaveVaultKeyAsync()
+    {
+        if (_settings?.Sources?.Keys is { } keys)
+        {
+            await keys.SaveAsync(_vaultKey);
+        }
+    }
 
     /// <summary>Enter in the supplier's key field saves it.</summary>
     /// <param name="sender">The field.</param>

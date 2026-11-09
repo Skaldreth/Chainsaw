@@ -6152,3 +6152,13 @@ insättning i en borta tx i Begäran, Flöde).
   *finns inte*, `Answers` speglar översättningen, ingen nyckel i adressen till den egna noden, `tag=latest` efter
   parametern och inte ordningen, förvalets adress kontrolleras. Resten i BACKLOG.
 
+## NY1a (2026-11-09): API-nycklarna i valvet
+
+- Raden *Nycklar* står efter kedjorna på sidan Källor, med nyckelikonen och antalet. Sidan visar en rad per nyckel:
+  tjänsten, vilka endpoints (per kedja) och leverantörer som använder den, hur den skickas (*I adressen* för en sort med
+  `SourceApiInfo.KeyInAddress`, *Inloggning* för den egna noden, annars *I ett huvud*) och de fyra sista tecknen bakom
+  prickar (bara prickar för en nyckel på åtta tecken eller färre). *Byt …* och kryss syns på hovring.
+- **Avsteg från skissen:** formuläret har inget val för hur nyckeln skickas, eftersom det är endpointens sort som
+  avgör det; en förklarande rad står där i stället. *Lägg till nyckel …* fyller i *Etherscan* när ingen nyckel heter så.
+- Nyckeln läses ur ett maskat fält, sparas i valvet utanför UI-tråden och fältet töms.
+
