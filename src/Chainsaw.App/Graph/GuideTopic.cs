@@ -71,6 +71,8 @@ public enum GuideTopic
     /// </summary>
     ChainCheck,
 
+    /// <summary><em>Spåret genom en swap</em>: the traced value follows, and the choice per swap (sketch SW1a).</summary>
+    Swaps,
     /// <summary><em>Vyn Tidslinje</em>: a lane per actor and the transfers in time (sketch TL3a).</summary>
     TimelineView,
 
@@ -136,6 +138,7 @@ public static class GuideTopics
         GuideTopic.HowToTrace => "sa-sparar-man",
         GuideTopic.Exposure => "exponering",
         GuideTopic.ChainCheck => "kontroll-mot-kedjan",
+        GuideTopic.Swaps => "swappar",
         GuideTopic.TimelineView => "vyn-tidslinje",
         GuideTopic.Flow => "flodet",
         GuideTopic.ServiceBehaviour => "tjanster-ur-beteende",
@@ -173,6 +176,7 @@ public static class GuideTopics
         GuideTopic.HowToTrace => "Så spårar man i Chainsaw",
         GuideTopic.Exposure => "Exponering",
         GuideTopic.ChainCheck => "Hur Chainsaw kontrollerar svaren mot kedjan",
+        GuideTopic.Swaps => "Spåret genom en swap",
         GuideTopic.TimelineView => "Vyn Tidslinje",
         GuideTopic.Flow => "Flödet",
         GuideTopic.ServiceBehaviour => "Tjänster ur beteende",
@@ -228,7 +232,7 @@ public static class GuideTopics
     /// <param name="reason">The end's reason.</param>
     /// <returns>The heading as written in the text.</returns>
     public static string EndHeading(TrailEndReason reason) =>
-        reason is TrailEndReason.NotExpanded or TrailEndReason.Unspent or TrailEndReason.Conflicting
-            ? OpenEndsHeading
-            : RealEndsHeading;
+        reason.EndsTrail()
+            ? RealEndsHeading
+            : OpenEndsHeading;
 }

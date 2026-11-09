@@ -36,7 +36,8 @@ försvåra en spårning byter därför gärna kedja, och ofta token, en eller fl
 
 En känd brygga eller swap (en etikett) avslutar spåret med *Fortsätter på annan kedja*, i **lila**. När du har hittat
 fortsättningen knyter du den för hand med **K**, se [Fortsättningen på en annan kedja](annan-kedja.md). Länken är
-streckad, eftersom den är din bedömning. Ett byte av token på samma kedja står som ett litet piller på linjen (₮ → Ξ).
+streckad, eftersom den är din bedömning. Ett byte av token på samma kedja står som ett litet piller på linjen (₮ → Ξ),
+se [Spåret genom en swap](swappar.md).
 
 ### Kända kontrakt på Ethereum
 

@@ -178,7 +178,7 @@ public sealed class EthereumGraphTests : IDisposable
         foreach (var asset in result.Assets)
         {
             var ended = asset.Ends.Aggregate(AssetAmount.Zero(asset.Traced.Asset), (sum, end) => sum + end.Amount.Amount);
-            Assert.Equal(asset.Traced, ended);
+            Assert.Equal(asset.Total, ended);
         }
 
         var usdt = result.Assets.Single(asset => asset.Traced.Asset == KnownTokens.EthereumUsdt);

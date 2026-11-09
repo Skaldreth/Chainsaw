@@ -1,5 +1,6 @@
 using Chainsaw.App.Graph;
 using Chainsaw.App.Guide;
+using Chainsaw.Modules.Tracing.Contracts;
 
 namespace Chainsaw.App.ViewModels;
 
@@ -15,6 +16,76 @@ public sealed partial class GraphViewModel
 
     /// <summary>Counts the background fetches of rates, so that only the latest one shows its answer.</summary>
     private int _rateFills;
+
+    /// <summary>
+    /// Gets the swaps' price checks from before the trace was calculated again with newly fetched rates, so that the
+    /// next reading says what changed; <see langword="null"/> when no such reading is waiting.
+    /// </summary>
+    private IReadOnlyList<SwapPriceCheck>? _swapChecksBefore;
+
+    /// <summary>
+    /// Gets whether the last reading for the swaps' rates tested no more prices than before, so that the graph is not
+    /// read again for them until a reading of its own: a rate that keeps arriving but tests nothing can never loop.
+    /// </summary>
+    private bool _swapRereadStalled;
+
+    /// <summary>What the toaster says when the trace through a swap changed after the swaps' rates arrived.</summary>
+    public const string SwapsRecalculatedText = "Spåret genom en swap räknades om efter kurserna.";
+
+    /// <summary>
+    /// Says which swaps the trace goes through differently now that their price is tested: one whose price became
+    /// absurd (the value no longer follows), where less came out than went in (part stays in the pool), or where more
+    /// came out (only the share that went in follows).
+    /// </summary>
+    /// <param name="before">The checks before the rates arrived.</param>
+    /// <param name="after">The checks now.</param>
+    /// <returns>
+    /// A line per changed swap, for example <c>₮ → Ξ i tx 0x12…ab: orimligt pris …</c>; empty when none.
+    /// </returns>
+    public static IReadOnlyList<string> RecalculatedSwaps(
+        IReadOnlyList<SwapPriceCheck> before, IReadOnlyList<SwapPriceCheck> after)
+    {
+        ArgumentNullException.ThrowIfNull(before);
+        ArgumentNullException.ThrowIfNull(after);
+        return
+        [
+            .. after.Where(check => check.ChangesAmounts)
+                .Where(check => before.FirstOrDefault(old => old.Swap.Equals(check.Swap)) is { } old
+                    && (old.Verdict != check.Verdict || old.KeptShare != check.KeptShare
+                        || old.FollowShare != check.FollowShare))
+                .Select(check => $"{SwapMarks.Of(check.Swap).Text} i tx "
+                    + $"{GraphScene.Shorten(check.Swap.Transaction.Value)}: {check.Summary}"),
+        ];
+    }
+
+    /// <summary>Counts the swaps whose price is not tested.</summary>
+    /// <param name="checks">The swaps' price checks.</param>
+    /// <returns>How many.</returns>
+    private static int Untested(IReadOnlyList<SwapPriceCheck> checks) =>
+        checks.Count(check => check.Verdict == SwapPriceVerdict.NotTested);
+
+    /// <summary>
+    /// Says once, after the trace was calculated again with the swaps' rates, which swaps it now goes through
+    /// differently (M-1: never a silent change).
+    /// </summary>
+    /// <param name="scene">The scene just read.</param>
+    private void TellRecalculatedSwaps(GraphScene scene)
+    {
+        if (_swapChecksBefore is not { } before)
+        {
+            _swapRereadStalled = false;
+            return;
+        }
+
+        _swapChecksBefore = null;
+        var after = scene.Snapshot.AccountTrace?.PriceChecks ?? [];
+        _swapRereadStalled = Untested(after) >= Untested(before);
+        var changed = RecalculatedSwaps(before, after);
+        if (changed.Count > 0)
+        {
+            Tell(ToastKind.Information, SwapsRecalculatedText, string.Join(" · ", changed));
+        }
+    }
 
     /// <summary>Forgets where the amounts were drawn, as the canvas starts drawing them again.</summary>
     public void BeginAmounts() => _drawnAmounts.Clear();
@@ -34,7 +105,8 @@ public sealed partial class GraphViewModel
     public async Task FillRatesAsync()
     {
         var fill = ++_rateFills;
-        if (_session.Current is not { } openCase || Scene is not { PendingRates: > 0 } scene)
+        if (_session.Current is not { } openCase || Scene is not { } scene
+            || (scene.PendingRates == 0 && !scene.HasUntestedSwapPrices))
         {
             return;
         }
@@ -67,6 +139,18 @@ public sealed partial class GraphViewModel
 
             if (fill != _rateFills || version != _version || !await ShowRatesAsync(rates, fill))
             {
+                return;
+            }
+
+            if (rates.SwapRatesFetched && !_swapRereadStalled)
+            {
+                // A swap's price can now be tested, which may change where the traced money goes: the trace is
+                // calculated again, and the reading says once what changed (TellRecalculatedSwaps).
+                _swapChecksBefore = scene.Snapshot.AccountTrace?.PriceChecks ?? [];
+                await RefreshAsync();
+
+                // A reading that was replaced or waits for an expansion never compares with these checks.
+                _swapChecksBefore = null;
                 return;
             }
 

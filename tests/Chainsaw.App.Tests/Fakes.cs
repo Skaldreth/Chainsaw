@@ -766,6 +766,26 @@ internal sealed class TestTracing : ITracingService
 
     public IReadOnlyList<CrossChainLinkHistoryEntry> GetCrossChainHistory(ICase @case) => [];
 
+    public List<(TokenSwap Swap, string? Reason)> Stopped { get; } = [];
+
+    public List<SwapStop> Followed { get; } = [];
+
+    public List<SwapStopHistoryEntry> SwapHistory { get; } = [];
+
+    public SwapStop StopAtSwap(ICase @case, TokenSwap swap, string? reason)
+    {
+        Stopped.Add((swap, reason));
+        return new SwapStop(Stopped.Count, swap.Transaction, swap.Account, reason, Stopped.Count, DateTimeOffset.UnixEpoch);
+    }
+
+    public bool FollowSwap(ICase @case, SwapStop stop, string? reason)
+    {
+        Followed.Add(stop);
+        return true;
+    }
+
+    public IReadOnlyList<SwapStopHistoryEntry> GetSwapStopHistory(ICase @case) => SwapHistory;
+
     public void SavePosition(ICase @case, string nodeKey, GraphLayout layout, NodePosition position) =>
         throw new NotSupportedException();
 

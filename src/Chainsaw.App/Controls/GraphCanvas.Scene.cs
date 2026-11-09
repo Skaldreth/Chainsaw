@@ -182,6 +182,7 @@ public sealed partial class GraphCanvas
             DrawLayer(_overNodesLayer, dc => DrawOverNodes(dc, region, near.Nodes));
             _sceneMade = true;
             KeepMarkCentres();
+            KeepSwapPills();
             KeepSceneMotions();
         }
 
@@ -238,6 +239,7 @@ public sealed partial class GraphCanvas
         {
             DrawLayer(_linesLayer, dc => DrawLines(dc, scene, region, near.Edges));
             KeepMarkCentres();
+            KeepSwapPills();
         }
 
         if (layers.HasFlag(GraphChange.Nodes))
@@ -340,6 +342,7 @@ public sealed partial class GraphCanvas
         var model = _model!;
         _ringsOnScreen = false;
         _nextMarkCentres.Clear();
+        _nextSwapPills.Clear();
         dc.PushTransform(FanPush());
         dc.PushOpacity(HeldBackMotion.LineOpacity(_blast, BlastK));
         if (model.IsHopColumns)
@@ -493,6 +496,7 @@ public sealed partial class GraphCanvas
         DrawTimeNames(dc);
         DrawBox(dc);
         DrawBlockMarkBox(dc);
+        DrawSwapBox(dc);
         DrawHeldBack(dc);
     }
 }

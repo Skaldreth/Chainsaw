@@ -4,7 +4,7 @@ using Chainsaw.SharedKernel;
 
 namespace Chainsaw.Modules.Tracing;
 
-/// <summary>One transfer of the followed asset between two actors, as an entry in both actors' ledgers.</summary>
+/// <summary>One transfer between two actors, as an entry in both actors' ledgers of its asset.</summary>
 /// <param name="Edge">The line it is on.</param>
 /// <param name="Transfer">The transfer, a fact from the chain.</param>
 /// <param name="Index">Its place on the line, so that a transaction node's ledger keeps the transaction's order.</param>
@@ -12,20 +12,28 @@ internal sealed record ExposureEntry(GraphEdge Edge, AssetTransfer Transfer, int
 {
     /// <summary>Gets the amount in the asset's smallest unit.</summary>
     public BigInteger Units => Transfer.Amount.Units;
+
+    /// <summary>Gets the transfer's asset.</summary>
+    public Asset Asset => Transfer.Amount.Asset;
 }
 
 /// <summary>
-/// Reads exposure on an account chain: every actor is a wallet whose transfers of one asset stand in chain order, as
+/// Reads exposure on an account chain: every actor is a wallet whose transfers of each asset stand in chain order, as
 /// the graph's trace reads them (<see cref="AccountGraph.ChainOrder(AssetTransfer)"/>). The
-/// account method (FIFO or haircut) says, actor by actor, how much of the subject's money goes on with each transfer:
+/// account method (FIFO or haircut) says, actor by actor and asset by asset, how much of the subject's money goes on
+/// with each transfer:
 /// <list type="bullet">
-/// <item>Paid out: the subject's outgoing transfers are the money; an actor on the way carries what came in onto what
-/// goes out.</item>
-/// <item>Got: the subject's incoming transfers are the money; at an actor on the way the method is run once for each
-/// incoming transfer, which says how much of what the actor sent on came from it.</item>
+/// <item>Paid out: the subject's outgoing transfers of the asset are the money; an actor on the way carries what came
+/// in onto what goes out.</item>
+/// <item>Got: the subject's incoming transfers of the asset are the money; at an actor on the way the method is run
+/// once for each incoming transfer, which says how much of what the actor sent on came from it.</item>
 /// </list>
-/// An actor is read again when more of the money reaches it later, at most <see cref="MaxRuns"/> times; what arrives
-/// after that is counted as still on its way.
+/// Through a swap the money follows its value into the other asset by the same rule as the graph's trace
+/// (<see cref="SwapValue"/>), or stops there when the user chose that it does not (<see cref="ExposureRest.TrailEnds"/>).
+/// Each transfer carries the money in its own units and, beside it, its <em>value</em> in the subject's asset, which is
+/// what is counted: across a swap the value that went in is the value that came out. An actor is read again when more
+/// of the money reaches it later, at most <see cref="MaxRuns"/> times; what arrives after that is counted as still on
+/// its way.
 /// </summary>
 internal sealed class AccountExposureRun
 {
@@ -41,14 +49,17 @@ internal sealed class AccountExposureRun
     /// <summary>The hops, the services and the result.</summary>
     private readonly ExposureTally _tally;
 
-    /// <summary>Each actor's incoming transfers.</summary>
+    /// <summary>Each actor's incoming transfers, of every asset.</summary>
     private readonly Dictionary<string, List<ExposureEntry>> _in = new(StringComparer.Ordinal);
 
-    /// <summary>Each actor's outgoing transfers.</summary>
+    /// <summary>Each actor's outgoing transfers, of every asset.</summary>
     private readonly Dictionary<string, List<ExposureEntry>> _out = new(StringComparer.Ordinal);
 
-    /// <summary>How much of the subject's money is on each transfer.</summary>
+    /// <summary>How much of the subject's money is on each transfer, in the transfer's own units.</summary>
     private readonly Dictionary<ExposureEntry, BigInteger> _money = [];
+
+    /// <summary>What the money on each transfer is worth in the subject's asset: what is counted.</summary>
+    private readonly Dictionary<ExposureEntry, BigInteger> _value = [];
 
     /// <summary>The transactions the money on each transfer went through.</summary>
     private readonly Dictionary<ExposureEntry, HashSet<ChainTransactionRef>> _through = [];
@@ -56,10 +67,10 @@ internal sealed class AccountExposureRun
     /// <summary>How many times each actor was read.</summary>
     private readonly Dictionary<string, int> _runs = new(StringComparer.Ordinal);
 
-    /// <summary>What of the money had arrived at each actor when it was last read.</summary>
+    /// <summary>What of the money's value had arrived at each actor when it was last read.</summary>
     private readonly Dictionary<string, BigInteger> _arrivedAtRead = new(StringComparer.Ordinal);
 
-    /// <summary>What of the money stayed with each actor when it was last read.</summary>
+    /// <summary>What of the money's value stayed with each actor when it was last read.</summary>
     private readonly Dictionary<string, BigInteger> _left = new(StringComparer.Ordinal);
 
     /// <summary>The actors waiting to be read, the nearest first.</summary>
@@ -72,15 +83,33 @@ internal sealed class AccountExposureRun
     /// </summary>
     private readonly Dictionary<AssetTransfer, ExposureEntry> _continues = [];
 
+    /// <summary>The swaps on the graph's lines, with the transfers that went in and came out.</summary>
+    private readonly List<SwapSides> _swaps = [];
+
     /// <summary>
-    /// Read in: the money each actor paid on that came, by the method, from a deposit the user linked to another
-    /// chain, when it was last read. By the trace that money went on to the other chain and not into the wallet, so
-    /// it is counted as continuing there, as on Bitcoin, rather than as before the history or not expanded.
+    /// Read in: the value each actor paid on, per asset, that came, by the method, from a deposit the user linked to
+    /// another chain, when it was last read. By the trace that money went on to the other chain and not into the
+    /// wallet, so it is counted as continuing there, as on Bitcoin, rather than as before the history or not expanded.
     /// </summary>
-    private readonly Dictionary<string, BigInteger> _onOtherChain = new(StringComparer.Ordinal);
+    private readonly Dictionary<(string Actor, Asset Asset), BigInteger> _onOtherChain = [];
+
+    /// <summary>The swap each transfer that went into one belongs to.</summary>
+    private readonly Dictionary<ExposureEntry, SwapSides> _soldIn = [];
+
+    /// <summary>The swap each transfer that came out of one belongs to.</summary>
+    private readonly Dictionary<ExposureEntry, SwapSides> _boughtOut = [];
 
     /// <summary>The actors in the queue, so that one is queued once however much reaches it before it is read.</summary>
     private readonly HashSet<string> _pending = new(StringComparer.Ordinal);
+
+    /// <summary>The actor being read, or <see langword="null"/>.</summary>
+    private string? _reading;
+
+    /// <summary>Whether a swap of the actor being read carried money into another of its assets in this pass.</summary>
+    private bool _selfSwapped;
+
+    /// <summary>How many times the subject's own wallet was read in the assets its swaps turned the money into.</summary>
+    private int _subjectRuns;
 
     /// <summary>Prepares a reading.</summary>
     /// <param name="request">The request.</param>
@@ -93,7 +122,7 @@ internal sealed class AccountExposureRun
         foreach (var edge in request.Graph.Edges.Where(IsFollowed))
         {
             var index = 0;
-            foreach (var transfer in edge.Transfers.Where(t => t.Amount.Asset == request.Asset))
+            foreach (var transfer in edge.Transfers.Where(t => t.Amount.Asset == edge.Amount.Asset))
             {
                 var entry = new ExposureEntry(edge, transfer, index++);
                 ListOf(_out, edge.From).Add(entry);
@@ -105,13 +134,15 @@ internal sealed class AccountExposureRun
         foreach (var edge in request.Graph.Edges.Where(edge => edge.Kind == GraphEdgeKind.ContinuesOnOtherChain))
         {
             var index = 0;
-            foreach (var transfer in edge.Transfers.Where(t => t.Amount.Asset == request.Asset))
+            foreach (var transfer in edge.Transfers.Where(t => t.Amount.Asset.Chain == request.Asset.Chain))
             {
                 var entry = new ExposureEntry(edge, transfer, index++);
                 _continues[transfer] = entry;
                 ListOf(_in, edge.To).Add(entry);
             }
         }
+
+        FindSwaps();
     }
 
     /// <summary>Gets whether the money is read out (paid) rather than in (got).</summary>
@@ -123,12 +154,15 @@ internal sealed class AccountExposureRun
     {
         var subject = _request.Subject;
         var total = BigInteger.Zero;
-        foreach (var entry in Carrying(subject))
+        foreach (var entry in Carrying(subject).Where(entry => entry.Asset == _request.Asset))
         {
-            _money[entry] = entry.Units;
-            _through[entry] = [entry.Transfer.Transaction];
+            Put(entry, entry.Units, entry.Units, [entry.Transfer.Transaction]);
             total += entry.Units;
-            Reach(Far(entry), subject);
+            if (!Convert(entry))
+            {
+                Reach(Far(entry), subject);
+            }
+
             ContinueElsewhere(entry);
         }
 
@@ -141,11 +175,47 @@ internal sealed class AccountExposureRun
         return _tally.Result(total, _method.Id);
     }
 
-    /// <summary>Says whether a line carries transfers the analysis follows: a transfer between two actors.</summary>
+    /// <summary>
+    /// Says whether a line carries transfers the analysis follows: a transfer between two actors on the subject's
+    /// chain, of any asset, since a swap can carry the money's value into another.
+    /// </summary>
     /// <param name="edge">The line.</param>
     /// <returns><see langword="true"/> when it is followed.</returns>
     private bool IsFollowed(GraphEdge edge) =>
-        edge.Kind == GraphEdgeKind.Transfer && edge.Amount.Asset == _request.Asset && edge.From != edge.To;
+        edge.Kind == GraphEdgeKind.Transfer && edge.Amount.Asset.Chain == _request.Asset.Chain && edge.From != edge.To;
+
+    /// <summary>
+    /// Finds the swaps on the graph's lines (<see cref="AccountGraph.Swaps"/>): the transfers the account that swapped
+    /// sent into each, and those that came out of it to the account, in its transaction.
+    /// </summary>
+    private void FindSwaps()
+    {
+        var graph = _request.Graph;
+        var priced = graph.Account.Swaps.Where(swap => !SwapValue.CheckPrice(swap, _request.Pricing).IsUnreasonable);
+        foreach (var swap in priced)
+        {
+            if (graph.NodeOf(swap.Account)?.Key is not { } account)
+            {
+                continue;
+            }
+
+            var inSwap = (ExposureEntry entry) => entry.Transfer.Transaction.Id == swap.Transaction.Value;
+            var goesIn = (ExposureEntry entry) => SwapValue.GoesIn(swap, entry.Transfer, graph.CrossChainLinks);
+            var found = new SwapSides(
+                swap,
+                [.. Of(_out, account).Where(goesIn)],
+                [.. Of(_in, account).Where(entry => inSwap(entry) && entry.Asset == swap.Bought.Asset)],
+                SwapValue.StopOf(swap, graph.SwapStops) is null);
+            if (found.Sold.Count == 0 || found.Bought.Count == 0)
+            {
+                continue;
+            }
+
+            _swaps.Add(found);
+            found.Sold.ForEach(entry => _soldIn[entry] = found);
+            found.Bought.ForEach(entry => _boughtOut[entry] = found);
+        }
+    }
 
     /// <summary>Gives the list of a key, making it when it is not there.</summary>
     /// <param name="lists">The lists.</param>
@@ -171,12 +241,14 @@ internal sealed class AccountExposureRun
 
     /// <summary>
     /// Gives the transfers through which the money reaches an actor: in when read out (but not those the user linked
-    /// to another chain, whose money goes on there), out when read in.
+    /// to another chain, whose money goes on there, nor those that went into a swap), out when read in (but not those
+    /// that came out of a swap, whose money came from what went in).
     /// </summary>
     /// <param name="actor">The actor.</param>
     /// <returns>The transfers.</returns>
-    private IEnumerable<ExposureEntry> Arriving(string actor) =>
-        IsOut ? Of(_in, actor).Where(entry => !IsLinked(entry)) : Of(_out, actor);
+    private IEnumerable<ExposureEntry> Arriving(string actor) => IsOut
+        ? Of(_in, actor).Where(EntersWallet)
+        : Of(_out, actor).Where(entry => !_boughtOut.ContainsKey(entry));
 
     /// <summary>
     /// Says whether a transfer between two actors is linked by the user to another chain, so that its money continues
@@ -200,9 +272,74 @@ internal sealed class AccountExposureRun
         }
 
         var onward = _continues[entry.Transfer];
-        _money[onward] = Money(entry);
-        _through[onward] = _through.GetValueOrDefault(entry, [entry.Transfer.Transaction]);
+        Put(onward, Money(entry), Value(entry), _through.GetValueOrDefault(entry, [entry.Transfer.Transaction]));
         _tally.Reach(onward.Edge.To, onward.Edge.From);
+    }
+
+    /// <summary>
+    /// Carries the money on a transfer through its swap, when it went into one (read out) or came out of one (read
+    /// in): when the value follows, the same share of the other side carries it, and the account that swapped is read
+    /// again; when the user chose that it does not, the money stops in the swap.
+    /// </summary>
+    /// <param name="entry">The transfer that just got money.</param>
+    /// <returns><see langword="true"/> when the transfer is a swap's, so that the money does not reach the pool.</returns>
+    private bool Convert(ExposureEntry entry)
+    {
+        var swap = IsOut ? _soldIn.GetValueOrDefault(entry) : _boughtOut.GetValueOrDefault(entry);
+        if (swap is null)
+        {
+            return false;
+        }
+
+        if (!swap.Follows)
+        {
+            return true;
+        }
+
+        var (from, to, whole) = IsOut
+            ? (swap.Sold, swap.Bought, swap.Swap.Sold)
+            : (swap.Bought, swap.Sold, swap.Swap.Bought);
+        var money = from.Aggregate(BigInteger.Zero, (sum, side) => sum + Money(side));
+        var value = from.Aggregate(BigInteger.Zero, (sum, side) => sum + Value(side));
+        _tally.Swapped(swap.Swap, money, whole.Units);
+        var through = from.SelectMany(side => _through.GetValueOrDefault(side, [])).ToHashSet();
+        var otherWhole = to.Aggregate(BigInteger.Zero, (sum, side) => sum + side.Units);
+        var shared = BigInteger.Zero;
+        for (var index = 0; index < to.Count; index++)
+        {
+            var side = to[index];
+            // The value is shared out by the transfers' amounts, the last one taking what rounding leaves, so that
+            // the value that went in is exactly the value that came out.
+            var part = index == to.Count - 1
+                ? value - shared
+                : (otherWhole.IsZero ? BigInteger.Zero : value * side.Units / otherWhole);
+            shared += part;
+            Put(side, SwapValue.Follow(money, whole, side.Units), part, [.. through, side.Transfer.Transaction]);
+        }
+
+        var account = _tally.Graph.NodeOf(swap.Swap.Account)!.Key;
+        if (account == _reading)
+        {
+            _selfSwapped = true;
+        }
+        else
+        {
+            Requeue(account);
+        }
+
+        return true;
+    }
+
+    /// <summary>Puts the money on a transfer.</summary>
+    /// <param name="entry">The transfer.</param>
+    /// <param name="money">How much, in its own units.</param>
+    /// <param name="value">What it is worth in the subject's asset.</param>
+    /// <param name="through">The transactions it went through.</param>
+    private void Put(ExposureEntry entry, BigInteger money, BigInteger value, HashSet<ChainTransactionRef> through)
+    {
+        _money[entry] = money;
+        _value[entry] = value;
+        _through[entry] = through;
     }
 
     /// <summary>Gives the transfers an actor passes the money on through, away from the subject.</summary>
@@ -215,16 +352,21 @@ internal sealed class AccountExposureRun
     /// <returns>The node.</returns>
     private string Far(ExposureEntry entry) => IsOut ? entry.Edge.To : entry.Edge.From;
 
-    /// <summary>Gives how much of the money is on a transfer.</summary>
+    /// <summary>Gives how much of the money is on a transfer, in its own units.</summary>
     /// <param name="entry">The transfer.</param>
     /// <returns>The units.</returns>
     private BigInteger Money(ExposureEntry entry) => _money.GetValueOrDefault(entry);
 
-    /// <summary>Gives the money that has arrived at an actor.</summary>
+    /// <summary>Gives what the money on a transfer is worth in the subject's asset.</summary>
+    /// <param name="entry">The transfer.</param>
+    /// <returns>The units of the subject's asset.</returns>
+    private BigInteger Value(ExposureEntry entry) => _value.GetValueOrDefault(entry);
+
+    /// <summary>Gives the value of the money that has arrived at an actor.</summary>
     /// <param name="actor">The actor.</param>
-    /// <returns>The units.</returns>
+    /// <returns>The units of the subject's asset.</returns>
     private BigInteger Arrived(string actor) =>
-        Arriving(actor).Aggregate(BigInteger.Zero, (sum, entry) => sum + Money(entry));
+        Arriving(actor).Aggregate(BigInteger.Zero, (sum, entry) => sum + Value(entry));
 
     /// <summary>Notes that the money reached an actor, and queues it when it is followed and may still be read.</summary>
     /// <param name="actor">The actor reached.</param>
@@ -232,87 +374,174 @@ internal sealed class AccountExposureRun
     private void Reach(string actor, string from)
     {
         _tally.Reach(actor, from);
+        Requeue(actor);
+    }
+
+    /// <summary>Queues an actor to be read, when it is followed and may still be read.</summary>
+    /// <param name="actor">The actor.</param>
+    private void Requeue(string actor)
+    {
+        if (actor == _request.Subject)
+        {
+            ReadSubject();
+            return;
+        }
+
         if (_tally.Follows(actor) && _runs.GetValueOrDefault(actor) < MaxRuns && _pending.Add(actor))
         {
             _queue.Enqueue(actor, _tally.Hops[actor]);
         }
     }
 
-    /// <summary>Reads an actor: carries the money on through its wallet and reaches the actors it went to.</summary>
+    /// <summary>
+    /// Reads an actor: carries the money on through its wallet, asset by asset, and reaches the actors it went to.
+    /// </summary>
     /// <param name="actor">The actor.</param>
     private void Read(string actor)
     {
         _pending.Remove(actor);
         _runs[actor] = _runs.GetValueOrDefault(actor) + 1;
+        ReadAssets(actor, [.. Of(_in, actor).Concat(Of(_out, actor)).Select(entry => entry.Asset).Distinct()]);
         var arrived = Arrived(actor);
-        var passed = BigInteger.Zero;
-        var onOtherChain = BigInteger.Zero;
-        foreach (var (entry, money, through) in IsOut ? CarryOut(actor) : CarryIn(actor))
+        _arrivedAtRead[actor] = arrived;
+        var onOtherChain = _onOtherChain.Where(pair => pair.Key.Actor == actor)
+            .Aggregate(BigInteger.Zero, (sum, pair) => sum + pair.Value);
+        _left[actor] = arrived - onOtherChain
+            - Passing(actor).Aggregate(BigInteger.Zero, (sum, entry) => sum + Value(entry));
+    }
+
+    /// <summary>
+    /// Reads the subject's own wallet in the assets its swaps turned the money into: its transfers of the subject's
+    /// asset are the money itself, but what it swapped them for goes on like any wallet's, at most
+    /// <see cref="MaxRuns"/> times.
+    /// </summary>
+    private void ReadSubject()
+    {
+        if (_subjectRuns >= MaxRuns)
         {
-            passed += money;
+            return;
+        }
+
+        _subjectRuns++;
+        var subject = _request.Subject;
+        ReadAssets(subject, [.. Of(_in, subject).Concat(Of(_out, subject)).Select(entry => entry.Asset)
+            .Where(asset => asset != _request.Asset).Distinct()]);
+    }
+
+    /// <summary>
+    /// Carries the money through an actor's wallet of some assets. A swap of the actor's own carries money from one of
+    /// its assets into another, so the assets are read again until nothing more comes over, at most once per asset,
+    /// so that what a swap brings in is passed on in this reading and not left behind.
+    /// </summary>
+    /// <param name="actor">The actor.</param>
+    /// <param name="assets">The assets.</param>
+    private void ReadAssets(string actor, IReadOnlyList<Asset> assets)
+    {
+        var (reading, selfSwapped) = (_reading, _selfSwapped);
+        _reading = actor;
+        for (var pass = 0; pass <= assets.Count; pass++)
+        {
+            _selfSwapped = false;
+            foreach (var asset in assets)
+            {
+                CarryAsset(actor, asset);
+            }
+
+            if (!_selfSwapped)
+            {
+                break;
+            }
+        }
+
+        (_reading, _selfSwapped) = (reading, selfSwapped);
+    }
+
+    /// <summary>Gives the transfers an actor passes the money on through, of every asset.</summary>
+    /// <param name="actor">The actor.</param>
+    /// <returns>The transfers.</returns>
+    private IEnumerable<ExposureEntry> Passing(string actor) => IsOut
+        ? Of(_out, actor).Where(entry => !_boughtOut.ContainsKey(entry))
+        : Of(_in, actor).Where(EntersWallet);
+
+    /// <summary>Carries the money through an actor's wallet of one asset and reaches the actors it went to.</summary>
+    /// <param name="actor">The actor.</param>
+    /// <param name="asset">The asset.</param>
+    private void CarryAsset(string actor, Asset asset)
+    {
+        var onOtherChain = BigInteger.Zero;
+        foreach (var (entry, money, value, through) in IsOut ? CarryOut(actor, asset) : CarryIn(actor, asset))
+        {
             if (!IsOut && IsLinked(entry))
             {
-                onOtherChain += money;
+                onOtherChain += value;
                 continue;
             }
 
-            _through[entry] = through;
-            if (money == Money(entry))
+            if (money == Money(entry) && value == Value(entry))
             {
+                _through[entry] = through;
                 continue;
             }
 
-            _money[entry] = money;
-            if (money.Sign > 0)
+            Put(entry, money, value, through);
+            if (money.Sign > 0 && !Convert(entry))
             {
                 Reach(Far(entry), actor);
                 ContinueElsewhere(entry);
             }
         }
 
-        _arrivedAtRead[actor] = arrived;
-        _left[actor] = arrived - passed;
-        _onOtherChain[actor] = onOtherChain;
+        _onOtherChain[(actor, asset)] = onOtherChain;
     }
 
     /// <summary>
-    /// Read out: the method carries the money that came in with the actor's incoming transfers onto its outgoing ones.
-    /// An outgoing transfer went through the transactions of the incoming money that came before it.
+    /// Read out: the method carries the money that came in with the actor's incoming transfers of an asset onto its
+    /// outgoing ones. An outgoing transfer went through the transactions of the incoming money that came before it, and
+    /// is worth the incoming money's value in proportion.
     /// </summary>
     /// <param name="actor">The actor.</param>
-    /// <returns>The money on each outgoing transfer, and what it went through.</returns>
-    private List<(ExposureEntry Entry, BigInteger Money, HashSet<ChainTransactionRef> Through)> CarryOut(string actor)
+    /// <param name="asset">The asset.</param>
+    /// <returns>The money and value on each outgoing transfer, and what it went through.</returns>
+    private List<(ExposureEntry Entry, BigInteger Money, BigInteger Value, HashSet<ChainTransactionRef> Through)>
+        CarryOut(string actor, Asset asset)
     {
-        var (ledger, moves) = Ledger(actor, Money);
+        var (ledger, moves) = Ledger(actor, asset, Money);
         var taint = AccountChecks.Run(_method, ledger);
+        var incoming = moves.Where(move => move.Direction == TransferDirection.In).Select(move => move.Entry).ToList();
+        var money = incoming.Aggregate(BigInteger.Zero, (sum, entry) => sum + Money(entry));
+        var value = incoming.Aggregate(BigInteger.Zero, (sum, entry) => sum + Value(entry));
         var outgoing = moves.Where(move => move.Direction == TransferDirection.Out).Select(move => move.Entry).ToList();
-        var result = new List<(ExposureEntry, BigInteger, HashSet<ChainTransactionRef>)>();
+        var result = new List<(ExposureEntry, BigInteger, BigInteger, HashSet<ChainTransactionRef>)>();
         foreach (var (entry, share) in outgoing.Zip(taint.Outgoing))
         {
             var before = moves.TakeWhile(move => move.Entry != entry)
                 .Where(move => move.Direction == TransferDirection.In && Money(move.Entry).Sign > 0)
                 .SelectMany(move => _through.GetValueOrDefault(move.Entry, []));
-            result.Add((entry, share.Units, [.. before, entry.Transfer.Transaction]));
+            var worth = money.IsZero ? BigInteger.Zero : share.Units * value / money;
+            result.Add((entry, share.Units, worth, [.. before, entry.Transfer.Transaction]));
         }
 
         return result;
     }
 
     /// <summary>
-    /// Read in: the method is run once per incoming transfer, traced in full, and says how much of each outgoing
-    /// transfer came from it; the money on an outgoing transfer is shared out in that proportion.
+    /// Read in: the method is run once per incoming transfer of an asset, traced in full, and says how much of each
+    /// outgoing transfer came from it; the money and value on an outgoing transfer are shared out in that proportion.
     /// </summary>
     /// <param name="actor">The actor.</param>
-    /// <returns>The money on each incoming transfer, and what it went through towards the subject.</returns>
-    private List<(ExposureEntry Entry, BigInteger Money, HashSet<ChainTransactionRef> Through)> CarryIn(string actor)
+    /// <param name="asset">The asset.</param>
+    /// <returns>The money and value on each incoming transfer, and what it went through towards the subject.</returns>
+    private List<(ExposureEntry Entry, BigInteger Money, BigInteger Value, HashSet<ChainTransactionRef> Through)>
+        CarryIn(string actor, Asset asset)
     {
-        var result = new List<(ExposureEntry, BigInteger, HashSet<ChainTransactionRef>)>();
-        foreach (var source in Of(_in, actor))
+        var result = new List<(ExposureEntry, BigInteger, BigInteger, HashSet<ChainTransactionRef>)>();
+        foreach (var source in Of(_in, actor).Where(entry => entry.Asset == asset && InLedger(entry)))
         {
-            var (ledger, moves) = Ledger(actor, entry => entry == source ? entry.Units : BigInteger.Zero);
+            var (ledger, moves) = Ledger(actor, asset, entry => entry == source ? entry.Units : BigInteger.Zero);
             var taint = AccountChecks.Run(_method, ledger);
             var outgoing = moves.Where(move => move.Direction == TransferDirection.Out).Select(move => move.Entry);
             var money = BigInteger.Zero;
+            var value = BigInteger.Zero;
             var through = new HashSet<ChainTransactionRef> { source.Transfer.Transaction };
             foreach (var (entry, share) in outgoing.Zip(taint.Outgoing))
             {
@@ -322,32 +551,34 @@ internal sealed class AccountExposureRun
                 }
 
                 money += Money(entry) * share.Units / entry.Units;
+                value += Value(entry) * share.Units / entry.Units;
                 through.UnionWith(_through.GetValueOrDefault(entry, []));
             }
 
-            result.Add((source, money, through));
+            result.Add((source, money, value, through));
         }
 
         return result;
     }
 
     /// <summary>
-    /// Writes an actor's wallet as the account model's ledger: its transfers in chain order, unconfirmed last, as the
-    /// graph's trace orders an account's ledger (<see cref="AccountGraph.ChainOrder(AssetTransfer)"/>), so that FIFO
-    /// gives the same answer in both. Read out, a deposit the user linked to another chain is left out, since its money
-    /// goes on there; read in it stays, so that its share of what the wallet paid on is said to continue on the other
-    /// chain (<see cref="_onOtherChain"/>).
+    /// Writes an actor's wallet of one asset as the account model's ledger: its transfers in chain order, unconfirmed
+    /// last, as the graph's trace orders an account's ledger (<see cref="AccountGraph.ChainOrder(AssetTransfer)"/>), so
+    /// that FIFO gives the same answer in both. Read out, a deposit the user linked to another chain is left out, since
+    /// its money goes on there; read in it stays, so that its share of what the wallet paid on is said to continue on
+    /// the other chain (<see cref="_onOtherChain"/>).
     /// </summary>
     /// <param name="actor">The actor.</param>
+    /// <param name="asset">The asset.</param>
     /// <param name="traced">How much of an incoming transfer is traced.</param>
     /// <returns>The ledger, and its moves in the ledger's order.</returns>
     private (AccountLedger Ledger, List<(ExposureEntry Entry, TransferDirection Direction)> Moves) Ledger(
-        string actor, Func<ExposureEntry, BigInteger> traced)
+        string actor, Asset asset, Func<ExposureEntry, BigInteger> traced)
     {
-        var asset = _request.Asset;
-        var moves = Of(_in, actor).Where(entry => !IsOut || !IsLinked(entry))
+        var moves = Of(_in, actor).Where(entry => entry.Asset == asset && InLedger(entry))
             .Select(entry => (Entry: entry, Direction: TransferDirection.In))
-            .Concat(Of(_out, actor).Select(entry => (Entry: entry, Direction: TransferDirection.Out)))
+            .Concat(Of(_out, actor).Where(entry => entry.Asset == asset && !_boughtOut.ContainsKey(entry))
+                .Select(entry => (Entry: entry, Direction: TransferDirection.Out)))
             .OrderBy(move => AccountGraph.ChainOrder(move.Entry.Transfer))
             .ThenBy(move => move.Direction)
             .ThenBy(move => move.Entry.Index)
@@ -362,8 +593,27 @@ internal sealed class AccountExposureRun
     }
 
     /// <summary>
-    /// Counts where the money stopped: at the services and the subject what arrived; at an actor read what stayed when
-    /// it was last read and what came after (still on its way); at an actor not followed what arrived.
+    /// Says whether an incoming transfer enters the receiving wallet: not one the user linked to another chain, whose
+    /// money goes on there, and not one that went into a swap, whose money follows into the other asset or ends in the
+    /// swap and never enters the pool's wallet, as in the graph's trace.
+    /// </summary>
+    /// <param name="entry">The transfer.</param>
+    /// <returns><see langword="true"/> when it does.</returns>
+    private bool EntersWallet(ExposureEntry entry) => !IsLinked(entry) && !_soldIn.ContainsKey(entry);
+
+    /// <summary>
+    /// Says whether an incoming transfer stands in the wallet's ledger: one that enters it, and, read in, also one the
+    /// user linked to another chain, so that its share of what the wallet paid on is said to continue there.
+    /// </summary>
+    /// <param name="entry">The transfer.</param>
+    /// <returns><see langword="true"/> when it does.</returns>
+    private bool InLedger(ExposureEntry entry) =>
+        !_soldIn.ContainsKey(entry) && (EntersWallet(entry) || !IsOut);
+
+    /// <summary>
+    /// Counts where the money's value stopped: at the services and the subject what arrived; at an actor read what
+    /// stayed when it was last read and what came after (still on its way); at an actor not followed what arrived; and
+    /// in a swap the user chose not to follow, what went into it.
     /// </summary>
     private void Count()
     {
@@ -378,19 +628,45 @@ internal sealed class AccountExposureRun
                 continue;
             }
 
-            var through = Arriving(actor).Where(entry => Money(entry).Sign > 0)
+            var arriving = Arriving(actor).ToList();
+            if (actor == _request.Subject)
+            {
+                // What the subject swapped its money for is its own wallet's, read like any other; only the money
+                // that comes back in the subject's own asset has returned.
+                var swapped = arriving.Where(entry => entry.Asset != _request.Asset).ToList();
+                var passed = Passing(actor).Where(entry => entry.Asset != _request.Asset)
+                    .Aggregate(BigInteger.Zero, (sum, entry) => sum + Value(entry));
+                _tally.Rest(stays, swapped.Aggregate(BigInteger.Zero, (sum, entry) => sum + Value(entry)) - passed);
+                arriving = [.. arriving.Except(swapped)];
+            }
+
+            var through = arriving.Where(entry => Money(entry).Sign > 0)
                 .SelectMany(entry => _through.GetValueOrDefault(entry, []));
-            _tally.Arrive(actor, arrived, through);
+            _tally.Arrive(actor, arriving.Aggregate(BigInteger.Zero, (sum, entry) => sum + Value(entry)), through);
         }
 
-        foreach (var (entry, money) in _money)
+        foreach (var swap in _swaps.Where(swap => !swap.Follows))
         {
-            _tally.Flow(entry.Edge, money);
+            var stopped = IsOut ? swap.Sold : swap.Bought;
+            _tally.Rest(ExposureRest.TrailEnds, stopped.Aggregate(BigInteger.Zero, (sum, side) => sum + Value(side)));
         }
 
-        foreach (var units in _onOtherChain.Values)
+        foreach (var (entry, value) in _value)
+        {
+            _tally.Flow(entry.Edge, value);
+        }
+
+        foreach (var units in _onOtherChain.Values.Where(units => units.Sign > 0))
         {
             _tally.Rest(ExposureRest.OtherChain, units);
         }
     }
+
+    /// <summary>A swap on the graph's lines, with the transfers that went in and came out of it.</summary>
+    /// <param name="Swap">The swap.</param>
+    /// <param name="Sold">The transfers the account sent into it.</param>
+    /// <param name="Bought">The transfers that came out of it to the account.</param>
+    /// <param name="Follows">Whether the value follows through it (the user has not chosen otherwise).</param>
+    private sealed record SwapSides(
+        TokenSwap Swap, List<ExposureEntry> Sold, List<ExposureEntry> Bought, bool Follows);
 }

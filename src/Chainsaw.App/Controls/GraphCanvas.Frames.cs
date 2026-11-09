@@ -101,6 +101,7 @@ public sealed partial class GraphCanvas
         _pendingHover = null;
         HoverCard(surface);
         HoverBlockMark(surface);
+        HoverSwap(surface);
         ShowHover(surface);
     }
 

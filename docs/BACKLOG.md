@@ -9,10 +9,16 @@ beslut 2026-11-08); ordningen står i `docs/TODO.md` under *4. Backloggen*. En p
   stället räknas fram på nytt ur svaret av källan (en tolk per sort av svar), så att det aldrig tas emot utifrån.
 - **Ethereum efter etapp 23b** (grafen, inspektören, startpunkterna, swap-pillret och kurserna för USDT och USDC är
   byggda). Kvar:
-  - **Spårning genom en swap:** pillret visar bytet, men spårningen räknar varje tillgång för sig, så spårade USDT blir
-    inte spårad ether hos den som bytte (de stannar som *inte expanderad* hos poolen). Att föra över den spårade
-    andelen i bytet är en bedömning (analys med namn och version); regeln är beslutad (CLAUDE.md, *Spåra*), och valet
-    per swap i pillret skissas först.
+  - **Swappen i testärendet** (SW1a, 2026-11-08): `/testdata` har ingen Ethereum-källa, så spåret genom en swap syns
+    inte där.
+  - **Swappens pris och val** (SW1a, femte och sjätte granskningen): `StopAtSwap` läser hela ärendets Ethereum-del
+    för att se att swappen finns, inte bara tx:ens svar; och exponeringen (EP1b) drar inte av den del som stannar i
+    poolen när det som kom ut var värt mindre, och inte heller andelen när det var värt mer (spåret gör båda;
+    *Varför?* i Exponering säger det).
+  - **Swappar som inte känns igen** (SW1a, andra granskningen; hellre ingen swap än en felaktig): Uniswap V2 genom
+    routern när bara historiken är hämtad (parets WETH till routern syns först när hela tx:en läses; att läsa swappens
+    tx av sig själv vore ett uppslag per swap), och en aggregator som tar en avgift till en egen adress i samma tx (en
+    lista över aggregatorernas avgiftsadresser skulle kunna räkna dem till bytets sida).
   - **Swap genom en känd DEX:** pillret sätts på mönstret (den som signerade skickade en tillgång och fick en annan i
     samma tx), utan lista över DEX-kontrakt. En lista över kända DEX:ar och aggregatorer kan visa namnet i *Varför?*.
   - **Tx:ens plats i blocket:** källornas historik ger inte `transactionIndex`, så två tx i samma block ordnas efter

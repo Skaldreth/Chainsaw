@@ -219,8 +219,26 @@ internal static class RequestTemplates
         blocks.Add(new RequestBlock(RequestBlockKind.Heading, words.TrailHeading));
         var sentence = string.Join(" → ", trail.Steps) + ": "
             + string.Format(CultureInfo.InvariantCulture, words.TrailText, trail.Hops, trail.Method);
+        foreach (var swap in trail.Swaps)
+        {
+            sentence += " " + string.Format(
+                CultureInfo.InvariantCulture, words.SwapText, swap.Pill, swap.Transaction, swap.Analysis, swap.Share);
+            sentence += " " + PriceSentence(words, swap);
+        }
+
         blocks.Add(new RequestBlock(RequestBlockKind.Paragraph, sentence));
     }
+
+    /// <summary>
+    /// Says whether a swap's price was tested, and by how much the values differed, so that a request never says the
+    /// value follows without saying whether its price was tested.
+    /// </summary>
+    /// <param name="words">The language's words.</param>
+    /// <param name="swap">The swap.</param>
+    /// <returns>The sentence.</returns>
+    private static string PriceSentence(RequestTexts words, RequestSwap swap) => swap.PriceGap is { } gap
+        ? string.Format(CultureInfo.InvariantCulture, words.SwapPriceTestedText, swap.PriceCheck, gap)
+        : string.Format(CultureInfo.InvariantCulture, words.SwapPriceUntestedText, swap.PriceCheck);
 
     /// <summary>Writes a moment in the local zone with UTC in brackets.</summary>
     /// <param name="utc">The moment.</param>

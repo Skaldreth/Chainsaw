@@ -58,6 +58,45 @@ public sealed class TemplateTests
     }
 
     [Fact]
+    public void A_trail_through_a_swap_names_the_analysis_the_share_and_the_swaps_transaction()
+    {
+        var swap = new RequestSwap(
+            "0x" + new string('5', 64), "₮ → Ξ", "62,2 %", "swap-value v1", "swap-price v1", "0,1 %");
+        var trail = Samples.Trail() with { Swaps = [swap] };
+
+        var swedish = RequestTemplates.Compose(Samples.Information(trail: trail), Context).Markdown;
+        var english = RequestTemplates.Compose(
+            Samples.Information(RequestLanguage.English, trail), Context).Markdown;
+
+        Assert.Contains(
+            "Genom swappen ₮ → Ξ i tx 0x" + new string('5', 64) + " följer värdet med enligt swap-value v1: 62,2 %",
+            swedish,
+            StringComparison.Ordinal);
+        Assert.Contains("prövat mot ärendets kurser enligt swap-price v1: värdena in och ut skiljer 0,1 %", swedish,
+            StringComparison.Ordinal);
+        Assert.Contains("the value follows by swap-value v1", english, StringComparison.Ordinal);
+        Assert.Contains("tested against the case's rates by swap-price v1", english, StringComparison.Ordinal);
+        Assert.DoesNotContain("swap-value", RequestTemplates.Compose(
+            Samples.Information(trail: Samples.Trail()), Context).Markdown, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void A_swap_whose_price_was_not_tested_says_so()
+    {
+        var swap = new RequestSwap(
+            "0x" + new string('5', 64), "₮ → Ξ", "62,2 %", "swap-value v1", "swap-price v1", null);
+        var trail = Samples.Trail() with { Swaps = [swap] };
+
+        var swedish = RequestTemplates.Compose(Samples.Information(trail: trail), Context).Markdown;
+
+        Assert.Contains(
+            "Priset i swappen är inte prövat (swap-price v1): kursen vid tx:ens tid saknas i ärendet.",
+            swedish,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("prövat mot ärendets kurser", swedish, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Times_are_written_local_with_their_offset_and_in_UTC()
     {
         var document = RequestTemplates.Compose(Samples.Information(), Context);

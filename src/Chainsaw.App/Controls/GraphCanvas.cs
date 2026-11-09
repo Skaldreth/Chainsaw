@@ -250,7 +250,7 @@ public sealed partial class GraphCanvas : FrameworkElement
         var surface = _viewport.ToSurface(at);
         _model?.Comments.Select(null);
         if (_model is not null && (PressHeldBack(at) || PressHeldMark(surface) || PressHopPill(surface)
-            || PressFan(at, surface) || PressBlockMark(at, surface)
+            || PressFan(at, surface) || PressBlockMark(at, surface) || PressSwap(surface)
             || PressCard(surface) || PressThread(surface)
             || PressGuide(surface) || PressForComment(e, surface) || PressArea(surface) || PressToExpand(e, surface)))
         {
@@ -365,6 +365,7 @@ public sealed partial class GraphCanvas : FrameworkElement
         base.OnMouseLeave(e);
         _pendingHover = null;
         _model?.HoverAt(null, Tolerance);
+        _hoveredSwap = null;
         CloseHoverTip();
     }
 
@@ -633,8 +634,12 @@ public sealed partial class GraphCanvas : FrameworkElement
         Cursor = chainTip is not null ? Cursors.Hand : Cursor;
         var heldTip = HeldTipAt(surface) ?? HopTipAt(surface);
         Cursor = heldTip is not null ? Cursors.Hand : Cursor;
-        var text = guideTip ?? chainTip ?? heldTip ?? PendingTipAt(surface) ?? model.AmountTipAt(surface)
-            ?? model.Scene?.Node(hit.Node)?.ToolTip;
+        var overSwap = IsOverSwap(surface);
+        Cursor = overSwap ? Cursors.Hand : Cursor;
+        var text = overSwap
+            ? null
+            : guideTip ?? chainTip ?? heldTip ?? PendingTipAt(surface) ?? model.AmountTipAt(surface)
+                ?? model.Scene?.Node(hit.Node)?.ToolTip;
         if (text == _hoverTip.Content as string)
         {
             return;
@@ -924,23 +929,43 @@ public sealed partial class GraphCanvas : FrameworkElement
 
         taken.Add(box);
         var pill = new Rect(box.X, box.Y, box.Width, box.Height);
+        var open = _model!.OpenSwap == edge.Key;
+        var stopped = edge.IsSwapStopped;
+        _nextSwapPills[edge.Key] = pill;
         var faded = PushFade(dc, LineOpacity(edge, near));
-        dc.DrawRoundedRectangle(
-            Ink("Brush.Surface"),
-            PenOf(Ink("Brush.BorderStrong"), 1),
-            pill,
-            pill.Height / 2,
-            pill.Height / 2);
-        var arrow = Ink("Brush.TextMuted");
+        if (stopped)
+        {
+            // A short stroke across the line after the pill: the trail ends in the swap (sketch SW1a).
+            var stroke = new Pen(Ink("Brush.TextMuted"), 2)
+            {
+                StartLineCap = PenLineCap.Round,
+                EndLineCap = PenLineCap.Round,
+            };
+            var x = pill.Right + SwapStrokeGap;
+            dc.DrawLine(stroke, new Point(x, pill.Y + 3), new Point(x, pill.Bottom - 3));
+        }
+
+        dc.DrawRoundedRectangle(Ink("Brush.Surface"), SwapFrame(edge, open), pill, pill.Height / 2, pill.Height / 2);
+        var (glyph, arrow) = SwapArrow(edge);
         var left = box.X + AmountLayout.SwapPadding;
         var middle = box.Y + (box.Height / 2);
         foreach (var pair in edge.SwapPairs)
         {
             const double Badge = AmountLayout.BadgeSize;
             DrawTokenBadge(dc, pair.Sold, new Point(left + (Badge / 2), middle));
-            DrawGlyph(dc, "Icon.ArrowRight", arrow, new Point(left + Badge + 5, middle - 6), 12);
+            DrawGlyph(dc, glyph, arrow, new Point(left + Badge + 5, middle - 6), 12);
             DrawTokenBadge(dc, pair.Bought, new Point(left + Badge + 22 + (Badge / 2), middle));
             left += AmountLayout.SwapPairWidth + AmountLayout.SwapPadding;
+        }
+
+        if (stopped)
+        {
+            DrawSwapPersonMark(dc, new Point(pill.Right - 3, pill.Top + 1));
+        }
+
+        if (open)
+        {
+            DrawSwapChoice(dc, edge, pill, taken);
         }
 
         PopFade(dc, faded);

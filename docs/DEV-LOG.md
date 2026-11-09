@@ -3894,6 +3894,168 @@ Kollegans fil med ärendelösenordet, ärendets egenskaper med fliken *Kuvert*, 
 - **Skriver i ärendet (granskas):** den nya etiketten (förseglad som de andra), och hämtningarna av start-tx, som nu
   också görs när ärendet öppnas och när utgången ansluts.
 
+## Spåret genom en swap, SW1a (2026-11-08)
+
+Användarens beslut 2026-11-08: genom en swap följer det spårade **värdet** med, och utredaren väljer per swap att det
+inte gör det (skissen SW1a).
+
+- **Regeln på ett ställe:** `SwapValue` (Tracing.Contracts) är analysen `swap-value v1`: den spårade andelen av det
+  som gick in i bytet (`TokenSwap.Sold`, summerat) blir samma andel av varje överföring som kom ut, avrundat nedåt
+  (`SwapValue.Follow`), så att regeln aldrig skapar spårade pengar. `TokenSwap.IsSold`/`IsBought` säger vilka rörelser
+  som hör till bytet. Spårningen, exponeringen, grafen, inspektören och rapporten använder samma regel.
+- **Spårningen:** `AccountTraceCalculator` spårar nu alla tillgångar tillsammans, runda för runda, tills inget ändras:
+  varje tillgångs konton med metoden (FIFO eller haircut, kontrollerad av `AccountChecks.Run` som förut), och sedan
+  varje följd swap, som sätter det spårade på det som kom ut. Det som gick in i en swap går aldrig in i poolens
+  plånbok (som en länk till annan kedja), så att inget räknas två gånger. Slutet för den sålda tillgången är det nya
+  `TrailEndReason.Swapped` (inte ett slut, pengarna fortsätter i den nya tillgången) eller `SwapStopped` (ett riktigt
+  slut, användarens val). `AssetTrace.SwappedIn` och `Total` säger hur mycket som kom genom swappar; ändarna summerar
+  till `Total`. `AccountTraceResult.Swaps` har en `SwapConversion` per swap som spårade pengar nådde, med in, ut,
+  metoden och valet. `TracedAmount.Swaps` säger vilka swappar ett belopp kan vila på (generöst: en utgående rörelse
+  ärver från alla tidigare spårade inkommande), och `RestsOnSwap` gör linjen streckad. `Explain()` nämner analysen.
+- **Valet:** `ITracingService.StopAtSwap`/`FollowSwap`/`GetSwapStopHistory`. Ett val och dess tillbakatagande är var
+  sin förseglad rad i den nya kedjan `tracing.swap_stops` (schemats version 6) med journalrad
+  (`tracing.swap-stopped`, `tracing.swap-followed`), som länkarna till annan kedja; skälet är frivilligt. Att välja
+  *Följer inte* igen för samma swap lämnar valet som redan gäller. `TraceGraph.SwapStops` bär valen som gäller.
+- **Exponeringen** (`exposure v3`): `AccountExposureRun` läser plånböckerna per tillgång och följer pengarna genom en
+  swap åt båda hållen (ut: det som gick in blir det som kom ut; in: det som kom ut leder tillbaka till det som gick
+  in). Varje överföring bär pengarna i sina egna enheter och deras **värde** i ämnets tillgång, som är det som räknas;
+  värdet som gick in i en swap är exakt värdet som kom ut (resten av avrundningen läggs på den sista överföringen).
+  Ämnets egna swappar läses som en plånbok i de andra tillgångarna. *Följer inte* stoppar pengarna som *Spåret tar
+  slut*. Summan av tjänsterna och resten är fortfarande exakt totalen.
+- **Grafen (SW1a):** `EdgeView.SwapStops`, `SwapConversions` och `IsSwapStopped`; en linje vars spårade belopp vilar på
+  en följd swap är streckad i accent. `GraphCanvas.Swaps.cs`: ett klick på pillret fäller ut *Följer* och *Följer
+  inte* och **?** (Guiden), hovring visar rutan med stegen (`SwapPill.Box`, utan WPF); vid *Följer inte* blir pilen ett
+  stopp (`Icon.Swap.Stop`), en person sitter i pillrets hörn och ett kort streck korsar linjen efter pillret.
+  `GraphViewModel.ChooseSwapAsync` sparar valet genom `IGraphEditor` och läser om grafen.
+- **Historik (AN1b):** adressen som bytte har raden *Följer inte genom swappen · ₮ → Ξ* med *Ta tillbaka*
+  (`HistoryUndo.FollowSwap`), och tillbakatagandet som egen rad.
+- **Rapporten:** en slutsats per swap på spåren, med andelen och analysen, eller att spåret slutar i swappen; skälet
+  tas aldrig med. Begäran följer de spårade linjerna och får därför uttag efter en swap av sig själv.
+- **Guiden:** nytt avsnitt *Spåret genom en swap* (`swappar.md`, under Ethereum); *ERC-20*, *Varför ett spår tar slut*
+  och *Bryggor och swappar* hänvisar dit.
+- **Skriver i ärendet (granskas):** valen och deras tillbakatagande (förseglade, journalförda). Spårade belopp på
+  Ethereum ändras: det som tidigare stannade som *inte expanderat* hos poolen följer nu med i den nya tillgången.
+- **Avsteg och egna beslut:** rutan säger *Ditt val* med tiden, inte namnet (namnet står i Historik, som läser
+  journalen). Skissens kortkommando F i pillret är inte byggt. Har en linje flera swappar gäller valet dem alla, och
+  rutan visar den första. Poolens överföringar som kom ut ur en swap räknas inte i poolens egen plånbok i exponeringen.
+  Golden-facit för Bitcoin är omskrivet bara för schemats version och den nya kedjan.
+- **Kvar:** testärendet har ingen Ethereum-källa, så swappen syns inte i `/testdata`. Exponeringens *Varför?* säger
+  inte när vägen gick genom en swap (bara analysens version).
+
+## Granskningen av SW1a rättad (2026-11-08)
+
+Den oberoende granskningen fann inga C, tre I och fyra M; alla är rättade, och granskarens prober är tester
+(`SwapEdgeTests`).
+- **I1, tredje part i swappens tx:** bara det som gick till bytets andra sida (en adress som skickade tillbaka den
+  köpta tillgången, kontraktet tx:en anropade eller den kända DEX:en) räknas som insatt; finns ingen sådan och bara en
+  överföring i den sålda tillgången, är det den. Annars visas ingen swap. `TokenSwap.SoldMovements` säger vilka
+  rörelser det är, och pillret sitter bara på deras linje. En swap identifieras av tx och konto.
+- **I2, en länkad överföring:** `SwapValue.GoesIn` är regeln på ett ställe för spårningen och exponeringen: en
+  överföring som användaren länkat till annan kedja är aldrig en del av en swap.
+- **I3 och M3:** Begäran nämner `swap-value v1`, andelen och swappens tx för varje swap på spåret dit
+  (`RequestTrail.Swaps`), och exponeringens *Varför?* säger när vägen gick genom en swap (`ExposureReach.Swaps`).
+- **M1:** inspektörens *Spårat hit* nämner analysen när beloppet kom genom en swap, och *Följer med genom en swap*
+  skrivs som antal swappar, aldrig som ett summerat belopp som *stannar här*.
+- **M2:** startpunkter på båda sidor av en swap vägras som startpunkter i varandras flöde.
+- **M4:** `StopAtSwap` vägrar en swap som ärendets graf inte visar; `tracing.swap_stops` har kolumnen `chain`;
+  swapparnas rörelser är indexerade, och spårningen räknar om bara de tillgångar som ändrades.
+
+## Andra granskningen av SW1a rättad (2026-11-08)
+
+Inga C; två I med samma rot i hur en swap känns igen, och fyra M.
+- **Hellre ingen swap än en felaktig** (`AccountData.SwapOf`): reserven *exakt en utgående överföring* är borta. Det är
+  en swap bara när adressen fick tillbaka en tillgång den inte också skickade (en återbetalning i samma tillgång är
+  aldrig ett köp), skickade en tillgång och allt av den gick till bytets sida (`TradeSide`: det anropade kontraktet, de
+  som skickade tillbaka den köpta tillgången, en känd DEX, och adresser som i samma tx syns föra den köpta tillgången
+  eller WETH dit), och ingen motpart är en känd brygga eller mixer eller har en etikett som börs, mixer eller brygga
+  (`GraphBuilder.IsSwapEndpoint`). `KnownTokens.EthereumWeth` är ny.
+- **Tester** (`SwapRecognitionTests`): granskarens tre prober (ingen swap; pengarna når bryggans pool, handlaren och
+  paret), och positiva fall: Uniswap V2 genom routern när tx:en är läst hel, en V3-pool direkt och 1inch. V2 genom
+  routern ur bara historiken känns inte igen (parets WETH syns inte); det står i Guiden och BACKLOG, liksom en
+  aggregators avgift till en egen adress.
+- **M:** exponeringens *Varför?* ger ämnets andel i siffror per swap (`ExposureSwap`); `StopAtSwap` kontrollerar i
+  skrivtransaktionen att swappens tx finns i grafens tillstånd, utan att läsa om grafen; tester för Begärans spår
+  genom en swap och för inspektörens nya rader.
+
+## Tredje granskningen av SW1a rättad (2026-11-08)
+
+- **I, damm som gör en betalning till en swap:** det som kom tillbaka måste ha ett värde Chainsaw känner (ether, WETH
+  eller en token igenkänd på sitt kontrakt), eller bytet ha gått genom en känd DEX eller aggregator; annars ingen
+  swap, och pengarna når mottagaren. Granskarens prob är ett test.
+- **M-1:** en tx som skulle vara en swap men har en motpart som spåret ska nå (känd brygga eller mixer, eller en
+  etikett som börs, mixer eller brygga, också satt senare) sparas som `SwapRefusal` (`AccountGraph.RefusedSwaps`).
+  *Varför?* på linjen och noderna säger *Ingen swap i tx …* med etiketten och källan, och ett förseglat *Följer inte*
+  utan swap står i Historik med *ingen swap längre* och kan tas tillbaka.
+- **M-2:** exponeringens *Varför?* läst in säger andelen av det som kom ut.
+- **M-3:** `StopAtSwap` läser ärendets Ethereum-fakta (inte hela grafen) och kräver att just den tx:en är en swap för
+  just det kontot.
+
+## Fjärde granskningen av SW1a rättad (2026-11-08)
+
+- **I, en egen pool med en påhittad token genom den riktiga routern:** det som kom tillbaka måste alltid ha ett känt
+  värde (ether, WETH, en token igenkänd på kontraktet); en känd DEX räcker aldrig, eftersom vem som helst kan öppna en
+  pool där. Granskarens prob är ett test (med symbolen FAKE och en falsk USDC).
+- **Sidofyndet:** en token som inte känns igen på kontraktet står med symbolen och ett frågetecken (`USDC?`) i pillret,
+  i inspektören och på linjen (`SwapMarks.MarkOf`, `SwapMarks.UnknownTokenMark`).
+- **M:** `StopAtSwap` frågar etiketterna som när grafen byggs (`GraphBuilder.SwapEndpoint`, en regel för båda), så att
+  en swap som en etikett vägrar inte heller kan väljas.
+
+## Femte granskningen av SW1a rättad: priset prövas (2026-11-09)
+
+- **I, en riktig token till ett absurt pris i en egen pool:** kontrollen `swap-price v1` (`SwapValue.CheckPrice`)
+  prövar värdet av det som gick in mot det som kom ut vid swappens tid, med kurserna ärendet redan har (Pricing,
+  bara ur ärendet, inget uppslag). Skiljer de mer än `SwapValue.MostPriceGap` (20 %, för avgifter, slippage och att en
+  kurs gäller en timme) är det ingen swap i spåret eller exponeringen: pengarna går till poolen som en vanlig
+  betalning. Pillret är streckat i riskens färg med ett stopp, inget val går att göra, och *Varför?* och rutan visar
+  båda beloppen och värdena. Tracing hämtar inga kurser själv: anroparen ger dem som `SwapPricing` (i
+  `AccountTraceRequest` och `ExposureRequest`), och GraphSource läser dem ur ärendet; WETH värderas som ether.
+- **Utan kurs, eget beslut:** värdet följer med som förval, och pillret är streckat i en lugn ton med *priset inte
+  prövat* i rutan och *Varför?*. Skälet: användarens beslut är att värdet följer med, kurserna för ether, USDT och
+  USDC finns oftast i ärendet så snart linjerna har värderats, och ett offline-ärende ska inte tyst tappa spår som
+  annars följts; osäkerheten syns i stället, som allt annat osäkert, streckad.
+- **Tester:** granskarens två prober (1 000 USDT mot 1 wei WETH; 0,000001 USDT mot 1 000 ETH, också i exponeringen)
+  och en swap till rimligt pris som följer, och samma utan kurser (inte prövat, följer).
+- **Kvar (BACKLOG):** `StopAtSwap` läser fortfarande hela Ethereum-delen (inte bara tx:ens svar), och prisprövningen
+  görs om först när grafen läses om efter att kurserna hämtats i bakgrunden.
+
+## Sjätte granskningen av SW1a rättad: kurserna för swappen hämtas (2026-11-09)
+
+- **Kurserna:** `GraphSource.FillRatesAsync` hämtar först kurserna vid varje swaps tid, för båda sidor och med WETH
+  som ether, inom `MostRateLookups`, och sedan linjernas. Kom en kurs som ärendet saknade (`GraphRates.SwapRatesFetched`)
+  läses grafen om, så att spåret räknas med prövningen.
+- **M-1, aldrig tyst:** ändras spåret av prövningen (orimligt pris, eller en del som stannar i poolen) säger toastern
+  det en gång, *Spåret genom en swap räknades om efter kurserna*, med swappen och prövningens resultat
+  (`GraphViewModel.RecalculatedSwaps`).
+- **Begäran och rapporten** säger alltid prövningens resultat: `RequestSwap` har `PriceCheck` och `PriceGap`, och
+  begäran skriver *prövat … skiljer x %* eller *inte prövat: kursen vid tx:ens tid saknas i ärendet* (M-3: också
+  offline och när källan ber Chainsaw vänta). Rapportens slutsats har `SwapPriceCheck.Summary`.
+- **M-2, stannar i poolen:** inom 20 % blir skillnaden i värde ett eget slut, `TrailEndReason.KeptBySwapPool`
+  (*Stannar i poolen*), vid poolen: det spårade gånger (1 − ut/in). Det som följer genom swappen är resten, så att
+  summan av sluten fortfarande är det spårade. Eget beslut: det köpta som följer räknas som förut på mängden, eftersom
+  det som kom ut redan är värt mindre.
+- **Tester:** granskarens prob genom GraphSource med en falsk kurskälla (WETH till ett absurt pris vägras efter att
+  kurserna hämtats, och sägs som omräknad), ett rimligt pris med 2,5 % i poolen, en källa som ber Chainsaw vänta, och
+  i Tracing 1 000 USDT mot 0,32 ETH (40 USDT stannar i poolen, 960 följer, summan 1 000).
+- **Kvar (BACKLOG):** exponeringen drar inte av poolens del.
+
+## Sjunde granskningen av SW1a rättad: värdet växer aldrig genom en swap (2026-11-09)
+
+- **I, mer ut än in inom bandet:** regeln är symmetrisk. Var det som kom ut värt mer än det som gick in följer bara
+  andelen (värdet in / värdet ut) av det köpta som spårat, avrundat nedåt (`SwapPriceCheck.FollowShare`,
+  `SwapPriceCheck.ShareOf`); resten är inte spårat. Granskarens prob (10 000 kr in, 12 000 kr ut) är ett test bredvid
+  fallet med mindre ut.
+- **M-4:** toastern säger också när beloppen ändrades av detta (`SwapPriceCheck.ChangesAmounts`).
+- **M-1:** *Varför?* i Exponering säger att poolens del inte dras av där (BACKLOG).
+- **M-2:** grafen läses om för swapparnas kurser högst en gång per läsning.
+- **M-3:** `HasUntestedSwapPrices` gäller bara swappar som spårade pengar går genom.
+
+## Åttonde granskningen av SW1a: de tre M rättade (2026-11-09)
+
+- **M-a:** andelen genom en swap räknas exakt med heltal (värdena läses som exakta bråk), avrundat nedåt
+  (`SwapPriceCheck.FollowingOf` och `KeptOf`), i stället för med tolv decimaler.
+- **M-b:** grafen läses om för swapparnas kurser så länge den förra omläsningen prövade fler priser, och swapparna på
+  spåret får sina kurser först.
+- **M-c:** jämförelsen inför toasten glöms när omläsningen ersattes eller väntar på en expansion.
 ## Vyerna Tidslinje (TL3a) och Flöde (FL1a) (2026-11-08)
 
 - **Byggt:** vyn *Tidslinje* (Ctrl+2) med en bana per aktör, en tx som ett lodrätt streck i färgen för vad pengarna

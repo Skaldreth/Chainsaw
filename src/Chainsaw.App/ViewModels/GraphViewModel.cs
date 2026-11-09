@@ -432,7 +432,10 @@ public sealed partial class GraphViewModel : ObservableObject
     /// </summary>
     public ClusterWhyViewModel ClusterWhy { get; }
 
-    /// <summary>The inspector's way into the modules, also for what the graph reads beside the scene.</summary>
+    /// <summary>
+    /// The inspector's way into the modules, also for what the graph reads beside the scene and for the graph's own
+    /// choices, such as the choice per swap (sketch SW1a).
+    /// </summary>
     private readonly IGraphEditor _editor;
 
     /// <summary>
@@ -1233,6 +1236,7 @@ public sealed partial class GraphViewModel : ObservableObject
         FollowFan();
         ShowTrash();
         TellThrownStartPoints(scene);
+        TellRecalculatedSwaps(scene);
         OnPropertyChanged(nameof(MethodToolTip));
         if (fit)
         {

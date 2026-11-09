@@ -40,6 +40,9 @@ public enum HistoryKind
     /// <summary>A comment was written, changed, tied or thrown in the trash and put back (sketch KN1a).</summary>
     Comment,
 
+    /// <summary>The user chose that the traced value does not follow through a swap of the node's (sketch SW1a).</summary>
+    SwapStop,
+
     /// <summary>A version of an analysis was drawn back (sketch KV1a).</summary>
     VersionWithdrawn,
 
@@ -69,6 +72,11 @@ public enum HistoryUndo
     /// Undoes a merge of the user's own (<em>Ångra</em>); when an approved wallet made it, the approval is taken back.
     /// </summary>
     UndoMerge,
+
+    /// <summary>
+    /// Takes back a choice that the value does not follow through a swap (<em>Ta tillbaka</em>): it follows again.
+    /// </summary>
+    FollowSwap,
 
     /// <summary>Takes a version's withdrawal back (<em>Ta tillbaka</em>): the version counts again (sketch KV1a).</summary>
     TakeBackWithdrawal,
@@ -127,6 +135,9 @@ public sealed record HistoryEvent(
     /// <summary>Gets the merges stored together, for <see cref="HistoryUndo.UndoMerge"/>.</summary>
     public IReadOnlyList<long> MergeSequences { get; init; } = [];
 
+    /// <summary>Gets the choice not to follow a swap, for <see cref="HistoryUndo.FollowSwap"/>.</summary>
+    public SwapStop? SwapStop { get; init; }
+
     /// <summary>Gets the withdrawal, for <see cref="HistoryUndo.TakeBackWithdrawal"/>.</summary>
     public long WithdrawalSequence { get; init; }
 
@@ -179,6 +190,30 @@ public sealed record NodeHistoryData(
 
     /// <summary>Gets the user's merges that hold one of the node's addresses, also those undone (Clustering).</summary>
     public IReadOnlyList<MergeHistoryEntry> Merges { get; init; } = [];
+
+    /// <summary>
+    /// Gets the user's choices not to follow a swap of the node's (sketch SW1a), also those taken back (Tracing).
+    /// </summary>
+    public IReadOnlyList<SwapStopHistoryEntry> SwapStops { get; init; } = [];
+
+    /// <summary>Gets the journal entries whose writer the history names for the choices not to follow a swap.</summary>
+    /// <param name="stops">The choices.</param>
+    /// <returns>The journal sequences of each choice and its taking back.</returns>
+    public static IReadOnlySet<long> JournalNeeds(IEnumerable<SwapStopHistoryEntry> stops)
+    {
+        ArgumentNullException.ThrowIfNull(stops);
+        var needs = new HashSet<long>();
+        foreach (var entry in stops)
+        {
+            needs.Add(entry.Stop.JournalSequence);
+            if (entry.Undo is { } undo)
+            {
+                needs.Add(undo.JournalSequence);
+            }
+        }
+
+        return needs;
+    }
 
     /// <summary>Gets the versions drawn back of the analyses that concern the cluster (sketch KV1a).</summary>
     public IReadOnlyList<VersionWithdrawal> Withdrawals { get; init; } = [];
@@ -274,6 +309,12 @@ public static class NodeHistory
     /// <summary>The row of a merge of the user's own, for example an approved wallet.</summary>
     public const string MergeText = "Sammanslagen av användaren";
 
+    /// <summary>The row of a choice that the traced value does not follow through a swap (sketch SW1a).</summary>
+    public const string SwapStopText = "Följer inte genom swappen";
+
+    /// <summary>What a choice not to follow a swap says when its transaction no longer reads as a swap.</summary>
+    public const string NoSwapText = "ingen swap längre";
+
     /// <summary>Who wrote a journal entry the case could not name.</summary>
     public const string UnknownOperator = "Okänd";
 
@@ -318,6 +359,7 @@ public static class NodeHistory
         AddSplits(data, rows);
         AddMerges(data, rows);
         AddLinks(scene, node, data, rows);
+        AddSwapStops(scene, data, rows);
         AddWatches(node, data, rows);
         AddWithdrawals(data, rows);
         AddHeldBack(scene, node, data, rows);
@@ -652,6 +694,38 @@ public static class NodeHistory
     }
 
     /// <summary>
+    /// Adds every choice that the traced value does not follow through one of the node's swaps (sketch SW1a), with the
+    /// swap's pill in words, and every taking back of one; the reading already holds only the node's own.
+    /// </summary>
+    /// <param name="scene">The scene, for the swap's assets.</param>
+    /// <param name="data">What the modules read.</param>
+    /// <param name="rows">The rows.</param>
+    private static void AddSwapStops(GraphScene scene, NodeHistoryData data, List<HistoryEvent> rows)
+    {
+        foreach (var entry in data.SwapStops)
+        {
+            var stop = entry.Stop;
+            var pill = " · " + StopPill(scene.Snapshot.Graph.Account, stop);
+            var key = "swap-stop/" + stop.Sequence.ToString(CultureInfo.InvariantCulture);
+            var who = Who(data, stop.JournalSequence);
+            var sub = stop.Reason is null ? who : $"{who} · {stop.Reason}";
+            rows.Add(new HistoryEvent(
+                key, HistoryKind.SwapStop, stop.RecordedUtc, SwapStopText + pill,
+                $"{sub} · tx {GraphScene.Shorten(stop.Transaction.Value)}", "Icon.Kind.Swap", GraphInk.Unknown,
+                IsDashed: false, IsFact: false, entry.IsTakenBack, HistoryUndo.FollowSwap)
+            {
+                SwapStop = stop,
+            });
+            if (entry.Undo is { } undo)
+            {
+                rows.Add(Withdrawal(
+                    key, undo.RecordedUtc, "Tillbakataget: värdet följer med igen",
+                    Who(data, undo.JournalSequence), undo.Reason));
+            }
+        }
+    }
+
+    /// <summary>
     /// Adds the versions drawn back of the analyses in the cluster: the withdrawal with <em>Ta tillbaka</em> while it
     /// is in force, and its taking back as a row of its own (sketches KV1a and AN1b).
     /// </summary>
@@ -678,6 +752,26 @@ public static class NodeHistory
                     Who(data, undo.JournalSequence), undo.Reason));
             }
         }
+    }
+
+    /// <summary>
+    /// Writes what a choice not to follow a swap concerns: the swap's pill, or, when its transaction no longer reads as
+    /// a swap (a label set later, or a stricter reading), that there is no swap any more and why; the choice stays and
+    /// says so instead of hanging, since the money goes on as a payment and the choice no longer matters.
+    /// </summary>
+    /// <param name="account">The graph's account part.</param>
+    /// <param name="stop">The choice.</param>
+    /// <returns>For example <c>₮ → Ξ</c>, or <c>ingen swap längre: motparten har …</c>.</returns>
+    private static string StopPill(AccountGraph account, SwapStop stop)
+    {
+        if (account.Swaps.FirstOrDefault(stop.Is) is { } swap)
+        {
+            return SwapMarks.Of(swap).Text;
+        }
+
+        return account.RefusedSwaps.FirstOrDefault(refusal => stop.Is(refusal.Swap)) is { } refused
+            ? $"{NoSwapText}: motparten har {refused.Why}"
+            : NoSwapText;
     }
 
     /// <summary>

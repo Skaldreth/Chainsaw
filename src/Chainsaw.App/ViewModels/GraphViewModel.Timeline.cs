@@ -19,6 +19,7 @@ public sealed partial class GraphViewModel
     partial void OnSceneChanged(GraphScene? value)
     {
         Timeline.Show(value);
+        KeepOpenSwap();
         UpdateObfuscation();
         _ = ReadHeldBackAsync();
     }
