@@ -51,6 +51,12 @@ public sealed partial class GraphCanvas
     /// <summary>Whether moving rings were drawn on screen this frame, so that the frames run only then.</summary>
     private bool _ringsOnScreen;
 
+    /// <summary>Whether moving rings were drawn on screen in the layer over the nodes (the search's ring, the sonar).</summary>
+    private bool _ringsOverNodes;
+
+    /// <summary>Whether the layer over the nodes is being drawn, so that its rings are noted for it.</summary>
+    private bool _drawingOverNodes;
+
     /// <summary>Where in a beat the rings are, from 0 to 1.</summary>
     private double _ringPhase;
 

@@ -8,8 +8,8 @@ namespace Chainsaw.App.Graph;
 /// </summary>
 /// <remarks>
 /// A node or a line is kept in every cell its frame or its curve's bounds touch; a line so long that it would touch
-/// very many cells is kept aside and always looked at, so that a long line never fills the grid. The index is made
-/// anew whenever the places or the curves change; it holds no state of its own beyond them.
+/// very many cells is kept aside and always looked at, so that a long line never fills the grid. A drag moves only
+/// what moved (<see cref="Follow"/>); another scene makes a new index.
 /// </remarks>
 public sealed class GraphIndex
 {
@@ -19,32 +19,41 @@ public sealed class GraphIndex
     /// <summary>A line touching more cells than this is kept aside and always looked at.</summary>
     private const int MostCells = 64;
 
+    /// <summary>The farthest cell from the origin, so that no coordinate, however large, overflows a cell's number.</summary>
+    private const long FarthestCell = 1L << 40;
+
+    /// <summary>
+    /// How much a lookup reaches past the part asked for, in the surface's units: the part and a frame grown by the
+    /// same margin may round apart by a hair at a cell's border, and the lookup must never miss what lies on it.
+    /// </summary>
+    private const double LookupPad = 1;
+
     /// <summary>The scene the index is made for.</summary>
     private readonly GraphScene _scene;
-
-    /// <summary>The places of the nodes.</summary>
-    private readonly IReadOnlyDictionary<string, GraphPoint> _places;
-
-    /// <summary>The curves of the lines, in the order they were worked out.</summary>
-    private readonly IReadOnlyDictionary<string, EdgeCurve> _curves;
 
     /// <summary>Each placed node's frame, by its place in the scene's drawing order.</summary>
     private readonly Dictionary<int, GraphRect> _frames = [];
 
     /// <summary>The nodes in each cell, by their place in the scene's drawing order.</summary>
-    private readonly Dictionary<(int X, int Y), List<int>> _nodeCells = [];
+    private readonly Dictionary<(long X, long Y), List<int>> _nodeCells = [];
 
     /// <summary>Each curved line, by its place in the scene's order of lines: its key, curve and bounds.</summary>
     private readonly Dictionary<int, (string Key, EdgeCurve Curve, GraphRect Bounds)> _lines = [];
 
     /// <summary>The lines in each cell, by their place in the scene's order of lines.</summary>
-    private readonly Dictionary<(int X, int Y), List<int>> _lineCells = [];
+    private readonly Dictionary<(long X, long Y), List<int>> _lineCells = [];
 
     /// <summary>The lines kept aside because they touch too many cells, by their place in the scene's order.</summary>
-    private readonly List<int> _longLines = [];
+    private readonly SortedSet<int> _longLines = [];
 
     /// <summary>Each curve's place in the order the curves were worked out, for the hit test's ties.</summary>
     private readonly Dictionary<string, int> _curveOrder = new(StringComparer.Ordinal);
+
+    /// <summary>The places of the nodes the index answers for.</summary>
+    private IReadOnlyDictionary<string, GraphPoint> _places;
+
+    /// <summary>The curves of the lines the index answers for, in the order they were worked out.</summary>
+    private IReadOnlyDictionary<string, EdgeCurve> _curves;
 
     /// <summary>Makes the index of a scene with its places and curves.</summary>
     /// <param name="scene">The scene.</param>
@@ -59,36 +68,18 @@ public sealed class GraphIndex
         (_scene, _places, _curves) = (scene, places, curves);
         for (var index = 0; index < scene.Nodes.Count; index++)
         {
-            var key = scene.Nodes[index].Key;
-            if (places.TryGetValue(key, out var place))
+            if (places.TryGetValue(scene.Nodes[index].Key, out var place))
             {
-                var frame = scene.FrameOf(key, place);
-                _frames[index] = frame;
-                AddToCells(_nodeCells, frame, index);
+                AddNode(index, place);
             }
         }
 
-        var order = 0;
-        foreach (var key in curves.Keys)
-        {
-            _curveOrder[key] = order++;
-        }
-
+        OrderCurves();
         for (var index = 0; index < scene.Edges.Count; index++)
         {
-            var key = scene.Edges[index].Key;
-            if (curves.TryGetValue(key, out var curve))
+            if (curves.TryGetValue(scene.Edges[index].Key, out var curve))
             {
-                var bounds = curve.Bounds();
-                _lines[index] = (key, curve, bounds);
-                if (CellCount(bounds) > MostCells)
-                {
-                    _longLines.Add(index);
-                }
-                else
-                {
-                    AddToCells(_lineCells, bounds, index);
-                }
+                AddLine(index, curve);
             }
         }
     }
@@ -185,6 +176,131 @@ public sealed class GraphIndex
         IReadOnlyDictionary<string, EdgeCurve> curves) =>
         ReferenceEquals(scene, _scene) && ReferenceEquals(places, _places) && ReferenceEquals(curves, _curves);
 
+    /// <summary>
+    /// Follows new places and curves of the same scene, as a drag gives them, by moving only the nodes whose place
+    /// changed and the lines whose curve changed (a curve that did not change is the same instance); it answers as an
+    /// index made anew would.
+    /// </summary>
+    /// <param name="scene">The scene.</param>
+    /// <param name="places">The new places.</param>
+    /// <param name="curves">The new curves.</param>
+    /// <returns><see langword="true"/> when it followed; <see langword="false"/> for another scene.</returns>
+    public bool Follow(
+        GraphScene scene, IReadOnlyDictionary<string, GraphPoint> places, IReadOnlyDictionary<string, EdgeCurve> curves)
+    {
+        ArgumentNullException.ThrowIfNull(places);
+        ArgumentNullException.ThrowIfNull(curves);
+        if (!ReferenceEquals(scene, _scene))
+        {
+            return false;
+        }
+
+        for (var index = 0; index < scene.Nodes.Count; index++)
+        {
+            var key = scene.Nodes[index].Key;
+            var had = _places.TryGetValue(key, out var before);
+            var has = places.TryGetValue(key, out var after);
+            if (had == has && (!has || before == after))
+            {
+                continue;
+            }
+
+            RemoveNode(index);
+            if (has)
+            {
+                AddNode(index, after);
+            }
+        }
+
+        var reordered = !curves.Keys.SequenceEqual(_curves.Keys);
+        for (var index = 0; index < scene.Edges.Count; index++)
+        {
+            var has = curves.TryGetValue(scene.Edges[index].Key, out var curve);
+            var had = _lines.TryGetValue(index, out var line);
+            if (had == has && (!has || ReferenceEquals(line.Curve, curve)))
+            {
+                continue;
+            }
+
+            RemoveLine(index);
+            if (has)
+            {
+                AddLine(index, curve!);
+            }
+        }
+
+        (_places, _curves) = (places, curves);
+        if (reordered)
+        {
+            OrderCurves();
+        }
+
+        return true;
+    }
+
+    /// <summary>Notes each curve's place in the order the curves were worked out.</summary>
+    private void OrderCurves()
+    {
+        _curveOrder.Clear();
+        var order = 0;
+        foreach (var key in _curves.Keys)
+        {
+            _curveOrder[key] = order++;
+        }
+    }
+
+    /// <summary>Puts a node in the cells its frame touches.</summary>
+    /// <param name="index">Its place in the scene's drawing order.</param>
+    /// <param name="place">Its top-left corner.</param>
+    private void AddNode(int index, GraphPoint place)
+    {
+        var frame = _scene.FrameOf(_scene.Nodes[index].Key, place);
+        _frames[index] = frame;
+        AddToCells(_nodeCells, frame, index);
+    }
+
+    /// <summary>Takes a node out of the cells it was in.</summary>
+    /// <param name="index">Its place in the scene's drawing order.</param>
+    private void RemoveNode(int index)
+    {
+        if (_frames.Remove(index, out var frame))
+        {
+            RemoveFromCells(_nodeCells, frame, index);
+        }
+    }
+
+    /// <summary>Puts a line in the cells its bounds touch, or aside when it would touch too many.</summary>
+    /// <param name="index">Its place in the scene's order of lines.</param>
+    /// <param name="curve">Its curve.</param>
+    private void AddLine(int index, EdgeCurve curve)
+    {
+        var bounds = curve.Bounds();
+        _lines[index] = (_scene.Edges[index].Key, curve, bounds);
+        if (CellCount(bounds) > MostCells)
+        {
+            _longLines.Add(index);
+        }
+        else
+        {
+            AddToCells(_lineCells, bounds, index);
+        }
+    }
+
+    /// <summary>Takes a line out of the cells it was in, or from aside.</summary>
+    /// <param name="index">Its place in the scene's order of lines.</param>
+    private void RemoveLine(int index)
+    {
+        if (!_lines.Remove(index, out var line))
+        {
+            return;
+        }
+
+        if (!_longLines.Remove(index))
+        {
+            RemoveFromCells(_lineCells, line.Bounds, index);
+        }
+    }
+
     /// <summary>Gives the lines in the cells a part of the surface touches and the long lines, in the scene's order.</summary>
     /// <param name="area">The part of the surface.</param>
     /// <returns>Their places in the scene's order of lines.</returns>
@@ -205,7 +321,7 @@ public sealed class GraphIndex
     /// <param name="cells">The cells.</param>
     /// <param name="area">The rectangle.</param>
     /// <param name="index">The item's place in its order.</param>
-    private static void AddToCells(Dictionary<(int X, int Y), List<int>> cells, GraphRect area, int index)
+    private static void AddToCells(Dictionary<(long X, long Y), List<int>> cells, GraphRect area, int index)
     {
         var (left, top, right, bottom) = CellsOf(area);
         for (var x = left; x <= right; x++)
@@ -223,15 +339,36 @@ public sealed class GraphIndex
         }
     }
 
-    /// <summary>Gives the items in the cells a rectangle touches, each once, in their order.</summary>
+    /// <summary>Takes an item out of every cell a rectangle touches.</summary>
+    /// <param name="cells">The cells.</param>
+    /// <param name="area">The rectangle it was put in by.</param>
+    /// <param name="index">The item's place in its order.</param>
+    private static void RemoveFromCells(Dictionary<(long X, long Y), List<int>> cells, GraphRect area, int index)
+    {
+        var (left, top, right, bottom) = CellsOf(area);
+        for (var x = left; x <= right; x++)
+        {
+            for (var y = top; y <= bottom; y++)
+            {
+                if (cells.TryGetValue((x, y), out var items) && items.Remove(index) && items.Count == 0)
+                {
+                    cells.Remove((x, y));
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Gives the items in the cells a rectangle touches (reaching a hair past it), each once, in their order.
+    /// </summary>
     /// <param name="cells">The cells.</param>
     /// <param name="area">The rectangle.</param>
     /// <returns>The items' places in their order, ascending.</returns>
-    private static List<int> InCells(Dictionary<(int X, int Y), List<int>> cells, GraphRect area)
+    private static List<int> InCells(Dictionary<(long X, long Y), List<int>> cells, GraphRect area)
     {
-        var (left, top, right, bottom) = CellsOf(area);
+        var (left, top, right, bottom) = CellsOf(area.Inflate(LookupPad));
         var found = new HashSet<int>();
-        if ((long)(right - left + 1) * (bottom - top + 1) > cells.Count)
+        if (Span(left, right) * Span(top, bottom) > cells.Count)
         {
             // A part wider than the grid holds: going through the cells that are there is quicker.
             foreach (var ((x, y), items) in cells)
@@ -264,20 +401,28 @@ public sealed class GraphIndex
     /// <summary>Gives how many cells a rectangle touches.</summary>
     /// <param name="area">The rectangle.</param>
     /// <returns>The count.</returns>
-    private static long CellCount(GraphRect area)
+    private static double CellCount(GraphRect area)
     {
         var (left, top, right, bottom) = CellsOf(area);
-        return (long)(right - left + 1) * (bottom - top + 1);
+        return Span(left, right) * Span(top, bottom);
     }
+
+    /// <summary>Gives how many cells lie from one to another, both counted, without overflowing.</summary>
+    /// <param name="first">The first cell.</param>
+    /// <param name="last">The last cell.</param>
+    /// <returns>The count, as a double so that the product of two never overflows.</returns>
+    private static double Span(long first, long last) => (double)last - first + 1;
 
     /// <summary>Gives the cells a rectangle touches, its edges included.</summary>
     /// <param name="area">The rectangle.</param>
     /// <returns>The first and last cell across and down.</returns>
-    private static (int Left, int Top, int Right, int Bottom) CellsOf(GraphRect area) => (
+    private static (long Left, long Top, long Right, long Bottom) CellsOf(GraphRect area) => (
         Cell(area.X), Cell(area.Y), Cell(area.Right), Cell(area.Bottom));
 
-    /// <summary>Gives the cell a coordinate lies in.</summary>
+    /// <summary>Gives the cell a coordinate lies in, kept within the farthest cell.</summary>
     /// <param name="value">The coordinate.</param>
     /// <returns>The cell's number.</returns>
-    private static int Cell(double value) => (int)Math.Clamp(Math.Floor(value / CellSize), int.MinValue, int.MaxValue);
+    private static long Cell(double value) => double.IsNaN(value)
+        ? 0
+        : (long)Math.Clamp(Math.Floor(value / CellSize), -FarthestCell, FarthestCell);
 }

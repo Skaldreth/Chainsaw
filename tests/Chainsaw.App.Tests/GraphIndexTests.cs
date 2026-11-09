@@ -68,4 +68,65 @@ public sealed class GraphIndexTests
         Assert.True(index.IsFor(scene, places, curves));
         Assert.False(index.IsFor(scene, new Dictionary<string, GraphPoint>(places), curves));
     }
+
+    [Fact]
+    public void An_index_that_follows_a_drag_answers_as_one_made_anew()
+    {
+        var random = new Random(7);
+        var scene = GraphSamples.Scene();
+        var places = scene.Nodes.ToDictionary(
+            node => node.Key,
+            _ => new GraphPoint(random.NextDouble() * 3000, random.NextDouble() * 3000),
+            StringComparer.Ordinal);
+        var curves = GraphHitTest.Curves(scene, places, hopColumns: false);
+        var index = new GraphIndex(scene, places, curves);
+
+        for (var step = 0; step < 30; step++)
+        {
+            var moved = new Dictionary<string, GraphPoint>(places, StringComparer.Ordinal);
+            var key = scene.Nodes[random.Next(scene.Nodes.Count)].Key;
+            moved[key] = new GraphPoint(random.NextDouble() * 3000, random.NextDouble() * 3000);
+            var newCurves = GraphMoved.KeepSameCurves(curves, GraphHitTest.Curves(scene, moved, hopColumns: false));
+            (places, curves) = (moved, newCurves);
+
+            Assert.True(index.Follow(scene, places, curves));
+            Assert.True(index.IsFor(scene, places, curves));
+            var area = new GraphRect(random.NextDouble() * 2000, random.NextDouble() * 2000, 900, 700);
+            var point = new GraphPoint(random.NextDouble() * 3000, random.NextDouble() * 3000);
+            Assert.Equal(
+                GraphHitTest.VisibleNodes(scene, places, area).Select(node => node.Key),
+                index.VisibleNodes(area).Select(node => node.Key));
+            Assert.Equal(
+                GraphHitTest.VisibleEdges(scene, curves, area).Select(edge => edge.Key),
+                index.VisibleEdges(area).Select(edge => edge.Key));
+            Assert.Equal(GraphHitTest.At(scene, places, curves, point, 12), index.At(point, 12));
+        }
+    }
+
+    [Fact]
+    public void Absurd_places_never_overflow_or_hang_the_grid()
+    {
+        var scene = GraphSamples.Scene();
+        var places = scene.Nodes.ToDictionary(node => node.Key, _ => new GraphPoint(0, 0), StringComparer.Ordinal);
+        places[scene.Nodes[0].Key] = new GraphPoint(1e300, -1e300);
+        var curves = GraphHitTest.Curves(scene, places, hopColumns: false);
+        var index = new GraphIndex(scene, places, curves);
+        var everything = new GraphRect(-1e301, -1e301, 2e301, 2e301);
+
+        Assert.Equal(
+            GraphHitTest.VisibleEdges(scene, curves, everything).Select(edge => edge.Key),
+            index.VisibleEdges(everything).Select(edge => edge.Key));
+        Assert.Equal(GraphHitTest.At(scene, places, curves, new(5, 5), 6), index.At(new(5, 5), 6));
+    }
+
+    [Fact]
+    public void Another_scene_is_not_followed()
+    {
+        var scene = GraphSamples.Scene();
+        var places = scene.Nodes.ToDictionary(node => node.Key, _ => new GraphPoint(0, 0), StringComparer.Ordinal);
+        var curves = GraphHitTest.Curves(scene, places, hopColumns: false);
+        var index = new GraphIndex(scene, places, curves);
+
+        Assert.False(index.Follow(GraphSamples.Scene(), places, curves));
+    }
 }

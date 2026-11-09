@@ -66,7 +66,6 @@ public sealed partial class GraphCanvas
     private void DrawCards(DrawingContext dc, IReadOnlySet<string> near)
     {
         var model = _model!;
-        StartTurns(model);
         var moving = false;
         foreach (var key in _shownTurned.Concat(_turns.Keys).Distinct().ToList())
         {
@@ -84,6 +83,26 @@ public sealed partial class GraphCanvas
         moving |= model.Cards.Values.Any(card => card.State == CardState.Fetching || card.Rate == CardRateKind.Fetching);
         _cardsMove = moving;
     }
+
+    /// <summary>
+    /// Settles the turns before the whole scene is drawn: starts the turn of each card turned or turned back since,
+    /// and ends each turn that is over, so that the nodes' layer draws the node's face or leaves it to its card as the
+    /// layer over the nodes then does.
+    /// </summary>
+    private void SettleTurns()
+    {
+        StartTurns(_model!);
+        foreach (var key in _turns.Keys.Where(key => TurnShare(key) >= 1).ToList())
+        {
+            _turns.Remove(key);
+        }
+    }
+
+    /// <summary>
+    /// Gets whether a turn has come to its end since the scene was drawn whole: the node's face must then be drawn in
+    /// the nodes' layer again, so the whole scene is drawn.
+    /// </summary>
+    private bool TurnEnded => _turns.Keys.Any(key => TurnShare(key) >= 1);
 
     /// <summary>Starts the turn of each card that was turned or turned back since the graph was last drawn.</summary>
     /// <param name="model">The view model.</param>
@@ -108,20 +127,16 @@ public sealed partial class GraphCanvas
     /// <returns>The share, from 0 to 1.</returns>
     private double TurnProgress(string key)
     {
-        if (!_turns.TryGetValue(key, out var turn))
-        {
-            return 1;
-        }
-
-        var share = AnimationsOn ? (DateTime.UtcNow - turn.Start).TotalMilliseconds / TurnTime.TotalMilliseconds : 1;
-        if (share >= 1)
-        {
-            _turns.Remove(key);
-            return 1;
-        }
-
-        return 1 - Math.Pow(1 - share, 3);
+        var share = TurnShare(key);
+        return share >= 1 ? 1 : 1 - Math.Pow(1 - share, 3);
     }
+
+    /// <summary>Gives how much of its time a card's turn has had; 1 when it is over or there is none.</summary>
+    /// <param name="key">The node.</param>
+    /// <returns>The share, 1 or more when it is over.</returns>
+    private double TurnShare(string key) => _turns.TryGetValue(key, out var turn) && AnimationsOn
+        ? (DateTime.UtcNow - turn.Start).TotalMilliseconds / TurnTime.TotalMilliseconds
+        : 1;
 
     /// <summary>
     /// Draws one card in its turn: the front narrowing to its edge in the first half, the back widening from it in

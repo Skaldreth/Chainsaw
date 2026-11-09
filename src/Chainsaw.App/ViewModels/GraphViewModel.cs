@@ -794,13 +794,14 @@ public sealed partial class GraphViewModel : ObservableObject
                 return null;
             }
 
-            if (_index is not { } index || !index.IsFor(scene, Places, Curves))
+            if (_index is { } index && (index.IsFor(scene, Places, Curves) || index.Follow(scene, Places, Curves)))
             {
-                index = new GraphIndex(scene, Places, Curves);
-                _index = index;
+                // The same graph with new places, as a drag gives them: only what moved is moved in the grid.
+                return index;
             }
 
-            return index;
+            _index = new GraphIndex(scene, Places, Curves);
+            return _index;
         }
     }
 

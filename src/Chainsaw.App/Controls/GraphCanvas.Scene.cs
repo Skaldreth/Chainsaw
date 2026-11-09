@@ -175,6 +175,7 @@ public sealed partial class GraphCanvas
             _sceneChanged = false;
             _touchedNodes.Clear();
             _breathing.Clear();
+            SettleTurns();
             var near = _model!.Near;
             DrawLayer(_linesLayer, dc => DrawLines(dc, scene, region, near.Edges));
             DrawNodes(scene, region, near.Nodes);
@@ -225,7 +226,8 @@ public sealed partial class GraphCanvas
     private bool DrawAroundStillNodes(GraphChange layers)
     {
         if (!CanKeepScene(out var scene) || _sceneWindow.Region is not { } region
-            || (layers.HasFlag(GraphChange.Nodes) && !TouchedAreDrawn(scene, region)))
+            || (layers.HasFlag(GraphChange.Nodes) && !TouchedAreDrawn(scene, region))
+            || (layers.HasFlag(GraphChange.OverNodes) && TurnEnded))
         {
             return false;
         }
@@ -320,7 +322,7 @@ public sealed partial class GraphCanvas
     /// </summary>
     private void KeepSceneMotions()
     {
-        KeepRings(_ringsOnScreen && _blast == BlastPhase.None);
+        KeepRings((_ringsOnScreen || _ringsOverNodes) && _blast == BlastPhase.None);
         KeepTurning(_cardsMove || _breathing.Count > 0);
     }
 
@@ -389,13 +391,21 @@ public sealed partial class GraphCanvas
             ? model.Index?.VisibleNodes(visible) ?? []
             : scene.Nodes.Where(node => model.Places.ContainsKey(node.Key));
         var kept = new Dictionary<string, LayerVisual>(StringComparer.Ordinal);
-        _nodesLayer.Children.Clear();
+        var order = new List<LayerVisual>();
         foreach (var node in nodes)
         {
             var visual = _nodeVisuals.GetValueOrDefault(node.Key) ?? new LayerVisual();
             DrawLayer(visual, dc => DrawOneNode(dc, node, nearNodes));
-            _nodesLayer.Children.Add(visual);
+            order.Add(visual);
             kept[node.Key] = visual;
+        }
+
+        // The layer's children are put in again only when the nodes drawn or their order changed.
+        var children = _nodesLayer.Children;
+        if (children.Count != order.Count || order.Where((visual, at) => !ReferenceEquals(children[at], visual)).Any())
+        {
+            children.Clear();
+            order.ForEach(visual => children.Add(visual));
         }
 
         _nodeVisuals = kept;
@@ -407,9 +417,13 @@ public sealed partial class GraphCanvas
     /// <param name="nearNodes">The nodes near what is chosen.</param>
     private void DrawOneNode(DrawingContext dc, NodeView node, IReadOnlySet<string> nearNodes)
     {
-        dc.PushTransform(FanPush());
-        DrawFlying(dc, node, _model!.Places[node.Key], nearNodes);
-        dc.Pop();
+        // A node that lost its place is drawn nowhere, as the whole drawing would leave it out.
+        if (_model!.Places.TryGetValue(node.Key, out var place))
+        {
+            dc.PushTransform(FanPush());
+            DrawFlying(dc, node, place, nearNodes);
+            dc.Pop();
+        }
     }
 
     /// <summary>
@@ -421,6 +435,8 @@ public sealed partial class GraphCanvas
     /// <param name="nearNodes">The nodes near what is chosen.</param>
     private void DrawOverNodes(DrawingContext dc, GraphRect visible, IReadOnlySet<string> nearNodes)
     {
+        _drawingOverNodes = true;
+        _ringsOverNodes = false;
         dc.PushTransform(FanPush());
         DrawCards(dc, nearNodes);
         DrawTrashPending(dc);
@@ -432,6 +448,7 @@ public sealed partial class GraphCanvas
         dc.Pop();
         DrawFan(dc, visible);
         DrawFound(dc);
+        _drawingOverNodes = false;
     }
 
     /// <summary>
@@ -444,7 +461,18 @@ public sealed partial class GraphCanvas
 
     /// <summary>Notes that moving rings were drawn over a part of the surface, if that part is on screen.</summary>
     /// <param name="area">Where the rings reach.</param>
-    private void RingsAt(GraphRect area) => _ringsOnScreen |= OnScreenNow(area);
+    private void RingsAt(GraphRect area)
+    {
+        // Each layer keeps its own note, since either may be drawn again without the other.
+        if (_drawingOverNodes)
+        {
+            _ringsOverNodes |= OnScreenNow(area);
+        }
+        else
+        {
+            _ringsOnScreen |= OnScreenNow(area);
+        }
+    }
 
     /// <summary>Draws what stands on the screen over the scene, in screen units.</summary>
     /// <param name="dc">Where to draw.</param>
