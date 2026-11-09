@@ -616,6 +616,12 @@ public sealed partial class ChecksViewModel : ObservableObject
     [RelayCommand]
     public Task ApproveAsync()
     {
+        if (IsConfirmingInGraph)
+        {
+            // The box in the graph has Enter while a wallet's take-back waits there (sketch PL1b).
+            return Task.CompletedTask;
+        }
+
         if (IsOpen && IsOverview)
         {
             StartReview(null);
@@ -631,7 +637,7 @@ public sealed partial class ChecksViewModel : ObservableObject
     /// <returns>A task that completes when the decision is stored and the checks read again.</returns>
     [RelayCommand]
     public Task DismissAsync() =>
-        IsReview && Selected?.DismissRequests() is { Count: > 0 } requests
+        !IsConfirmingInGraph && IsReview && Selected?.DismissRequests() is { Count: > 0 } requests
             ? DecideAsync(requests)
             : Task.CompletedTask;
 
@@ -1023,11 +1029,13 @@ public sealed partial class ChecksViewModel : ObservableObject
     /// <summary>
     /// Takes decisions back, sealed in the case, and shows the suggestion again where it waits. Only the decisions
     /// still in force in the case they were made in are taken back: an old <em>Ångra</em> after a newer decision, or
-    /// after another case was opened, does nothing.
+    /// after another case was opened, does nothing. A wallet's approval is first confirmed in the graph (sketch PL1b).
     /// </summary>
     /// <param name="decided">The decisions to take back, with their case.</param>
+    /// <param name="confirmed">Whether the graph has confirmed a wallet's take-back already.</param>
+    /// <param name="reason">The optional reason, sealed with each take-back; <see langword="null"/> when none.</param>
     /// <returns>A task that completes when it is stored and the checks read again.</returns>
-    private async Task TakeBackAsync(MadeDecisions decided)
+    private async Task TakeBackAsync(MadeDecisions decided, bool confirmed = false, string? reason = null)
     {
         if (decided.Case != _session.Current || decided.Decisions.Count == 0)
         {
@@ -1044,7 +1052,13 @@ public sealed partial class ChecksViewModel : ObservableObject
             return;
         }
 
-        if (await StoreAsync(decided.Case, [.. inForce.Select(DecisionRequest.TakeBack)], null) is null)
+        if (!confirmed && AskInGraph(decided with { Decisions = inForce }, key))
+        {
+            return;
+        }
+
+        var requests = inForce.Select(decision => DecisionRequest.TakeBack(decision) with { Reason = reason }).ToList();
+        if (await StoreAsync(decided.Case, requests, null) is null)
         {
             return;
         }
@@ -1597,6 +1611,7 @@ public sealed partial class ChecksViewModel : ObservableObject
         _order.Clear();
         _round.Clear();
         _undo = null;
+        ForgetWalletUndo();
         _justDecided.Clear();
         _ranUtc = null;
         Form = AreaFormMode.None;

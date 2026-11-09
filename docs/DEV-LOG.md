@@ -5289,3 +5289,30 @@ offline), App 6 i `ChainStateTests` (rutans rad och fot, länken, en fråga per 
   en ruta att bocka av (`- [ ]`).
 
 **Kvar:** BACKLOG, *Testärendet* (det som saknas i Ethereum-delen, valvyn, högar) och TODO (HB1a i testärendet).
+
+## Ångra en godkänd plånbok bekräftas i grafen, PL1b (2026-11-09)
+
+**Byggt:**
+- Ctrl+Z, toastens *Ångra* och *Ångra* i loggen *Avgjort* tar inte längre tillbaka ett godkännande av en plånbok
+  direkt. `ChecksViewModel` (`ChecksViewModel.WalletUndo.cs`) håller ångrandet som väntande (`PendingWalletUndo`) och
+  ber grafen visa klustret (`WalletUndoWanted`); panelen säger *Bekräfta i grafen*, och Enter och X i panelen väntar.
+- I grafen väljs plånbokens nod och visas (`GraphViewModel.WalletUndo.cs`), och bredvid den står kortet
+  `WalletUndoConfirm`: *Godkänd plånbok · N adresser*, streckat som en bedömning, med adresserna, och under det en liten
+  ruta som formulären i IN1b med *+ Skäl, frivilligt*, *Avbryt · Esc* och *Ångra · Enter*. Står ingen av adresserna i
+  grafen står kortet under grafens hörn.
+- Enter sparar ångrandet som förut: ett nytt förseglat beslut `Withdrawn` med `Undoes` (nu med det frivilliga skälet),
+  och Checks drar tillbaka sammanslagningen som godkännandet gjorde (`user v1`, `UndoMerges`), med journal och
+  hashkedja. Inget tas bort; godkännandet står kvar överstruket i Historik.
+- Esc, ett klick på en annan nod eller tom yta, eller ett annat ärende låter plånboken stå.
+- Tester: `tests/Chainsaw.App.Tests/WalletUndoTests.cs` (9). Guiden *Kontroller och förslag* har ett stycke om det.
+
+**Egna beslut:**
+- Modulen ändrades inte: ångrandet av ett godkännande drog redan tillbaka sammanslagningen, och skälet följer med
+  `DecisionRequest.TakeBack(...) with { Reason = ... }` som `TakeBackMerges` redan gör.
+- Bara ångrandet från panelen (Ctrl+Z, toasten och loggen) bekräftas i grafen. *Ångra* på *Sammanslagen av användaren*
+  i Historik har redan sin egen bekräftelse vid noden (AN1b) och är oförändrad.
+- Ett godkännande som inte gäller en plånbok (mixerns kandidater och de andra förslagen) tas tillbaka direkt som förut.
+- Klick på en av plånbokens andra noder (när den är uppbruten i flera) låter frågan stå; allt annat avbryter.
+- Testärendet har redan en godkänd plånbok (`DecideStep`), så inget nytt steg behövdes.
+
+**Kvar:** provet på Windows (TESTER-INFOR, *Godkänna en plånbok*).

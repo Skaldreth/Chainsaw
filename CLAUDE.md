@@ -555,8 +555,9 @@ assets/logo/                Loggan som vektor (chainsaw-logo.svg, källan), PNG 
   - **FL1a** (vald och byggd 2026-11-08): vyn Flöde är en Sankey med en kolumn per hopp från vänster till höger, varje band delat
     i trådar i färgen för var pengarna till sist hamnade, det som ligger kvar som en stump, och spårningsmetoden som
     räknar om delningen.
-  - **PL1b** (vald 2026-11-08): att ångra en godkänd plånbok (Ctrl+Z eller *Ångra* i KF2b) bekräftas i grafen, där
-    klustret öppnas som ett kort med adresserna och en liten ruta under som i IN1b; panelen säger *Bekräfta i grafen*.
+  - **PL1b** (vald 2026-11-08, byggd 2026-11-09): att ångra en godkänd plånbok (Ctrl+Z eller *Ångra* i KF2b)
+    bekräftas i grafen, där klustret öppnas som ett kort med adresserna och en liten ruta under som i IN1b; panelen
+    säger *Bekräfta i grafen*.
   - **SW1a** (vald 2026-11-08): valet per swap görs i pillret ₮ → Ξ, som fälls ut på plats till *Följer* och *Följer
     inte*; följer värdet är linjen efter streckad i accent, annars grå med ett stopp och en person-markering.
   - **VT1a** (vald 2026-11-08): *Byt filnyckel* i fliken *Kuvert* (ÄR1b); korten får *Lindas om* eller *Faller

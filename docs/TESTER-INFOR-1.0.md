@@ -2084,6 +2084,12 @@ mixerns kandidater, en CoinJoin eller en peel chain finns i grafen.
       uppbrytningen måste ångras först, och inget sparas.
 - [ ] Hämta en tx som för en ny adress till en godkänd plånbok: ett nytt förslag med bara den nya biten väntar.
 - [ ] *Ångra* på *Sammanslagen av användaren* i *Historik* visar *Slås ihop igen* innan något sparas.
+- [ ] **PL1b** (testärendet har en godkänd plånbok): godkänn en plånbok och tryck Ctrl+Z (eller *Ångra* i toasten eller
+      i loggen *Avgjort*): inget sparas än. Klustret väljs och visas i grafen, och bredvid det står ett streckat kort
+      *Godkänd plånbok · N adresser* med adresserna och en liten ruta under med *Avbryt · Esc* och *Ångra · Enter*.
+      Panelen säger *Bekräfta i grafen*. Enter (gärna med *+ Skäl, frivilligt*) delar klustret, och förslaget väntar
+      igen; Esc eller ett klick på en annan nod låter plånboken stå. Enter och X i panelen gör inget medan grafen
+      frågar.
 
 - [ ] **Ett ändrat förslag:** godkänn en plånbok i panelen Förslag efter att klustringen ändrats (bryt upp och ångra i
       en annan ordning, eller expandera så att förslaget ändras): panelen säger att förslaget har ändrats och att
